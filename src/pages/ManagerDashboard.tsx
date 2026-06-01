@@ -1,4 +1,6 @@
 import { useAuth } from '../context/AuthContext'
+import EmailParser from '../components/EmailParser'
+import LeadsList from '../components/LeadsList'
 
 export default function ManagerDashboard() {
   const { profile, signOut } = useAuth()
@@ -20,13 +22,18 @@ export default function ManagerDashboard() {
         </div>
       </nav>
 
-      <main className="p-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">
-          Manager Dashboard
-        </h2>
-        <p className="text-gray-500">
-          Welcome back, {profile?.full_name}. More features coming soon.
-        </p>
+      <main className="p-6 max-w-4xl mx-auto space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-1">
+            Manager Dashboard
+          </h2>
+          <p className="text-gray-500 text-sm">
+            Manage leads, assign technicians, and monitor activity.
+          </p>
+        </div>
+
+        <EmailParser />
+        <LeadsList />
       </main>
     </div>
   )
