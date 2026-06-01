@@ -43,6 +43,7 @@ export default function EmailParser() {
   "name": "customer full name or empty string",
   "phone": "phone number or empty string",
   "email": "email address or empty string",
+  "address": "full street address of the customer if mentioned, or null"
   "service_type": "type of TV/aerial/satellite service needed or empty string",
   "details": "brief summary of the job details or empty string"
 }
