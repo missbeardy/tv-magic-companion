@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
 interface Props {
@@ -9,17 +9,39 @@ interface Props {
 
 const STATUSES = [
   { value: 'unassigned', label: 'Unassigned', color: 'bg-gray-100 text-gray-600' },
-  { value: 'assigned', label: 'Assigned', color: 'bg-blue-100 text-blue-700' },
-  { value: 'won', label: 'Won', color: 'bg-green-100 text-green-700' },
-  { value: 'lost', label: 'Lost', color: 'bg-red-100 text-red-600' },
-  { value: 'completed', label: 'Completed', color: 'bg-purple-100 text-purple-700' },
+  { value: 'assigned',   label: 'Assigned',   color: 'bg-blue-100 text-blue-700' },
+  { value: 'won',        label: 'Won',         color: 'bg-green-100 text-green-700' },
+  { value: 'lost',       label: 'Lost',        color: 'bg-red-100 text-red-600' },
+  { value: 'completed',  label: 'Completed',   color: 'bg-purple-100 text-purple-700' },
 ]
 
 export default function LeadStatusMenu({ leadId, currentStatus, onUpdated }: Props) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [dropUp, setDropUp] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
 
   const current = STATUSES.find(s => s.value === currentStatus) || STATUSES[0]
+
+  // Work out if the dropdown should open upward to stay on screen
+  useEffect(() => {
+    if (!open || !buttonRef.current) return
+    const rect = buttonRef.current.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - rect.bottom
+    setDropUp(spaceBelow < 220)
+  }, [open])
+
+  // Close when clicking outside
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (buttonRef.current && !buttonRef.current.closest('.status-menu-root')?.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
 
   async function updateStatus(newStatus: string) {
     setSaving(true)
@@ -33,8 +55,9 @@ export default function LeadStatusMenu({ leadId, currentStatus, onUpdated }: Pro
   }
 
   return (
-    <div className="relative">
+    <div className="status-menu-root relative">
       <button
+        ref={buttonRef}
         onClick={() => setOpen(!open)}
         disabled={saving}
         className={`text-xs px-2 py-1 rounded-full font-medium capitalize flex items-center gap-1 ${current.color}`}
@@ -44,7 +67,19 @@ export default function LeadStatusMenu({ leadId, currentStatus, onUpdated }: Pro
       </button>
 
       {open && (
-        <div className="absolute left-0 top-7 bg-white rounded-xl shadow-xl border border-gray-200 z-50 min-w-36 overflow-hidden">
+        <div
+          className={`fixed z-[9999] bg-white rounded-xl shadow-2xl border border-gray-200 min-w-36 overflow-hidden`}
+          style={{
+            top: buttonRef.current
+              ? dropUp
+                ? buttonRef.current.getBoundingClientRect().top - 180
+                : buttonRef.current.getBoundingClientRect().bottom + 4
+              : 0,
+            left: buttonRef.current
+              ? buttonRef.current.getBoundingClientRect().left
+              : 0,
+          }}
+        >
           {STATUSES.map(s => (
             <button
               key={s.value}
