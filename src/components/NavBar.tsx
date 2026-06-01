@@ -169,42 +169,7 @@ export default function NavBar() {
             Sign Out
           </button>
         </div>
-      </div>
-
-      {/* Bottom tab bar — mobile only */}
-      <div
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex shadow-2xl"
-        style={{ background: navBg, borderTop: '1px solid rgba(255,255,255,0.15)' }}
-      >
-        {links.map(link => {
-          const isActive = location.pathname === link.to
-          return (
-            <Link
-              key={link.to}
-              to={link.to}
-              className="flex-1 flex flex-col items-center justify-center py-2 transition"
-            >
-              <div
-                className={`flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-xl transition ${
-                  isActive ? 'bg-white bg-opacity-20' : ''
-                }`}
-              >
-                <span className="text-xl leading-none">{link.icon}</span>
-                <span
-                  className={`text-xs font-medium ${
-                    isActive ? 'text-white' : 'text-white opacity-50'
-                  }`}
-                >
-                  {link.label}
-                </span>
-              </div>
-            </Link>
-          )
-        })}
-      </div>
-
-      {/* Bottom spacer — mobile only */}
-      <div className="md:hidden h-16" />
+      </div>    
     </>
   )
 }
