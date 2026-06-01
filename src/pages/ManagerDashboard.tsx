@@ -1,4 +1,3 @@
-import { useAuth } from '../context/AuthContext'
 import EmailParser from '../components/EmailParser'
 import LeadsList from '../components/LeadsList'
 import AssignedLeads from '../components/AssignedLeads'
@@ -6,9 +5,7 @@ import DemoToggle from '../components/DemoToggle'
 import NavBar from '../components/NavBar'
 
 export default function ManagerDashboard() {
-  const { profile } = useAuth()
-
-  return (
+    return (
     <div className="min-h-screen bg-gray-50">
       <NavBar />
       <main className="p-6 max-w-4xl mx-auto space-y-6">
