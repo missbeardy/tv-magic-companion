@@ -22,6 +22,7 @@ interface Lead {
   assigned_at: string | null
   timer_expires_at: string | null
   assigned_to: string | null
+  address: string | null
   profiles: { full_name: string } | null
 }
 
@@ -82,7 +83,10 @@ export default function LeadsPage() {
     closeSheet()
     fetchLeads()
   }
-
+  const openMaps = (address: string) => {
+  const encoded = encodeURIComponent(address)
+  window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}`, '_blank')
+}   
   const handleSMS = (lead: Lead) => {
     const message = encodeURIComponent(
       `Hi ${lead.name}, this is TVMagic. We're on our way and should be with you in approximately 20 minutes. See you soon!`
@@ -148,7 +152,18 @@ export default function LeadsPage() {
             <CountdownTimer expiresAt={lead.timer_expires_at} onExpire={fetchLeads} />
           </div>
         )}
-
+        {lead.address && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              openMaps(lead.address!)
+            }}
+            className="text-xs text-[#00B4C5] underline flex items-center gap-1 mt-1"
+            title="Open in Google Maps"
+          >
+            📍 {lead.address}
+          </button>
+        )}
         {lead.profiles && (
           <p className="text-xs text-[#004B93] mt-1 font-medium">
             → {lead.profiles.full_name}
@@ -366,7 +381,14 @@ export default function LeadsPage() {
             >
               📅 Book Appointment
             </button>
-
+            {sheetLead.address && (
+              <button
+                onClick={() => openMaps(sheetLead.address!)}
+                className="w-full py-4 rounded-xl bg-gray-800 text-white font-semibold text-base flex items-center justify-center gap-2"
+              >
+                📍 Navigate to Job
+              </button>
+            )}
             <button
               onClick={closeSheet}
               className="w-full py-4 rounded-xl bg-gray-50 text-gray-400 font-semibold text-base border border-gray-200"
