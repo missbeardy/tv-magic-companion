@@ -17,10 +17,21 @@ export default function ProtectedRoute({ children, requiredRole }: Props) {
     )
   }
 
-  if (!user) return <Navigate to="/login" replace />
-
-  if (requiredRole && profile?.role !== requiredRole) {
+  if (!user) {
     return <Navigate to="/login" replace />
+  }
+
+  if (requiredRole && !profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-400">Loading profile...</p>
+      </div>
+    )
+  }
+
+  if (requiredRole && profile && profile.role !== requiredRole) {
+    if (profile.role === 'manager') return <Navigate to="/manager" replace />
+    return <Navigate to="/employee" replace />
   }
 
   return <>{children}</>

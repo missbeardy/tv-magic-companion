@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import NotificationBell from './NotificationBell'
 import TimerWatcher from './TimerWatcher'
+import DemoBanner from './DemoBanner'
 
 export default function NavBar() {
   const { profile, signOut } = useAuth()
@@ -12,33 +13,47 @@ export default function NavBar() {
   const links = isManager
     ? [
         { to: '/manager', label: 'Dashboard' },
+        { to: '/leads', label: 'Leads' },
         { to: '/calendar', label: 'Calendar' },
       ]
     : [
         { to: '/employee', label: 'Dashboard' },
+        { to: '/leads', label: 'Leads' },
         { to: '/calendar', label: 'Calendar' },
       ]
 
   return (
     <>
       <TimerWatcher />
-      <nav className="text-white px-6 py-4 flex items-center justify-between" style={{ backgroundColor: bgColor }}>
+      <DemoBanner />
+      <nav className="text-white px-6 py-3 flex items-center justify-between" style={{ backgroundColor: bgColor }}>
         <div className="flex items-center gap-6">
-          <h1 className="text-xl font-bold">TVMagic Companion</h1>
+          <div className="flex items-center gap-3">
+            <img
+              src="/tvmagic-logo.png"
+              alt="TVMagic"
+              className="h-10 w-10 object-contain rounded"
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+            />
+            <span className="text-lg font-bold">TVMagic Companion</span>
+          </div>
           <div className="flex gap-1">
-            {links.map(link => (
-              <Link
-                key={link.to}
-                to={link.to}
-                className={`px-3 py-1 rounded-lg text-sm font-medium transition ${
-                  location.pathname === link.to
-                    ? 'bg-white bg-opacity-20'
-                    : 'hover:bg-white hover:bg-opacity-10'
-                }`}
-              >
-                {link.label}
-              </Link>
-            ))}
+            {links.map(link => {
+              const isActive = location.pathname === link.to
+              return (
+                <Link
+                  key={link.to}
+                  to={link.to}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                    isActive
+                      ? 'bg-white !text-[#004B93] shadow-sm font-semibold'
+                      : 'text-white hover:bg-white hover:bg-opacity-15'
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              )
+            })}
           </div>
         </div>
         <div className="flex items-center gap-4">

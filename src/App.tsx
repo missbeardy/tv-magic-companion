@@ -7,6 +7,8 @@ import Login from './pages/Login'
 import ManagerDashboard from './pages/ManagerDashboard'
 import EmployeeDashboard from './pages/EmployeeDashboard'
 import CalendarPage from './pages/CalendarPage'
+import AllLeadsPage from './pages/AllLeadsPage'
+import LeadsPage from './pages/LeadsPage'
 
 function RoleRedirect() {
   const { profile, loading } = useAuth()
@@ -41,6 +43,14 @@ function App() {
               }
             />
             <Route
+             path="/leads"
+             element={
+              <ProtectedRoute>
+                <LeadsPage />
+              </ProtectedRoute>
+              }
+            />
+            <Route
               path="/calendar"
               element={
                 <ProtectedRoute>
@@ -48,6 +58,15 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/all-leads"
+              element={
+                <ProtectedRoute requiredRole="manager">
+                  <AllLeadsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/test" element={<p style={{padding:20}}>Test page works</p>} />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </BrowserRouter>
