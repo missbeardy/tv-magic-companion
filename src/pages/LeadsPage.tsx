@@ -67,6 +67,30 @@ export default function LeadsPage() {
     setTimeout(() => setSheetLead(null), 300)
   }
 
+  const handleCall = async (lead: Lead) => {
+    const confirmed = window.confirm(
+      `Call ${lead.name}?\n\nThis will update the lead status to "Contact Attempted".`
+    )
+    if (!confirmed) return
+
+    await supabase
+      .from('leads')
+      .update({ status: 'contact_attempted' })
+      .eq('id', lead.id)
+
+    window.location.href = `tel:${lead.phone}`
+    closeSheet()
+    fetchLeads()
+  }
+
+  const handleSMS = (lead: Lead) => {
+    const message = encodeURIComponent(
+      `Hi ${lead.name}, this is TVMagic. We're on our way and should be with you in approximately 20 minutes. See you soon!`
+    )
+    window.location.href = `sms:${lead.phone}?body=${message}`
+    closeSheet()
+  }
+
   async function fetchLeads() {
     let query = supabase
       .from('leads')
@@ -301,20 +325,47 @@ export default function LeadsPage() {
             )}
 
             <button
-              onClick={() => { setBookingLead(sheetLead); closeSheet() }}
-              className="w-full py-4 rounded-xl bg-[#00B4C5] text-white font-semibold text-base"
+              onClick={() => handleCall(sheetLead)}
+              className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base flex items-center justify-center gap-2"
             >
-              Book Appointment
+              📞 Call {sheetLead.name}
             </button>
 
-            {sheetLead.phone && (
-              <button
-                onClick={() => { window.location.href = 'tel:' + sheetLead.phone }}
-                className="w-full py-4 rounded-xl bg-gray-100 text-gray-700 font-semibold text-base"
-              >
-                Call {sheetLead.phone}
-              </button>
-            )}
+            <button
+              onClick={() => handleSMS(sheetLead)}
+              className="w-full py-4 rounded-xl bg-[#00B4C5] text-white font-semibold text-base flex items-center justify-center gap-2"
+            >
+              💬 Send ETA Text
+            </button>
+
+            <button
+              onClick={async () => {
+                await supabase.from('leads').update({ status: 'contact_attempted' }).eq('id', sheetLead.id)
+                fetchLeads()
+                closeSheet()
+              }}
+              className="w-full py-4 rounded-xl bg-amber-500 text-white font-semibold text-base"
+            >
+              ✅ Mark as Attempted Contact
+            </button>
+
+            <button
+              onClick={async () => {
+                await supabase.from('leads').update({ status: 'won' }).eq('id', sheetLead.id)
+                fetchLeads()
+                closeSheet()
+              }}
+              className="w-full py-4 rounded-xl bg-green-500 text-white font-semibold text-base"
+            >
+              Mark as Won 🏆
+            </button>
+
+            <button
+              onClick={() => { setBookingLead(sheetLead); closeSheet() }}
+              className="w-full py-4 rounded-xl bg-gray-100 text-gray-700 font-semibold text-base"
+            >
+              📅 Book Appointment
+            </button>
 
             <button
               onClick={closeSheet}
