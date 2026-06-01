@@ -1,15 +1,19 @@
 import { useAuth } from '../context/AuthContext'
 import LeadsList from '../components/LeadsList'
 import AssignedLeads from '../components/AssignedLeads'
+import NotificationBell from '../components/NotificationBell'
+import TimerWatcher from '../components/TimerWatcher'
 
 export default function EmployeeDashboard() {
   const { profile, signOut } = useAuth()
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <TimerWatcher />
       <nav className="bg-[#00B4C5] text-white px-6 py-4 flex items-center justify-between">
         <h1 className="text-xl font-bold">TVMagic Companion</h1>
         <div className="flex items-center gap-4">
+          <NotificationBell />
           <span className="text-sm opacity-80">
             {profile?.full_name} · Employee
           </span>

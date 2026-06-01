@@ -3,15 +3,19 @@ import EmailParser from '../components/EmailParser'
 import LeadsList from '../components/LeadsList'
 import AssignedLeads from '../components/AssignedLeads'
 import DemoToggle from '../components/DemoToggle'
+import NotificationBell from '../components/NotificationBell'
+import TimerWatcher from '../components/TimerWatcher'
 
 export default function ManagerDashboard() {
   const { profile, signOut } = useAuth()
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <TimerWatcher />
       <nav className="bg-[#004B93] text-white px-6 py-4 flex items-center justify-between">
         <h1 className="text-xl font-bold">TVMagic Companion</h1>
         <div className="flex items-center gap-4">
+          <NotificationBell />
           <span className="text-sm opacity-80">
             {profile?.full_name} · Manager
           </span>
