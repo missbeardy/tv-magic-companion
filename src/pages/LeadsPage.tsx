@@ -8,6 +8,7 @@ import LeadPhotos from '../components/LeadPhotos'
 import AssignLeadModal from '../components/AssignLeadModal'
 import EventModal from '../components/EventModal'
 import DemoToggle from '../components/DemoToggle'
+import BottomSheet from '../components/BottomSheet'
 
 interface Lead {
   id: string
@@ -47,12 +48,24 @@ function getColumnsForTab(tab: string) {
 
 export default function LeadsPage() {
   const { profile } = useAuth()
-  const [leads, setLeads]               = useState<Lead[]>([])
-  const [loading, setLoading]           = useState(true)
+  const [leads, setLeads]                 = useState<Lead[]>([])
+  const [loading, setLoading]             = useState(true)
   const [assigningLead, setAssigningLead] = useState<Lead | null>(null)
-  const [bookingLead, setBookingLead]   = useState<Lead | null>(null)
-  const [expandedLead, setExpandedLead] = useState<string | null>(null)
-  const [activeTab, setActiveTab]       = useState<'unassigned' | 'assigned' | 'closed'>('unassigned')
+  const [bookingLead, setBookingLead]     = useState<Lead | null>(null)
+  const [expandedLead, setExpandedLead]   = useState<string | null>(null)
+  const [activeTab, setActiveTab]         = useState<'unassigned' | 'assigned' | 'closed'>('unassigned')
+  const [sheetLead, setSheetLead]         = useState<Lead | null>(null)
+  const [sheetOpen, setSheetOpen]         = useState(false)
+
+  const openSheet = (lead: Lead) => {
+    setSheetLead(lead)
+    setSheetOpen(true)
+  }
+
+  const closeSheet = () => {
+    setSheetOpen(false)
+    setTimeout(() => setSheetLead(null), 300)
+  }
 
   async function fetchLeads() {
     let query = supabase
@@ -85,21 +98,25 @@ export default function LeadsPage() {
     return leads.filter(l => l.status === status)
   }
 
-  // ── Reusable lead card ───────────────────────────────────────────────────
   function LeadCard({ lead }: { lead: Lead }) {
     const isExpanded = expandedLead === lead.id
     return (
-      <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+      <div
+        className="bg-gray-50 rounded-lg p-3 border border-gray-200 cursor-pointer md:cursor-default"
+        onClick={() => openSheet(lead)}
+      >
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <p className="font-medium text-gray-800 text-sm truncate">{lead.name || 'Unknown'}</p>
             <p className="text-xs text-gray-500 truncate">{lead.service_type}</p>
           </div>
-          <LeadStatusMenu
-            leadId={lead.id}
-            currentStatus={lead.status}
-            onUpdated={fetchLeads}
-          />
+          <div onClick={e => e.stopPropagation()}>
+            <LeadStatusMenu
+              leadId={lead.id}
+              currentStatus={lead.status}
+              onUpdated={fetchLeads}
+            />
+          </div>
         </div>
 
         {lead.timer_expires_at && lead.status === 'assigned' && (
@@ -115,24 +132,23 @@ export default function LeadsPage() {
         )}
 
         <button
-          onClick={() => setExpandedLead(isExpanded ? null : lead.id)}
-          className="text-xs text-gray-400 hover:text-gray-600 mt-2 transition"
+          onClick={e => { e.stopPropagation(); setExpandedLead(isExpanded ? null : lead.id) }}
+          className="hidden md:block text-xs text-gray-400 hover:text-gray-600 mt-2 transition"
         >
           {isExpanded ? '▲ Less' : '▼ More'}
         </button>
 
         {isExpanded && (
-          <div className="mt-2 space-y-2 border-t border-gray-200 pt-2">
+          <div className="hidden md:block mt-2 space-y-2 border-t border-gray-200 pt-2">
             <p className="text-xs text-gray-600">{lead.phone}</p>
             <p className="text-xs text-gray-600">{lead.email}</p>
             {lead.details && (
               <p className="text-xs text-gray-500">{lead.details}</p>
             )}
-
             <div className="flex flex-wrap gap-1 mt-2">
               {lead.status === 'unassigned' && profile?.role === 'manager' && (
                 <button
-                  onClick={() => setAssigningLead(lead)}
+                  onClick={e => { e.stopPropagation(); setAssigningLead(lead) }}
                   className="text-xs bg-[#004B93] text-white px-2 py-1 rounded-lg hover:bg-[#003d7a] transition"
                 >
                   Assign
@@ -140,20 +156,19 @@ export default function LeadsPage() {
               )}
               {lead.status === 'unassigned' && profile?.role === 'employee' && (
                 <button
-                  onClick={() => setAssigningLead(lead)}
+                  onClick={e => { e.stopPropagation(); setAssigningLead(lead) }}
                   className="text-xs bg-[#00B4C5] text-white px-2 py-1 rounded-lg hover:bg-[#009aaa] transition"
                 >
                   Self-Assign
                 </button>
               )}
               <button
-                onClick={() => setBookingLead(lead)}
+                onClick={e => { e.stopPropagation(); setBookingLead(lead) }}
                 className="text-xs bg-[#00B4C5] text-white px-2 py-1 rounded-lg hover:bg-[#009aaa] transition"
               >
                 📅 Book
               </button>
             </div>
-
             {lead.status === 'completed' && (
               <LeadPhotos leadId={lead.id} canUpload={true} />
             )}
@@ -163,7 +178,6 @@ export default function LeadsPage() {
     )
   }
 
-  // ── Reusable column renderer ─────────────────────────────────────────────
   function KanbanColumn({ col, shrink = true }: { col: typeof COLUMNS[0], shrink?: boolean }) {
     const colLeads = leadsForColumn(col.key)
     return (
@@ -225,7 +239,6 @@ export default function LeadsPage() {
 
         {!loading && (
           <>
-            {/* ── MOBILE TAB BAR (hidden on md+) ── */}
             <div className="md:hidden sticky top-0 z-10 bg-white border-b border-gray-200 flex mb-3 -mx-4 px-0">
               {MOBILE_TABS.map(tab => (
                 <button
@@ -242,7 +255,6 @@ export default function LeadsPage() {
               ))}
             </div>
 
-            {/* ── MOBILE SINGLE COLUMN (hidden on md+) ── */}
             <div className="md:hidden space-y-3">
               {COLUMNS
                 .filter(col => getColumnsForTab(activeTab).includes(col.key))
@@ -252,7 +264,6 @@ export default function LeadsPage() {
               }
             </div>
 
-            {/* ── DESKTOP ALL COLUMNS (hidden on mobile) ── */}
             <div className="hidden md:flex gap-4 overflow-x-auto pb-4">
               {COLUMNS.map(col => (
                 <KanbanColumn key={col.key} col={col} shrink={true} />
@@ -261,6 +272,59 @@ export default function LeadsPage() {
           </>
         )}
       </main>
+
+      <BottomSheet
+        isOpen={sheetOpen}
+        onClose={closeSheet}
+        title={sheetLead?.name ?? 'Lead Actions'}
+      >
+        {sheetLead && (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-500">{sheetLead.service_type}</p>
+
+            {sheetLead.status === 'unassigned' && profile?.role === 'manager' && (
+              <button
+                onClick={() => { setAssigningLead(sheetLead); closeSheet() }}
+                className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base"
+              >
+                Assign to Technician
+              </button>
+            )}
+
+            {sheetLead.status === 'unassigned' && profile?.role === 'employee' && (
+              <button
+                onClick={() => { setAssigningLead(sheetLead); closeSheet() }}
+                className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base"
+              >
+                Self-Assign This Lead
+              </button>
+            )}
+
+            <button
+              onClick={() => { setBookingLead(sheetLead); closeSheet() }}
+              className="w-full py-4 rounded-xl bg-[#00B4C5] text-white font-semibold text-base"
+            >
+              Book Appointment
+            </button>
+
+            {sheetLead.phone && (
+              <button
+                onClick={() => { window.location.href = 'tel:' + sheetLead.phone }}
+                className="w-full py-4 rounded-xl bg-gray-100 text-gray-700 font-semibold text-base"
+              >
+                Call {sheetLead.phone}
+              </button>
+            )}
+
+            <button
+              onClick={closeSheet}
+              className="w-full py-4 rounded-xl bg-gray-50 text-gray-400 font-semibold text-base border border-gray-200"
+            >
+              Close
+            </button>
+          </div>
+        )}
+      </BottomSheet>
     </div>
   )
 }

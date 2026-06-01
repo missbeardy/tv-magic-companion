@@ -10,3 +10,12 @@ html, body {
   min-height: 100%;
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+@keyframes slide-up {
+  0% { transform: translateY(100%); }
+  100% { transform: translateY(0); }
+}
+
+@utility animate-slide-up {
+  animation: slide-up 0.25s ease-out;
+}
