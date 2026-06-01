@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 interface ExtractedLead {
   name: string
   phone: string
+  address: string
   email: string
   service_type: string
   details: string
@@ -75,6 +76,7 @@ ${rawEmail}`,
       name: extracted.name,
       phone: extracted.phone,
       email: extracted.email,
+      address: extracted.address,
       service_type: extracted.service_type,
       details: extracted.details,
       raw_email: rawEmail,
@@ -139,6 +141,7 @@ ${rawEmail}`,
               { label: 'Name', key: 'name' },
               { label: 'Phone', key: 'phone' },
               { label: 'Email', key: 'email' },
+              { label: 'Address', key: 'address' },
               { label: 'Service Type', key: 'service_type' },
               { label: 'Details', key: 'details' },
             ].map(({ label, key }) => (

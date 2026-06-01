@@ -184,6 +184,17 @@ export default function LeadsPage() {
             {lead.details && (
               <p className="text-xs text-gray-500">{lead.details}</p>
             )}
+            {lead.address && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  openMaps(lead.address!)
+                }}
+                className="text-xs text-[#00B4C5] underline flex items-center gap-1 mt-1"
+              >
+                📍 {lead.address}
+              </button>
+            )}
             <div className="flex flex-wrap gap-1 mt-2">
               {lead.status === 'unassigned' && profile?.role === 'manager' && (
                 <button
