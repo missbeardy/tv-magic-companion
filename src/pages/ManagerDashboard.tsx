@@ -3,31 +3,14 @@ import EmailParser from '../components/EmailParser'
 import LeadsList from '../components/LeadsList'
 import AssignedLeads from '../components/AssignedLeads'
 import DemoToggle from '../components/DemoToggle'
-import NotificationBell from '../components/NotificationBell'
-import TimerWatcher from '../components/TimerWatcher'
+import NavBar from '../components/NavBar'
 
 export default function ManagerDashboard() {
-  const { profile, signOut } = useAuth()
+  const { profile } = useAuth()
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <TimerWatcher />
-      <nav className="bg-[#004B93] text-white px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold">TVMagic Companion</h1>
-        <div className="flex items-center gap-4">
-          <NotificationBell />
-          <span className="text-sm opacity-80">
-            {profile?.full_name} · Manager
-          </span>
-          <button
-            onClick={signOut}
-            className="text-sm bg-white text-[#004B93] px-3 py-1 rounded-lg font-medium hover:bg-gray-100 transition"
-          >
-            Sign Out
-          </button>
-        </div>
-      </nav>
-
+      <NavBar />
       <main className="p-6 max-w-4xl mx-auto space-y-6">
         <div className="flex items-start justify-between">
           <div>
@@ -40,7 +23,6 @@ export default function ManagerDashboard() {
           </div>
           <DemoToggle />
         </div>
-
         <EmailParser />
         <LeadsList />
         <AssignedLeads />

@@ -6,10 +6,10 @@ import ProtectedRoute from './components/ProtectedRoute'
 import Login from './pages/Login'
 import ManagerDashboard from './pages/ManagerDashboard'
 import EmployeeDashboard from './pages/EmployeeDashboard'
+import CalendarPage from './pages/CalendarPage'
 
 function RoleRedirect() {
   const { profile, loading } = useAuth()
-
   if (loading) return <p className="p-4 text-gray-400">Loading...</p>
   if (!profile) return <Navigate to="/login" replace />
   if (profile.role === 'manager') return <Navigate to="/manager" replace />
@@ -37,6 +37,14 @@ function App() {
               element={
                 <ProtectedRoute requiredRole="employee">
                   <EmployeeDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/calendar"
+              element={
+                <ProtectedRoute>
+                  <CalendarPage />
                 </ProtectedRoute>
               }
             />
