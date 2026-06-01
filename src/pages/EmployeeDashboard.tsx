@@ -1,4 +1,6 @@
 import { useAuth } from '../context/AuthContext'
+import LeadsList from '../components/LeadsList'
+import AssignedLeads from '../components/AssignedLeads'
 
 export default function EmployeeDashboard() {
   const { profile, signOut } = useAuth()
@@ -20,13 +22,18 @@ export default function EmployeeDashboard() {
         </div>
       </nav>
 
-      <main className="p-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">
-          My Dashboard
-        </h2>
-        <p className="text-gray-500">
-          Welcome back, {profile?.full_name}. More features coming soon.
-        </p>
+      <main className="p-6 max-w-4xl mx-auto space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-1">
+            My Dashboard
+          </h2>
+          <p className="text-gray-500 text-sm">
+            View your assigned leads and pick up new ones from the pool.
+          </p>
+        </div>
+
+        <AssignedLeads />
+        <LeadsList />
       </main>
     </div>
   )

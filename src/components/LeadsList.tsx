@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
+import AssignLeadModal from './AssignLeadModal'
 
 interface Lead {
   id: string
@@ -13,8 +15,10 @@ interface Lead {
 }
 
 export default function LeadsList() {
+  const { profile } = useAuth()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
 
   async function fetchLeads() {
     const { data } = await supabase
@@ -53,20 +57,28 @@ export default function LeadsList() {
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-      <div className="p-4 border-b border-gray-100">
-        <h3 className="text-lg font-semibold text-gray-800">
-          Unassigned Leads
-          <span className="ml-2 bg-[#004B93] text-white text-xs px-2 py-0.5 rounded-full">
-            {leads.length}
-          </span>
-        </h3>
-      </div>
+    <>
+      {selectedLead && (
+        <AssignLeadModal
+          lead={selectedLead}
+          onClose={() => setSelectedLead(null)}
+          onAssigned={fetchLeads}
+        />
+      )}
 
-      <div className="divide-y divide-gray-100">
-        {leads.map(lead => (
-          <div key={lead.id} className="p-4">
-            <div className="flex items-start justify-between">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div className="p-4 border-b border-gray-100">
+          <h3 className="text-lg font-semibold text-gray-800">
+            Unassigned Leads
+            <span className="ml-2 bg-[#004B93] text-white text-xs px-2 py-0.5 rounded-full">
+              {leads.length}
+            </span>
+          </h3>
+        </div>
+
+        <div className="divide-y divide-gray-100">
+          {leads.map(lead => (
+            <div key={lead.id} className="p-4 flex items-start justify-between">
               <div>
                 <p className="font-medium text-gray-800">{lead.name || 'Unknown'}</p>
                 <p className="text-sm text-gray-500">{lead.service_type || 'No service type'}</p>
@@ -75,13 +87,31 @@ export default function LeadsList() {
                   <p className="text-sm text-gray-600 mt-2">{lead.details}</p>
                 )}
               </div>
-              <span className="text-xs text-gray-400 whitespace-nowrap ml-4">
-                {new Date(lead.created_at).toLocaleDateString()}
-              </span>
+              <div className="flex flex-col items-end gap-2 ml-4">
+                <span className="text-xs text-gray-400 whitespace-nowrap">
+                  {new Date(lead.created_at).toLocaleDateString()}
+                </span>
+                {profile?.role === 'manager' && (
+                  <button
+                    onClick={() => setSelectedLead(lead)}
+                    className="text-xs bg-[#004B93] text-white px-3 py-1 rounded-lg hover:bg-[#003d7a] transition whitespace-nowrap"
+                  >
+                    Assign
+                  </button>
+                )}
+                {profile?.role === 'employee' && (
+                  <button
+                    onClick={() => setSelectedLead(lead)}
+                    className="text-xs bg-[#00B4C5] text-white px-3 py-1 rounded-lg hover:bg-[#009aaa] transition whitespace-nowrap"
+                  >
+                    Self-Assign
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </div>
+    </>
   )
 }
