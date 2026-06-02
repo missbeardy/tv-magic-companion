@@ -1,17 +1,6 @@
 import NavBar from '../components/NavBar'
 import LeadsList from '../components/LeadsList'
 import AssignedLeads from '../components/AssignedLeads'
-import { saveScheduleCache, loadScheduleCache } from '../lib/scheduleCache';
-
-// After you successfully fetch leads and events from Supabase:
-saveScheduleCache({ leads: fetchedLeads, events: fetchedEvents });
-
-// On component mount, before the Supabase fetch:
-const cached = loadScheduleCache();
-if (cached) {
-  setLeads(cached.leads);
-  setEvents(cached.events);
-}
 
 export default function EmployeeDashboard() {
   return (
