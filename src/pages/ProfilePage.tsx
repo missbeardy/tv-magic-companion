@@ -3,6 +3,54 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import NavBar from '../components/NavBar'
 
+function ChangePassword() {
+  const [newPassword, setNewPassword] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  async function handleChange() {
+    if (newPassword.length < 6) {
+      setMsg('Password must be at least 6 characters.')
+      return
+    }
+    setSaving(true)
+    setMsg('')
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    if (error) {
+      setMsg('Error: ' + error.message)
+    } else {
+      setMsg('✅ Password updated!')
+      setNewPassword('')
+    }
+    setSaving(false)
+    setTimeout(() => setMsg(''), 4000)
+  }
+
+  return (
+    <div className="space-y-3">
+      {msg && (
+        <p className={`text-sm ${msg.startsWith('✅') ? 'text-green-600' : 'text-red-500'}`}>{msg}</p>
+      )}
+      <div>
+        <label className="block text-xs font-medium text-gray-500 mb-1">New Password</label>
+        <input
+          type="password"
+          value={newPassword}
+          onChange={e => setNewPassword(e.target.value)}
+          placeholder="Min 6 characters"
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
+        />
+      </div>
+      <button
+        onClick={handleChange}
+        disabled={saving}
+        className="w-full bg-gray-700 text-white py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition disabled:opacity-50"
+      >
+        {saving ? 'Updating...' : 'Update Password'}
+      </button>
+    </div>
+  )
+}
 export default function ProfilePage() {
   const { profile } = useAuth()
   const [fullName, setFullName] = useState('')
@@ -180,6 +228,11 @@ export default function ProfilePage() {
           >
             {saving ? 'Saving...' : 'Save Profile'}
           </button>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+          <p className="text-sm font-semibold text-gray-700">Change Password</p>
+          <ChangePassword />
         </div>
 
         <div className="bg-white rounded-xl border border-gray-200 p-4">
