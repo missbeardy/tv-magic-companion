@@ -9,6 +9,7 @@ import AssignLeadModal from '../components/AssignLeadModal'
 import EventModal from '../components/EventModal'
 import DemoToggle from '../components/DemoToggle'
 import BottomSheet from '../components/BottomSheet'
+import CompletionChecklist from '../components/CompletionChecklist'
 
 interface Lead {
   id: string
@@ -65,9 +66,13 @@ export default function LeadsPage() {
   const [sheetLead, setSheetLead]         = useState<Lead | null>(null)
   const [sheetOpen, setSheetOpen]         = useState(false)
 
-  // ─── ACTIVITY LOG HELPER ──────────────────────────────────────────────────
-  // Call this any time something important happens to a lead.
-  // It writes a record to the lead_events table so we have a full history.
+  // ── NEW: checklist state ──────────────────────────────────────────────────
+  // showChecklist controls whether the checklist modal is visible
+  // checklistLead remembers which lead we're about to complete
+  const [showChecklist, setShowChecklist] = useState(false)
+  const [checklistLead, setChecklistLead] = useState<Lead | null>(null)
+  // ─────────────────────────────────────────────────────────────────────────
+
   const logLeadEvent = async (leadId: string, eventType: string, note?: string) => {
     await supabase.from('lead_events').insert({
       lead_id: leadId,
@@ -76,7 +81,6 @@ export default function LeadsPage() {
       created_by: profile?.id ?? null,
     })
   }
-  // ─────────────────────────────────────────────────────────────────────────
 
   const openSheet = (lead: Lead) => {
     setSheetLead(lead)
@@ -87,6 +91,27 @@ export default function LeadsPage() {
     setSheetOpen(false)
     setTimeout(() => setSheetLead(null), 300)
   }
+
+  // ── NEW: open the checklist instead of completing immediately ─────────────
+  const handleMarkComplete = (lead: Lead) => {
+    setChecklistLead(lead)
+    setShowChecklist(true)
+  }
+
+  // ── NEW: called when the tech ticks every box and confirms ────────────────
+  const confirmComplete = async () => {
+    if (!checklistLead) return
+    await supabase
+      .from('leads')
+      .update({ status: 'completed' })
+      .eq('id', checklistLead.id)
+    await logLeadEvent(checklistLead.id, 'status_change', 'Job completed with checklist')
+    setShowChecklist(false)
+    setChecklistLead(null)
+    closeSheet()
+    fetchLeads()
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   const handleCall = async (lead: Lead) => {
     const confirmed = window.confirm(
@@ -99,7 +124,6 @@ export default function LeadsPage() {
       .update({ status: 'contact_attempted' })
       .eq('id', lead.id)
 
-    // Log that a call was made
     await logLeadEvent(lead.id, 'call_attempted', `Called ${lead.phone}`)
 
     window.location.href = `tel:${lead.phone}`
@@ -151,14 +175,10 @@ export default function LeadsPage() {
     return leads.filter(l => l.status === status)
   }
 
-  // ─── LEAD CARD (desktop expanded view includes activity timeline) ─────────
   function LeadCard({ lead }: { lead: Lead }) {
     const isExpanded = expandedLead === lead.id
-
-    // These two lines store the activity log entries for THIS card
     const [events, setEvents] = useState<LeadEvent[]>([])
 
-    // When the card is expanded, fetch the last 5 events for this lead
     useEffect(() => {
       if (!isExpanded) return
       supabase
@@ -212,7 +232,6 @@ export default function LeadsPage() {
           </p>
         )}
 
-        {/* This button only shows on desktop (hidden on mobile) */}
         <button
           onClick={e => { e.stopPropagation(); setExpandedLead(isExpanded ? null : lead.id) }}
           className="hidden md:block text-xs text-gray-400 hover:text-gray-600 mt-2 transition"
@@ -220,7 +239,6 @@ export default function LeadsPage() {
           {isExpanded ? '▲ Less' : '▼ More'}
         </button>
 
-        {/* Expanded section — desktop only */}
         {isExpanded && (
           <div className="hidden md:block mt-2 space-y-2 border-t border-gray-200 pt-2">
             <p className="text-xs text-gray-600">{lead.phone}</p>
@@ -267,8 +285,6 @@ export default function LeadsPage() {
               <LeadPhotos leadId={lead.id} canUpload={true} />
             )}
 
-            {/* ── ACTIVITY TIMELINE ── */}
-            {/* This shows the last 5 things that happened to this lead */}
             {events.length > 0 && (
               <div className="mt-3 border-t border-gray-200 pt-3 space-y-1">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Activity</p>
@@ -309,6 +325,15 @@ export default function LeadsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* ── NEW: Completion checklist modal ────────────────────────────────── */}
+      {showChecklist && (
+        <CompletionChecklist
+          onConfirm={confirmComplete}
+          onCancel={() => setShowChecklist(false)}
+        />
+      )}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+
       {assigningLead && (
         <AssignLeadModal
           lead={assigningLead}
@@ -346,7 +371,6 @@ export default function LeadsPage() {
 
         {!loading && (
           <>
-            {/* Mobile tab switcher */}
             <div className="md:hidden sticky top-0 z-10 bg-white border-b border-gray-200 flex mb-3 -mx-4 px-0">
               {MOBILE_TABS.map(tab => (
                 <button
@@ -363,7 +387,6 @@ export default function LeadsPage() {
               ))}
             </div>
 
-            {/* Mobile single-column view */}
             <div className="md:hidden space-y-3">
               {COLUMNS
                 .filter(col => getColumnsForTab(activeTab).includes(col.key))
@@ -373,7 +396,6 @@ export default function LeadsPage() {
               }
             </div>
 
-            {/* Desktop kanban */}
             <div className="hidden md:flex gap-4 overflow-x-auto pb-4">
               {COLUMNS.map(col => (
                 <KanbanColumn key={col.key} col={col} shrink={true} />
@@ -383,7 +405,6 @@ export default function LeadsPage() {
         )}
       </main>
 
-      {/* Mobile bottom sheet for lead actions */}
       <BottomSheet
         isOpen={sheetOpen}
         onClose={closeSheet}
@@ -428,7 +449,6 @@ export default function LeadsPage() {
             <button
               onClick={async () => {
                 await supabase.from('leads').update({ status: 'contact_attempted' }).eq('id', sheetLead.id)
-                // Log this action
                 await logLeadEvent(sheetLead.id, 'status_change', 'Status updated to Contact Attempted')
                 fetchLeads()
                 closeSheet()
@@ -441,7 +461,6 @@ export default function LeadsPage() {
             <button
               onClick={async () => {
                 await supabase.from('leads').update({ status: 'won' }).eq('id', sheetLead.id)
-                // Log this action
                 await logLeadEvent(sheetLead.id, 'status_change', 'Status updated to Won')
                 fetchLeads()
                 closeSheet()
@@ -450,6 +469,15 @@ export default function LeadsPage() {
             >
               Mark as Won 🏆
             </button>
+
+            {/* ── NEW: Complete Job button now opens the checklist ─────────── */}
+            <button
+              onClick={() => handleMarkComplete(sheetLead)}
+              className="w-full py-4 rounded-xl bg-green-600 text-white font-semibold text-base"
+            >
+              Complete Job ✅
+            </button>
+            {/* ────────────────────────────────────────────────────────────── */}
 
             <button
               onClick={() => { setBookingLead(sheetLead); closeSheet() }}
