@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import NavBar from '../components/NavBar'
+import CreateEmployeeModal from '../components/CreateEmployeeModal'
 
 function ChangePassword() {
   const [newPassword, setNewPassword] = useState('')
@@ -61,6 +62,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const [showCreateEmployee, setShowCreateEmployee] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -234,6 +236,25 @@ export default function ProfilePage() {
           <p className="text-sm font-semibold text-gray-700">Change Password</p>
           <ChangePassword />
         </div>
+
+        {profile?.role === 'manager' && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <p className="text-sm font-semibold text-gray-700 mb-3">Team Management</p>
+            <button
+              onClick={() => setShowCreateEmployee(true)}
+              className="w-full bg-[#00B4C5] text-white py-2 rounded-lg text-sm font-medium hover:bg-[#009aaa] transition"
+            >
+              + Create New Employee Account
+            </button>
+          </div>
+        )}
+
+        {showCreateEmployee && (
+          <CreateEmployeeModal
+            onClose={() => setShowCreateEmployee(false)}
+            onCreated={() => setShowCreateEmployee(false)}
+          />
+        )}
 
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <p className="text-xs text-gray-400 text-center">
