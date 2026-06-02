@@ -10,6 +10,8 @@ import EventModal from '../components/EventModal'
 import DemoToggle from '../components/DemoToggle'
 import BottomSheet from '../components/BottomSheet'
 import CompletionChecklist from '../components/CompletionChecklist'
+import SignatureCanvas from '../components/SignatureCanvas'
+import ReceiptPreview from '../components/ReceiptPreview'
 
 interface Lead {
   id: string
@@ -23,7 +25,7 @@ interface Lead {
   assigned_at: string | null
   timer_expires_at: string | null
   assigned_to: string | null
-  address: string | null
+  address: string | undefined
   profiles: { full_name: string } | null
 }
 
@@ -66,12 +68,14 @@ export default function LeadsPage() {
   const [sheetLead, setSheetLead]         = useState<Lead | null>(null)
   const [sheetOpen, setSheetOpen]         = useState(false)
 
-  // ── NEW: checklist state ──────────────────────────────────────────────────
-  // showChecklist controls whether the checklist modal is visible
-  // checklistLead remembers which lead we're about to complete
+  // Checklist state
   const [showChecklist, setShowChecklist] = useState(false)
   const [checklistLead, setChecklistLead] = useState<Lead | null>(null)
-  // ─────────────────────────────────────────────────────────────────────────
+
+  // Signature state
+  const [showSignature, setShowSignature] = useState(false)
+  const [showReceipt, setShowReceipt] = useState(false)
+  const [receiptLead, setReceiptLead] = useState<Lead | null>(null)
 
   const logLeadEvent = async (leadId: string, eventType: string, note?: string) => {
     await supabase.from('lead_events').insert({
@@ -92,26 +96,33 @@ export default function LeadsPage() {
     setTimeout(() => setSheetLead(null), 300)
   }
 
-  // ── NEW: open the checklist instead of completing immediately ─────────────
+  // Opens the checklist first
   const handleMarkComplete = (lead: Lead) => {
     setChecklistLead(lead)
     setShowChecklist(true)
   }
 
-  // ── NEW: called when the tech ticks every box and confirms ────────────────
+  // Called when the technician finishes the checklist — moves to signature step
   const confirmComplete = async () => {
+    setShowChecklist(false)
+    setShowSignature(true)
+  }
+
+  // Called after signature is drawn or skipped — saves everything to the database
+  const saveSignatureAndComplete = async (dataUrl: string) => {
     if (!checklistLead) return
     await supabase
       .from('leads')
-      .update({ status: 'completed' })
+      .update({ status: 'completed', signature_data: dataUrl })
       .eq('id', checklistLead.id)
-    await logLeadEvent(checklistLead.id, 'status_change', 'Job completed with checklist')
-    setShowChecklist(false)
+    await logLeadEvent(checklistLead.id, 'signed_off', 'Customer signature captured')
+    setReceiptLead(checklistLead)  // ← new
+    setShowReceipt(true)           // ← new
+    setShowSignature(false)
     setChecklistLead(null)
     closeSheet()
     fetchLeads()
-  }
-  // ─────────────────────────────────────────────────────────────────────────
+    }
 
   const handleCall = async (lead: Lead) => {
     const confirmed = window.confirm(
@@ -325,14 +336,30 @@ export default function LeadsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* ── NEW: Completion checklist modal ────────────────────────────────── */}
+
+      {/* Completion checklist modal */}
       {showChecklist && (
         <CompletionChecklist
           onConfirm={confirmComplete}
           onCancel={() => setShowChecklist(false)}
         />
       )}
-      {/* ─────────────────────────────────────────────────────────────────── */}
+
+      {/* Signature canvas — shown after checklist is confirmed */}
+      {showSignature && (
+        <SignatureCanvas
+          onSave={saveSignatureAndComplete}
+          onSkip={() => saveSignatureAndComplete('')}
+        />
+      )}
+
+      {/* Receipt preview — shown after signature is saved */}
+      {showReceipt && receiptLead && (
+        <ReceiptPreview
+          lead={receiptLead}
+          onClose={() => { setShowReceipt(false); setReceiptLead(null) }}
+        />
+      )}
 
       {assigningLead && (
         <AssignLeadModal
@@ -470,14 +497,13 @@ export default function LeadsPage() {
               Mark as Won 🏆
             </button>
 
-            {/* ── NEW: Complete Job button now opens the checklist ─────────── */}
+            {/* Complete Job — opens checklist, then signature */}
             <button
               onClick={() => handleMarkComplete(sheetLead)}
               className="w-full py-4 rounded-xl bg-green-600 text-white font-semibold text-base"
             >
               Complete Job ✅
             </button>
-            {/* ────────────────────────────────────────────────────────────── */}
 
             <button
               onClick={() => { setBookingLead(sheetLead); closeSheet() }}
