@@ -26,6 +26,13 @@ interface Lead {
   profiles: { full_name: string } | null
 }
 
+interface LeadEvent {
+  id: string
+  event_type: string
+  note: string | null
+  created_at: string
+}
+
 const COLUMNS = [
   { key: 'unassigned', label: 'Unassigned', color: 'border-gray-300',   badge: 'bg-gray-100 text-gray-600'     },
   { key: 'assigned',   label: 'Assigned',   color: 'border-blue-300',   badge: 'bg-blue-100 text-blue-700'     },
@@ -58,6 +65,19 @@ export default function LeadsPage() {
   const [sheetLead, setSheetLead]         = useState<Lead | null>(null)
   const [sheetOpen, setSheetOpen]         = useState(false)
 
+  // ─── ACTIVITY LOG HELPER ──────────────────────────────────────────────────
+  // Call this any time something important happens to a lead.
+  // It writes a record to the lead_events table so we have a full history.
+  const logLeadEvent = async (leadId: string, eventType: string, note?: string) => {
+    await supabase.from('lead_events').insert({
+      lead_id: leadId,
+      event_type: eventType,
+      note: note ?? null,
+      created_by: profile?.id ?? null,
+    })
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   const openSheet = (lead: Lead) => {
     setSheetLead(lead)
     setSheetOpen(true)
@@ -79,14 +99,19 @@ export default function LeadsPage() {
       .update({ status: 'contact_attempted' })
       .eq('id', lead.id)
 
+    // Log that a call was made
+    await logLeadEvent(lead.id, 'call_attempted', `Called ${lead.phone}`)
+
     window.location.href = `tel:${lead.phone}`
     closeSheet()
     fetchLeads()
   }
+
   const openMaps = (address: string) => {
-  const encoded = encodeURIComponent(address)
-  window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}`, '_blank')
-}   
+    const encoded = encodeURIComponent(address)
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}`, '_blank')
+  }
+
   const handleSMS = (lead: Lead) => {
     const message = encodeURIComponent(
       `Hi ${lead.name}, this is TVMagic. We're on our way and should be with you in approximately 20 minutes. See you soon!`
@@ -126,8 +151,25 @@ export default function LeadsPage() {
     return leads.filter(l => l.status === status)
   }
 
+  // ─── LEAD CARD (desktop expanded view includes activity timeline) ─────────
   function LeadCard({ lead }: { lead: Lead }) {
     const isExpanded = expandedLead === lead.id
+
+    // These two lines store the activity log entries for THIS card
+    const [events, setEvents] = useState<LeadEvent[]>([])
+
+    // When the card is expanded, fetch the last 5 events for this lead
+    useEffect(() => {
+      if (!isExpanded) return
+      supabase
+        .from('lead_events')
+        .select('*')
+        .eq('lead_id', lead.id)
+        .order('created_at', { ascending: false })
+        .limit(5)
+        .then(({ data }) => setEvents((data as LeadEvent[]) ?? []))
+    }, [isExpanded])
+
     return (
       <div
         className="bg-gray-50 rounded-lg p-3 border border-gray-200 cursor-pointer md:cursor-default"
@@ -170,6 +212,7 @@ export default function LeadsPage() {
           </p>
         )}
 
+        {/* This button only shows on desktop (hidden on mobile) */}
         <button
           onClick={e => { e.stopPropagation(); setExpandedLead(isExpanded ? null : lead.id) }}
           className="hidden md:block text-xs text-gray-400 hover:text-gray-600 mt-2 transition"
@@ -177,6 +220,7 @@ export default function LeadsPage() {
           {isExpanded ? '▲ Less' : '▼ More'}
         </button>
 
+        {/* Expanded section — desktop only */}
         {isExpanded && (
           <div className="hidden md:block mt-2 space-y-2 border-t border-gray-200 pt-2">
             <p className="text-xs text-gray-600">{lead.phone}</p>
@@ -221,6 +265,19 @@ export default function LeadsPage() {
             </div>
             {lead.status === 'completed' && (
               <LeadPhotos leadId={lead.id} canUpload={true} />
+            )}
+
+            {/* ── ACTIVITY TIMELINE ── */}
+            {/* This shows the last 5 things that happened to this lead */}
+            {events.length > 0 && (
+              <div className="mt-3 border-t border-gray-200 pt-3 space-y-1">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Activity</p>
+                {events.map((e) => (
+                  <p key={e.id} className="text-xs text-gray-500">
+                    {new Date(e.created_at).toLocaleString()} — {e.note ?? e.event_type}
+                  </p>
+                ))}
+              </div>
             )}
           </div>
         )}
@@ -289,6 +346,7 @@ export default function LeadsPage() {
 
         {!loading && (
           <>
+            {/* Mobile tab switcher */}
             <div className="md:hidden sticky top-0 z-10 bg-white border-b border-gray-200 flex mb-3 -mx-4 px-0">
               {MOBILE_TABS.map(tab => (
                 <button
@@ -305,6 +363,7 @@ export default function LeadsPage() {
               ))}
             </div>
 
+            {/* Mobile single-column view */}
             <div className="md:hidden space-y-3">
               {COLUMNS
                 .filter(col => getColumnsForTab(activeTab).includes(col.key))
@@ -314,6 +373,7 @@ export default function LeadsPage() {
               }
             </div>
 
+            {/* Desktop kanban */}
             <div className="hidden md:flex gap-4 overflow-x-auto pb-4">
               {COLUMNS.map(col => (
                 <KanbanColumn key={col.key} col={col} shrink={true} />
@@ -323,6 +383,7 @@ export default function LeadsPage() {
         )}
       </main>
 
+      {/* Mobile bottom sheet for lead actions */}
       <BottomSheet
         isOpen={sheetOpen}
         onClose={closeSheet}
@@ -367,6 +428,8 @@ export default function LeadsPage() {
             <button
               onClick={async () => {
                 await supabase.from('leads').update({ status: 'contact_attempted' }).eq('id', sheetLead.id)
+                // Log this action
+                await logLeadEvent(sheetLead.id, 'status_change', 'Status updated to Contact Attempted')
                 fetchLeads()
                 closeSheet()
               }}
@@ -378,6 +441,8 @@ export default function LeadsPage() {
             <button
               onClick={async () => {
                 await supabase.from('leads').update({ status: 'won' }).eq('id', sheetLead.id)
+                // Log this action
+                await logLeadEvent(sheetLead.id, 'status_change', 'Status updated to Won')
                 fetchLeads()
                 closeSheet()
               }}
@@ -392,6 +457,7 @@ export default function LeadsPage() {
             >
               📅 Book Appointment
             </button>
+
             {sheetLead.address && (
               <button
                 onClick={() => openMaps(sheetLead.address!)}
@@ -400,6 +466,7 @@ export default function LeadsPage() {
                 📍 Navigate to Job
               </button>
             )}
+
             <button
               onClick={closeSheet}
               className="w-full py-4 rounded-xl bg-gray-50 text-gray-400 font-semibold text-base border border-gray-200"

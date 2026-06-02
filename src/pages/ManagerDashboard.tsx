@@ -3,6 +3,10 @@ import LeadsList from '../components/LeadsList'
 import AssignedLeads from '../components/AssignedLeads'
 import DemoToggle from '../components/DemoToggle'
 import NavBar from '../components/NavBar'
+import RevenueWidget from '../components/RevenueWidget';
+
+// Inside your JSX, near the top of the dashboard:
+<RevenueWidget />
 
 export default function ManagerDashboard() {
     return (
