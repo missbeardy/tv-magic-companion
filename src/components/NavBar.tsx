@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext'
 import NotificationBell from './NotificationBell'
 import TimerWatcher from './TimerWatcher'
 import DemoBanner from './DemoBanner'
+import OfflineBanner from './OfflineBanner'
+
 
 export default function NavBar() {
   const { profile, signOut } = useAuth()
@@ -34,6 +36,7 @@ export default function NavBar() {
   return (
     <>
       <TimerWatcher />
+      <OfflineBanner />
       <DemoBanner />
 
       {/* Top bar */}
