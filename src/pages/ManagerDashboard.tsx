@@ -3,17 +3,14 @@ import LeadsList from '../components/LeadsList'
 import AssignedLeads from '../components/AssignedLeads'
 import DemoToggle from '../components/DemoToggle'
 import NavBar from '../components/NavBar'
-import RevenueWidget from '../components/RevenueWidget';
-
-// Inside your JSX, near the top of the dashboard:
-<RevenueWidget />
+import RevenueWidget from '../components/RevenueWidget'
 
 export default function ManagerDashboard() {
-    return (
+  return (
     <div className="min-h-screen bg-gray-50">
       <NavBar />
       <main className="p-6 max-w-4xl mx-auto space-y-6">
-         <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between">
           <div>
             <h2 className="text-2xl font-bold text-gray-800 mb-1">
               Manager Dashboard
@@ -24,6 +21,7 @@ export default function ManagerDashboard() {
           </div>
           <DemoToggle />
         </div>
+        <RevenueWidget />
         <EmailParser />
         <LeadsList />
         <AssignedLeads />

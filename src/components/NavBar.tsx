@@ -18,11 +18,13 @@ export default function NavBar() {
         { to: '/manager', label: 'Dashboard', icon: '⊞' },
         { to: '/leads', label: 'Leads', icon: '📋' },
         { to: '/calendar', label: 'Calendar', icon: '📅' },
+        { to: '/profile', label: 'My Profile', icon: '👤' },
       ]
     : [
         { to: '/employee', label: 'Dashboard', icon: '⊞' },
         { to: '/leads', label: 'Leads', icon: '📋' },
         { to: '/calendar', label: 'Calendar', icon: '📅' },
+        { to: '/profile', label: 'My Profile', icon: '👤' },
       ]
 
   const navBg = isManager

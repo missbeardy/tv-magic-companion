@@ -11,6 +11,7 @@ export default function Login() {
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
+    e.stopPropagation()
     setLoading(true)
     setError('')
     const { error } = await supabase.auth.signInWithPassword({ email, password })

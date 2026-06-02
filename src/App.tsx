@@ -9,6 +9,7 @@ import EmployeeDashboard from './pages/EmployeeDashboard'
 import CalendarPage from './pages/CalendarPage'
 import AllLeadsPage from './pages/AllLeadsPage'
 import LeadsPage from './pages/LeadsPage'
+import ProfilePage from './pages/ProfilePage'
 
 function RoleRedirect() {
   const { profile, loading } = useAuth()
@@ -63,6 +64,14 @@ function App() {
               element={
                 <ProtectedRoute requiredRole="manager">
                   <AllLeadsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <ProfilePage />
                 </ProtectedRoute>
               }
             />

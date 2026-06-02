@@ -37,11 +37,12 @@ interface LeadEvent {
 }
 
 const COLUMNS = [
-  { key: 'unassigned', label: 'Unassigned', color: 'border-gray-300',   badge: 'bg-gray-100 text-gray-600'     },
-  { key: 'assigned',   label: 'Assigned',   color: 'border-blue-300',   badge: 'bg-blue-100 text-blue-700'     },
-  { key: 'won',        label: 'Won',        color: 'border-green-300',  badge: 'bg-green-100 text-green-700'   },
-  { key: 'lost',       label: 'Lost',       color: 'border-red-300',    badge: 'bg-red-100 text-red-600'       },
-  { key: 'completed',  label: 'Completed',  color: 'border-purple-300', badge: 'bg-purple-100 text-purple-700' },
+  { key: 'unassigned',         label: 'Unassigned',         color: 'border-gray-300',   badge: 'bg-gray-100 text-gray-600'     },
+  { key: 'assigned',           label: 'Assigned',           color: 'border-blue-300',   badge: 'bg-blue-100 text-blue-700'     },
+  { key: 'contact_attempted',  label: 'Contact Attempted',  color: 'border-amber-300',  badge: 'bg-amber-100 text-amber-700'   },
+  { key: 'won',                label: 'Won',                color: 'border-green-300',  badge: 'bg-green-100 text-green-700'   },
+  { key: 'lost',               label: 'Lost',               color: 'border-red-300',    badge: 'bg-red-100 text-red-600'       },
+  { key: 'completed',          label: 'Completed',          color: 'border-purple-300', badge: 'bg-purple-100 text-purple-700' },
 ]
 
 const MOBILE_TABS = [
@@ -52,7 +53,7 @@ const MOBILE_TABS = [
 
 function getColumnsForTab(tab: string) {
   if (tab === 'unassigned') return ['unassigned']
-  if (tab === 'assigned')   return ['assigned']
+  if (tab === 'assigned')   return ['assigned', 'contact_attempted']
   if (tab === 'closed')     return ['won', 'lost', 'completed']
   return []
 }
@@ -100,6 +101,7 @@ export default function LeadsPage() {
   const handleMarkComplete = (lead: Lead) => {
     setChecklistLead(lead)
     setShowChecklist(true)
+    closeSheet()
   }
 
   // Called when the technician finishes the checklist — moves to signature step
@@ -236,6 +238,11 @@ export default function LeadsPage() {
           >
             📍 {lead.address}
           </button>
+        )}
+        {lead.status === 'contact_attempted' && (
+          <span className="inline-block mt-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+            📞 Contact Attempted
+          </span>
         )}
         {lead.profiles && (
           <p className="text-xs text-[#004B93] mt-1 font-medium">

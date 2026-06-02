@@ -35,12 +35,9 @@ export default function LeadsList() {
     fetchLeads()
 
     const channel = supabase
-      .channel('leads-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'leads' },
-        () => fetchLeads()
-      )
+      .channel(`leads-changes-${Date.now()}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'leads' }, () => fetchLeads())
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'leads' }, () => fetchLeads())
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
@@ -87,6 +84,7 @@ export default function LeadsList() {
                   <p className="text-sm text-gray-600 mt-2">{lead.details}</p>
                 )}
               </div>
+              
               <div className="flex flex-col items-end gap-2 ml-4">
                 <span className="text-xs text-gray-400 whitespace-nowrap">
                   {new Date(lead.created_at).toLocaleDateString()}
@@ -107,6 +105,13 @@ export default function LeadsList() {
                     Self-Assign
                   </button>
                 )}
+                
+                <a
+                  href="/leads"
+                  className="text-xs text-[#004B93] underline whitespace-nowrap"
+                >
+                  View →
+                </a>
               </div>
             </div>
           ))}
