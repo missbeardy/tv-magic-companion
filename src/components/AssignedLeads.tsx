@@ -16,6 +16,7 @@ interface Lead {
   timer_expires_at: string
   assigned_to: string
   profiles: { full_name: string } | null
+  address?: string
 }
 
 export default function AssignedLeads() {
@@ -33,7 +34,6 @@ export default function AssignedLeads() {
       .eq('status', 'assigned')
       .order('timer_expires_at', { ascending: true })
 
-    // Modified to filter by profile.id for BOTH employees and managers
     query = query.eq('assigned_to', profile.id)
 
     const { data } = await query
@@ -57,12 +57,12 @@ export default function AssignedLeads() {
     return () => { supabase.removeChannel(channel) }
   }, [profile])
 
-  if (loading) return <p className="text-gray-400 text-sm">Loading...</p>
+  if (loading) return <p className="text-gray-400 text-sm">Loading assigned track indexes...</p>
 
   if (leads.length === 0) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 text-center">
-        <p className="text-gray-400 text-sm">No assigned leads.</p>
+        <p className="text-gray-400 text-sm">No assigned leads inside your manager workflow window.</p>
       </div>
     )
   }
@@ -71,14 +71,7 @@ export default function AssignedLeads() {
     <>
       {bookingLead && (
         <EventModal
-          prefillLead={{
-            id: bookingLead.id,
-            name: bookingLead.name,
-            phone: bookingLead.phone,
-            email: bookingLead.email,
-            details: bookingLead.details,
-            service_type: bookingLead.service_type,
-          }}
+          prefillLead={bookingLead}
           onClose={() => setBookingLead(null)}
           onSaved={() => setBookingLead(null)}
         />
@@ -99,8 +92,8 @@ export default function AssignedLeads() {
             <div key={lead.id} className="p-4">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <p className="font-medium text-gray-800">{lead.name || 'Unknown'}</p>
-                  <p className="text-sm text-gray-500">{lead.service_type || 'No service type'}</p>
+                  <p className="font-medium text-gray-800">{lead.name || 'Unknown User'}</p>
+                  <p className="text-sm text-gray-500">{lead.service_type || 'No service type configured'}</p>
                   <p className="text-sm text-gray-400 mt-1">{lead.phone} · {lead.email}</p>
                   {lead.details && (
                     <p className="text-sm text-gray-600 mt-2">{lead.details}</p>

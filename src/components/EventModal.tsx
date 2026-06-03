@@ -10,6 +10,7 @@ interface Lead {
   email: string
   details: string
   service_type: string
+  address?: string
 }
 
 interface Event {
@@ -42,8 +43,8 @@ interface Props {
   onSaved: () => void
 }
 
-// Updated Categories to match your instruction exactly
-const CATEGORIES = ['General', 'Booking', 'Internal']
+// Updated standard categories list to match your layout requirements
+const CATEGORIES = ['General', 'Booking', 'Assigned Leads', 'Internal']
 
 function getTodayDate(): string {
   return new Date().toISOString().slice(0, 10)
@@ -52,9 +53,8 @@ function getTodayDate(): string {
 function getCurrentTime(): string {
   const now = new Date()
   const hours = String(now.getHours()).padStart(2, '0')
-  const rawMinutes = now.getMinutes()
-  const roundedMinutes = String(Math.ceil(rawMinutes / 5) * 5 === 60 ? 0 : Math.ceil(rawMinutes / 5) * 5).padStart(2, '0')
-  return `${hours}:${roundedMinutes}`
+  const minutes = String(Math.ceil(now.getMinutes() / 5) * 5 === 60 ? 0 : Math.ceil(now.getMinutes() / 5) * 5).padStart(2, '0')
+  return `${hours}:${minutes}`
 }
 
 function addHour(time: string): string {
@@ -66,6 +66,7 @@ function addHour(time: string): string {
 export default function EventModal({ event, defaultDate, prefillLead, onClose, onSaved }: Props) {
   const { profile } = useAuth()
   const autocompleteInputRef = useRef<HTMLInputElement>(null)
+  const autocompleteInstance = useRef<any>(null)
 
   const initDate = defaultDate
     ? defaultDate.slice(0, 10)
@@ -87,48 +88,100 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
   const [startTime, setStartTime] = useState(initStartTime)
   const [endTime, setEndTime] = useState(initEndTime)
   const [color, setColor] = useState(event?.color || '#004B93')
-  const [category, setCategory] = useState(event?.category || 'General')
+  const [category, setCategory] = useState(event?.category || (prefillLead ? 'Booking' : 'General'))
+  
+  // My Assigned Leads context states
+  const [myAssignedLeads, setMyAssignedLeads] = useState<Lead[]>([])
+  const [selectedLeadId, setSelectedLeadId] = useState<string>(event?.lead_id || prefillLead?.id || '')
+
+  // Client Details states
   const [clientName, setClientName] = useState(event?.client_name || prefillLead?.name || '')
   const [clientPhone, setClientPhone] = useState(event?.client_phone || prefillLead?.phone || '')
   const [clientEmail, setClientEmail] = useState(event?.client_email || prefillLead?.email || '')
-  const [clientAddress, setClientAddress] = useState(event?.client_address || '')
+  const [clientAddress, setClientAddress] = useState(event?.client_address || prefillLead?.address || '')
   const [clientJob, setClientJob] = useState(event?.client_job || prefillLead?.details || '')
+  
   const [selectedUserId, setSelectedUserId] = useState(event?.user_id || profile?.id || '')
   const [employees, setEmployees] = useState<Profile[]>([])
   const [saving, setSaving] = useState(false)
-  const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState('')
 
-  // Dynamically load Google Maps script for Address Autocomplete
+  // Fetch the current user's assigned leads to populate the dropdown selection list
   useEffect(() => {
-    // CHANGE THIS TO YOUR RELEVANT KEY OR ACCESS PROCESS ENV VARIABLES DIRECTLY
-    const API_KEY = "AIzaSyCUENcWzrgodMQlWDOu8y96K0QGzukyMnk"; 
+    if (!profile?.id) return
+    async function fetchMyLeads() {
+      const { data } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('assigned_to', profile.id)
+        .eq('status', 'assigned')
+      if (data) setMyAssignedLeads(data as Lead[])
+    }
+    fetchMyLeads()
+  }, [profile])
 
-    if (category !== 'Booking') return
+  // Handle auto-populating fields when an Assigned Lead is chosen from the dropdown list
+  function handleLeadSelection(leadId: string) {
+    setSelectedLeadId(leadId)
+    const target = myAssignedLeads.find(l => l.id === leadId)
+    if (target) {
+      setClientName(target.name || '')
+      setClientPhone(target.phone || '')
+      setClientEmail(target.email || '')
+      setClientAddress(target.address || '')
+      setClientJob(target.details || '')
+      setTitle(`Booking — ${target.name}`)
+    }
+  }
 
-    const initAutocomplete = () => {
-      if (!autocompleteInputRef.current || !(window as any).google) return
-      const autocomplete = new (window as any).google.maps.places.Autocomplete(autocompleteInputRef.current, {
+  // Reliable Google Maps Autocomplete Initialization script loading hook
+  useEffect(() => {
+    const isBookingView = category === 'Booking' || category === 'Assigned Leads'
+    if (!isBookingView) return
+
+    const setupWidget = () => {
+      if (!autocompleteInputRef.current || !(window as any).google?.maps?.places) return
+      
+      // Prevent multiple messy re-attachments on re-renders
+      if (autocompleteInstance.current) return
+
+      autocompleteInstance.current = new (window as any).google.maps.places.Autocomplete(autocompleteInputRef.current, {
         types: ['address'],
-        componentRestrictions: { country: 'au' } // Locks lookup bounds down to local dynamic contexts
+        componentRestrictions: { country: 'au' }
       })
-      autocomplete.addListener('place_changed', () => {
-        const place = autocomplete.getPlace()
+
+      autocompleteInstance.current.addListener('place_changed', () => {
+        const place = autocompleteInstance.current.getPlace()
         if (place.formatted_address) {
           setClientAddress(place.formatted_address)
         }
       })
     }
 
-    if (!(window as any).google) {
-      const script = document.createElement('script')
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&libraries=places`
-      script.async = true
-      script.defer = true
-      script.onload = () => initAutocomplete()
-      document.head.appendChild(script)
+    if (!(window as any).google?.maps?.places) {
+      // Check if tag is already injecting globally somewhere else
+      const existingScript = document.getElementById('google-maps-autocomplete-script')
+      if (!existingScript) {
+        (window as any).initAutocompleteCallback = () => {
+          setupWidget()
+        }
+        const script = document.createElement('script')
+        script.id = 'google-maps-autocomplete-script'
+        script.src = `https://maps.googleapis.com/maps/api/js?key=Maps+Demo+Key&libraries=places&callback=initAutocompleteCallback`
+        script.async = true
+        script.defer = true
+        document.head.appendChild(script)
+      }
     } else {
-      initAutocomplete()
+      setupWidget()
+    }
+
+    return () => {
+      // Cleanup handlers cleanly if categories toggle
+      if ((window as any).google && autocompleteInputRef.current) {
+        (window as any).google.maps.event.clearInstanceListeners(autocompleteInputRef.current)
+      }
+      autocompleteInstance.current = null
     }
   }, [category])
 
@@ -141,24 +194,24 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
     }
   }, [profile])
 
-  // Auto-set structural text labels dynamically based on explicit Category modifications
+  // Automatically adjust appointment text header string when tracking fields shift
   useEffect(() => {
-    if (category === 'Booking' && clientName && !event?.id) {
+    if ((category === 'Booking' || category === 'Assigned Leads') && clientName && !event?.id) {
       setTitle(`Booking — ${clientName}`)
     }
   }, [category, clientName])
 
   async function handleSave() {
     if (!title || !date || !startTime || !endTime) {
-      setError('Please fill in all required fields.')
+      setError('Please fill out all required layout fields.')
       return
     }
     setSaving(true)
     setError('')
 
-    const targetLeadId = prefillLead?.id || event?.lead_id || null
+    const finalLeadId = selectedLeadId || null
 
-    const payload: Record<string, unknown> = {
+    const payload: Record<string, any> = {
       title,
       description,
       start_time: new Date(`${date}T${startTime}`).toISOString(),
@@ -166,10 +219,11 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
       color,
       category,
       user_id: selectedUserId,
-      lead_id: targetLeadId,
+      lead_id: finalLeadId,
     }
 
-    if (category === 'Booking') {
+    const capturesDetails = category === 'Booking' || category === 'Assigned Leads'
+    if (capturesDetails) {
       payload.client_name = clientName
       payload.client_phone = clientPhone
       payload.client_email = clientEmail
@@ -178,33 +232,28 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
     }
 
     let dbError
-
     if (event?.id) {
-      setSyncing(true)
-      await new Promise(r => setTimeout(r, 1200))
       const result = await supabase.from('events').update(payload).eq('id', event.id)
       dbError = result.error
-      setSyncing(false)
     } else {
       const result = await supabase.from('events').insert(payload)
       dbError = result.error
 
-      // CRITICAL RULE IMPLEMENTATION: Transition corresponding database target parameters into Booked status natively inside creation steps
-      if (!dbError && category === 'Booking' && targetLeadId) {
+      // If appointment is saved, automatically flip lead status parameter to booked state
+      if (!dbError && capturesDetails && finalLeadId) {
         await supabase
           .from('leads')
           .update({ status: 'booked' })
-          .eq('id', targetLeadId)
+          .eq('id', finalLeadId)
       }
     }
 
     if (dbError) {
-      setError('Failed to save event parameters: ' + dbError.message)
+      setError('Error saving database event details: ' + dbError.message)
     } else {
       onSaved()
       onClose()
     }
-
     setSaving(false)
   }
 
@@ -220,30 +269,14 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-screen overflow-y-auto">
         <div className="p-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">
-            {event?.id ? 'Edit Event Setup' : 'New Event Entry'}
+            {event?.id ? 'Edit System Event' : 'Schedule Appointment'}
           </h3>
-
-          {syncing && (
-            <div className="bg-blue-50 text-blue-600 p-3 rounded-lg mb-4 text-sm flex items-center gap-2">
-              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-              </svg>
-              Syncing updates back to production CRM framework...
-            </div>
-          )}
 
           {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm">{error}</div>}
 
-          {prefillLead && (
-            <div className="bg-teal-50 border border-teal-200 text-teal-700 text-sm p-3 rounded-lg mb-4">
-              📋 Pre-filled directly from active target lead data: <strong>{prefillLead.name}</strong>
-            </div>
-          )}
-
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Category Classification</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Appointment Category</label>
               <select
                 value={category}
                 onChange={e => setCategory(e.target.value)}
@@ -253,62 +286,79 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
               </select>
             </div>
 
-            {/* Render targeted subform options if Category evaluates exactly to structural Booking criteria */}
-            {category === 'Booking' && (
+            {/* ASSIGNED LEADS LOOKUP DROPDOWN SELECTION GRID */}
+            {category === 'Assigned Leads' && !event?.id && (
+              <div>
+                <label className="block text-sm font-medium text-amber-800 mb-1">Select an Assigned Lead to Pre-fill</label>
+                <select
+                  value={selectedLeadId}
+                  onChange={e => handleLeadSelection(e.target.value)}
+                  className="w-full border-2 border-amber-300 bg-amber-50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value="">-- Click to choose from your leads list --</option>
+                  {myAssignedLeads.map(l => (
+                    <option key={l.id} value={l.id}>{l.name} ({l.service_type || 'General Service'})</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* CLIENT CONFIGURATION DETAILS DETAILS SUBFORM */}
+            {(category === 'Booking' || category === 'Assigned Leads') && (
               <div className="space-y-3 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Client File Information</p>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Client Profile Details</p>
                 
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Full Name</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Customer Full Name</label>
                   <input
                     type="text"
                     value={clientName}
                     onChange={e => setClientName(e.target.value)}
-                    placeholder="Client name"
+                    placeholder="Enter full name"
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Phone Connection</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Mobile Contact Phone Number</label>
                   <input
                     type="text"
                     value={clientPhone}
                     onChange={e => setClientPhone(e.target.value)}
-                    placeholder="Phone"
+                    placeholder="Enter phone numbers"
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Email Coordinates</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Email Coordinates Address</label>
                   <input
                     type="text"
                     value={clientEmail}
                     onChange={e => setClientEmail(e.target.value)}
-                    placeholder="Email Address"
+                    placeholder="name@domain.com"
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Job Site Address (Google Maps Connected)</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Job Site Address (Autocomplete Map Tracker)</label>
                   <input
                     ref={autocompleteInputRef}
                     type="text"
                     value={clientAddress}
                     onChange={e => setClientAddress(e.target.value)}
-                    placeholder="Start typing job address..."
+                    placeholder="Type words here to auto complete..."
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Job Specifics</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Task Details & Summary</label>
                   <textarea
                     value={clientJob}
                     onChange={e => setClientJob(e.target.value)}
-                    placeholder="Scope details..."
+                    placeholder="Describe specific task goals..."
                     rows={2}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
                   />
@@ -317,29 +367,29 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Title Entry *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Event Entry Title *</label>
               <input
                 type="text"
                 value={title}
                 onChange={e => setTitle(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
-                placeholder="Title identifier"
+                placeholder="E.g., Initial onsite consultation"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Supplemental Workspace Notes</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Supplementary Workspace Description Notes</label>
               <textarea
                 value={description}
                 onChange={e => setDescription(e.target.value)}
                 rows={2}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
-                placeholder="Optional workflow remarks"
+                placeholder="Optional internal remarks"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Target Appointment Date *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Target Appointment Calendar Date *</label>
               <input
                 type="date"
                 value={date}
@@ -350,18 +400,18 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Start *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
                 <TimePicker value={startTime} onChange={setStartTime} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">End *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">End Time *</label>
                 <TimePicker value={endTime} onChange={setEndTime} />
               </div>
             </div>
 
             {profile?.role === 'manager' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Owner Assignment Matrix</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Staff Member Owner Matrix Assignment</label>
                 <select
                   value={selectedUserId}
                   onChange={e => setSelectedUserId(e.target.value)}
@@ -373,7 +423,7 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Display Colour Configuration</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Color Picker Label Identity Tag</label>
               <div className="flex gap-2">
                 {['#004B93', '#00B4C5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'].map(c => (
                   <button
@@ -401,7 +451,7 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
               disabled={saving}
               className="flex-1 bg-[#004B93] text-white py-2 rounded-lg text-sm font-medium hover:bg-[#003d7a] transition disabled:opacity-50"
             >
-              {saving ? 'Saving...' : event?.id ? 'Update Setup' : 'Confirm Setup'}
+              {saving ? 'Processing...' : event?.id ? 'Update Layout' : 'Confirm Layout'}
             </button>
           </div>
         </div>
