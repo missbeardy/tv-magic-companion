@@ -12,9 +12,14 @@ interface Lead {
   details: string
   status: string
   created_at: string
+  address?: string
 }
 
-export default function LeadsList() {
+interface LeadsListProps {
+  onShareSocial?: (lead: Lead, photoUrl: string) => void
+}
+
+export default function LeadsList({ onShareSocial }: LeadsListProps) {
   const { profile } = useAuth()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
@@ -27,7 +32,7 @@ export default function LeadsList() {
       .eq('status', 'unassigned')
       .order('created_at', { ascending: false })
 
-    if (data) setLeads(data)
+    if (data) setLeads(data as Lead[])
     setLoading(false)
   }
 
@@ -89,6 +94,7 @@ export default function LeadsList() {
                 <span className="text-xs text-gray-400 whitespace-nowrap">
                   {new Date(lead.created_at).toLocaleDateString()}
                 </span>
+                
                 {profile?.role === 'manager' && (
                   <button
                     onClick={() => setSelectedLead(lead)}
@@ -97,12 +103,22 @@ export default function LeadsList() {
                     Assign
                   </button>
                 )}
+                
                 {profile?.role === 'employee' && (
                   <button
                     onClick={() => setSelectedLead(lead)}
                     className="text-xs bg-[#00B4C5] text-white px-3 py-1 rounded-lg hover:bg-[#009aaa] transition whitespace-nowrap"
                   >
                     Self-Assign
+                  </button>
+                )}
+
+                {onShareSocial && (
+                  <button
+                    onClick={() => onShareSocial(lead, 'https://placehold.co/600x400/004B93/ffffff?text=Job+Photo')}
+                    className="text-xs text-purple-600 border border-purple-200 bg-purple-50 px-2 py-0.5 rounded hover:bg-purple-100 transition whitespace-nowrap"
+                  >
+                    📱 Test Social Post
                   </button>
                 )}
                 

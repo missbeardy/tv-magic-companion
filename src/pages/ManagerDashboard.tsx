@@ -1,11 +1,33 @@
+import { useState } from 'react'
 import EmailParser from '../components/EmailParser'
 import LeadsList from '../components/LeadsList'
 import AssignedLeads from '../components/AssignedLeads'
 import DemoToggle from '../components/DemoToggle'
 import NavBar from '../components/NavBar'
 import RevenueWidget from '../components/RevenueWidget'
+import LeadSocialModal from '../components/LeadSocialModal'
+
+interface SimpleLead {
+  id: string
+  name: string
+  service_type?: string
+  address?: string
+}
 
 export default function ManagerDashboard() {
+  const [socialLead, setSocialLead] = useState<SimpleLead | null>(null)
+  const [socialPhotoUrl, setSocialPhotoUrl] = useState<string>('')
+
+  const triggerSocialModal = (lead: SimpleLead, photoUrl: string) => {
+    setSocialLead(lead)
+    setSocialPhotoUrl(photoUrl)
+  }
+
+  const closeSocialModal = () => {
+    setSocialLead(null)
+    setSocialPhotoUrl('')
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <NavBar />
@@ -19,9 +41,18 @@ export default function ManagerDashboard() {
         </div>
         <RevenueWidget />
         <EmailParser />
-        <LeadsList />
+        
+        <LeadsList onShareSocial={triggerSocialModal} />
         <AssignedLeads />
       </main>
+
+      {socialLead && socialPhotoUrl && (
+        <LeadSocialModal 
+          lead={socialLead}
+          photoUrl={socialPhotoUrl}
+          onClose={closeSocialModal}
+        />
+      )}
     </div>
   )
 }

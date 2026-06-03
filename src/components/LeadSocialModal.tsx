@@ -44,7 +44,7 @@ export default function LeadSocialModal({ lead, photoUrl, onClose }: Props) {
     setError('')
     const result = await postToSocial({ caption, mediaUrl: photoUrl })
     if (result.success) {
-  setStep(3)
+      setStep(3)
     } else {
       setError(result.error ?? 'Something went wrong.')
     }
