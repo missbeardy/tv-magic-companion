@@ -12,6 +12,7 @@ import BottomSheet from '../components/BottomSheet'
 import CompletionChecklist from '../components/CompletionChecklist'
 import SignatureCanvas from '../components/SignatureCanvas'
 import ReceiptPreview from '../components/ReceiptPreview'
+import LeadSocialModal from '../components/LeadSocialModal'
 
 interface Lead {
   id: string
@@ -77,6 +78,10 @@ export default function LeadsPage() {
   const [showSignature, setShowSignature] = useState(false)
   const [showReceipt, setShowReceipt] = useState(false)
   const [receiptLead, setReceiptLead] = useState<Lead | null>(null)
+
+  //Social Lead Photos
+  const [socialLead, setSocialLead] = useState<Lead | null>(null)
+  const [socialPhotoUrl, setSocialPhotoUrl] = useState<string>('')
 
   const logLeadEvent = async (leadId: string, eventType: string, note?: string) => {
     await supabase.from('lead_events').insert({
@@ -300,7 +305,10 @@ export default function LeadsPage() {
               </button>
             </div>
             {lead.status === 'completed' && (
-              <LeadPhotos leadId={lead.id} canUpload={true} />
+            <>
+            <LeadPhotos leadId={lead.id} canUpload={true} />
+            {/* Social post buttons appear per photo — see note below */}
+            </>
             )}
 
             {events.length > 0 && (

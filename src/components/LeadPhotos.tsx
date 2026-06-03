@@ -12,9 +12,10 @@ interface Photo {
 interface Props {
   leadId: string
   canUpload?: boolean
+  onShare?: (photoUrl: string) => void
 }
 
-export default function LeadPhotos({ leadId, canUpload = true }: Props) {
+export default function LeadPhotos({ leadId, canUpload = true, onShare }: Props) {
   const { profile } = useAuth()
   const [photos, setPhotos] = useState<Photo[]>([])
   const [uploading, setUploading] = useState(false)
@@ -90,18 +91,26 @@ export default function LeadPhotos({ leadId, canUpload = true }: Props) {
         {photos.map(photo => (
           <div key={photo.id} className="relative group">
             <img
-              src={photo.public_url}
-              onClick={() => setLightbox(photo.public_url)}
-              className="w-20 h-20 object-cover rounded-lg cursor-pointer hover:opacity-90 transition border border-gray-200"
-            />
-            {canUpload && (
-              <button
-                onClick={() => handleDelete(photo)}
-                className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs items-center justify-center hidden group-hover:flex"
-              >
-                ×
-              </button>
-            )}
+                  src={photo.public_url}
+                  onClick={() => setLightbox(photo.public_url)}
+                  className="w-20 h-20 object-cover rounded-lg cursor-pointer hover:opacity-90 transition border border-gray-200"
+                />
+                {onShare && (
+                  <button
+                    onClick={() => onShare(photo.public_url)}
+                    className="absolute bottom-0 left-0 right-0 bg-[#004B93] text-white text-xs py-0.5 rounded-b-lg opacity-0 group-hover:opacity-100 transition"
+                  >
+                    Share
+                  </button>
+                )}
+                {canUpload && (
+                  <button
+                    onClick={() => handleDelete(photo)}
+                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs items-center justify-center hidden group-hover:flex"
+                  >
+                    ×
+                  </button>
+                )}
           </div>
         ))}
 
