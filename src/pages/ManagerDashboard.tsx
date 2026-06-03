@@ -34,15 +34,18 @@ export default function ManagerDashboard() {
       <main className="p-6 max-w-4xl mx-auto space-y-6">
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-1">Manager Dashboard</h2>
-            <p className="text-gray-500 text-sm">Manage leads, assign technicians, and monitor activity.</p>
+            <h2 className="text-2xl font-bold text-gray-800 mb-1">Manager Dashboard Hub</h2>
+            <p className="text-gray-500 text-sm">Monitor regional operations, oversee active assignments, and balance lead volume.</p>
           </div>
           <DemoToggle />
         </div>
         <RevenueWidget />
         <EmailParser />
         
+        {/* Unassigned Pool */}
         <LeadsList onShareSocial={triggerSocialModal} />
+        
+        {/* Custom Isolated Trackers Filtered Exclusively to Manager User Scope ID */}
         <AssignedLeads />
       </main>
 

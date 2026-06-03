@@ -36,6 +36,29 @@ export default function LeadsList({ onShareSocial }: LeadsListProps) {
     setLoading(false)
   }
 
+  async function handleSelfAssign(leadId: string) {
+    if (!profile?.id) return
+    
+    const now = new Date()
+    const timerExpiresAt = new Date(now.getTime() + 30 * 60 * 1000).toISOString() // 30-minute default window
+
+    const { error } = await supabase
+      .from('leads')
+      .update({
+        assigned_to: profile.id,
+        status: 'assigned',
+        assigned_at: now.toISOString(),
+        timer_expires_at: timerExpiresAt
+      })
+      .eq('id', leadId)
+
+    if (error) {
+      alert('Error self-assigning lead: ' + error.message)
+    } else {
+      fetchLeads()
+    }
+  }
+
   useEffect(() => {
     fetchLeads()
 
@@ -95,18 +118,27 @@ export default function LeadsList({ onShareSocial }: LeadsListProps) {
                   {new Date(lead.created_at).toLocaleDateString()}
                 </span>
                 
+                {/* Managers can route via modal selector OR assign cleanly to themselves */}
                 {profile?.role === 'manager' && (
-                  <button
-                    onClick={() => setSelectedLead(lead)}
-                    className="text-xs bg-[#004B93] text-white px-3 py-1 rounded-lg hover:bg-[#003d7a] transition whitespace-nowrap"
-                  >
-                    Assign
-                  </button>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setSelectedLead(lead)}
+                      className="text-xs bg-[#004B93] text-white px-2 py-1 rounded-lg hover:bg-[#003d7a] transition whitespace-nowrap"
+                    >
+                      Assign
+                    </button>
+                    <button
+                      onClick={() => handleSelfAssign(lead.id)}
+                      className="text-xs bg-gray-600 text-white px-2 py-1 rounded-lg hover:bg-gray-700 transition whitespace-nowrap"
+                    >
+                      Grab Job
+                    </button>
+                  </div>
                 )}
                 
                 {profile?.role === 'employee' && (
                   <button
-                    onClick={() => setSelectedLead(lead)}
+                    onClick={() => handleSelfAssign(lead.id)}
                     className="text-xs bg-[#00B4C5] text-white px-3 py-1 rounded-lg hover:bg-[#009aaa] transition whitespace-nowrap"
                   >
                     Self-Assign
@@ -123,7 +155,7 @@ export default function LeadsList({ onShareSocial }: LeadsListProps) {
                 )}
                 
                 <a
-                  href="/leads"
+                  href={`/leads?leadId=${lead.id}`}
                   className="text-xs text-[#004B93] underline whitespace-nowrap"
                 >
                   View →

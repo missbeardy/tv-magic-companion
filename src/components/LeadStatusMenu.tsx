@@ -11,7 +11,7 @@ const STATUSES = [
   { value: 'unassigned',        label: 'Unassigned',        color: 'bg-gray-100 text-gray-600' },
   { value: 'assigned',          label: 'Assigned',          color: 'bg-blue-100 text-blue-700' },
   { value: 'contact_attempted', label: 'Contact Attempted', color: 'bg-amber-100 text-amber-700' },
-  { value: 'won',               label: 'Won',               color: 'bg-green-100 text-green-700' },
+  { value: 'booked',            label: 'Booked',            color: 'bg-green-100 text-green-700' },
   { value: 'lost',              label: 'Lost',              color: 'bg-red-100 text-red-600' },
   { value: 'completed',         label: 'Completed',         color: 'bg-purple-100 text-purple-700' },
 ]
@@ -24,7 +24,6 @@ export default function LeadStatusMenu({ leadId, currentStatus, onUpdated }: Pro
 
   const current = STATUSES.find(s => s.value === currentStatus) || STATUSES[0]
 
-  // Work out if the dropdown should open upward to stay on screen
   useEffect(() => {
     if (!open || !buttonRef.current) return
     const rect = buttonRef.current.getBoundingClientRect()
@@ -32,7 +31,6 @@ export default function LeadStatusMenu({ leadId, currentStatus, onUpdated }: Pro
     setDropUp(spaceBelow < 220)
   }, [open])
 
-  // Close when clicking outside
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
@@ -45,12 +43,19 @@ export default function LeadStatusMenu({ leadId, currentStatus, onUpdated }: Pro
   }, [open])
 
   async function updateStatus(newStatus: string) {
+    if (newStatus === 'booked') {
+      alert('Booked jobs must be created from the Calendar Booking workflow.')
+      return
+    }
+
     setSaving(true)
     setOpen(false)
+
     await supabase
       .from('leads')
       .update({ status: newStatus })
       .eq('id', leadId)
+
     setSaving(false)
     onUpdated()
   }

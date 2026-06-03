@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import TimePicker from './TimePicker'
@@ -42,13 +42,8 @@ interface Props {
   onSaved: () => void
 }
 
-const CATEGORIES = [
-  'General',
-  'Client Appointment',
-  'Internal Meeting',
-  'Site Visit',
-  'Follow Up',
-]
+// Updated Categories to match your instruction exactly
+const CATEGORIES = ['General', 'Booking', 'Internal']
 
 function getTodayDate(): string {
   return new Date().toISOString().slice(0, 10)
@@ -70,6 +65,7 @@ function addHour(time: string): string {
 
 export default function EventModal({ event, defaultDate, prefillLead, onClose, onSaved }: Props) {
   const { profile } = useAuth()
+  const autocompleteInputRef = useRef<HTMLInputElement>(null)
 
   const initDate = defaultDate
     ? defaultDate.slice(0, 10)
@@ -103,6 +99,39 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState('')
 
+  // Dynamically load Google Maps script for Address Autocomplete
+  useEffect(() => {
+    // CHANGE THIS TO YOUR RELEVANT KEY OR ACCESS PROCESS ENV VARIABLES DIRECTLY
+    const API_KEY = "AIzaSyCUENcWzrgodMQlWDOu8y96K0QGzukyMnk"; 
+
+    if (category !== 'Booking') return
+
+    const initAutocomplete = () => {
+      if (!autocompleteInputRef.current || !(window as any).google) return
+      const autocomplete = new (window as any).google.maps.places.Autocomplete(autocompleteInputRef.current, {
+        types: ['address'],
+        componentRestrictions: { country: 'au' } // Locks lookup bounds down to local dynamic contexts
+      })
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace()
+        if (place.formatted_address) {
+          setClientAddress(place.formatted_address)
+        }
+      })
+    }
+
+    if (!(window as any).google) {
+      const script = document.createElement('script')
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&libraries=places`
+      script.async = true
+      script.defer = true
+      script.onload = () => initAutocomplete()
+      document.head.appendChild(script)
+    } else {
+      initAutocomplete()
+    }
+  }, [category])
+
   useEffect(() => {
     if (profile?.role === 'manager') {
       supabase
@@ -112,10 +141,10 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
     }
   }, [profile])
 
-  // Auto-set title from category + client name
+  // Auto-set structural text labels dynamically based on explicit Category modifications
   useEffect(() => {
-    if (category === 'Client Appointment' && clientName && !event?.id) {
-      setTitle(`Appointment — ${clientName}`)
+    if (category === 'Booking' && clientName && !event?.id) {
+      setTitle(`Booking — ${clientName}`)
     }
   }, [category, clientName])
 
@@ -127,6 +156,8 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
     setSaving(true)
     setError('')
 
+    const targetLeadId = prefillLead?.id || event?.lead_id || null
+
     const payload: Record<string, unknown> = {
       title,
       description,
@@ -135,10 +166,10 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
       color,
       category,
       user_id: selectedUserId,
-      lead_id: prefillLead?.id || event?.lead_id || null,
+      lead_id: targetLeadId,
     }
 
-    if (category === 'Client Appointment') {
+    if (category === 'Booking') {
       payload.client_name = clientName
       payload.client_phone = clientPhone
       payload.client_email = clientEmail
@@ -157,10 +188,18 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
     } else {
       const result = await supabase.from('events').insert(payload)
       dbError = result.error
+
+      // CRITICAL RULE IMPLEMENTATION: Transition corresponding database target parameters into Booked status natively inside creation steps
+      if (!dbError && category === 'Booking' && targetLeadId) {
+        await supabase
+          .from('leads')
+          .update({ status: 'booked' })
+          .eq('id', targetLeadId)
+      }
     }
 
     if (dbError) {
-      setError('Failed to save: ' + dbError.message)
+      setError('Failed to save event parameters: ' + dbError.message)
     } else {
       onSaved()
       onClose()
@@ -181,7 +220,7 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-screen overflow-y-auto">
         <div className="p-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">
-            {event?.id ? 'Edit Event' : 'New Event'}
+            {event?.id ? 'Edit Event Setup' : 'New Event Entry'}
           </h3>
 
           {syncing && (
@@ -190,65 +229,86 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
               </svg>
-              Syncing changes back to CRM...
+              Syncing updates back to production CRM framework...
             </div>
           )}
 
-          {error && (
-            <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm">
-              {error}
-            </div>
-          )}
+          {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm">{error}</div>}
 
           {prefillLead && (
             <div className="bg-teal-50 border border-teal-200 text-teal-700 text-sm p-3 rounded-lg mb-4">
-              📋 Pre-filled from lead: <strong>{prefillLead.name}</strong>
+              📋 Pre-filled directly from active target lead data: <strong>{prefillLead.name}</strong>
             </div>
           )}
 
           <div className="space-y-4">
-
-            {/* Category */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Category Classification</label>
               <select
                 value={category}
                 onChange={e => setCategory(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
               >
-                {CATEGORIES.map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
+                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
 
-            {/* Client Appointment Fields */}
-            {category === 'Client Appointment' && (
+            {/* Render targeted subform options if Category evaluates exactly to structural Booking criteria */}
+            {category === 'Booking' && (
               <div className="space-y-3 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Client Details</p>
-                {[
-                  { label: 'Name', value: clientName, set: setClientName, placeholder: 'Client full name' },
-                  { label: 'Phone', value: clientPhone, set: setClientPhone, placeholder: 'Client phone number' },
-                  { label: 'Email', value: clientEmail, set: setClientEmail, placeholder: 'Client email' },
-                  { label: 'Address', value: clientAddress, set: setClientAddress, placeholder: 'Job address' },
-                ].map(({ label, value, set, placeholder }) => (
-                  <div key={label}>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
-                    <input
-                      type="text"
-                      value={value}
-                      onChange={e => set(e.target.value)}
-                      placeholder={placeholder}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
-                    />
-                  </div>
-                ))}
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Client File Information</p>
+                
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Job Description</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    value={clientName}
+                    onChange={e => setClientName(e.target.value)}
+                    placeholder="Client name"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Phone Connection</label>
+                  <input
+                    type="text"
+                    value={clientPhone}
+                    onChange={e => setClientPhone(e.target.value)}
+                    placeholder="Phone"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Email Coordinates</label>
+                  <input
+                    type="text"
+                    value={clientEmail}
+                    onChange={e => setClientEmail(e.target.value)}
+                    placeholder="Email Address"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Job Site Address (Google Maps Connected)</label>
+                  <input
+                    ref={autocompleteInputRef}
+                    type="text"
+                    value={clientAddress}
+                    onChange={e => setClientAddress(e.target.value)}
+                    placeholder="Start typing job address..."
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Job Specifics</label>
                   <textarea
                     value={clientJob}
                     onChange={e => setClientJob(e.target.value)}
-                    placeholder="What work is needed?"
+                    placeholder="Scope details..."
                     rows={2}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
                   />
@@ -256,33 +316,30 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
               </div>
             )}
 
-            {/* Title */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Title Entry *</label>
               <input
                 type="text"
                 value={title}
                 onChange={e => setTitle(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
-                placeholder="Event title"
+                placeholder="Title identifier"
               />
             </div>
 
-            {/* Description */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Supplemental Workspace Notes</label>
               <textarea
                 value={description}
                 onChange={e => setDescription(e.target.value)}
                 rows={2}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
-                placeholder="Optional notes"
+                placeholder="Optional workflow remarks"
               />
             </div>
 
-            {/* Date */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Target Appointment Date *</label>
               <input
                 type="date"
                 value={date}
@@ -291,37 +348,32 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
               />
             </div>
 
-            {/* Time */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Start *</label>
                 <TimePicker value={startTime} onChange={setStartTime} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">End Time *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">End *</label>
                 <TimePicker value={endTime} onChange={setEndTime} />
               </div>
             </div>
 
-            {/* Assign To (manager only) */}
             {profile?.role === 'manager' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Assign To</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Owner Assignment Matrix</label>
                 <select
                   value={selectedUserId}
                   onChange={e => setSelectedUserId(e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
                 >
-                  {employees.map(emp => (
-                    <option key={emp.id} value={emp.id}>{emp.full_name}</option>
-                  ))}
+                  {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.full_name}</option>)}
                 </select>
               </div>
             )}
 
-            {/* Colour */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Colour</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Display Colour Configuration</label>
               <div className="flex gap-2">
                 {['#004B93', '#00B4C5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'].map(c => (
                   <button
@@ -337,17 +389,11 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
 
           <div className="flex gap-3 mt-6">
             {event?.id && (
-              <button
-                onClick={handleDelete}
-                className="border border-red-300 text-red-500 px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-50 transition"
-              >
-                Delete
+              <button onClick={handleDelete} className="border border-red-300 text-red-500 px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-50 transition">
+                Remove Event
               </button>
             )}
-            <button
-              onClick={onClose}
-              className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition"
-            >
+            <button onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition">
               Cancel
             </button>
             <button
@@ -355,7 +401,7 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
               disabled={saving}
               className="flex-1 bg-[#004B93] text-white py-2 rounded-lg text-sm font-medium hover:bg-[#003d7a] transition disabled:opacity-50"
             >
-              {saving ? 'Saving...' : event?.id ? 'Update' : 'Create'}
+              {saving ? 'Saving...' : event?.id ? 'Update Setup' : 'Confirm Setup'}
             </button>
           </div>
         </div>

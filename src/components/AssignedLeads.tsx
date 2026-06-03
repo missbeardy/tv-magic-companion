@@ -25,15 +25,16 @@ export default function AssignedLeads() {
   const [bookingLead, setBookingLead] = useState<Lead | null>(null)
 
   async function fetchLeads() {
+    if (!profile) return
+
     let query = supabase
       .from('leads')
       .select('*, profiles(full_name)')
       .eq('status', 'assigned')
       .order('timer_expires_at', { ascending: true })
 
-    if (profile?.role === 'employee') {
-      query = query.eq('assigned_to', profile.id)
-    }
+    // Modified to filter by profile.id for BOTH employees and managers
+    query = query.eq('assigned_to', profile.id)
 
     const { data } = await query
     if (data) setLeads(data as Lead[])
@@ -86,7 +87,7 @@ export default function AssignedLeads() {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
         <div className="p-4 border-b border-gray-100">
           <h3 className="text-lg font-semibold text-gray-800">
-            Assigned Leads
+            My Assigned Leads
             <span className="ml-2 bg-[#00B4C5] text-white text-xs px-2 py-0.5 rounded-full">
               {leads.length}
             </span>
@@ -103,11 +104,6 @@ export default function AssignedLeads() {
                   <p className="text-sm text-gray-400 mt-1">{lead.phone} · {lead.email}</p>
                   {lead.details && (
                     <p className="text-sm text-gray-600 mt-2">{lead.details}</p>
-                  )}
-                  {profile?.role === 'manager' && lead.profiles && (
-                    <p className="text-xs text-[#004B93] mt-2 font-medium">
-                      Assigned to: {lead.profiles.full_name}
-                    </p>
                   )}
                   <button
                     onClick={() => setBookingLead(lead)}

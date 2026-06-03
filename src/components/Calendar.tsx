@@ -59,7 +59,6 @@ export default function Calendar() {
     }
   }, [profile, filterEmployee])
 
-  // --- Week view helpers ---
   function getWeekDays(date: Date): Date[] {
     const start = new Date(date)
     start.setDate(date.getDate() - date.getDay() + 1)
@@ -81,7 +80,6 @@ export default function Calendar() {
     })
   }
 
-  // --- Month view helpers ---
   function getMonthDays(date: Date): (Date | null)[] {
     const year = date.getFullYear()
     const month = date.getMonth()
@@ -125,30 +123,12 @@ export default function Calendar() {
         />
       )}
 
-      {/* Calendar Header */}
       <div className="p-4 border-b border-gray-100 flex flex-wrap items-center gap-3 justify-between">
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-1 rounded hover:bg-gray-100 transition text-gray-600"
-          >
-            ◀
-          </button>
-          <span className="font-semibold text-gray-800 text-sm min-w-48 text-center">
-            {headerLabel}
-          </span>
-          <button
-            onClick={() => navigate(1)}
-            className="p-1 rounded hover:bg-gray-100 transition text-gray-600"
-          >
-            ▶
-          </button>
-          <button
-            onClick={() => setCurrentDate(new Date())}
-            className="text-xs border border-gray-300 px-2 py-1 rounded-lg hover:bg-gray-50 transition ml-1"
-          >
-            Today
-          </button>
+          <button onClick={() => navigate(-1)} className="p-1 rounded hover:bg-gray-100 transition text-gray-600">◀</button>
+          <span className="font-semibold text-gray-800 text-sm min-w-48 text-center">{headerLabel}</span>
+          <button onClick={() => navigate(1)} className="p-1 rounded hover:bg-gray-100 transition text-gray-600">▶</button>
+          <button onClick={() => setCurrentDate(new Date())} className="text-xs border border-gray-300 px-2 py-1 rounded-lg hover:bg-gray-50 transition ml-1">Today</button>
         </div>
 
         <div className="flex items-center gap-2">
@@ -165,18 +145,8 @@ export default function Calendar() {
             </select>
           )}
           <div className="flex rounded-lg border border-gray-200 overflow-hidden">
-            <button
-              onClick={() => setView('week')}
-              className={`px-3 py-1 text-sm transition ${view === 'week' ? 'bg-[#004B93] text-white' : 'text-gray-600 hover:bg-gray-50'}`}
-            >
-              Week
-            </button>
-            <button
-              onClick={() => setView('month')}
-              className={`px-3 py-1 text-sm transition ${view === 'month' ? 'bg-[#004B93] text-white' : 'text-gray-600 hover:bg-gray-50'}`}
-            >
-              Month
-            </button>
+            <button onClick={() => setView('week')} className={`px-3 py-1 text-sm transition ${view === 'week' ? 'bg-[#004B93] text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Week</button>
+            <button onClick={() => setView('month')} className={`px-3 py-1 text-sm transition ${view === 'month' ? 'bg-[#004B93] text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Month</button>
           </div>
           <button
             onClick={() => { setSelectedEvent(null); setDefaultDate(new Date().toISOString().slice(0, 16)); setShowModal(true) }}
@@ -187,7 +157,6 @@ export default function Calendar() {
         </div>
       </div>
 
-      {/* Week View */}
       {view === 'week' && (
         <div className="grid grid-cols-7 divide-x divide-gray-100">
           {weekDays.map((day, i) => {
@@ -195,14 +164,9 @@ export default function Calendar() {
             const dayEvents = getEventsForDay(day)
             return (
               <div key={i} className="min-h-32">
-                <div
-                  className={`p-2 text-center border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${isToday ? 'bg-blue-50' : ''}`}
-                  onClick={() => openNewEvent(new Date(day))}
-                >
+                <div className={`p-2 text-center border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${isToday ? 'bg-blue-50' : ''}`} onClick={() => openNewEvent(new Date(day))}>
                   <p className="text-xs text-gray-400">{dayNames[i]}</p>
-                  <p className={`text-sm font-semibold ${isToday ? 'text-[#004B93]' : 'text-gray-700'}`}>
-                    {day.getDate()}
-                  </p>
+                  <p className={`text-sm font-semibold ${isToday ? 'text-[#004B93]' : 'text-gray-700'}`}>{day.getDate()}</p>
                 </div>
                 <div className="p-1 space-y-1">
                   {dayEvents.map(event => (
@@ -226,15 +190,10 @@ export default function Calendar() {
         </div>
       )}
 
-      {/* Month View */}
       {view === 'month' && (
         <div>
           <div className="grid grid-cols-7 border-b border-gray-100">
-            {dayNames.map(d => (
-              <div key={d} className="p-2 text-center text-xs font-medium text-gray-400">
-                {d}
-              </div>
-            ))}
+            {dayNames.map(d => <div key={d} className="p-2 text-center text-xs font-medium text-gray-400">{d}</div>)}
           </div>
           <div className="grid grid-cols-7 divide-x divide-y divide-gray-100">
             {monthDays.map((day, i) => {
@@ -242,14 +201,8 @@ export default function Calendar() {
               const isToday = day.toDateString() === new Date().toDateString()
               const dayEvents = getEventsForDay(day)
               return (
-                <div
-                  key={i}
-                  className={`min-h-20 p-1 cursor-pointer hover:bg-gray-50 transition ${isToday ? 'bg-blue-50' : ''}`}
-                  onClick={() => openNewEvent(new Date(day))}
-                >
-                  <p className={`text-xs font-semibold mb-1 ${isToday ? 'text-[#004B93]' : 'text-gray-600'}`}>
-                    {day.getDate()}
-                  </p>
+                <div key={i} className={`min-h-20 p-1 cursor-pointer hover:bg-gray-50 transition ${isToday ? 'bg-blue-50' : ''}`} onClick={() => openNewEvent(new Date(day))}>
+                  <p className={`text-xs font-semibold mb-1 ${isToday ? 'text-[#004B93]' : 'text-gray-600'}`}>{day.getDate()}</p>
                   <div className="space-y-0.5">
                     {dayEvents.slice(0, 3).map(event => (
                       <div
@@ -262,9 +215,7 @@ export default function Calendar() {
                         {event.title}
                       </div>
                     ))}
-                    {dayEvents.length > 3 && (
-                      <p className="text-xs text-gray-400">+{dayEvents.length - 3} more</p>
-                    )}
+                    {dayEvents.length > 3 && <p className="text-xs text-gray-400">+{dayEvents.length - 3} more</p>}
                   </div>
                 </div>
               )

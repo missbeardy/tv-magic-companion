@@ -9,6 +9,7 @@ interface Notification {
   type: string
   read: boolean
   created_at: string
+  lead_id?: string // Stores relation to target lead
 }
 
 export default function NotificationBell() {
@@ -36,12 +37,21 @@ export default function NotificationBell() {
     fetchNotifications()
   }
 
-  async function markRead(id: string) {
+  async function handleNotificationClick(n: Notification) {
     await supabase
       .from('notifications')
       .update({ read: true })
-      .eq('id', id)
+      .eq('id', n.id)
+    
     fetchNotifications()
+    setOpen(false)
+
+    // Redirect to the leads page and pass the leadId as a query parameter
+    if (n.lead_id) {
+      window.location.href = `/leads?leadId=${n.lead_id}`
+    } else {
+      window.location.href = '/leads'
+    }
   }
 
   useEffect(() => {
@@ -121,7 +131,7 @@ export default function NotificationBell() {
             {notifications.map(n => (
               <div
                 key={n.id}
-                onClick={() => markRead(n.id)}
+                onClick={() => handleNotificationClick(n)}
                 className={`p-4 cursor-pointer hover:bg-gray-50 transition ${!n.read ? 'bg-blue-50' : ''}`}
               >
                 <div className="flex gap-3">
