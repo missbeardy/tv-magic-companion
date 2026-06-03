@@ -134,7 +134,7 @@ export default function LeadSocialModal({ lead, photoUrl, onClose }: Props) {
               />
             </div>
             <p className="text-xs text-gray-400">
-              Will post to Instagram Feed, Instagram Stories + Facebook Page simultaneously.
+              Will post to Instagram Feed, Reel + Story, and Facebook Story simultaneously.
             </p>
             <div className="flex gap-3">
               <button

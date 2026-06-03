@@ -1,55 +1,61 @@
-interface SocialPostPayload {
+// src/hooks/useSocialPost.ts
+// Sends a photo to Zernio API, posting simultaneously to:
+//   - Instagram Feed post
+//   - Instagram Reel
+//   - Instagram Story
+//   - Facebook Story
+// Each platform entry in the `platforms` array is a separate post type.
+// Zernio docs: https://docs.zernio.com/platforms/instagram
+
+const ZERNIO_API_KEY = import.meta.env.VITE_ZERNIO_API_KEY as string
+const ZERNIO_IG_ACCOUNT_ID = import.meta.env.VITE_ZERNIO_IG_ACCOUNT_ID as string
+const ZERNIO_FB_ACCOUNT_ID = import.meta.env.VITE_ZERNIO_FB_ACCOUNT_ID as string
+
+interface PostInput {
   caption: string
   mediaUrl: string
 }
 
-interface SocialPostResult {
+interface PostResult {
   success: boolean
   error?: string
 }
 
-export async function postToSocial(
-  payload: SocialPostPayload
-): Promise<SocialPostResult> {
+export async function postToSocial({ caption, mediaUrl }: PostInput): Promise<PostResult> {
   try {
-    const platforms = []
-
-    // Add Instagram if account ID is configured
-    if (import.meta.env.VITE_ZERNIO_IG_ACCOUNT_ID) {
-      platforms.push({
-        platform: 'instagram',
-        accountId: import.meta.env.VITE_ZERNIO_IG_ACCOUNT_ID,
-      })
-    }
-
-    // Add Facebook if account ID is configured
-    if (import.meta.env.VITE_ZERNIO_FB_ACCOUNT_ID) {
-      platforms.push({
-        platform: 'facebook',
-        accountId: import.meta.env.VITE_ZERNIO_FB_ACCOUNT_ID,
-      })
-    }
-
-    if (platforms.length === 0) {
-      return {
-        success: false,
-        error: 'No social accounts configured. Add account IDs to .env.local',
-      }
-    }
-
     const response = await fetch('https://zernio.com/api/v1/posts', {
       method: 'POST',
       headers: {
+        'Authorization': `Bearer ${ZERNIO_API_KEY}`,
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${import.meta.env.VITE_ZERNIO_API_KEY}`,
       },
       body: JSON.stringify({
-        content: payload.caption,
-        platforms,
+        content: caption,
         mediaItems: [
+          { type: 'image', url: mediaUrl }
+        ],
+        platforms: [
+          // Instagram Feed (default — no contentType needed)
           {
-            type: 'image',
-            url: payload.mediaUrl,
+            platform: 'instagram',
+            accountId: ZERNIO_IG_ACCOUNT_ID,
+          },
+          
+          // Instagram Story
+          {
+            platform: 'instagram',
+            accountId: ZERNIO_IG_ACCOUNT_ID,
+            platformSpecificData: {
+              contentType: 'story',
+            },
+          },
+          // Facebook Story
+          {
+            platform: 'facebook',
+            accountId: ZERNIO_FB_ACCOUNT_ID,
+            platformSpecificData: {
+              contentType: 'story',
+            },
           },
         ],
         publishNow: true,
@@ -57,15 +63,13 @@ export async function postToSocial(
     })
 
     if (!response.ok) {
-      const err = await response.json()
-      return {
-        success: false,
-        error: err.error ?? `Posting failed (${response.status})`,
-      }
+      const errorData = await response.json().catch(() => ({}))
+      const message = (errorData as { message?: string }).message ?? `HTTP ${response.status}`
+      return { success: false, error: `Zernio error: ${message}` }
     }
 
     return { success: true }
-  } catch (e) {
-    return { success: false, error: 'Network error — please try again.' }
+  } catch (err) {
+    return { success: false, error: 'Network error — check your API key and connection.' }
   }
 }
