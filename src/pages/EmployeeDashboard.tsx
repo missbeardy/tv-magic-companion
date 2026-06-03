@@ -9,6 +9,10 @@ import { saveScheduleCache, loadScheduleCache } from '../lib/scheduleCache'
 export default function EmployeeDashboard() {
   const { profile } = useAuth()
   const [isOffline, setIsOffline] = useState(!navigator.onLine)
+  
+  // Added state variables to fix TS2304 errors
+  const [leads, setLeads] = useState<any[]>([])
+  const [events, setEvents] = useState<any[]>([])
 
   useEffect(() => {
     const on = () => setIsOffline(false)
@@ -25,18 +29,24 @@ export default function EmployeeDashboard() {
     if (!profile || isOffline) return
 
     async function primeCache() {
-      const { data: leads } = await supabase
+      // Named the destructured variables 'fetchedLeads' and 'fetchedEvents'
+      const { data: fetchedLeads } = await supabase
         .from('leads')
         .select('*')
         .or(`status.eq.unassigned,assigned_to.eq.${profile!.id}`)
 
-      const { data: events } = await supabase
+      const { data: fetchedEvents } = await supabase
         .from('events')
         .select('*')
         .eq('user_id', profile!.id)
 
-      if (leads && events) {
-        saveScheduleCache({ leads, events })
+      // Set state locally
+      if (fetchedLeads) setLeads(fetchedLeads)
+      if (fetchedEvents) setEvents(fetchedEvents)
+
+      // Save to cache
+      if (fetchedLeads && fetchedEvents) {
+        saveScheduleCache({ leads: fetchedLeads, events: fetchedEvents })
       }
     }
 
@@ -76,6 +86,7 @@ export default function EmployeeDashboard() {
 
         {!isOffline && (
           <>
+            {/* Removed the props since these components handle their own data */}
             <AssignedLeads />
             <LeadsList />
           </>
