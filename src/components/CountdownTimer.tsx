@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { getTimeRemaining } from '../lib/timer'
 
 interface Props {
@@ -9,17 +9,23 @@ interface Props {
 export default function CountdownTimer({ expiresAt, onExpire }: Props) {
   const [timeLeft, setTimeLeft] = useState(getTimeRemaining(expiresAt))
 
+  // Use a ref to always have the latest onExpire without triggering effect re-runs
+  const onExpireRef = useRef(onExpire)
+  useEffect(() => {
+    onExpireRef.current = onExpire
+  }, [onExpire])
+
   useEffect(() => {
     const interval = setInterval(() => {
       const remaining = getTimeRemaining(expiresAt)
       setTimeLeft(remaining)
-      if (remaining.expired && onExpire) {
-        onExpire()
+      if (remaining.expired && onExpireRef.current) {
+        onExpireRef.current()
       }
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [expiresAt, onExpire])
+  }, [expiresAt]) // Only re-run when expiresAt changes — NOT when onExpire changes
 
   if (timeLeft.expired) {
     return (

@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import TimePicker from './TimePicker'
+
+// ── Types ───────────────────────────────────────────────────────────────────
 
 interface Lead {
   id: string
@@ -13,7 +15,7 @@ interface Lead {
   address?: string
 }
 
-interface Event {
+interface CalendarEvent {
   id?: string
   title: string
   description: string
@@ -35,16 +37,37 @@ interface Profile {
   full_name: string
 }
 
+interface EventPayload {
+  title: string
+  description: string
+  start_time: string
+  end_time: string
+  color: string
+  category: string
+  user_id: string
+  lead_id: string | null
+  client_name?: string
+  client_phone?: string
+  client_email?: string
+  client_address?: string
+  client_job?: string
+}
+
 interface Props {
-  event?: Event | null
+  event?: CalendarEvent | null
   defaultDate?: string
   prefillLead?: Lead | null
   onClose: () => void
   onSaved: () => void
 }
 
-// Updated standard categories list to match your layout requirements
+// ── Constants ─────────────────────────────────────────────────────────────
+
 const CATEGORIES = ['General', 'Booking', 'Assigned Leads', 'Internal']
+
+const COLORS = ['#004B93', '#00B4C5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
 
 function getTodayDate(): string {
   return new Date().toISOString().slice(0, 10)
@@ -63,11 +86,30 @@ function addHour(time: string): string {
   return `${String(newH).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
+function isBookingCategory(category: string): boolean {
+  return category === 'Booking' || category === 'Assigned Leads'
+}
+
+function validateTimes(startTime: string, endTime: string, date: string): string | null {
+  const start = new Date(`${date}T${startTime}`)
+  const end = new Date(`${date}T${endTime}`)
+  if (end <= start) {
+    return 'End time must be after start time.'
+  }
+  return null
+}
+
+// ── Component ───────────────────────────────────────────────────────────────
+
 export default function EventModal({ event, defaultDate, prefillLead, onClose, onSaved }: Props) {
   const { profile } = useAuth()
+
+  // ── Refs ──
   const autocompleteInputRef = useRef<HTMLInputElement>(null)
   const autocompleteInstance = useRef<any>(null)
+  const googleScriptRef = useRef<HTMLScriptElement | null>(null)
 
+  // ── Derived initial values ──
   const initDate = defaultDate
     ? defaultDate.slice(0, 10)
     : event?.start_time
@@ -82,6 +124,7 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
     ? new Date(event.end_time).toTimeString().slice(0, 5)
     : addHour(initStartTime)
 
+  // ── Form State ──
   const [title, setTitle] = useState(event?.title || '')
   const [description, setDescription] = useState(event?.description || '')
   const [date, setDate] = useState(initDate)
@@ -89,39 +132,51 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
   const [endTime, setEndTime] = useState(initEndTime)
   const [color, setColor] = useState(event?.color || '#004B93')
   const [category, setCategory] = useState(event?.category || (prefillLead ? 'Booking' : 'General'))
-  
-  // My Assigned Leads context states
+
+  // Lead selection
   const [myAssignedLeads, setMyAssignedLeads] = useState<Lead[]>([])
   const [selectedLeadId, setSelectedLeadId] = useState<string>(event?.lead_id || prefillLead?.id || '')
 
-  // Client Details states
+  // Client details
   const [clientName, setClientName] = useState(event?.client_name || prefillLead?.name || '')
   const [clientPhone, setClientPhone] = useState(event?.client_phone || prefillLead?.phone || '')
   const [clientEmail, setClientEmail] = useState(event?.client_email || prefillLead?.email || '')
   const [clientAddress, setClientAddress] = useState(event?.client_address || prefillLead?.address || '')
   const [clientJob, setClientJob] = useState(event?.client_job || prefillLead?.details || '')
-  
+
+  // Employee assignment
   const [selectedUserId, setSelectedUserId] = useState(event?.user_id || profile?.id || '')
   const [employees, setEmployees] = useState<Profile[]>([])
+
+  // UI State
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  // Fetch the current user's assigned leads to populate the dropdown selection list
+  // ── Fetch My Assigned Leads ──
   useEffect(() => {
-    if (!profile?.id) return
+    const userId = profile?.id
+    if (!userId) return
+
+    let cancelled = false
+
     async function fetchMyLeads() {
       const { data } = await supabase
         .from('leads')
         .select('*')
-        .eq('assigned_to', profile.id)
+        .eq('assigned_to', userId)
         .eq('status', 'assigned')
-      if (data) setMyAssignedLeads(data as Lead[])
+
+      if (!cancelled && data) {
+        setMyAssignedLeads(data as Lead[])
+      }
     }
+
     fetchMyLeads()
+    return () => { cancelled = true }
   }, [profile])
 
-  // Handle auto-populating fields when an Assigned Lead is chosen from the dropdown list
-  function handleLeadSelection(leadId: string) {
+  // ── Handle Lead Selection ──
+  const handleLeadSelection = useCallback((leadId: string) => {
     setSelectedLeadId(leadId)
     const target = myAssignedLeads.find(l => l.id === leadId)
     if (target) {
@@ -132,86 +187,119 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
       setClientJob(target.details || '')
       setTitle(`Booking — ${target.name}`)
     }
-  }
+  }, [myAssignedLeads])
 
-  // Reliable Google Maps Autocomplete Initialization script loading hook
+  // ── Google Maps Autocomplete ──
   useEffect(() => {
-    const isBookingView = category === 'Booking' || category === 'Assigned Leads'
+    const isBookingView = isBookingCategory(category)
     if (!isBookingView) return
 
+    // Cleanup previous instance
+    if (autocompleteInstance.current) {
+      // Use any to avoid google namespace dependency
+      const googleAny = (window as any).google
+      if (googleAny?.maps?.event) {
+        googleAny.maps.event.clearInstanceListeners(autocompleteInstance.current)
+      }
+      autocompleteInstance.current = null
+    }
+
     const setupWidget = () => {
-      if (!autocompleteInputRef.current || !(window as any).google?.maps?.places) return
-      
-      // Prevent multiple messy re-attachments on re-renders
+      const googleAny = (window as any).google
+      if (!autocompleteInputRef.current || !googleAny?.maps?.places) return
       if (autocompleteInstance.current) return
 
-      autocompleteInstance.current = new (window as any).google.maps.places.Autocomplete(autocompleteInputRef.current, {
-        types: ['address'],
-        componentRestrictions: { country: 'au' }
-      })
+      autocompleteInstance.current = new googleAny.maps.places.Autocomplete(
+        autocompleteInputRef.current,
+        {
+          types: ['address'],
+          componentRestrictions: { country: 'au' }
+        }
+      )
 
       autocompleteInstance.current.addListener('place_changed', () => {
-        const place = autocompleteInstance.current.getPlace()
-        if (place.formatted_address) {
+        const place = autocompleteInstance.current?.getPlace()
+        if (place?.formatted_address) {
           setClientAddress(place.formatted_address)
         }
       })
     }
 
-    if (!(window as any).google?.maps?.places) {
-      // Check if tag is already injecting globally somewhere else
-      const existingScript = document.getElementById('google-maps-autocomplete-script')
+    const googleAny = (window as any).google
+    if (!googleAny?.maps?.places) {
+      const existingScript = document.getElementById('google-maps-autocomplete-script') as HTMLScriptElement | null
+
       if (!existingScript) {
-        (window as any).initAutocompleteCallback = () => {
+        ;(window as any).initAutocompleteCallback = () => {
           setupWidget()
         }
         const script = document.createElement('script')
         script.id = 'google-maps-autocomplete-script'
-        script.src = `https://maps.googleapis.com/maps/api/js?key=Maps+Demo+Key&libraries=places&callback=initAutocompleteCallback`
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&libraries=places&callback=initAutocompleteCallback`
         script.async = true
         script.defer = true
         document.head.appendChild(script)
+        googleScriptRef.current = script
+      } else {
+        if (googleAny?.maps?.places) {
+          setupWidget()
+        }
       }
     } else {
       setupWidget()
     }
 
     return () => {
-      // Cleanup handlers cleanly if categories toggle
-      if ((window as any).google && autocompleteInputRef.current) {
-        (window as any).google.maps.event.clearInstanceListeners(autocompleteInputRef.current)
+      const gAny = (window as any).google
+      if (gAny?.maps?.event && autocompleteInstance.current) {
+        gAny.maps.event.clearInstanceListeners(autocompleteInstance.current)
       }
       autocompleteInstance.current = null
     }
   }, [category])
 
+  // ── Fetch Employees (Manager only) ──
   useEffect(() => {
-    if (profile?.role === 'manager') {
-      supabase
-        .from('profiles')
-        .select('id, full_name')
-        .then(({ data }) => { if (data) setEmployees(data) })
-    }
+    if (profile?.role !== 'manager') return
+
+    let cancelled = false
+
+    supabase
+      .from('profiles')
+      .select('id, full_name')
+      .then(({ data }) => {
+        if (!cancelled && data) setEmployees(data)
+      })
+
+    return () => { cancelled = true }
   }, [profile])
 
-  // Automatically adjust appointment text header string when tracking fields shift
+  // ── Auto-update title for bookings ──
   useEffect(() => {
-    if ((category === 'Booking' || category === 'Assigned Leads') && clientName && !event?.id) {
+    if (isBookingCategory(category) && clientName && !event?.id) {
       setTitle(`Booking — ${clientName}`)
     }
-  }, [category, clientName])
+  }, [category, clientName, event?.id])
 
-  async function handleSave() {
+  // ── Save Handler ──
+  const handleSave = useCallback(async () => {
     if (!title || !date || !startTime || !endTime) {
-      setError('Please fill out all required layout fields.')
+      setError('Please fill out all required fields.')
       return
     }
+
+    const timeError = validateTimes(startTime, endTime, date)
+    if (timeError) {
+      setError(timeError)
+      return
+    }
+
     setSaving(true)
     setError('')
 
     const finalLeadId = selectedLeadId || null
 
-    const payload: Record<string, any> = {
+    const payload: EventPayload = {
       title,
       description,
       start_time: new Date(`${date}T${startTime}`).toISOString(),
@@ -222,7 +310,7 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
       lead_id: finalLeadId,
     }
 
-    const capturesDetails = category === 'Booking' || category === 'Assigned Leads'
+    const capturesDetails = isBookingCategory(category)
     if (capturesDetails) {
       payload.client_name = clientName
       payload.client_phone = clientPhone
@@ -231,85 +319,151 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
       payload.client_job = clientJob
     }
 
-    let dbError
-    if (event?.id) {
-      const result = await supabase.from('events').update(payload).eq('id', event.id)
-      dbError = result.error
-    } else {
-      const result = await supabase.from('events').insert(payload)
-      dbError = result.error
+    try {
+      let dbError: Error | null = null
+      let previousLeadId: string | null = event?.lead_id ?? null
 
-      // If appointment is saved, automatically flip lead status parameter to booked state
-      if (!dbError && capturesDetails && finalLeadId) {
+      if (event?.id) {
+        // Update existing
+        const { error } = await supabase
+          .from('events')
+          .update(payload)
+          .eq('id', event.id)
+        dbError = error
+
+        // If lead changed on update, handle status transition
+        if (!dbError && capturesDetails && finalLeadId !== previousLeadId) {
+          // Revert old lead if exists
+          if (previousLeadId) {
+            await supabase
+              .from('leads')
+              .update({ status: 'assigned' })
+              .eq('id', previousLeadId)
+          }
+          // Set new lead to booked
+          if (finalLeadId) {
+            await supabase
+              .from('leads')
+              .update({ status: 'booked' })
+              .eq('id', finalLeadId)
+          }
+        }
+      } else {
+        // Insert new
+        const { error } = await supabase.from('events').insert(payload)
+        dbError = error
+
+        if (!dbError && capturesDetails && finalLeadId) {
+          await supabase
+            .from('leads')
+            .update({ status: 'booked' })
+            .eq('id', finalLeadId)
+        }
+      }
+
+      if (dbError) {
+        setError('Error saving event: ' + dbError.message)
+      } else {
+        onSaved()
+        onClose()
+      }
+    } catch (err) {
+      setError('Unexpected error: ' + (err instanceof Error ? err.message : 'Unknown error'))
+    } finally {
+      setSaving(false)
+    }
+  }, [
+    title, description, date, startTime, endTime, color, category,
+    selectedUserId, selectedLeadId, clientName, clientPhone, clientEmail,
+    clientAddress, clientJob, event, onSaved, onClose
+  ])
+
+  // ── Delete Handler ──
+  const handleDelete = useCallback(async () => {
+    if (!event?.id) return
+
+    try {
+      // If this event was linked to a lead, revert lead status
+      if (event.lead_id) {
         await supabase
           .from('leads')
-          .update({ status: 'booked' })
-          .eq('id', finalLeadId)
+          .update({ status: 'assigned' })
+          .eq('id', event.lead_id)
       }
-    }
 
-    if (dbError) {
-      setError('Error saving database event details: ' + dbError.message)
-    } else {
+      await supabase.from('events').delete().eq('id', event.id)
       onSaved()
       onClose()
+    } catch (err) {
+      setError('Error deleting event: ' + (err instanceof Error ? err.message : 'Unknown error'))
     }
-    setSaving(false)
-  }
+  }, [event, onSaved, onClose])
 
-  async function handleDelete() {
-    if (!event?.id) return
-    await supabase.from('events').delete().eq('id', event.id)
-    onSaved()
-    onClose()
-  }
+  // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-screen overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">
-            {event?.id ? 'Edit System Event' : 'Schedule Appointment'}
+            {event?.id ? 'Edit Event' : 'Schedule Appointment'}
           </h3>
 
-          {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm">{error}</div>}
+          {error && (
+            <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm">
+              {error}
+            </div>
+          )}
 
           <div className="space-y-4">
+            {/* Category */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Appointment Category</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Category *
+              </label>
               <select
                 value={category}
                 onChange={e => setCategory(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
               >
-                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                {CATEGORIES.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
               </select>
             </div>
 
-            {/* ASSIGNED LEADS LOOKUP DROPDOWN SELECTION GRID */}
+            {/* Assigned Lead Dropdown */}
             {category === 'Assigned Leads' && !event?.id && (
               <div>
-                <label className="block text-sm font-medium text-amber-800 mb-1">Select an Assigned Lead to Pre-fill</label>
+                <label className="block text-sm font-medium text-amber-800 mb-1">
+                  Select an Assigned Lead to Pre-fill
+                </label>
                 <select
                   value={selectedLeadId}
                   onChange={e => handleLeadSelection(e.target.value)}
                   className="w-full border-2 border-amber-300 bg-amber-50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                 >
-                  <option value="">-- Click to choose from your leads list --</option>
+                  <option value="">-- Choose from your leads --</option>
                   {myAssignedLeads.map(l => (
-                    <option key={l.id} value={l.id}>{l.name} ({l.service_type || 'General Service'})</option>
+                    <option key={l.id} value={l.id}>
+                      {l.name} ({l.service_type || 'General Service'})
+                    </option>
                   ))}
                 </select>
               </div>
             )}
 
-            {/* CLIENT CONFIGURATION DETAILS DETAILS SUBFORM */}
-            {(category === 'Booking' || category === 'Assigned Leads') && (
+            {/* Client Details */}
+            {isBookingCategory(category) && (
               <div className="space-y-3 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Client Profile Details</p>
-                
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Client Details
+                </p>
+
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Customer Full Name</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Customer Name
+                  </label>
                   <input
                     type="text"
                     value={clientName}
@@ -320,20 +474,24 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Mobile Contact Phone Number</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Phone
+                  </label>
                   <input
-                    type="text"
+                    type="tel"
                     value={clientPhone}
                     onChange={e => setClientPhone(e.target.value)}
-                    placeholder="Enter phone numbers"
+                    placeholder="Enter phone number"
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Email Coordinates Address</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Email
+                  </label>
                   <input
-                    type="text"
+                    type="email"
                     value={clientEmail}
                     onChange={e => setClientEmail(e.target.value)}
                     placeholder="name@domain.com"
@@ -342,23 +500,27 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Job Site Address (Autocomplete Map Tracker)</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Address (Google Maps Autocomplete)
+                  </label>
                   <input
                     ref={autocompleteInputRef}
                     type="text"
                     value={clientAddress}
                     onChange={e => setClientAddress(e.target.value)}
-                    placeholder="Type words here to auto complete..."
+                    placeholder="Type to autocomplete..."
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Task Details & Summary</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Job Details
+                  </label>
                   <textarea
                     value={clientJob}
                     onChange={e => setClientJob(e.target.value)}
-                    placeholder="Describe specific task goals..."
+                    placeholder="Describe the job..."
                     rows={2}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
                   />
@@ -366,8 +528,11 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
               </div>
             )}
 
+            {/* Title */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Event Entry Title *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Title *
+              </label>
               <input
                 type="text"
                 value={title}
@@ -377,19 +542,25 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
               />
             </div>
 
+            {/* Description */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Supplementary Workspace Description Notes</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Description
+              </label>
               <textarea
                 value={description}
                 onChange={e => setDescription(e.target.value)}
                 rows={2}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
-                placeholder="Optional internal remarks"
+                placeholder="Optional internal notes"
               />
             </div>
 
+            {/* Date */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Target Appointment Calendar Date *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Date *
+              </label>
               <input
                 type="date"
                 value={date}
@@ -398,52 +569,76 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
               />
             </div>
 
+            {/* Time Range */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Start Time *
+                </label>
                 <TimePicker value={startTime} onChange={setStartTime} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">End Time *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  End Time *
+                </label>
                 <TimePicker value={endTime} onChange={setEndTime} />
               </div>
             </div>
 
+            {/* Employee Assignment (Manager only) */}
             {profile?.role === 'manager' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Staff Member Owner Matrix Assignment</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Assign To
+                </label>
                 <select
                   value={selectedUserId}
                   onChange={e => setSelectedUserId(e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
                 >
-                  {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.full_name}</option>)}
+                  {employees.map(emp => (
+                    <option key={emp.id} value={emp.id}>{emp.full_name}</option>
+                  ))}
                 </select>
               </div>
             )}
 
+            {/* Color Picker */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Color Picker Label Identity Tag</label>
-              <div className="flex gap-2">
-                {['#004B93', '#00B4C5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'].map(c => (
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Color
+              </label>
+              <div className="flex gap-2 flex-wrap">
+                {COLORS.map(c => (
                   <button
                     key={c}
+                    type="button"
                     onClick={() => setColor(c)}
-                    className={`w-7 h-7 rounded-full border-2 transition ${color === c ? 'border-gray-800 scale-110' : 'border-transparent'}`}
+                    className={`w-7 h-7 rounded-full border-2 transition ${
+                      color === c ? 'border-gray-800 scale-110' : 'border-transparent'
+                    }`}
                     style={{ backgroundColor: c }}
+                    aria-label={`Select color ${c}`}
                   />
                 ))}
               </div>
             </div>
           </div>
 
+          {/* Actions */}
           <div className="flex gap-3 mt-6">
             {event?.id && (
-              <button onClick={handleDelete} className="border border-red-300 text-red-500 px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-50 transition">
-                Remove Event
+              <button
+                onClick={handleDelete}
+                className="border border-red-300 text-red-500 px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-50 transition"
+              >
+                Delete
               </button>
             )}
-            <button onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition">
+            <button
+              onClick={onClose}
+              className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition"
+            >
               Cancel
             </button>
             <button
@@ -451,7 +646,7 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
               disabled={saving}
               className="flex-1 bg-[#004B93] text-white py-2 rounded-lg text-sm font-medium hover:bg-[#003d7a] transition disabled:opacity-50"
             >
-              {saving ? 'Processing...' : event?.id ? 'Update Layout' : 'Confirm Layout'}
+              {saving ? 'Saving...' : event?.id ? 'Update' : 'Create'}
             </button>
           </div>
         </div>

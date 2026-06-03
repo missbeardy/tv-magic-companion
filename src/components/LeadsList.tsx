@@ -38,7 +38,7 @@ export default function LeadsList({ onShareSocial }: LeadsListProps) {
 
   async function handleSelfAssign(leadId: string) {
     if (!profile?.id) return
-    
+
     const now = new Date()
     const timerExpiresAt = new Date(now.getTime() + 30 * 60 * 1000).toISOString() // 30-minute default window
 
@@ -62,14 +62,15 @@ export default function LeadsList({ onShareSocial }: LeadsListProps) {
   useEffect(() => {
     fetchLeads()
 
+    // FIXED: Static channel name instead of Date.now() to prevent infinite re-renders
     const channel = supabase
-      .channel(`leads-changes-${Date.now()}`)
+      .channel('leads-list-changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'leads' }, () => fetchLeads())
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'leads' }, () => fetchLeads())
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [])
+  }, []) // Empty dependency array — only set up once on mount
 
   if (loading) return <p className="text-gray-400 text-sm">Loading leads...</p>
 
@@ -112,13 +113,12 @@ export default function LeadsList({ onShareSocial }: LeadsListProps) {
                   <p className="text-sm text-gray-600 mt-2">{lead.details}</p>
                 )}
               </div>
-              
+
               <div className="flex flex-col items-end gap-2 ml-4">
                 <span className="text-xs text-gray-400 whitespace-nowrap">
                   {new Date(lead.created_at).toLocaleDateString()}
                 </span>
-                
-                {/* Managers can route via modal selector OR assign cleanly to themselves */}
+
                 {profile?.role === 'manager' && (
                   <div className="flex gap-1">
                     <button
@@ -135,7 +135,7 @@ export default function LeadsList({ onShareSocial }: LeadsListProps) {
                     </button>
                   </div>
                 )}
-                
+
                 {profile?.role === 'employee' && (
                   <button
                     onClick={() => handleSelfAssign(lead.id)}
@@ -153,7 +153,7 @@ export default function LeadsList({ onShareSocial }: LeadsListProps) {
                     📱 Test Social Post
                   </button>
                 )}
-                
+
                 <a
                   href={`/leads?leadId=${lead.id}`}
                   className="text-xs text-[#004B93] underline whitespace-nowrap"
