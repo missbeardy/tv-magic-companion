@@ -40,7 +40,7 @@ export default function LeadsList({ onShareSocial }: LeadsListProps) {
     if (!profile?.id) return
 
     const now = new Date()
-    const timerExpiresAt = new Date(now.getTime() + 30 * 60 * 1000).toISOString() // 30-minute default window
+    const timerExpiresAt = new Date(now.getTime() + 30 * 60 * 1000).toISOString()
 
     const { error } = await supabase
       .from('leads')
@@ -62,7 +62,6 @@ export default function LeadsList({ onShareSocial }: LeadsListProps) {
   useEffect(() => {
     fetchLeads()
 
-    // FIXED: Static channel name instead of Date.now() to prevent infinite re-renders
     const channel = supabase
       .channel('leads-list-changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'leads' }, () => fetchLeads())
@@ -70,13 +69,13 @@ export default function LeadsList({ onShareSocial }: LeadsListProps) {
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, []) // Empty dependency array — only set up once on mount
+  }, [])
 
   if (loading) return <p className="text-gray-400 text-sm">Loading leads...</p>
 
   if (leads.length === 0) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 text-center">
+      <div className="bg-white shadow-sm border-y border-gray-200 sm:rounded-xl sm:border sm:mx-0 -mx-4 p-6 text-center">
         <p className="text-gray-400 text-sm">No unassigned leads yet.</p>
       </div>
     )
@@ -92,7 +91,7 @@ export default function LeadsList({ onShareSocial }: LeadsListProps) {
         />
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+      <div className="bg-white shadow-sm border-y border-gray-200 sm:rounded-xl sm:border sm:mx-0 -mx-4">
         <div className="p-4 border-b border-gray-100">
           <h3 className="text-lg font-semibold text-gray-800">
             Unassigned Leads
@@ -105,8 +104,8 @@ export default function LeadsList({ onShareSocial }: LeadsListProps) {
         <div className="divide-y divide-gray-100">
           {leads.map(lead => (
             <div key={lead.id} className="p-4 flex items-start justify-between">
-              <div>
-                <p className="font-medium text-gray-800">{lead.name || 'Unknown'}</p>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-gray-800 truncate">{lead.name || 'Unknown'}</p>
                 <p className="text-sm text-gray-500">{lead.service_type || 'No service type'}</p>
                 <p className="text-sm text-gray-400 mt-1">{lead.phone} · {lead.email}</p>
                 {lead.details && (
@@ -114,7 +113,7 @@ export default function LeadsList({ onShareSocial }: LeadsListProps) {
                 )}
               </div>
 
-              <div className="flex flex-col items-end gap-2 ml-4">
+              <div className="flex flex-col items-end gap-2 ml-4 flex-shrink-0">
                 <span className="text-xs text-gray-400 whitespace-nowrap">
                   {new Date(lead.created_at).toLocaleDateString()}
                 </span>
