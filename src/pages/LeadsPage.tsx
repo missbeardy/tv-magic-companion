@@ -12,7 +12,6 @@ import BottomSheet from '../components/BottomSheet'
 import CompletionChecklist from '../components/CompletionChecklist'
 import SignatureCanvas from '../components/SignatureCanvas'
 import ReceiptPreview from '../components/ReceiptPreview'
-import LeadSocialModal from '../components/LeadSocialModal'
 
 interface Lead {
   id: string
@@ -38,7 +37,7 @@ interface LeadEvent {
 }
 
 const COLUMNS = [
-  { key: 'unassigned',         label: 'Unassigned',         color: 'border-gray-300',   badge: 'bg-gray-100 text-gray-600'     },
+  { key: 'unassigned',        label: 'Unassigned',        color: 'border-gray-300',   badge: 'bg-gray-100 text-gray-600'     },
   { key: 'assigned',           label: 'Assigned',           color: 'border-blue-300',   badge: 'bg-blue-100 text-blue-700'     },
   { key: 'contact_attempted',  label: 'Contact Attempted',  color: 'border-amber-300',  badge: 'bg-amber-100 text-amber-700'   },
   { key: 'won',                label: 'Won',                color: 'border-green-300',  badge: 'bg-green-100 text-green-700'   },
@@ -78,10 +77,6 @@ export default function LeadsPage() {
   const [showSignature, setShowSignature] = useState(false)
   const [showReceipt, setShowReceipt] = useState(false)
   const [receiptLead, setReceiptLead] = useState<Lead | null>(null)
-
-  //Social Lead Photos
-  const [socialLead, setSocialLead] = useState<Lead | null>(null)
-  const [socialPhotoUrl, setSocialPhotoUrl] = useState<string>('')
 
   const logLeadEvent = async (leadId: string, eventType: string, note?: string) => {
     await supabase.from('lead_events').insert({
@@ -123,13 +118,13 @@ export default function LeadsPage() {
       .update({ status: 'completed', signature_data: dataUrl })
       .eq('id', checklistLead.id)
     await logLeadEvent(checklistLead.id, 'signed_off', 'Customer signature captured')
-    setReceiptLead(checklistLead)  // ← new
-    setShowReceipt(true)           // ← new
+    setReceiptLead(checklistLead)
+    setShowReceipt(true)
     setShowSignature(false)
     setChecklistLead(null)
     closeSheet()
     fetchLeads()
-    }
+  }
 
   const handleCall = async (lead: Lead) => {
     const confirmed = window.confirm(
@@ -305,10 +300,7 @@ export default function LeadsPage() {
               </button>
             </div>
             {lead.status === 'completed' && (
-            <>
-            <LeadPhotos leadId={lead.id} canUpload={true} />
-            {/* Social post buttons appear per photo — see note below */}
-            </>
+              <LeadPhotos leadId={lead.id} canUpload={true} />
             )}
 
             {events.length > 0 && (
@@ -351,8 +343,6 @@ export default function LeadsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-
-      {/* Completion checklist modal */}
       {showChecklist && (
         <CompletionChecklist
           onConfirm={confirmComplete}
@@ -360,7 +350,6 @@ export default function LeadsPage() {
         />
       )}
 
-      {/* Signature canvas — shown after checklist is confirmed */}
       {showSignature && (
         <SignatureCanvas
           onSave={saveSignatureAndComplete}
@@ -368,7 +357,6 @@ export default function LeadsPage() {
         />
       )}
 
-      {/* Receipt preview — shown after signature is saved */}
       {showReceipt && receiptLead && (
         <ReceiptPreview
           lead={receiptLead}
@@ -512,7 +500,6 @@ export default function LeadsPage() {
               Mark as Won 🏆
             </button>
 
-            {/* Complete Job — opens checklist, then signature */}
             <button
               onClick={() => handleMarkComplete(sheetLead)}
               className="w-full py-4 rounded-xl bg-green-600 text-white font-semibold text-base"
