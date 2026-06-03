@@ -157,6 +157,23 @@ export default function LeadsPage() {
     closeSheet()
   }
 
+  // Native Web Share implementation for sharing photos/details
+  const handleSharePhoto = async (lead: Lead) => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Job Photos: ${lead.name}`,
+          text: `Check out the completed job photos for ${lead.name} (${lead.service_type}).`,
+          url: window.location.href, // Or update this to a specific photo storage/gallery link if available
+        });
+      } catch (error) {
+        console.log('Error sharing:', error);
+      }
+    } else {
+      alert('Sharing is not supported on this device/browser. Copy the page URL to share manually.');
+    }
+  }
+
   async function fetchLeads() {
     let query = supabase
       .from('leads')
@@ -169,7 +186,7 @@ export default function LeadsPage() {
 
     const { data } = await query
     if (data) setLeads(data as Lead[])
-    setLoading(false)
+    loading && setLoading(false)
   }
 
   useEffect(() => {
@@ -444,83 +461,114 @@ export default function LeadsPage() {
           <div className="space-y-3">
             <p className="text-sm text-gray-500">{sheetLead.service_type}</p>
 
-            {sheetLead.status === 'unassigned' && profile?.role === 'manager' && (
-              <button
-                onClick={() => { setAssigningLead(sheetLead); closeSheet() }}
-                className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base"
-              >
-                Assign to Technician
-              </button>
-            )}
+            {/* --- POST SALES INTERFACE FOR COMPLETED JOBS --- */}
+            {sheetLead.status === 'completed' ? (
+              <>
+                <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-center mb-2">
+                  <span className="text-purple-700 font-semibold text-sm">✨ Job Completed Successfully</span>
+                </div>
 
-            {sheetLead.status === 'unassigned' && profile?.role === 'employee' && (
-              <button
-                onClick={() => { setAssigningLead(sheetLead); closeSheet() }}
-                className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base"
-              >
-                Self-Assign This Lead
-              </button>
-            )}
+                <button
+                  onClick={() => handleSharePhoto(sheetLead)}
+                  className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base flex items-center justify-center gap-2"
+                >
+                  📸 Share Photo
+                </button>
 
-            <button
-              onClick={() => handleCall(sheetLead)}
-              className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base flex items-center justify-center gap-2"
-            >
-              📞 Call {sheetLead.name}
-            </button>
+                <a
+                  href="tel:04123456789"
+                  className="w-full py-4 rounded-xl bg-gray-800 text-white font-semibold text-base flex items-center justify-center gap-2"
+                >
+                  📞 Call Manager (Nick)
+                </a>
 
-            <button
-              onClick={() => handleSMS(sheetLead)}
-              className="w-full py-4 rounded-xl bg-[#00B4C5] text-white font-semibold text-base flex items-center justify-center gap-2"
-            >
-              💬 Send ETA Text
-            </button>
+                {/* Inline Photo component specifically inside the sheet for context */}
+                <div className="pt-2 border-t border-gray-100">
+                  <LeadPhotos leadId={sheetLead.id} canUpload={true} />
+                </div>
+              </>
+            ) : (
+              /* --- STANDARD ACTIVE SALES INTERFACE --- */
+              <>
+                {sheetLead.status === 'unassigned' && profile?.role === 'manager' && (
+                  <button
+                    onClick={() => { setAssigningLead(sheetLead); closeSheet() }}
+                    className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base"
+                  >
+                    Assign to Technician
+                  </button>
+                )}
 
-            <button
-              onClick={async () => {
-                await supabase.from('leads').update({ status: 'contact_attempted' }).eq('id', sheetLead.id)
-                await logLeadEvent(sheetLead.id, 'status_change', 'Status updated to Contact Attempted')
-                fetchLeads()
-                closeSheet()
-              }}
-              className="w-full py-4 rounded-xl bg-amber-500 text-white font-semibold text-base"
-            >
-              ✅ Mark as Attempted Contact
-            </button>
+                {sheetLead.status === 'unassigned' && profile?.role === 'employee' && (
+                  <button
+                    onClick={() => { setAssigningLead(sheetLead); closeSheet() }}
+                    className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base"
+                  >
+                    Self-Assign This Lead
+                  </button>
+                )}
 
-            <button
-              onClick={async () => {
-                await supabase.from('leads').update({ status: 'won' }).eq('id', sheetLead.id)
-                await logLeadEvent(sheetLead.id, 'status_change', 'Status updated to Won')
-                fetchLeads()
-                closeSheet()
-              }}
-              className="w-full py-4 rounded-xl bg-green-500 text-white font-semibold text-base"
-            >
-              Mark as Won 🏆
-            </button>
+                <button
+                  onClick={() => handleCall(sheetLead)}
+                  className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base flex items-center justify-center gap-2"
+                >
+                  📞 Call {sheetLead.name}
+                </button>
 
-            <button
-              onClick={() => handleMarkComplete(sheetLead)}
-              className="w-full py-4 rounded-xl bg-green-600 text-white font-semibold text-base"
-            >
-              Complete Job ✅
-            </button>
+                <button
+                  onClick={() => handleSMS(sheetLead)}
+                  className="w-full py-4 rounded-xl bg-[#00B4C5] text-white font-semibold text-base flex items-center justify-center gap-2"
+                >
+                  💬 Send ETA Text
+                </button>
 
-            <button
-              onClick={() => { setBookingLead(sheetLead); closeSheet() }}
-              className="w-full py-4 rounded-xl bg-gray-100 text-gray-700 font-semibold text-base"
-            >
-              📅 Book Appointment
-            </button>
+                <button
+                  onClick={async () => {
+                    await supabase.from('leads').update({ status: 'contact_attempted' }).eq('id', sheetLead.id)
+                    await logLeadEvent(sheetLead.id, 'status_change', 'Status updated to Contact Attempted')
+                    fetchLeads()
+                    closeSheet()
+                  }}
+                  className="w-full py-4 rounded-xl bg-amber-500 text-white font-semibold text-base"
+                >
+                  ✅ Mark as Attempted Contact
+                </button>
 
-            {sheetLead.address && (
-              <button
-                onClick={() => openMaps(sheetLead.address!)}
-                className="w-full py-4 rounded-xl bg-gray-800 text-white font-semibold text-base flex items-center justify-center gap-2"
-              >
-                📍 Navigate to Job
-              </button>
+                <button
+                  onClick={async () => {
+                    await supabase.from('leads').update({ status: 'won' }).eq('id', sheetLead.id)
+                    await logLeadEvent(sheetLead.id, 'status_change', 'Status updated to Won')
+                    fetchLeads()
+                    closeSheet()
+                  }}
+                  className="w-full py-4 rounded-xl bg-green-500 text-white font-semibold text-base"
+                >
+                  Mark as Won 🏆
+                </button>
+
+                <button
+                  onClick={() => handleMarkComplete(sheetLead)}
+                  className="w-full py-4 rounded-xl bg-green-600 text-white font-semibold text-base"
+                >
+                  Complete Job ✅
+                </button>
+
+                <button
+                  onClick={() => { setBookingLead(sheetLead); closeSheet() }}
+                  className="w-full py-4 rounded-xl bg-gray-100 text-gray-700 font-semibold text-base"
+                >
+                  📅 Book Appointment
+                </button>
+
+                {sheetLead.address && (
+                  <button
+                    onClick={() => openMaps(sheetLead.address!)}
+                    className="w-full py-4 rounded-xl bg-gray-800 text-white font-semibold text-base flex items-center justify-center gap-2"
+                  >
+                    📍 Navigate to Job
+                  </button>
+                )}
+              </>
             )}
 
             <button
