@@ -45,7 +45,6 @@ const COLUMNS = [
   { key: 'assigned',           label: 'Assigned',           color: 'border-blue-300',   badge: 'bg-blue-100 text-blue-700'     },
   { key: 'contact_attempted',  label: 'Contact Attempted',  color: 'border-amber-300',  badge: 'bg-amber-100 text-amber-700'   },
   { key: 'booked',             label: 'Booked',             color: 'border-indigo-300', badge: 'bg-indigo-100 text-indigo-700' },
-  { key: 'won',                label: 'Won',                color: 'border-green-300',  badge: 'bg-green-100 text-green-700'   },
   { key: 'lost',               label: 'Lost',               color: 'border-red-300',    badge: 'bg-red-100 text-red-600'       },
   { key: 'completed',          label: 'Completed',          color: 'border-purple-300', badge: 'bg-purple-100 text-purple-700' },
 ]
@@ -59,7 +58,7 @@ const MOBILE_TABS = [
 function getColumnsForTab(tab: string): string[] {
   if (tab === 'unassigned') return ['unassigned']
   if (tab === 'assigned')   return ['assigned', 'contact_attempted', 'booked']
-  if (tab === 'closed')     return ['won', 'lost', 'completed']
+  if (tab === 'closed')     return ['lost', 'completed']
   return []
 }
 
@@ -569,18 +568,6 @@ export default function LeadsPage() {
                 </button>
 
                 <button
-                  onClick={async () => {
-                    await supabase.from('leads').update({ status: 'won' }).eq('id', sheetLead.id)
-                    await logLeadEvent(sheetLead.id, 'status_change', 'Status updated to Won')
-                    fetchLeads()
-                    closeSheet()
-                  }}
-                  className="w-full py-4 rounded-xl bg-green-500 text-white font-semibold text-base"
-                >
-                  Mark as Won 🏆
-                </button>
-
-                <button
                   onClick={() => handleMarkComplete(sheetLead)}
                   className="w-full py-4 rounded-xl bg-green-600 text-white font-semibold text-base"
                 >
@@ -636,7 +623,7 @@ interface KanbanColumnProps {
 
 function KanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook }: KanbanColumnProps) {
   return (
-    <div className={`flex-shrink-0 w-72 bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200`}>
+    <div className={`flex-shrink-0 w-full max-w-none bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200`}>
       <div className="p-3 border-b border-gray-100 flex items-center justify-between">
         <span className="font-semibold text-gray-700 text-sm">{col.label}</span>
         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${col.badge}`}>
