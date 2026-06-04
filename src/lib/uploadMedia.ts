@@ -1,5 +1,5 @@
 // src/lib/uploadMedia.ts
-import { supabase } from './supabaseClient'
+import { supabase } from './supabase.ts'
 
 export async function uploadMedia(file: File): Promise<string> {
   const ext = file.name.split('.').pop() ?? 'bin'
