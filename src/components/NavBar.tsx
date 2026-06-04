@@ -17,6 +17,7 @@ export default function NavBar() {
     { to: '/leads', label: 'Leads', icon: '📋' },
     { to: '/calendar', label: 'Calendar', icon: '📅' },
     { to: '/profile', label: 'My Profile', icon: '👤' },
+    ...(isManager ? [{ to: '/social', label: 'Social Media', icon: '📲' }] : []),
   ]
 
   const navBg = isManager
@@ -158,7 +159,7 @@ export default function NavBar() {
             Sign Out
           </button>
         </div>
-      </div>    
+      </div>
     </>
   )
 }

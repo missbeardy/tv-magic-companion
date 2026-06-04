@@ -10,6 +10,7 @@ import CalendarPage from './pages/CalendarPage'
 import AllLeadsPage from './pages/AllLeadsPage'
 import LeadsPage from './pages/LeadsPage'
 import ProfilePage from './pages/ProfilePage'
+import SocialPage from './pages/SocialPage'
 
 function Dashboard() {
   const { profile, loading } = useAuth()
@@ -82,7 +83,15 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            <Route path="/test" element={<p style={{padding:20}}>Test page works</p>} />
+            <Route
+              path="/social"
+              element={
+                <ProtectedRoute requiredRole="manager">
+                  <SocialPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/test" element={<p style={{ padding: 20 }}>Test page works</p>} />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </BrowserRouter>
