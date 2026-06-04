@@ -9,7 +9,7 @@ interface Notification {
   type: string
   read: boolean
   created_at: string
-  lead_id?: string // Stores relation to target lead
+  lead_id?: string
 }
 
 export default function NotificationBell() {
@@ -17,6 +17,7 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
   async function fetchNotifications() {
     const { data } = await supabase
@@ -46,7 +47,6 @@ export default function NotificationBell() {
     fetchNotifications()
     setOpen(false)
 
-    // Redirect to the leads page and pass the leadId as a query parameter
     if (n.lead_id) {
       window.location.href = `/leads?leadId=${n.lead_id}`
     } else {
@@ -56,10 +56,12 @@ export default function NotificationBell() {
 
   useEffect(() => {
     if (!profile) return
+
     fetchNotifications()
 
+    // Create a fresh channel each time
     const channel = supabase
-      .channel('notifications-changes')
+      .channel(`notifications-${profile.id}`)
       .on(
         'postgres_changes',
         {
@@ -72,7 +74,14 @@ export default function NotificationBell() {
       )
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    // Store ref so we can clean it up
+    channelRef.current = channel
+
+    return () => {
+      // Remove channel completely on unmount / re-run
+      supabase.removeChannel(channel)
+      channelRef.current = null
+    }
   }, [profile])
 
   useEffect(() => {

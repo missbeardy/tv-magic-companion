@@ -11,12 +11,12 @@ import AllLeadsPage from './pages/AllLeadsPage'
 import LeadsPage from './pages/LeadsPage'
 import ProfilePage from './pages/ProfilePage'
 
-function RoleRedirect() {
+function Dashboard() {
   const { profile, loading } = useAuth()
   if (loading) return <p className="p-4 text-gray-400">Loading...</p>
   if (!profile) return <Navigate to="/login" replace />
-  if (profile.role === 'manager') return <Navigate to="/manager" replace />
-  return <Navigate to="/employee" replace />
+  if (profile.role === 'manager') return <ManagerDashboard />
+  return <EmployeeDashboard />
 }
 
 function App() {
@@ -26,7 +26,14 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route path="/dashboard" element={<RoleRedirect />} />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/manager"
               element={
@@ -44,11 +51,11 @@ function App() {
               }
             />
             <Route
-             path="/leads"
-             element={
-              <ProtectedRoute>
-                <LeadsPage />
-              </ProtectedRoute>
+              path="/leads"
+              element={
+                <ProtectedRoute>
+                  <LeadsPage />
+                </ProtectedRoute>
               }
             />
             <Route
