@@ -40,6 +40,21 @@ export default function SocialPage() {
   const [generatingCaption, setGeneratingCaption] = useState(false)
   const [captionError, setCaptionError] = useState('')
 
+  // Channel selection state
+const [channels, setChannels] = useState({
+  igPost: true,
+  igStory: false,
+  igReel: false,
+  fbPost: true,
+  fbStory: false,
+})
+
+function toggleChannel(key: keyof typeof channels) {
+  setChannels(prev => ({ ...prev, [key]: !prev[key] }))
+}
+
+const anyChannelSelected = Object.values(channels).some(Boolean)
+
   // Step 3 state
   const [posting, setPosting] = useState(false)
   const [postError, setPostError] = useState('')
@@ -47,30 +62,45 @@ export default function SocialPage() {
 
   // Load completed job photos from Supabase Storage
   useEffect(() => {
-    async function loadPhotos() {
-      setLoadingPhotos(true)
-      const { data, error } = await supabase.storage
-        .from('lead-photos')
-        .list('', { limit: 100, sortBy: { column: 'created_at', order: 'desc' } })
+  async function loadPhotos() {
+    setLoadingPhotos(true)
 
-      if (error || !data) {
-        setLoadingPhotos(false)
-        return
-      }
+    // Step 1: list root to find lead UUID folders
+    const { data: folders, error: folderError } = await supabase.storage
+      .from('lead-photos')
+      .list('', { limit: 100 })
 
-      // Filter out the social-uploads folder and get public URLs
-      const photos: JobPhoto[] = data
-        .filter(item => item.name !== 'social-uploads' && !item.id?.includes('/'))
-        .map(item => ({
-          name: item.name,
-          url: supabase.storage.from('lead-photos').getPublicUrl(item.name).data.publicUrl,
-        }))
-
-      setJobPhotos(photos)
+    if (folderError || !folders) {
       setLoadingPhotos(false)
+      return
     }
-    loadPhotos()
-  }, [])
+
+    // Step 2: for each folder (excluding social-uploads), list its contents
+    const leadFolders = folders.filter(
+      item => item.name !== 'social-uploads' && item.metadata === null
+    )
+
+    const allPhotos: JobPhoto[] = []
+
+    for (const folder of leadFolders) {
+      const { data: files } = await supabase.storage
+        .from('lead-photos')
+        .list(folder.name, { limit: 50, sortBy: { column: 'created_at', order: 'desc' } })
+
+      if (!files) continue
+
+      for (const file of files) {
+        const path = `${folder.name}/${file.name}`
+        const { data } = supabase.storage.from('lead-photos').getPublicUrl(path)
+        allPhotos.push({ name: path, url: data.publicUrl })
+      }
+    }
+
+    setJobPhotos(allPhotos)
+    setLoadingPhotos(false)
+  }
+  loadPhotos()
+}, [])
 
   function handleSelectJobPhoto(photo: JobPhoto) {
     setSelectedUrl(photo.url)
@@ -123,23 +153,23 @@ export default function SocialPage() {
   }
 
   async function handlePost() {
-    if (!selectedUrl || !caption.trim()) return
-    setPosting(true)
-    setPostError('')
-    const result = await postToSocial({
-      caption,
-      mediaUrl: selectedUrl,
-      mediaType: selectedMediaType,
-    })
-    setPosting(false)
-    if (result.success) {
-      setPosted(true)
-      setStep(3)
-    } else {
-      setPostError(result.error ?? 'Unknown error.')
-    }
+  if (!selectedUrl || !caption.trim() || !anyChannelSelected) return
+  setPosting(true)
+  setPostError('')
+  const result = await postToSocial({
+    caption,
+    mediaUrl: selectedUrl,
+    mediaType: selectedMediaType,
+    channels,
+  })
+  setPosting(false)
+  if (result.success) {
+    setPosted(true)
+    setStep(3)
+  } else {
+    setPostError(result.error ?? 'Unknown error.')
   }
-
+}
   function handleReset() {
     setStep(1)
     setSelectedUrl(null)
@@ -361,7 +391,41 @@ export default function SocialPage() {
                 />
               </div>
             )}
-
+        {/* Channel selector */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <p className="text-sm font-semibold text-gray-700 mb-3">Post to</p>
+        <div className="grid grid-cols-2 gap-2">
+            {[
+            { key: 'igPost', label: '📸 Instagram Post' },
+            { key: 'igStory', label: '⭕ Instagram Story' },
+            { key: 'igReel', label: '🎬 Instagram Reel' },
+            { key: 'fbPost', label: '📘 Facebook Post' },
+            { key: 'fbStory', label: '📖 Facebook Story' },
+            ].map(({ key, label }) => (
+            <button
+                key={key}
+                onClick={() => toggleChannel(key as keyof typeof channels)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
+                channels[key as keyof typeof channels]
+                    ? 'border-[#004B93] bg-[#004B93] bg-opacity-10 text-[#004B93]'
+                    : 'border-gray-200 text-gray-400 hover:border-gray-300'
+                }`}
+            >
+                <span className={`w-4 h-4 rounded border-2 flex items-center justify-center text-xs ${
+                channels[key as keyof typeof channels]
+                    ? 'border-[#004B93] bg-[#004B93] text-white'
+                    : 'border-gray-300'
+                }`}>
+                {channels[key as keyof typeof channels] ? '✓' : ''}
+                </span>
+                {label}
+            </button>
+            ))}
+        </div>
+        {!anyChannelSelected && (
+            <p className="text-red-500 text-xs mt-2">Please select at least one channel.</p>
+        )}
+        </div>
             {postError && (
               <p className="text-red-500 text-sm text-center">{postError}</p>
             )}
@@ -375,7 +439,7 @@ export default function SocialPage() {
               </button>
               <button
                 onClick={handlePost}
-                disabled={!caption.trim() || posting}
+                disabled={!caption.trim() || posting || !anyChannelSelected}
                 className={`flex-2 flex-grow py-4 rounded-2xl font-semibold text-white transition-all ${
                   caption.trim() && !posting
                     ? 'bg-[#004B93] hover:bg-[#003a7a] shadow-md'

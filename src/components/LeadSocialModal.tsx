@@ -42,7 +42,11 @@ export default function LeadSocialModal({ lead, photoUrl, onClose }: Props) {
   async function handlePost() {
     setPosting(true)
     setError('')
-    const result = await postToSocial({ caption, mediaUrl: photoUrl })
+    const result = await postToSocial({
+                            caption,
+                            mediaUrl: photoUrl,
+                            channels: { igPost: true, igStory: false, igReel: false, fbPost: true, fbStory: false },
+})
     if (result.success) {
       setStep(3)
     } else {
@@ -134,7 +138,7 @@ export default function LeadSocialModal({ lead, photoUrl, onClose }: Props) {
               />
             </div>
             <p className="text-xs text-gray-400">
-              Will post to Instagram Feed, Reel + Story, and Facebook Story simultaneously.
+              Will post to Instagram Feed + Story, and Facebook Story simultaneously.
             </p>
             <div className="flex gap-3">
               <button
@@ -160,7 +164,7 @@ export default function LeadSocialModal({ lead, photoUrl, onClose }: Props) {
             <div className="text-6xl">🎉</div>
             <p className="text-lg font-bold text-gray-800">Posted successfully!</p>
             <p className="text-sm text-gray-500">
-              Your job is now live on Instagram and Facebook.
+              Your job is now live on Instagram (Feed & Story) and as a Facebook Story.
             </p>
             <button
               onClick={onClose}
