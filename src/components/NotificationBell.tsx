@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
@@ -17,23 +17,24 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
-  async function fetchNotifications() {
+  const fetchNotifications = useCallback(async () => {
+    if (!profile?.id) return
     const { data } = await supabase
       .from('notifications')
       .select('*')
-      .eq('user_id', profile?.id)
+      .eq('user_id', profile.id)
       .order('created_at', { ascending: false })
       .limit(20)
     if (data) setNotifications(data)
-  }
+  }, [profile?.id])
 
   async function markAllRead() {
+    if (!profile?.id) return
     await supabase
       .from('notifications')
       .update({ read: true })
-      .eq('user_id', profile?.id)
+      .eq('user_id', profile.id)
       .eq('read', false)
     fetchNotifications()
   }
@@ -55,13 +56,13 @@ export default function NotificationBell() {
   }
 
   useEffect(() => {
-    if (!profile) return
+    if (!profile?.id) return
 
     fetchNotifications()
 
-    // Create a fresh channel each time
+    const channelName = `notifications-${profile.id}-${Date.now()}`
     const channel = supabase
-      .channel(`notifications-${profile.id}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -74,15 +75,10 @@ export default function NotificationBell() {
       )
       .subscribe()
 
-    // Store ref so we can clean it up
-    channelRef.current = channel
-
     return () => {
-      // Remove channel completely on unmount / re-run
       supabase.removeChannel(channel)
-      channelRef.current = null
     }
-  }, [profile])
+  }, [profile?.id, fetchNotifications])
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
