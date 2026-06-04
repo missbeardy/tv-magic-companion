@@ -18,11 +18,6 @@ export default function ManagerDashboard() {
   const [socialLead, setSocialLead] = useState<SimpleLead | null>(null)
   const [socialPhotoUrl, setSocialPhotoUrl] = useState<string>('')
 
-  const triggerSocialModal = (lead: SimpleLead, photoUrl: string) => {
-    setSocialLead(lead)
-    setSocialPhotoUrl(photoUrl)
-  }
-
   const closeSocialModal = () => {
     setSocialLead(null)
     setSocialPhotoUrl('')
@@ -43,7 +38,7 @@ export default function ManagerDashboard() {
         <EmailParser />
         
         {/* Unassigned Pool */}
-        <LeadsList onShareSocial={triggerSocialModal} />
+        <LeadsList />
         
         {/* Custom Isolated Trackers Filtered Exclusively to Manager User Scope ID */}
         <AssignedLeads />
