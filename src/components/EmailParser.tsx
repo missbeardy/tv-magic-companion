@@ -17,7 +17,7 @@ function getClaudeModel(): string {
     return envModel.trim()
   }
   // Fallback chain: try known valid models in order of preference
-  return 'claude-sonnet-4-6-20251101'  // Update this as Anthropic releases new models
+  return 'claude-sonnet-4-6'  // Update this as Anthropic releases new models
 }
 
 export default function EmailParser() {
