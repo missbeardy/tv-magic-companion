@@ -6,26 +6,18 @@ import TimerWatcher from './TimerWatcher'
 import DemoBanner from './DemoBanner'
 import OfflineBanner from './OfflineBanner'
 
-
 export default function NavBar() {
   const { profile, signOut } = useAuth()
   const location = useLocation()
   const isManager = profile?.role === 'manager'
   const [menuOpen, setMenuOpen] = useState(false)
 
-  const links = isManager
-    ? [
-        { to: '/manager', label: 'Dashboard', icon: '⊞' },
-        { to: '/leads', label: 'Leads', icon: '📋' },
-        { to: '/calendar', label: 'Calendar', icon: '📅' },
-        { to: '/profile', label: 'My Profile', icon: '👤' },
-      ]
-    : [
-        { to: '/employee', label: 'Dashboard', icon: '⊞' },
-        { to: '/leads', label: 'Leads', icon: '📋' },
-        { to: '/calendar', label: 'Calendar', icon: '📅' },
-        { to: '/profile', label: 'My Profile', icon: '👤' },
-      ]
+  const links = [
+    { to: '/dashboard', label: 'Dashboard', icon: '⊞' },
+    { to: '/leads', label: 'Leads', icon: '📋' },
+    { to: '/calendar', label: 'Calendar', icon: '📅' },
+    { to: '/profile', label: 'My Profile', icon: '👤' },
+  ]
 
   const navBg = isManager
     ? 'linear-gradient(135deg, #004B93 0%, #0066cc 100%)'
@@ -47,7 +39,6 @@ export default function NavBar() {
         style={{ background: navBg }}
       >
         <div className="flex items-center gap-3">
-          {/* Hamburger */}
           <button
             onClick={() => setMenuOpen(true)}
             className="flex flex-col gap-1.5 p-1.5 rounded-lg hover:bg-white hover:bg-opacity-15 transition mr-1"
@@ -78,7 +69,7 @@ export default function NavBar() {
         </div>
       </nav>
 
-      {/* Backdrop — semi-transparent, doesn't black out */}
+      {/* Backdrop */}
       {menuOpen && (
         <div
           className="fixed inset-0 z-50"
@@ -119,9 +110,7 @@ export default function NavBar() {
         {/* User Card */}
         <div className="mx-4 mb-4 p-4 rounded-2xl bg-white bg-opacity-10 border border-white border-opacity-20">
           <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold bg-white bg-opacity-20"
-            >
+            <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold bg-white bg-opacity-20">
               {profile?.full_name?.charAt(0) || '?'}
             </div>
             <div>
@@ -133,35 +122,30 @@ export default function NavBar() {
 
         {/* Nav Links */}
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
-        <p className="text-white opacity-40 text-xs font-semibold uppercase tracking-widest px-3 mb-2">
+          <p className="text-white opacity-40 text-xs font-semibold uppercase tracking-widest px-3 mb-2">
             Navigation
-        </p>
-        {links.map(link => {
+          </p>
+          {links.map(link => {
             const isActive = location.pathname === link.to
             return (
-            <Link
+              <Link
                 key={link.to}
                 to={link.to}
                 onClick={() => setMenuOpen(false)}
                 className={`flex items-center gap-4 px-4 py-3 rounded-xl text-sm font-medium transition-all group ${
-                isActive
+                  isActive
                     ? 'bg-white text-[#004B93] font-semibold shadow-md'
                     : 'text-white hover:bg-white hover:text-[#004B93]'
                 }`}
-            >
+              >
                 <span className="text-lg">{link.icon}</span>
-                
-                {/* The text color now dynamically updates on hover using group-hover or conditional styles */}
                 <span className={`${isActive ? 'text-[#004B93]' : 'text-white group-hover:text-[#004B93]'}`}>
-                {link.label}
+                  {link.label}
                 </span>
-
-                {isActive && (
-                <span className="ml-auto w-2 h-2 rounded-full bg-[#004B93]" />
-                )}
-            </Link>
+                {isActive && <span className="ml-auto w-2 h-2 rounded-full bg-[#004B93]" />}
+              </Link>
             )
-        })}
+          })}
         </nav>
 
         {/* Sign Out */}
