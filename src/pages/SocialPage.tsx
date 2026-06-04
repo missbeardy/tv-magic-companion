@@ -407,7 +407,7 @@ const anyChannelSelected = Object.values(channels).some(Boolean)
                 onClick={() => toggleChannel(key as keyof typeof channels)}
                 className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
                 channels[key as keyof typeof channels]
-                    ? 'border-[#004B93] bg-[#004B93] bg-opacity-10 text-[#004B93]'
+                    ? 'border-[#004B93] bg-[#004B93] text-white'
                     : 'border-gray-200 text-gray-400 hover:border-gray-300'
                 }`}
             >
