@@ -396,11 +396,11 @@ const anyChannelSelected = Object.values(channels).some(Boolean)
         <p className="text-sm font-semibold text-gray-700 mb-3">Post to</p>
         <div className="grid grid-cols-2 gap-2">
             {[
-            { key: 'igPost', label: '📸 Instagram Post' },
-            { key: 'igStory', label: '⭕ Instagram Story' },
-            { key: 'igReel', label: '🎬 Instagram Reel' },
-            { key: 'fbPost', label: '📘 Facebook Post' },
-            { key: 'fbStory', label: '📖 Facebook Story' },
+            { key: 'igPost', label: '📸 IG Post' },
+            { key: 'igStory', label: '🎉 IG Story' },
+            { key: 'igReel', label: '🎬 IG Reel' },
+            { key: 'fbPost', label: '📘 FB Post' },
+            { key: 'fbStory', label: '📖 FB Story' },
             ].map(({ key, label }) => (
             <button
                 key={key}
