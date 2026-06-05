@@ -28,6 +28,8 @@ interface Lead {
   timer_expires_at: string | null
   assigned_to: string | null
   address: string | undefined
+  lead_source?: string | null
+  raw_email?: string | null
   profiles: { full_name: string } | null
 }
 
@@ -139,6 +141,17 @@ function LeadCard({
         >
           📍 {lead.address}
         </button>
+      )}
+            {lead.address && (
+        <p className="text-xs text-gray-500 flex items-center gap-1">
+          <span>📍</span> {lead.address}
+        </p>
+      )}
+
+      {lead.lead_source && (
+        <span className="inline-block text-xs bg-blue-50 text-blue-700 rounded-full px-2 py-0.5">
+          {lead.lead_source}
+        </span>
       )}
       {lead.status === 'contact_attempted' && (
         <span className="inline-block mt-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
@@ -495,7 +508,18 @@ export default function LeadsPage() {
           <div className="space-y-3">
             <p className="text-sm text-gray-500">{sheetLead.service_type}</p>
 
-            {/* Post-Sales Interface */}
+           {sheetLead.raw_email && (
+              <details className="mt-3">
+                <summary className="text-xs font-medium text-gray-500 cursor-pointer">
+                  View original email
+                </summary>
+                <pre className="mt-2 text-xs text-gray-600 bg-gray-50 rounded-lg p-3 whitespace-pre-wrap overflow-auto max-h-48">
+                  {sheetLead.raw_email}
+                </pre>
+              </details>
+            )}
+
+                      {/* Post-Sales Interface */}
             {sheetLead.status === 'completed' ? (
               <>
                 <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-center mb-2">
