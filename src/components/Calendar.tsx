@@ -218,45 +218,48 @@ export default function Calendar() {
       )}
 
       {/* ── Toolbar ── */}
-      <div className="p-4 border-b border-gray-100 flex flex-wrap items-center gap-3 justify-between">
-        {/* Left: Navigation */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-600"
-            aria-label="Previous"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <span className="font-semibold text-gray-800 text-sm min-w-56 text-center">
-            {headerLabel}
-          </span>
-          <button
-            onClick={() => navigate(1)}
-            className="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-600"
-            aria-label="Next"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
+      <div className="p-3 sm:p-4 border-b border-gray-100">
+        {/* Row 1: Navigation + Date + Today */}
+        <div className="flex items-center justify-between mb-2 sm:mb-3">
+          <div className="flex items-center gap-1 sm:gap-2">
+            <button
+              onClick={() => navigate(-1)}
+              className="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-600"
+              aria-label="Previous"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <span className="font-semibold text-gray-800 text-sm sm:text-base min-w-0 truncate max-w-[180px] sm:max-w-none">
+              {headerLabel}
+            </span>
+            <button
+              onClick={() => navigate(1)}
+              className="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-600"
+              aria-label="Next"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
           <button
             onClick={goToToday}
-            className="text-xs border border-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition ml-1 font-medium"
+            className="text-xs sm:text-sm border border-gray-300 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg hover:bg-gray-50 transition font-medium whitespace-nowrap"
           >
             Today
           </button>
         </div>
 
-        {/* Right: Filters + View Toggle + Add */}
-        <div className="flex items-center gap-2">
+        {/* Row 2: Employee Filter (full width on mobile) + View Toggle + Add */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+          {/* Employee Filter - full width on mobile */}
           {profile?.role === 'manager' && (
             <select
               value={filterEmployee}
               onChange={e => setFilterEmployee(e.target.value)}
-              className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#004B93] bg-white"
+              className="w-full sm:w-auto text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#004B93] bg-white"
             >
               <option value="all">All employees</option>
               {employees.map(emp => (
@@ -265,35 +268,39 @@ export default function Calendar() {
             </select>
           )}
 
-          <div className="flex rounded-lg border border-gray-200 overflow-hidden">
-            {(['day', 'week', 'month'] as ViewMode[]).map(v => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                className={`px-3 py-1.5 text-sm capitalize transition ${
-                  view === v
-                    ? 'bg-[#004B93] text-white'
-                    : 'text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                {v}
-              </button>
-            ))}
-          </div>
+          <div className="flex items-center gap-2 sm:ml-auto">
+            {/* View Toggle */}
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden flex-1 sm:flex-none">
+              {(['day', 'week', 'month'] as ViewMode[]).map(v => (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 text-sm capitalize transition ${
+                    view === v
+                      ? 'bg-[#004B93] text-white'
+                      : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
 
-          <button
-            onClick={() => {
-              setSelectedEvent(null)
-              setDefaultDate(new Date().toISOString().slice(0, 16))
-              setShowModal(true)
-            }}
-            className="bg-[#004B93] text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-[#003d7a] transition flex items-center gap-1"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Event
-          </button>
+            {/* Add Event Button */}
+            <button
+              onClick={() => {
+                setSelectedEvent(null)
+                setDefaultDate(new Date().toISOString().slice(0, 16))
+                setShowModal(true)
+              }}
+              className="bg-[#004B93] text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-[#003d7a] transition flex items-center gap-1 whitespace-nowrap flex-shrink-0"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span className="hidden sm:inline">Event</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -301,12 +308,12 @@ export default function Calendar() {
       {view === 'day' && (
         <div className="flex">
           {/* Time Labels */}
-          <div className="w-16 flex-shrink-0 border-r border-gray-100 bg-gray-50">
+          <div className="w-14 sm:w-16 flex-shrink-0 border-r border-gray-100 bg-gray-50">
             <div className="h-10 border-b border-gray-100" /> {/* header spacer */}
             {HOUR_LABELS.map(hour => (
               <div
                 key={hour}
-                className="text-xs text-gray-400 text-right pr-2 pt-1"
+                className="text-[10px] sm:text-xs text-gray-400 text-right pr-1 sm:pr-2 pt-1"
                 style={{ height: SLOT_HEIGHT }}
               >
                 {String(hour).padStart(2, '0')}:00
@@ -380,14 +387,14 @@ export default function Calendar() {
                       openEditEvent(event)
                     }}
                   >
-                    <div className="p-1.5 text-white h-full flex flex-col">
+                    <div className="p-1 sm:p-1.5 text-white h-full flex flex-col">
                       {/* Title */}
-                      <p className="text-xs font-semibold truncate leading-tight">
+                      <p className="text-[10px] sm:text-xs font-semibold truncate leading-tight">
                         {event.title}
                       </p>
 
                       {/* Time */}
-                      <p className="text-[10px] opacity-90 leading-tight mt-0.5">
+                      <p className="text-[9px] sm:text-[10px] opacity-90 leading-tight mt-0.5">
                         {formatTime(event.start_time)} – {formatTime(event.end_time)}
                       </p>
 
@@ -395,22 +402,22 @@ export default function Calendar() {
                       {isBooking && height > 50 && (
                         <div className="mt-1 space-y-0.5">
                           {event.client_name && (
-                            <p className="text-[10px] opacity-90 truncate">
+                            <p className="text-[9px] sm:text-[10px] opacity-90 truncate">
                               👤 {event.client_name}
                             </p>
                           )}
                           {event.client_phone && height > 70 && (
-                            <p className="text-[10px] opacity-90 truncate">
+                            <p className="text-[9px] sm:text-[10px] opacity-90 truncate">
                               📞 {event.client_phone}
                             </p>
                           )}
                           {event.client_address && height > 90 && (
-                            <p className="text-[10px] opacity-90 truncate">
+                            <p className="text-[9px] sm:text-[10px] opacity-90 truncate">
                               📍 {event.client_address}
                             </p>
                           )}
                           {event.client_job && height > 110 && (
-                            <p className="text-[10px] opacity-80 truncate">
+                            <p className="text-[9px] sm:text-[10px] opacity-80 truncate">
                               📝 {event.client_job}
                             </p>
                           )}
@@ -419,7 +426,7 @@ export default function Calendar() {
 
                       {/* Assigned employee (manager view) */}
                       {profile?.role === 'manager' && event.profiles && height > 50 && (
-                        <p className="text-[10px] opacity-75 mt-auto pt-1 truncate">
+                        <p className="text-[9px] sm:text-[10px] opacity-75 mt-auto pt-1 truncate">
                           {event.profiles.full_name}
                         </p>
                       )}
@@ -442,7 +449,7 @@ export default function Calendar() {
               return (
                 <div
                   key={i}
-                  className={`p-2 text-center cursor-pointer hover:bg-gray-50 transition ${
+                  className={`p-1 sm:p-2 text-center cursor-pointer hover:bg-gray-50 transition ${
                     isToday ? 'bg-blue-50' : ''
                   }`}
                   onClick={() => {
@@ -450,8 +457,8 @@ export default function Calendar() {
                     setView('day')
                   }}
                 >
-                  <p className="text-xs text-gray-400">{dayNames[i]}</p>
-                  <p className={`text-sm font-semibold ${isToday ? 'text-[#004B93]' : 'text-gray-700'}`}>
+                  <p className="text-[10px] sm:text-xs text-gray-400">{dayNames[i]}</p>
+                  <p className={`text-sm sm:text-base font-semibold ${isToday ? 'text-[#004B93]' : 'text-gray-700'}`}>
                     {day.getDate()}
                   </p>
                 </div>
@@ -465,7 +472,7 @@ export default function Calendar() {
               const isToday = day.toDateString() === new Date().toDateString()
               const dayEvents = getEventsForDay(day)
               return (
-                <div key={i} className="min-h-40">
+                <div key={i} className="min-h-32 sm:min-h-40">
                   <div
                     className={`p-1 space-y-1 min-h-full ${isToday ? 'bg-blue-50/30' : ''}`}
                     onClick={() => openNewEvent(new Date(day))}
@@ -477,19 +484,19 @@ export default function Calendar() {
                           e.stopPropagation()
                           openEditEvent(event)
                         }}
-                        className="text-xs p-1.5 rounded cursor-pointer text-white hover:opacity-90 transition shadow-sm"
+                        className="text-[10px] sm:text-xs p-1 sm:p-1.5 rounded cursor-pointer text-white hover:opacity-90 transition shadow-sm"
                         style={{ backgroundColor: event.color }}
                         title={`${event.title}\n${formatDuration(event.start_time, event.end_time)}`}
                       >
                         <p className="font-medium truncate">{event.title}</p>
-                        <p className="text-[10px] opacity-90">
+                        <p className="text-[9px] sm:text-[10px] opacity-90">
                           {formatTime(event.start_time)} – {formatTime(event.end_time)}
                         </p>
                         {event.client_name && (
-                          <p className="text-[10px] opacity-90 truncate">👤 {event.client_name}</p>
+                          <p className="text-[9px] sm:text-[10px] opacity-90 truncate">👤 {event.client_name}</p>
                         )}
                         {profile?.role === 'manager' && event.profiles && (
-                          <p className="text-[10px] opacity-75 truncate">{event.profiles.full_name}</p>
+                          <p className="text-[9px] sm:text-[10px] opacity-75 truncate">{event.profiles.full_name}</p>
                         )}
                       </div>
                     ))}
@@ -507,7 +514,7 @@ export default function Calendar() {
           {/* Day Name Headers */}
           <div className="grid grid-cols-7 border-b border-gray-100">
             {dayNames.map(d => (
-              <div key={d} className="p-2 text-center text-xs font-medium text-gray-400">
+              <div key={d} className="p-1 sm:p-2 text-center text-[10px] sm:text-xs font-medium text-gray-400">
                 {d}
               </div>
             ))}
@@ -516,13 +523,13 @@ export default function Calendar() {
           {/* Calendar Grid */}
           <div className="grid grid-cols-7 divide-x divide-y divide-gray-100">
             {monthDays.map((day, i) => {
-              if (!day) return <div key={i} className="min-h-24 bg-gray-50" />
+              if (!day) return <div key={i} className="min-h-16 sm:min-h-24 bg-gray-50" />
               const isToday = day.toDateString() === new Date().toDateString()
               const dayEvents = getEventsForDay(day)
               return (
                 <div
                   key={i}
-                  className={`min-h-24 p-1 cursor-pointer hover:bg-gray-50 transition ${
+                  className={`min-h-16 sm:min-h-24 p-0.5 sm:p-1 cursor-pointer hover:bg-gray-50 transition ${
                     isToday ? 'bg-blue-50' : ''
                   }`}
                   onClick={() => {
@@ -530,7 +537,7 @@ export default function Calendar() {
                     setView('day')
                   }}
                 >
-                  <p className={`text-xs font-semibold mb-1 ${isToday ? 'text-[#004B93]' : 'text-gray-600'}`}>
+                  <p className={`text-[10px] sm:text-xs font-semibold mb-0.5 sm:mb-1 ${isToday ? 'text-[#004B93]' : 'text-gray-600'}`}>
                     {day.getDate()}
                   </p>
                   <div className="space-y-0.5">
@@ -541,7 +548,7 @@ export default function Calendar() {
                           e.stopPropagation()
                           openEditEvent(event)
                         }}
-                        className="text-xs p-0.5 px-1 rounded cursor-pointer text-white truncate hover:opacity-80 transition shadow-sm"
+                        className="text-[9px] sm:text-xs p-0.5 px-1 rounded cursor-pointer text-white truncate hover:opacity-80 transition shadow-sm"
                         style={{ backgroundColor: event.color }}
                         title={`${event.title}\n${formatDuration(event.start_time, event.end_time)}`}
                       >
@@ -550,7 +557,7 @@ export default function Calendar() {
                       </div>
                     ))}
                     {dayEvents.length > 3 && (
-                      <p className="text-xs text-gray-400 font-medium">
+                      <p className="text-[9px] sm:text-xs text-gray-400 font-medium">
                         +{dayEvents.length - 3} more
                       </p>
                     )}
