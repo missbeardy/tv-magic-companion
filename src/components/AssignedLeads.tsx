@@ -15,7 +15,7 @@ interface Lead {
   assigned_at: string
   timer_expires_at: string
   assigned_to: string
-  profiles: { full_name: string } | null
+  profiles: { full_name: string; role?: string } | null
   address?: string
 }
 
@@ -30,7 +30,7 @@ export default function AssignedLeads() {
 
     let query = supabase
       .from('leads')
-      .select('*, profiles(full_name)')
+      .select('*, profiles(full_name, role)')
       .eq('status', 'assigned')
       .order('timer_expires_at', { ascending: true })
 
@@ -92,7 +92,14 @@ export default function AssignedLeads() {
             <div key={lead.id} className="p-4">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <p className="font-medium text-gray-800">{lead.name || 'Unknown User'}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-gray-800">{lead.name || 'Unknown User'}</p>
+                    {profile?.role === 'manager' && lead.assigned_to === profile?.id && (
+                      <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
+                        Self-assigned
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-gray-500">{lead.service_type || 'No service type configured'}</p>
                   <p className="text-sm text-gray-400 mt-1">{lead.phone} · {lead.email}</p>
                   {lead.details && (

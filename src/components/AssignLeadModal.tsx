@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { getExpiresAt } from '../lib/timer'
 import { useDemo } from '../context/DemoContext'
+import { useAuth } from '../context/AuthContext'
 
 interface Lead {
   id: string
@@ -15,6 +16,7 @@ interface Profile {
   avatar_url?: string
   phone?: string
   suburb?: string
+  role?: string
 }
 
 interface Props {
@@ -25,6 +27,7 @@ interface Props {
 
 export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
   const { demoMode } = useDemo()
+  const { profile } = useAuth()
   const [employees, setEmployees] = useState<Profile[]>([])
   const [countMap, setCountMap] = useState<Record<string, number>>({})
   const [saving, setSaving] = useState(false)
@@ -32,10 +35,11 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
 
   useEffect(() => {
     async function fetchData() {
+      // Fetch all assignable profiles (employees + managers)
       const { data: employeeData } = await supabase
         .from('profiles')
-        .select('id, full_name, avatar_url, phone, suburb')
-        .eq('role', 'employee')
+        .select('id, full_name, avatar_url, phone, suburb, role')
+        .in('role', ['employee', 'manager'])
 
       if (!employeeData) return
       setEmployees(employeeData)
@@ -106,6 +110,7 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
           {employees.map((emp) => {
             const activeCount = countMap[emp.id] ?? 0
             const isRecommended = activeCount === minCount
+            const isSelf = emp.id === profile?.id
             return (
               <button
                 key={emp.id}
@@ -118,7 +123,9 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
                 }`}
               >
                 {/* Avatar */}
-                <div className="w-12 h-12 rounded-full bg-[#004B93] flex items-center justify-center text-white font-bold text-lg shrink-0 overflow-hidden">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0 overflow-hidden ${
+                  emp.role === 'manager' ? 'bg-purple-600' : 'bg-[#004B93]'
+                }`}>
                   {emp.avatar_url
                     ? <img src={emp.avatar_url} className="w-full h-full object-cover" />
                     : emp.full_name.charAt(0)
@@ -127,7 +134,19 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-800 text-sm">{emp.full_name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-gray-800 text-sm">{emp.full_name}</p>
+                    {isSelf && (
+                      <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-medium">
+                        Me
+                      </span>
+                    )}
+                    {emp.role === 'manager' && !isSelf && (
+                      <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-medium">
+                        Manager
+                      </span>
+                    )}
+                  </div>
                   {emp.suburb && <p className="text-xs text-gray-400">{emp.suburb}</p>}
                   <p className="text-xs text-gray-500 mt-0.5">{activeCount} active lead{activeCount !== 1 ? 's' : ''}</p>
                 </div>
