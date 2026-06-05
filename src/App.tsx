@@ -11,6 +11,7 @@ import AllLeadsPage from './pages/AllLeadsPage'
 import LeadsPage from './pages/LeadsPage'
 import ProfilePage from './pages/ProfilePage'
 import SocialPage from './pages/SocialPage'
+import { useEffect } from 'react'
 
 function Dashboard() {
   const { profile, loading } = useAuth()
@@ -21,6 +22,15 @@ function Dashboard() {
 }
 
 function App() {
+  // Register service worker for push notifications
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .then(reg => console.log('SW registered:', reg.scope))
+        .catch(err => console.log('SW failed:', err))
+    }
+  }, [])
+
   return (
     <AuthProvider>
       <DemoProvider>

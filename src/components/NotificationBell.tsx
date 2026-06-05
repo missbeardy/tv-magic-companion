@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { usePushNotifications } from '../hooks/usePushNotifications'
 
 interface Notification {
   id: string
@@ -91,6 +92,7 @@ export default function NotificationBell() {
   }, [])
 
   const unreadCount = notifications.filter(n => !n.read).length
+  const { isSupported, isSubscribed, subscribe, unsubscribe, loading } = usePushNotifications()
 
   function typeIcon(type: string) {
     if (type === 'lead_assigned') return '📋'
@@ -117,17 +119,39 @@ export default function NotificationBell() {
 
       {open && (
         <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
-          <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-            <h3 className="font-semibold text-gray-800">Notifications</h3>
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllRead}
-                className="text-xs text-[#004B93] hover:underline"
-              >
-                Mark all read
-              </button>
-            )}
+          <div className="p-4 border-b border-gray-100">
+  <div className="flex items-center justify-between mb-2">
+    <h3 className="font-semibold text-gray-800">Notifications</h3>
+    {unreadCount > 0 && (
+      <button onClick={markAllRead} className="text-xs text-[#004B93] hover:underline">
+        Mark all read
+      </button>
+    )}
+  </div>
+  
+        {/* PUSH NOTIFICATION TOGGLE */}
+           {isSupported && (
+          <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+            <span className="text-xs text-gray-500">
+              {isSubscribed ? '🔔 Push on' : '🔕 Push off'}
+            </span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                isSubscribed ? unsubscribe() : subscribe()
+              }}
+              disabled={loading}
+              className={`text-xs px-2 py-1 rounded ${
+                isSubscribed 
+                  ? 'bg-gray-200 text-gray-700' 
+                  : 'bg-[#004B93] text-white'
+              }`}
+            >
+              {loading ? '...' : isSubscribed ? 'Disable' : 'Enable'}
+            </button>
           </div>
+        )}
+      </div>
 
           <div className="max-h-96 overflow-y-auto divide-y divide-gray-100">
             {notifications.length === 0 && (
