@@ -1,9 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { sendPushNotification } from '../lib/sendPush'
 
 interface Props {
   leadId: string
   currentStatus: string
+  assignedTo: string | null
+  leadName: string
+  serviceType: string
   onUpdated: () => void
 }
 
@@ -16,7 +20,7 @@ const STATUSES = [
   { value: 'completed',         label: 'Completed',         color: 'bg-purple-100 text-purple-700' },
 ]
 
-export default function LeadStatusMenu({ leadId, currentStatus, onUpdated }: Props) {
+export default function LeadStatusMenu({ leadId, currentStatus, assignedTo, leadName, serviceType, onUpdated }: Props) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [dropUp, setDropUp] = useState(false)
@@ -55,6 +59,17 @@ export default function LeadStatusMenu({ leadId, currentStatus, onUpdated }: Pro
       .from('leads')
       .update({ status: newStatus })
       .eq('id', leadId)
+
+    // Send push notification if lead is completed or lost
+    if ((newStatus === 'completed' || newStatus === 'lost') && assignedTo) {
+      const statusLabel = newStatus === 'completed' ? 'Completed' : 'Lost'
+      await sendPushNotification(
+        assignedTo,
+        `Job ${statusLabel}`,
+        `${leadName} — ${serviceType}`,
+        `/leads?leadId=${leadId}`
+      )
+    }
 
     setSaving(false)
     onUpdated()

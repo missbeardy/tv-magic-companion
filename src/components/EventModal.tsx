@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import TimePicker from './TimePicker'
+import { sendPushNotification } from '../lib/sendPush'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -362,11 +363,21 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
       }
 
       if (dbError) {
-        setError('Error saving event: ' + dbError.message)
-      } else {
-        onSaved()
-        onClose()
-      }
+  setError('Error saving event: ' + dbError.message)
+} else {
+  // Send push to assigned employee
+  if (selectedUserId && selectedUserId !== profile?.id) {
+    const action = event?.id ? 'updated' : 'created'
+    await sendPushNotification(
+      selectedUserId,
+      'Calendar Update',
+      `${action === 'created' ? 'New' : 'Updated'} appointment: ${title}`,
+      '/calendar'
+    )
+  }
+  onSaved()
+  onClose()
+}
     } catch (err) {
       setError('Unexpected error: ' + (err instanceof Error ? err.message : 'Unknown error'))
     } finally {

@@ -117,10 +117,13 @@ function LeadCard({
         </div>
         <div onClick={e => e.stopPropagation()}>
           <LeadStatusMenu
-            leadId={lead.id}
-            currentStatus={lead.status}
-            onUpdated={() => { /* parent refreshes via realtime */ }}
-          />
+  leadId={lead.id}
+  currentStatus={lead.status}
+  assignedTo={lead.assigned_to}
+  leadName={lead.name}
+  serviceType={lead.service_type}
+  onUpdated={() => { /* parent refreshes via realtime */ }}
+/>
         </div>
       </div>
 
