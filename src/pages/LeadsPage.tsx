@@ -43,18 +43,18 @@ interface LeadEvent {
 // ── Constants ─────────────────────────────────────────────────────────────
 
 const COLUMNS = [
-  { key: 'unassigned',        label: 'Unassigned',        color: 'border-gray-300',   badge: 'bg-gray-100 text-gray-600'     },
-  { key: 'assigned',           label: 'Assigned',           color: 'border-blue-300',   badge: 'bg-blue-100 text-blue-700'     },
-  { key: 'contact_attempted',  label: 'Contact Attempted',  color: 'border-amber-300',  badge: 'bg-amber-100 text-amber-700'   },
-  { key: 'booked',             label: 'Booked',             color: 'border-indigo-300', badge: 'bg-indigo-100 text-indigo-700' },
-  { key: 'lost',               label: 'Lost',               color: 'border-red-300',    badge: 'bg-red-100 text-red-600'       },
-  { key: 'completed',          label: 'Completed',          color: 'border-purple-300', badge: 'bg-purple-100 text-purple-700' },
+  { key: 'unassigned',       label: 'Unassigned',       color: 'border-gray-300',   badge: 'bg-gray-100 text-gray-600'     },
+  { key: 'assigned',         label: 'Assigned',         color: 'border-blue-300',   badge: 'bg-blue-100 text-blue-700'     },
+  { key: 'contact_attempted',label: 'Contact Attempted',color: 'border-amber-300',  badge: 'bg-amber-100 text-amber-700'   },
+  { key: 'booked',           label: 'Booked',           color: 'border-indigo-300', badge: 'bg-indigo-100 text-indigo-700' },
+  { key: 'lost',             label: 'Lost',             color: 'border-red-300',    badge: 'bg-red-100 text-red-600'       },
+  { key: 'completed',        label: 'Completed',        color: 'border-purple-300', badge: 'bg-purple-100 text-purple-700' },
 ]
 
 const MOBILE_TABS = [
   { key: 'unassigned', label: 'Unassigned' },
   { key: 'assigned',   label: 'Assigned'   },
-  { key: 'closed',     label: 'Closed'     },
+  { key: 'closed',     label: 'Done / Lost'},
 ]
 
 function getColumnsForTab(tab: string): string[] {
@@ -64,7 +64,7 @@ function getColumnsForTab(tab: string): string[] {
   return []
 }
 
-// ── LeadCard Component (extracted & memoized) ──────────────────────────────
+// ── LeadCard Component ──────────────────────────────────────────────────────
 
 interface LeadCardProps {
   lead: Lead
@@ -117,13 +117,13 @@ function LeadCard({
         </div>
         <div onClick={e => e.stopPropagation()}>
           <LeadStatusMenu
-  leadId={lead.id}
-  currentStatus={lead.status}
-  assignedTo={lead.assigned_to}
-  leadName={lead.name}
-  serviceType={lead.service_type}
-  onUpdated={() => { /* parent refreshes via realtime */ }}
-/>
+            leadId={lead.id}
+            currentStatus={lead.status}
+            assignedTo={lead.assigned_to}
+            leadName={lead.name}
+            serviceType={lead.service_type}
+            onUpdated={() => { /* parent refreshes via realtime */ }}
+          />
         </div>
       </div>
 
@@ -132,6 +132,8 @@ function LeadCard({
           <CountdownTimer expiresAt={lead.timer_expires_at} />
         </div>
       )}
+
+      {/* FIX: address now renders once only, as a Maps link */}
       {lead.address && (
         <button
           onClick={(e) => {
@@ -145,14 +147,9 @@ function LeadCard({
           📍 {lead.address}
         </button>
       )}
-            {lead.address && (
-        <p className="text-xs text-gray-500 flex items-center gap-1">
-          <span>📍</span> {lead.address}
-        </p>
-      )}
 
       {lead.lead_source && (
-        <span className="inline-block text-xs bg-blue-50 text-blue-700 rounded-full px-2 py-0.5">
+        <span className="inline-block text-xs bg-blue-50 text-blue-700 rounded-full px-2 py-0.5 mt-1">
           {lead.lead_source}
         </span>
       )}
@@ -180,18 +177,6 @@ function LeadCard({
           <p className="text-xs text-gray-600">{lead.email}</p>
           {lead.details && (
             <p className="text-xs text-gray-500">{lead.details}</p>
-          )}
-          {lead.address && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                const encoded = encodeURIComponent(lead.address!)
-                window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}`, '_blank')
-              }}
-              className="text-xs text-[#00B4C5] underline flex items-center gap-1 mt-1"
-            >
-              📍 {lead.address}
-            </button>
           )}
           <div className="flex flex-wrap gap-1 mt-2">
             {lead.status === 'unassigned' && profile?.role === 'manager' && (
@@ -250,14 +235,29 @@ export default function LeadsPage() {
   const [sheetLead, setSheetLead] = useState<Lead | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
 
-  // Checklist state
+  // Checklist / signature / receipt state
   const [showChecklist, setShowChecklist] = useState(false)
   const [checklistLead, setChecklistLead] = useState<Lead | null>(null)
-
-  // Signature state
   const [showSignature, setShowSignature] = useState(false)
   const [showReceipt, setShowReceipt] = useState(false)
   const [receiptLead, setReceiptLead] = useState<Lead | null>(null)
+
+  // ── FIX: fetchLeads wrapped in useCallback so handlers have a stable reference ──
+
+  const fetchLeads = useCallback(async () => {
+    let query = supabase
+      .from('leads')
+      .select('*, profiles(full_name)')
+      .order('created_at', { ascending: false })
+
+    if (profile?.role === 'employee') {
+      query = query.or(`status.eq.unassigned,assigned_to.eq.${profile.id}`)
+    }
+
+    const { data } = await query
+    if (data) setLeads(data as Lead[])
+    setLoading(false)
+  }, [profile])
 
   // ── Callbacks ──
 
@@ -304,7 +304,7 @@ export default function LeadsPage() {
     setChecklistLead(null)
     closeSheet()
     fetchLeads()
-  }, [checklistLead, logLeadEvent, closeSheet])
+  }, [checklistLead, logLeadEvent, closeSheet, fetchLeads])
 
   const handleCall = useCallback(async (lead: Lead) => {
     const confirmed = window.confirm(
@@ -322,7 +322,7 @@ export default function LeadsPage() {
     window.location.href = `tel:${lead.phone}`
     closeSheet()
     fetchLeads()
-  }, [logLeadEvent, closeSheet])
+  }, [logLeadEvent, closeSheet, fetchLeads])
 
   const handleSMS = useCallback((lead: Lead) => {
     const message = encodeURIComponent(
@@ -350,21 +350,6 @@ export default function LeadsPage() {
 
   // ── Data Fetching ──
 
-  async function fetchLeads() {
-    let query = supabase
-      .from('leads')
-      .select('*, profiles(full_name)')
-      .order('created_at', { ascending: false })
-
-    if (profile?.role === 'employee') {
-      query = query.or(`status.eq.unassigned,assigned_to.eq.${profile.id}`)
-    }
-
-    const { data } = await query
-    if (data) setLeads(data as Lead[])
-    setLoading(false)
-  }
-
   useEffect(() => {
     if (!profile) return
     fetchLeads()
@@ -375,7 +360,7 @@ export default function LeadsPage() {
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [profile])
+  }, [profile, fetchLeads])
 
   function leadsForColumn(status: string) {
     return leads.filter(l => l.status === status)
@@ -501,7 +486,8 @@ export default function LeadsPage() {
         )}
       </main>
 
-      {/* Bottom Sheet */}
+      {/* ── Bottom Sheet ── */}
+      {/* FIX: buttons reordered — navigate/call/SMS first, complete last */}
       <BottomSheet
         isOpen={sheetOpen}
         onClose={closeSheet}
@@ -511,7 +497,7 @@ export default function LeadsPage() {
           <div className="space-y-3">
             <p className="text-sm text-gray-500">{sheetLead.service_type}</p>
 
-           {sheetLead.raw_email && (
+            {sheetLead.raw_email && (
               <details className="mt-3">
                 <summary className="text-xs font-medium text-gray-500 cursor-pointer">
                   View original email
@@ -522,7 +508,7 @@ export default function LeadsPage() {
               </details>
             )}
 
-                      {/* Post-Sales Interface */}
+            {/* Post-Sales Interface — completed jobs */}
             {sheetLead.status === 'completed' ? (
               <>
                 <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-center mb-2">
@@ -538,7 +524,7 @@ export default function LeadsPage() {
 
                 <a
                   href="tel:04123456789"
-                  className="w-full py-4 rounded-xl bg-gray-800 text-white font-semibold text-base flex items-center justify-center gap-2"
+                  className="w-full py-4 rounded-xl bg-gray-800 text-white font-semibold text-base flex items-center justify-center gap-2 block text-center"
                 >
                   📞 Call Manager (Nick)
                 </a>
@@ -548,8 +534,38 @@ export default function LeadsPage() {
                 </div>
               </>
             ) : (
-              /* Standard Active Sales Interface */
+              /* Standard Active Sales Interface — reordered for mobile use */
               <>
+                {/* 1. Navigate — most useful on-site action */}
+                {sheetLead.address && (
+                  <button
+                    onClick={() => {
+                      const encoded = encodeURIComponent(sheetLead.address!)
+                      window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}`, '_blank')
+                    }}
+                    className="w-full py-4 rounded-xl bg-gray-800 text-white font-semibold text-base flex items-center justify-center gap-2"
+                  >
+                    📍 Navigate to Job
+                  </button>
+                )}
+
+                {/* 2. Call customer */}
+                <button
+                  onClick={() => handleCall(sheetLead)}
+                  className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base flex items-center justify-center gap-2"
+                >
+                  📞 Call {sheetLead.name}
+                </button>
+
+                {/* 3. Send ETA text */}
+                <button
+                  onClick={() => handleSMS(sheetLead)}
+                  className="w-full py-4 rounded-xl bg-[#00B4C5] text-white font-semibold text-base flex items-center justify-center gap-2"
+                >
+                  💬 Send ETA Text
+                </button>
+
+                {/* 4. Assign (only shown when relevant) */}
                 {sheetLead.status === 'unassigned' && profile?.role === 'manager' && (
                   <button
                     onClick={() => { setAssigningLead(sheetLead); closeSheet() }}
@@ -558,7 +574,6 @@ export default function LeadsPage() {
                     Assign to Technician
                   </button>
                 )}
-
                 {sheetLead.status === 'unassigned' && profile?.role === 'employee' && (
                   <button
                     onClick={() => { setAssigningLead(sheetLead); closeSheet() }}
@@ -568,20 +583,15 @@ export default function LeadsPage() {
                   </button>
                 )}
 
+                {/* 5. Book appointment */}
                 <button
-                  onClick={() => handleCall(sheetLead)}
-                  className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base flex items-center justify-center gap-2"
+                  onClick={() => { setBookingLead(sheetLead); closeSheet() }}
+                  className="w-full py-4 rounded-xl bg-gray-100 text-gray-700 font-semibold text-base"
                 >
-                  📞 Call {sheetLead.name}
+                  📅 Book Appointment
                 </button>
 
-                <button
-                  onClick={() => handleSMS(sheetLead)}
-                  className="w-full py-4 rounded-xl bg-[#00B4C5] text-white font-semibold text-base flex items-center justify-center gap-2"
-                >
-                  💬 Send ETA Text
-                </button>
-
+                {/* 6. Mark contact attempted */}
                 <button
                   onClick={async () => {
                     await supabase.from('leads').update({ status: 'contact_attempted' }).eq('id', sheetLead.id)
@@ -594,31 +604,13 @@ export default function LeadsPage() {
                   ✅ Mark as Attempted Contact
                 </button>
 
+                {/* 7. Complete job — deliberate action, placed last */}
                 <button
                   onClick={() => handleMarkComplete(sheetLead)}
                   className="w-full py-4 rounded-xl bg-green-600 text-white font-semibold text-base"
                 >
                   Complete Job ✅
                 </button>
-
-                <button
-                  onClick={() => { setBookingLead(sheetLead); closeSheet() }}
-                  className="w-full py-4 rounded-xl bg-gray-100 text-gray-700 font-semibold text-base"
-                >
-                  📅 Book Appointment
-                </button>
-
-                {sheetLead.address && (
-                  <button
-                    onClick={() => {
-                      const encoded = encodeURIComponent(sheetLead.address!)
-                      window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}`, '_blank')
-                    }}
-                    className="w-full py-4 rounded-xl bg-gray-800 text-white font-semibold text-base flex items-center justify-center gap-2"
-                  >
-                    📍 Navigate to Job
-                  </button>
-                )}
               </>
             )}
 
