@@ -12,6 +12,8 @@ interface ExtractedLead {
   details: string
 }
 
+const MAX_EMAIL_LENGTH = 5000
+
 function getClaudeModel(): string {
   const envModel = import.meta.env.VITE_CLAUDE_MODEL
   if (envModel && envModel.trim().length > 0) {
@@ -80,13 +82,10 @@ export default function EmailParser() {
     const model = getClaudeModel()
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('/api/anthropic', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': import.meta.env.VITE_ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
         },
         body: JSON.stringify({
           model,
@@ -114,14 +113,14 @@ ${rawEmail}`,
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        const message = (errorData as { error?: { message?: string } }).error?.message ?? `HTTP ${response.status}`
-        throw new Error(`Anthropic API error: ${message}`)
+        const message = (errorData as { error?: string }).error ?? `HTTP ${response.status}`
+        throw new Error(`API error: ${message}`)
       }
 
       const data = await response.json()
 
       if (!data.content || !data.content[0] || !data.content[0].text) {
-        throw new Error('Unexpected response format from Anthropic API')
+        throw new Error('Unexpected response format from AI service')
       }
 
       const text = data.content[0].text.trim()
@@ -134,8 +133,10 @@ ${rawEmail}`,
         parsed = JSON.parse(text)
       }
 
-      const requiredFields: (keyof ExtractedLead)[] = ['name', 'phone', 'email', 'address', 'service_type', 'lead_source', 'details']
-      const missingFields = requiredFields.filter(f => !(f in parsed))
+      const requiredFields: (keyof ExtractedLead)[] = [
+        'name', 'phone', 'email', 'address', 'service_type', 'lead_source', 'details',
+      ]
+      const missingFields = requiredFields.filter((f) => !(f in parsed))
 
       if (missingFields.length > 0) {
         throw new Error(`Missing fields in response: ${missingFields.join(', ')}`)
@@ -158,10 +159,8 @@ ${rawEmail}`,
     setDuplicateWarning(null)
 
     try {
-      // Step 1 — hash the raw email for duplicate detection
       const hash = await hashText(rawEmail)
 
-      // Step 2 — check for duplicate
       const { data: existingLead } = await supabase
         .from('leads')
         .select('id')
@@ -169,7 +168,6 @@ ${rawEmail}`,
         .maybeSingle()
 
       if (existingLead) {
-        // Duplicate found — block the insert, warn the user, log the event
         setDuplicateWarning(existingLead.id)
 
         const { data: { user } } = await supabase.auth.getUser()
@@ -184,10 +182,8 @@ ${rawEmail}`,
         return
       }
 
-      // Step 3 — upsert the customer record
       const customerId = await upsertCustomer(extracted)
 
-      // Step 4 — insert the lead
       const { data: lead, error: dbError } = await supabase
         .from('leads')
         .insert({
@@ -210,7 +206,6 @@ ${rawEmail}`,
         throw new Error('Failed to save lead: ' + (dbError?.message ?? 'unknown error'))
       }
 
-      // Step 5 — log the audit event
       const { data: { user } } = await supabase.auth.getUser()
       await supabase.from('lead_events').insert({
         lead_id: lead.id,
@@ -226,7 +221,6 @@ ${rawEmail}`,
       setRawEmail('')
       setExtracted(null)
       setTimeout(() => setSaved(false), 4000)
-
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save lead'
       setError(message)
@@ -238,6 +232,8 @@ ${rawEmail}`,
 
   const canParse = rawEmail.trim().length > 0 && !parsing
   const canSave = extracted !== null && !saving
+  const charCount = rawEmail.length
+  const nearLimit = charCount > MAX_EMAIL_LENGTH * 0.8
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -278,11 +274,15 @@ ${rawEmail}`,
 
       <textarea
         value={rawEmail}
-        onChange={e => setRawEmail(e.target.value)}
+        onChange={(e) => setRawEmail(e.target.value)}
         placeholder="Paste customer email here..."
         rows={6}
-        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93] mb-3"
+        maxLength={MAX_EMAIL_LENGTH}
+        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93] mb-1"
       />
+      <p className={`text-xs mb-3 text-right ${nearLimit ? 'text-amber-600 font-medium' : 'text-gray-400'}`}>
+        {charCount} / {MAX_EMAIL_LENGTH} characters
+      </p>
 
       <button
         onClick={handleParse}
@@ -314,7 +314,7 @@ ${rawEmail}`,
                 <input
                   type="text"
                   value={extracted[key] ?? ''}
-                  onChange={e =>
+                  onChange={(e) =>
                     setExtracted({ ...extracted, [key]: e.target.value })
                   }
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"

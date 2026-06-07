@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
-// This converts the VAPID key to a format browsers understand
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
@@ -17,88 +16,82 @@ export function usePushNotifications() {
   const [isSupported, setIsSupported] = useState(false)
   const [isSubscribed, setIsSubscribed] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  // Check if browser supports push
   useEffect(() => {
     const supported = 'serviceWorker' in navigator && 'PushManager' in window
     setIsSupported(supported)
-    
     if (supported) {
       checkSubscription()
     }
   }, [])
 
-  // Check if already subscribed
+  // Only checks — does NOT save on load (that was causing unnecessary DB writes)
   const checkSubscription = async () => {
     try {
       const reg = await navigator.serviceWorker.ready
       const sub = await reg.pushManager.getSubscription()
       setIsSubscribed(!!sub)
-      if (sub) saveSubscription(sub)
-    } catch (err) {
-      console.log('No existing subscription')
+    } catch {
+      // No existing subscription — this is normal, not an error
     }
   }
 
-  // Ask user for permission and subscribe
-  const subscribe = async () => {
-    if (!isSupported) return
-    
+  const subscribe = async (): Promise<boolean> => {
+    if (!isSupported) return false
+
     setLoading(true)
+    setError(null)
+
     try {
-      // Ask browser for permission
       const permission = await Notification.requestPermission()
       if (permission !== 'granted') {
-        alert('You need to allow notifications to use this feature')
+        setError('Notification permission was denied. Please allow notifications in your browser settings.')
         setLoading(false)
-        return
+        return false
       }
 
-      // Get the service worker
       const reg = await navigator.serviceWorker.ready
-      
-      // Get VAPID key from .env
+
       const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY
       if (!vapidKey) {
-        alert('Push notifications not configured yet')
+        setError('Push notifications are not configured yet.')
         setLoading(false)
-        return
+        return false
       }
 
-      // Subscribe to push
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidKey)
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
       })
 
-      // Save to Supabase
       await saveSubscription(sub)
-      
-      // Update profile
+
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         await supabase.from('profiles').update({ push_enabled: true }).eq('id', user.id)
       }
 
       setIsSubscribed(true)
-      alert('Push notifications enabled!')
+      return true
     } catch (err) {
       console.error('Subscribe failed:', err)
-      alert('Failed to enable notifications')
+      setError('Failed to enable push notifications. Please try again.')
+      return false
     } finally {
       setLoading(false)
     }
   }
 
-  // Unsubscribe
-  const unsubscribe = async () => {
+  const unsubscribe = async (): Promise<boolean> => {
     setLoading(true)
+    setError(null)
+
     try {
       const reg = await navigator.serviceWorker.ready
       const sub = await reg.pushManager.getSubscription()
       if (sub) {
         await sub.unsubscribe()
-        // Remove from Supabase
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
           await supabase.from('push_subscriptions').delete().eq('user_id', user.id)
@@ -106,26 +99,31 @@ export function usePushNotifications() {
         }
       }
       setIsSubscribed(false)
+      return true
     } catch (err) {
       console.error('Unsubscribe failed:', err)
+      setError('Failed to disable push notifications. Please try again.')
+      return false
     } finally {
       setLoading(false)
     }
   }
 
-  // Save subscription to Supabase
   const saveSubscription = async (sub: PushSubscription) => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
     const subJson = sub.toJSON()
-    await supabase.from('push_subscriptions').upsert({
-      user_id: user.id,
-      endpoint: subJson.endpoint,
-      p256dh: subJson.keys?.p256dh,
-      auth: subJson.keys?.auth
-    }, { onConflict: 'endpoint' })
+    await supabase.from('push_subscriptions').upsert(
+      {
+        user_id: user.id,
+        endpoint: subJson.endpoint,
+        p256dh: subJson.keys?.p256dh,
+        auth: subJson.keys?.auth,
+      },
+      { onConflict: 'endpoint' }
+    )
   }
 
-  return { isSupported, isSubscribed, subscribe, unsubscribe, loading }
+  return { isSupported, isSubscribed, subscribe, unsubscribe, loading, error }
 }

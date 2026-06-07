@@ -2,13 +2,10 @@ export async function generateCaption(
   userInput: string,
   jobContext: string
 ): Promise<string> {
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
+  const response = await fetch('/api/anthropic', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': import.meta.env.VITE_ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
       model: 'claude-haiku-4-5',
@@ -33,6 +30,17 @@ Respond with ONLY the caption text, nothing else.`,
     }),
   })
 
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    const message = (errorData as { error?: string }).error ?? `HTTP ${response.status}`
+    throw new Error(`Caption generation failed: ${message}`)
+  }
+
   const data = await response.json()
+
+  if (!data.content?.[0]?.text) {
+    throw new Error('Unexpected response from caption service')
+  }
+
   return data.content[0].text.trim()
 }
