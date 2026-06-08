@@ -12,9 +12,14 @@ import LeadsPage from './pages/LeadsPage'
 import ProfilePage from './pages/ProfilePage'
 import SocialPage from './pages/SocialPage'
 import { useEffect } from 'react'
+import { useTechLocation } from './hooks/useTechLocation'
 
 function Dashboard() {
   const { profile, loading } = useAuth()
+
+  // Silently capture tech's location and store on their profile
+  useTechLocation(profile?.id ?? null)
+
   if (loading) return <p className="p-4 text-gray-400">Loading...</p>
   if (!profile) return <Navigate to="/login" replace />
   if (profile.role === 'manager') return <ManagerDashboard />
@@ -22,7 +27,6 @@ function Dashboard() {
 }
 
 function App() {
-  // Register service worker for push notifications
   useEffect(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js')

@@ -334,13 +334,48 @@ export default function LeadsPage() {
     fetchLeads()
   }, [logLeadEvent, closeSheet, fetchLeads])
 
-  const handleSMS = useCallback((lead: Lead) => {
-    const message = encodeURIComponent(
-      `Hi ${lead.name}, this is TVMagic. We're on our way and should be with you in approximately 20 minutes. See you soon!`
-    )
-    window.location.href = `sms:${lead.phone}?body=${message}`
-    closeSheet()
-  }, [closeSheet])
+  const handleSMS = useCallback(async (lead: Lead) => {
+  if (!lead.phone?.trim()) {
+    alert('No phone number saved for this lead.')
+    return
+  }
+
+  // Format UK mobile to E.164 if needed (07xxx → +447xxx)
+  const rawPhone = lead.phone.replace(/\s+/g, '')
+  const to = rawPhone.startsWith('+') ? rawPhone
+    : rawPhone.startsWith('07') ? '+44' + rawPhone.slice(1)
+    : rawPhone
+
+  try {
+    const res = await fetch('/api/send-sms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to,
+        customerName: lead.name,
+        techName: profile?.full_name ?? 'Your technician',
+        address: lead.address ?? '',
+      }),
+    })
+
+    if (res.ok) {
+      alert(`✅ On My Way SMS sent to ${lead.name}`)
+    } else {
+      const err = await res.json()
+      alert(`SMS failed: ${err.detail ?? err.error ?? 'Unknown error'}`)
+    }
+  } catch {
+    alert('Could not send SMS — check your connection.')
+  }
+
+  // Also open Google Maps if address exists
+  if (lead.address?.trim()) {
+    const encoded = encodeURIComponent(lead.address)
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}`, '_blank')
+  }
+
+  closeSheet()
+}, [closeSheet, profile?.full_name])
 
   const handleSharePhoto = useCallback(async (lead: Lead) => {
     if (navigator.share) {
