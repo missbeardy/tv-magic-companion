@@ -76,6 +76,7 @@ interface LeadCardProps {
   onOpenSheet: (lead: Lead) => void
   onAssign: (lead: Lead) => void
   onBook: (lead: Lead) => void
+  onRefresh: () => void
 }
 
 function LeadCard({
@@ -86,6 +87,7 @@ function LeadCard({
   onOpenSheet,
   onAssign,
   onBook,
+  onRefresh,
 }: LeadCardProps) {
   const isExpanded = expandedLead === lead.id
   const [events, setEvents] = useState<LeadEvent[]>([])
@@ -124,7 +126,7 @@ function LeadCard({
             assignedTo={lead.assigned_to}
             leadName={lead.name}
             serviceType={lead.service_type}
-            onUpdated={() => { /* parent refreshes via realtime */ }}
+            onUpdated={onRefresh}
           />
         </div>
       </div>
@@ -503,6 +505,7 @@ export default function LeadsPage() {
                     onOpenSheet={openSheet}
                     onAssign={setAssigningLead}
                     onBook={setBookingLead}
+                    onRefresh={fetchLeads}
                   />
                 ))
               }
@@ -520,6 +523,7 @@ export default function LeadsPage() {
                   onOpenSheet={openSheet}
                   onAssign={setAssigningLead}
                   onBook={setBookingLead}
+                  onRefresh={fetchLeads}
                 />
               ))}
             </div>
@@ -666,9 +670,10 @@ interface KanbanColumnProps {
   onOpenSheet: (lead: Lead) => void
   onAssign: (lead: Lead) => void
   onBook: (lead: Lead) => void
+  onRefresh: () => void
 }
 
-function KanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook }: KanbanColumnProps) {
+function KanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onRefresh }: KanbanColumnProps) {
   return (
     <div className={`flex-shrink-0 w-full md:w-72 bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200`}>
       <div className="p-3 border-b border-gray-100 flex items-center justify-between">
@@ -691,6 +696,7 @@ function KanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpe
             onOpenSheet={onOpenSheet}
             onAssign={onAssign}
             onBook={onBook}
+            onRefresh={onRefresh}
           />
         ))}
       </div>
