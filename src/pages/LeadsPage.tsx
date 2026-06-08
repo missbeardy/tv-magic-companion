@@ -164,6 +164,16 @@ function LeadCard({
         </p>
       )}
 
+      {/* Quick-assign pill — visible directly on unassigned cards */}
+      {lead.status === 'unassigned' && (
+        <button
+          onClick={e => { e.stopPropagation(); onAssign(lead) }}
+          className="mt-2 inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-[#004B93] text-white hover:bg-[#003d7a] transition"
+        >
+          + Assign
+        </button>
+      )}
+
       <button
         onClick={e => { e.stopPropagation(); onToggleExpand(isExpanded ? null : lead.id) }}
         className="hidden md:block text-xs text-gray-400 hover:text-gray-600 mt-2 transition"

@@ -1,3 +1,5 @@
+// src/components/LeadSocialModal.tsx
+
 import { useState } from 'react'
 import { generateCaption } from '../lib/generateCaption'
 import { postToSocial } from '../hooks/useSocialPost'
@@ -7,6 +9,7 @@ interface Lead {
   name: string
   service_type?: string
   address?: string
+  details?: string        // ← added
 }
 
 interface Props {
@@ -16,14 +19,16 @@ interface Props {
 }
 
 export default function LeadSocialModal({ lead, photoUrl, onClose }: Props) {
-  const [userInput, setUserInput] = useState('')
+  // Pre-fill with job details so the tech edits rather than types from scratch
+  const [userInput, setUserInput] = useState(lead.details ?? '')
   const [caption, setCaption] = useState('')
   const [generating, setGenerating] = useState(false)
   const [posting, setPosting] = useState(false)
   const [error, setError] = useState('')
   const [step, setStep] = useState<1 | 2 | 3>(1)
 
-  const jobContext = `Service: ${lead.service_type ?? 'TV installation'}. Location: ${lead.address ?? 'local area'}. Customer: ${lead.name}.`
+  // jobContext now includes details for richer AI captions
+  const jobContext = `Service: ${lead.service_type ?? 'TV installation'}. Location: ${lead.address ?? 'local area'}. Customer: ${lead.name}. Job details: ${lead.details ?? 'not specified'}.`
 
   async function handleGenerate() {
     if (!userInput.trim()) return
@@ -43,10 +48,10 @@ export default function LeadSocialModal({ lead, photoUrl, onClose }: Props) {
     setPosting(true)
     setError('')
     const result = await postToSocial({
-                            caption,
-                            mediaUrl: photoUrl,
-                            channels: { igPost: true, igStory: false, igReel: false, fbPost: true, fbStory: false },
-})
+      caption,
+      mediaUrl: photoUrl,
+      channels: { igPost: true, igStory: false, igReel: false, fbPost: true, fbStory: false },
+    })
     if (result.success) {
       setStep(3)
     } else {
@@ -88,7 +93,7 @@ export default function LeadSocialModal({ lead, photoUrl, onClose }: Props) {
           </div>
         )}
 
-        {/* Step 1 — Write notes */}
+        {/* Step 1 — Write / edit notes */}
         {step === 1 && (
           <div className="space-y-4">
             <img
@@ -98,7 +103,7 @@ export default function LeadSocialModal({ lead, photoUrl, onClose }: Props) {
             />
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                What did you do on this job? (one sentence is fine)
+                Job notes — pre-filled from the lead, edit if needed
               </label>
               <textarea
                 value={userInput}

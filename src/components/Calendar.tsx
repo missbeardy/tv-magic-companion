@@ -1,7 +1,10 @@
+// src/components/Calendar.tsx
+
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import EventModal from './EventModal'
+import { MobileResourceView } from './MobileResourceView'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -34,7 +37,7 @@ type ViewMode = 'day' | 'week' | 'month'
 
 const DAY_START_HOUR = 6
 const DAY_END_HOUR = 20
-const SLOT_HEIGHT = 64 // px per hour
+const SLOT_HEIGHT = 64
 const HOUR_LABELS = Array.from(
   { length: DAY_END_HOUR - DAY_START_HOUR + 1 },
   (_, i) => DAY_START_HOUR + i
@@ -68,7 +71,7 @@ function getEventHeight(startTime: string, endTime: string): number {
   const end = new Date(endTime)
   const diffMs = end.getTime() - start.getTime()
   const diffHours = diffMs / (1000 * 60 * 60)
-  return Math.max(diffHours * SLOT_HEIGHT, 28) // minimum 28px height
+  return Math.max(diffHours * SLOT_HEIGHT, 28)
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -83,6 +86,11 @@ export default function Calendar() {
   const [defaultDate, setDefaultDate] = useState('')
   const [employees, setEmployees] = useState<Profile[]>([])
   const [filterEmployee, setFilterEmployee] = useState<string>('all')
+
+  // ── Mobile resource view detection ──
+  // true when screen is narrower than 768px (md breakpoint)
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+  const showResourceView = isMobile && profile?.role === 'manager' && filterEmployee === 'all' && view !== 'month'
 
   // ── Data Fetching ──
 
@@ -252,9 +260,8 @@ export default function Calendar() {
           </button>
         </div>
 
-        {/* Row 2: Employee Filter (full width on mobile) + View Toggle + Add */}
+        {/* Row 2: Employee Filter + View Toggle + Add */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-          {/* Employee Filter - full width on mobile */}
           {profile?.role === 'manager' && (
             <select
               value={filterEmployee}
@@ -269,7 +276,6 @@ export default function Calendar() {
           )}
 
           <div className="flex items-center gap-2 sm:ml-auto">
-            {/* View Toggle */}
             <div className="flex rounded-lg border border-gray-200 overflow-hidden flex-1 sm:flex-none">
               {(['day', 'week', 'month'] as ViewMode[]).map(v => (
                 <button
@@ -286,7 +292,6 @@ export default function Calendar() {
               ))}
             </div>
 
-            {/* Add Event Button */}
             <button
               onClick={() => {
                 setSelectedEvent(null)
@@ -304,269 +309,230 @@ export default function Calendar() {
         </div>
       </div>
 
-      {/* ── DAY VIEW ── */}
-      {view === 'day' && (
-        <div className="flex">
-          {/* Time Labels */}
-          <div className="w-14 sm:w-16 flex-shrink-0 border-r border-gray-100 bg-gray-50">
-            <div className="h-10 border-b border-gray-100" /> {/* header spacer */}
-            {HOUR_LABELS.map(hour => (
-              <div
-                key={hour}
-                className="text-[10px] sm:text-xs text-gray-400 text-right pr-1 sm:pr-2 pt-1"
-                style={{ height: SLOT_HEIGHT }}
-              >
-                {String(hour).padStart(2, '0')}:00
-              </div>
-            ))}
-          </div>
+      {/* ── MOBILE RESOURCE VIEW ── manager + all employees + week/day on mobile */}
+      {showResourceView && (
+        <MobileResourceView
+          events={events}
+          employees={employees}
+          selectedDate={currentDate}
+          onEventClick={openEditEvent}
+          onAddEvent={openNewEvent}
+        />
+      )}
 
-          {/* Day Column */}
-          <div className="flex-1 relative">
-            {/* Day Header */}
-            <div className="h-10 border-b border-gray-100 flex items-center justify-center bg-white sticky top-0 z-10">
-              <span className="text-sm font-semibold text-gray-700">
-                {fullDayNames[currentDate.getDay() === 0 ? 6 : currentDate.getDay() - 1]}
-              </span>
-            </div>
-
-            {/* Time Grid */}
-            <div className="relative">
-              {/* Hour rows */}
-              {HOUR_LABELS.map(hour => (
-                <div
-                  key={hour}
-                  className="border-b border-gray-100 hover:bg-gray-50/50 transition cursor-pointer"
-                  style={{ height: SLOT_HEIGHT }}
-                  onClick={() => openNewEvent(new Date(currentDate), hour)}
-                />
-              ))}
-
-              {/* Current time indicator */}
-              {(() => {
-                const now = new Date()
-                const isToday = currentDate.toDateString() === now.toDateString()
-                if (!isToday) return null
-                const minutes = now.getHours() * 60 + now.getMinutes()
-                const dayMinutes = DAY_START_HOUR * 60
-                const totalDayMinutes = (DAY_END_HOUR - DAY_START_HOUR + 1) * 60
-                const elapsed = minutes - dayMinutes
-                if (elapsed < 0 || elapsed > totalDayMinutes) return null
-                const top = (elapsed / 60) * SLOT_HEIGHT
-                return (
+      {/* ── Standard views — hidden on mobile when resource view is showing ── */}
+      {!showResourceView && (
+        <>
+          {/* ── DAY VIEW ── */}
+          {view === 'day' && (
+            <div className="flex">
+              <div className="w-14 sm:w-16 flex-shrink-0 border-r border-gray-100 bg-gray-50">
+                <div className="h-10 border-b border-gray-100" />
+                {HOUR_LABELS.map(hour => (
                   <div
-                    className="absolute left-0 right-0 z-20 pointer-events-none"
-                    style={{ top }}
+                    key={hour}
+                    className="text-[10px] sm:text-xs text-gray-400 text-right pr-1 sm:pr-2 pt-1"
+                    style={{ height: SLOT_HEIGHT }}
                   >
-                    <div className="flex items-center">
-                      <div className="w-2 h-2 rounded-full bg-red-500 -ml-1" />
-                      <div className="flex-1 h-px bg-red-500" />
-                    </div>
+                    {String(hour).padStart(2, '0')}:00
                   </div>
-                )
-              })()}
+                ))}
+              </div>
 
-              {/* Events */}
-              {getEventsForDay(currentDate).map(event => {
-                const top = getEventTop(event.start_time)
-                const height = getEventHeight(event.start_time, event.end_time)
-                const isBooking = event.category === 'Booking' || event.category === 'Assigned Leads'
+              <div className="flex-1 relative">
+                <div className="h-10 border-b border-gray-100 flex items-center justify-center bg-white sticky top-0 z-10">
+                  <span className="text-sm font-semibold text-gray-700">
+                    {fullDayNames[currentDate.getDay() === 0 ? 6 : currentDate.getDay() - 1]}
+                  </span>
+                </div>
 
-                return (
-                  <div
-                    key={event.id}
-                    className="absolute left-1 right-1 rounded-lg cursor-pointer hover:brightness-95 transition overflow-hidden shadow-sm"
-                    style={{
-                      top,
-                      height,
-                      backgroundColor: event.color,
-                      minHeight: 28,
-                    }}
-                    onClick={e => {
-                      e.stopPropagation()
-                      openEditEvent(event)
-                    }}
-                  >
-                    <div className="p-1 sm:p-1.5 text-white h-full flex flex-col">
-                      {/* Title */}
-                      <p className="text-[10px] sm:text-xs font-semibold truncate leading-tight">
-                        {event.title}
-                      </p>
+                <div className="relative">
+                  {HOUR_LABELS.map(hour => (
+                    <div
+                      key={hour}
+                      className="border-b border-gray-100 hover:bg-gray-50/50 transition cursor-pointer"
+                      style={{ height: SLOT_HEIGHT }}
+                      onClick={() => openNewEvent(new Date(currentDate), hour)}
+                    />
+                  ))}
 
-                      {/* Time */}
-                      <p className="text-[9px] sm:text-[10px] opacity-90 leading-tight mt-0.5">
-                        {formatTime(event.start_time)} – {formatTime(event.end_time)}
-                      </p>
+                  {(() => {
+                    const now = new Date()
+                    const isToday = currentDate.toDateString() === now.toDateString()
+                    if (!isToday) return null
+                    const minutes = now.getHours() * 60 + now.getMinutes()
+                    const dayMinutes = DAY_START_HOUR * 60
+                    const totalDayMinutes = (DAY_END_HOUR - DAY_START_HOUR + 1) * 60
+                    const elapsed = minutes - dayMinutes
+                    if (elapsed < 0 || elapsed > totalDayMinutes) return null
+                    const top = (elapsed / 60) * SLOT_HEIGHT
+                    return (
+                      <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top }}>
+                        <div className="flex items-center">
+                          <div className="w-2 h-2 rounded-full bg-red-500 -ml-1" />
+                          <div className="flex-1 h-px bg-red-500" />
+                        </div>
+                      </div>
+                    )
+                  })()}
 
-                      {/* Client Details (if booking) */}
-                      {isBooking && height > 50 && (
-                        <div className="mt-1 space-y-0.5">
-                          {event.client_name && (
-                            <p className="text-[9px] sm:text-[10px] opacity-90 truncate">
-                              👤 {event.client_name}
-                            </p>
+                  {getEventsForDay(currentDate).map(event => {
+                    const top = getEventTop(event.start_time)
+                    const height = getEventHeight(event.start_time, event.end_time)
+                    const isBooking = event.category === 'Booking' || event.category === 'Assigned Leads'
+
+                    return (
+                      <div
+                        key={event.id}
+                        className="absolute left-1 right-1 rounded-lg cursor-pointer hover:brightness-95 transition overflow-hidden shadow-sm"
+                        style={{ top, height, backgroundColor: event.color, minHeight: 28 }}
+                        onClick={e => { e.stopPropagation(); openEditEvent(event) }}
+                      >
+                        <div className="p-1 sm:p-1.5 text-white h-full flex flex-col">
+                          <p className="text-[10px] sm:text-xs font-semibold truncate leading-tight">{event.title}</p>
+                          <p className="text-[9px] sm:text-[10px] opacity-90 leading-tight mt-0.5">
+                            {formatTime(event.start_time)} – {formatTime(event.end_time)}
+                          </p>
+                          {isBooking && height > 50 && (
+                            <div className="mt-1 space-y-0.5">
+                              {event.client_name && (
+                                <p className="text-[9px] sm:text-[10px] opacity-90 truncate">👤 {event.client_name}</p>
+                              )}
+                              {event.client_phone && height > 70 && (
+                                <p className="text-[9px] sm:text-[10px] opacity-90 truncate">📞 {event.client_phone}</p>
+                              )}
+                              {event.client_address && height > 90 && (
+                                <p className="text-[9px] sm:text-[10px] opacity-90 truncate">📍 {event.client_address}</p>
+                              )}
+                              {event.client_job && height > 110 && (
+                                <p className="text-[9px] sm:text-[10px] opacity-80 truncate">📝 {event.client_job}</p>
+                              )}
+                            </div>
                           )}
-                          {event.client_phone && height > 70 && (
-                            <p className="text-[9px] sm:text-[10px] opacity-90 truncate">
-                              📞 {event.client_phone}
-                            </p>
-                          )}
-                          {event.client_address && height > 90 && (
-                            <p className="text-[9px] sm:text-[10px] opacity-90 truncate">
-                              📍 {event.client_address}
-                            </p>
-                          )}
-                          {event.client_job && height > 110 && (
-                            <p className="text-[9px] sm:text-[10px] opacity-80 truncate">
-                              📝 {event.client_job}
+                          {profile?.role === 'manager' && event.profiles && height > 50 && (
+                            <p className="text-[9px] sm:text-[10px] opacity-75 mt-auto pt-1 truncate">
+                              {event.profiles.full_name}
                             </p>
                           )}
                         </div>
-                      )}
-
-                      {/* Assigned employee (manager view) */}
-                      {profile?.role === 'manager' && event.profiles && height > 50 && (
-                        <p className="text-[9px] sm:text-[10px] opacity-75 mt-auto pt-1 truncate">
-                          {event.profiles.full_name}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── WEEK VIEW ── */}
-      {view === 'week' && (
-        <div>
-          {/* Day Headers */}
-          <div className="grid grid-cols-7 divide-x divide-gray-100 border-b border-gray-100">
-            {weekDays.map((day, i) => {
-              const isToday = day.toDateString() === new Date().toDateString()
-              return (
-                <div
-                  key={i}
-                  className={`p-1 sm:p-2 text-center cursor-pointer hover:bg-gray-50 transition ${
-                    isToday ? 'bg-blue-50' : ''
-                  }`}
-                  onClick={() => {
-                    setCurrentDate(new Date(day))
-                    setView('day')
-                  }}
-                >
-                  <p className="text-[10px] sm:text-xs text-gray-400">{dayNames[i]}</p>
-                  <p className={`text-sm sm:text-base font-semibold ${isToday ? 'text-[#004B93]' : 'text-gray-700'}`}>
-                    {day.getDate()}
-                  </p>
-                </div>
-              )
-            })}
-          </div>
-
-          {/* Events Grid */}
-          <div className="grid grid-cols-7 divide-x divide-gray-100">
-            {weekDays.map((day, i) => {
-              const isToday = day.toDateString() === new Date().toDateString()
-              const dayEvents = getEventsForDay(day)
-              return (
-                <div key={i} className="min-h-32 sm:min-h-40">
-                  <div
-                    className={`p-1 space-y-1 min-h-full ${isToday ? 'bg-blue-50/30' : ''}`}
-                    onClick={() => openNewEvent(new Date(day))}
-                  >
-                    {dayEvents.map(event => (
-                      <div
-                        key={event.id}
-                        onClick={e => {
-                          e.stopPropagation()
-                          openEditEvent(event)
-                        }}
-                        className="text-[10px] sm:text-xs p-1 sm:p-1.5 rounded cursor-pointer text-white hover:opacity-90 transition shadow-sm"
-                        style={{ backgroundColor: event.color }}
-                        title={`${event.title}\n${formatDuration(event.start_time, event.end_time)}`}
-                      >
-                        <p className="font-medium truncate">{event.title}</p>
-                        <p className="text-[9px] sm:text-[10px] opacity-90">
-                          {formatTime(event.start_time)} – {formatTime(event.end_time)}
-                        </p>
-                        {event.client_name && (
-                          <p className="text-[9px] sm:text-[10px] opacity-90 truncate">👤 {event.client_name}</p>
-                        )}
-                        {profile?.role === 'manager' && event.profiles && (
-                          <p className="text-[9px] sm:text-[10px] opacity-75 truncate">{event.profiles.full_name}</p>
-                        )}
                       </div>
-                    ))}
-                  </div>
+                    )
+                  })}
                 </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ── MONTH VIEW ── */}
-      {view === 'month' && (
-        <div>
-          {/* Day Name Headers */}
-          <div className="grid grid-cols-7 border-b border-gray-100">
-            {dayNames.map(d => (
-              <div key={d} className="p-1 sm:p-2 text-center text-[10px] sm:text-xs font-medium text-gray-400">
-                {d}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
 
-          {/* Calendar Grid */}
-          <div className="grid grid-cols-7 divide-x divide-y divide-gray-100">
-            {monthDays.map((day, i) => {
-              if (!day) return <div key={i} className="min-h-16 sm:min-h-24 bg-gray-50" />
-              const isToday = day.toDateString() === new Date().toDateString()
-              const dayEvents = getEventsForDay(day)
-              return (
-                <div
-                  key={i}
-                  className={`min-h-16 sm:min-h-24 p-0.5 sm:p-1 cursor-pointer hover:bg-gray-50 transition ${
-                    isToday ? 'bg-blue-50' : ''
-                  }`}
-                  onClick={() => {
-                    setCurrentDate(new Date(day))
-                    setView('day')
-                  }}
-                >
-                  <p className={`text-[10px] sm:text-xs font-semibold mb-0.5 sm:mb-1 ${isToday ? 'text-[#004B93]' : 'text-gray-600'}`}>
-                    {day.getDate()}
-                  </p>
-                  <div className="space-y-0.5">
-                    {dayEvents.slice(0, 3).map(event => (
-                      <div
-                        key={event.id}
-                        onClick={e => {
-                          e.stopPropagation()
-                          openEditEvent(event)
-                        }}
-                        className="text-[9px] sm:text-xs p-0.5 px-1 rounded cursor-pointer text-white truncate hover:opacity-80 transition shadow-sm"
-                        style={{ backgroundColor: event.color }}
-                        title={`${event.title}\n${formatDuration(event.start_time, event.end_time)}`}
-                      >
-                        <span className="font-medium">{formatTime(event.start_time)}</span>{' '}
-                        <span>{event.title}</span>
-                      </div>
-                    ))}
-                    {dayEvents.length > 3 && (
-                      <p className="text-[9px] sm:text-xs text-gray-400 font-medium">
-                        +{dayEvents.length - 3} more
+          {/* ── WEEK VIEW ── */}
+          {view === 'week' && (
+            <div>
+              <div className="grid grid-cols-7 divide-x divide-gray-100 border-b border-gray-100">
+                {weekDays.map((day, i) => {
+                  const isToday = day.toDateString() === new Date().toDateString()
+                  return (
+                    <div
+                      key={i}
+                      className={`p-1 sm:p-2 text-center cursor-pointer hover:bg-gray-50 transition ${isToday ? 'bg-blue-50' : ''}`}
+                      onClick={() => { setCurrentDate(new Date(day)); setView('day') }}
+                    >
+                      <p className="text-[10px] sm:text-xs text-gray-400">{dayNames[i]}</p>
+                      <p className={`text-sm sm:text-base font-semibold ${isToday ? 'text-[#004B93]' : 'text-gray-700'}`}>
+                        {day.getDate()}
                       </p>
-                    )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="grid grid-cols-7 divide-x divide-gray-100">
+                {weekDays.map((day, i) => {
+                  const isToday = day.toDateString() === new Date().toDateString()
+                  const dayEvents = getEventsForDay(day)
+                  return (
+                    <div key={i} className="min-h-32 sm:min-h-40">
+                      <div
+                        className={`p-1 space-y-1 min-h-full ${isToday ? 'bg-blue-50/30' : ''}`}
+                        onClick={() => openNewEvent(new Date(day))}
+                      >
+                        {dayEvents.map(event => (
+                          <div
+                            key={event.id}
+                            onClick={e => { e.stopPropagation(); openEditEvent(event) }}
+                            className="text-[10px] sm:text-xs p-1 sm:p-1.5 rounded cursor-pointer text-white hover:opacity-90 transition shadow-sm"
+                            style={{ backgroundColor: event.color }}
+                            title={`${event.title}\n${formatDuration(event.start_time, event.end_time)}`}
+                          >
+                            <p className="font-medium truncate">{event.title}</p>
+                            <p className="text-[9px] sm:text-[10px] opacity-90">
+                              {formatTime(event.start_time)} – {formatTime(event.end_time)}
+                            </p>
+                            {event.client_name && (
+                              <p className="text-[9px] sm:text-[10px] opacity-90 truncate">👤 {event.client_name}</p>
+                            )}
+                            {profile?.role === 'manager' && event.profiles && (
+                              <p className="text-[9px] sm:text-[10px] opacity-75 truncate">{event.profiles.full_name}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ── MONTH VIEW ── */}
+          {view === 'month' && (
+            <div>
+              <div className="grid grid-cols-7 border-b border-gray-100">
+                {dayNames.map(d => (
+                  <div key={d} className="p-1 sm:p-2 text-center text-[10px] sm:text-xs font-medium text-gray-400">
+                    {d}
                   </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-7 divide-x divide-y divide-gray-100">
+                {monthDays.map((day, i) => {
+                  if (!day) return <div key={i} className="min-h-16 sm:min-h-24 bg-gray-50" />
+                  const isToday = day.toDateString() === new Date().toDateString()
+                  const dayEvents = getEventsForDay(day)
+                  return (
+                    <div
+                      key={i}
+                      className={`min-h-16 sm:min-h-24 p-0.5 sm:p-1 cursor-pointer hover:bg-gray-50 transition ${isToday ? 'bg-blue-50' : ''}`}
+                      onClick={() => { setCurrentDate(new Date(day)); setView('day') }}
+                    >
+                      <p className={`text-[10px] sm:text-xs font-semibold mb-0.5 sm:mb-1 ${isToday ? 'text-[#004B93]' : 'text-gray-600'}`}>
+                        {day.getDate()}
+                      </p>
+                      <div className="space-y-0.5">
+                        {dayEvents.slice(0, 3).map(event => (
+                          <div
+                            key={event.id}
+                            onClick={e => { e.stopPropagation(); openEditEvent(event) }}
+                            className="text-[9px] sm:text-xs p-0.5 px-1 rounded cursor-pointer text-white truncate hover:opacity-80 transition shadow-sm"
+                            style={{ backgroundColor: event.color }}
+                            title={`${event.title}\n${formatDuration(event.start_time, event.end_time)}`}
+                          >
+                            <span className="font-medium">{formatTime(event.start_time)}</span>{' '}
+                            <span>{event.title}</span>
+                          </div>
+                        ))}
+                        {dayEvents.length > 3 && (
+                          <p className="text-[9px] sm:text-xs text-gray-400 font-medium">
+                            +{dayEvents.length - 3} more
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
