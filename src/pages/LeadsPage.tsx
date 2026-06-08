@@ -54,12 +54,14 @@ const COLUMNS = [
 const MOBILE_TABS = [
   { key: 'unassigned', label: 'Unassigned' },
   { key: 'assigned',   label: 'Assigned'   },
+  { key: 'contact',    label: 'Contacted'  },
   { key: 'closed',     label: 'Done / Lost'},
 ]
 
 function getColumnsForTab(tab: string): string[] {
   if (tab === 'unassigned') return ['unassigned']
-  if (tab === 'assigned')   return ['assigned', 'contact_attempted', 'booked']
+  if (tab === 'assigned')   return ['assigned']
+  if (tab === 'contact')    return ['contact_attempted', 'booked']
   if (tab === 'closed')     return ['lost', 'completed']
   return []
 }
@@ -86,7 +88,7 @@ function LeadCard({
   onBook,
 }: LeadCardProps) {
   const isExpanded = expandedLead === lead.id
-  const [events, setEvents] = useState<LeadEvent[]>([])
+  const [events, setEvents] = useState<<LeadEvent[]>([])
 
   useEffect(() => {
     if (!isExpanded) return
@@ -133,7 +135,6 @@ function LeadCard({
         </div>
       )}
 
-      {/* FIX: address now renders once only, as a Maps link */}
       {lead.address && (
         <button
           onClick={(e) => {
@@ -164,7 +165,6 @@ function LeadCard({
         </p>
       )}
 
-      {/* Quick-assign pill — visible directly on unassigned cards */}
       {lead.status === 'unassigned' && (
         <button
           onClick={e => { e.stopPropagation(); onAssign(lead) }}
@@ -236,23 +236,20 @@ function LeadCard({
 
 export default function LeadsPage() {
   const { profile } = useAuth()
-  const [leads, setLeads] = useState<Lead[]>([])
+  const [leads, setLeads] = useState<<Lead[]>([])
   const [loading, setLoading] = useState(true)
-  const [assigningLead, setAssigningLead] = useState<Lead | null>(null)
-  const [bookingLead, setBookingLead] = useState<Lead | null>(null)
+  const [assigningLead, setAssigningLead] = useState<<Lead | null>(null)
+  const [bookingLead, setBookingLead] = useState<<Lead | null>(null)
   const [expandedLead, setExpandedLead] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'unassigned' | 'assigned' | 'closed'>('unassigned')
-  const [sheetLead, setSheetLead] = useState<Lead | null>(null)
+  const [activeTab, setActiveTab] = useState<'unassigned' | 'assigned' | 'contact' | 'closed'>('unassigned')
+  const [sheetLead, setSheetLead] = useState<<Lead | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
 
-  // Checklist / signature / receipt state
   const [showChecklist, setShowChecklist] = useState(false)
-  const [checklistLead, setChecklistLead] = useState<Lead | null>(null)
+  const [checklistLead, setChecklistLead] = useState<<Lead | null>(null)
   const [showSignature, setShowSignature] = useState(false)
   const [showReceipt, setShowReceipt] = useState(false)
-  const [receiptLead, setReceiptLead] = useState<Lead | null>(null)
-
-  // ── FIX: fetchLeads wrapped in useCallback so handlers have a stable reference ──
+  const [receiptLead, setReceiptLead] = useState<<Lead | null>(null)
 
   const fetchLeads = useCallback(async () => {
     let query = supabase
@@ -268,8 +265,6 @@ export default function LeadsPage() {
     if (data) setLeads(data as Lead[])
     setLoading(false)
   }, [profile])
-
-  // ── Callbacks ──
 
   const logLeadEvent = useCallback(async (leadId: string, eventType: string, note?: string) => {
     await supabase.from('lead_events').insert({
@@ -335,47 +330,45 @@ export default function LeadsPage() {
   }, [logLeadEvent, closeSheet, fetchLeads])
 
   const handleSMS = useCallback(async (lead: Lead) => {
-  if (!lead.phone?.trim()) {
-    alert('No phone number saved for this lead.')
-    return
-  }
-
-  // Format UK mobile to E.164 if needed (07xxx → +447xxx)
-  const rawPhone = lead.phone.replace(/\s+/g, '')
-  const to = rawPhone.startsWith('+') ? rawPhone
-    : rawPhone.startsWith('07') ? '+44' + rawPhone.slice(1)
-    : rawPhone
-
-  try {
-    const res = await fetch('/api/send-sms', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        to,
-        customerName: lead.name,
-        techName: profile?.full_name ?? 'Your technician',
-        address: lead.address ?? '',
-      }),
-    })
-
-    if (res.ok) {
-      alert(`✅ On My Way SMS sent to ${lead.name}`)
-    } else {
-      const err = await res.json()
-      alert(`SMS failed: ${err.detail ?? err.error ?? 'Unknown error'}`)
+    if (!lead.phone?.trim()) {
+      alert('No phone number saved for this lead.')
+      return
     }
-  } catch {
-    alert('Could not send SMS — check your connection.')
-  }
 
-  // Also open Google Maps if address exists
-  if (lead.address?.trim()) {
-    const encoded = encodeURIComponent(lead.address)
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}`, '_blank')
-  }
+    const rawPhone = lead.phone.replace(/\s+/g, '')
+    const to = rawPhone.startsWith('+') ? rawPhone
+      : rawPhone.startsWith('0') ? '+61' + rawPhone.slice(1)
+      : rawPhone
 
-  closeSheet()
-}, [closeSheet, profile?.full_name])
+    try {
+      const res = await fetch('/api/send-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to,
+          customerName: lead.name,
+          techName: profile?.full_name ?? 'Your technician',
+          address: lead.address ?? '',
+        }),
+      })
+
+      if (res.ok) {
+        alert(`✅ On My Way SMS sent to ${lead.name}`)
+      } else {
+        const err = await res.json()
+        alert(`SMS failed: ${err.detail ?? err.error ?? 'Unknown error'}`)
+      }
+    } catch {
+      alert('Could not send SMS — check your connection.')
+    }
+
+    if (lead.address?.trim()) {
+      const encoded = encodeURIComponent(lead.address)
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}`, '_blank')
+    }
+
+    closeSheet()
+  }, [closeSheet, profile?.full_name])
 
   const handleSharePhoto = useCallback(async (lead: Lead) => {
     if (navigator.share) {
@@ -393,8 +386,6 @@ export default function LeadsPage() {
     }
   }, [])
 
-  // ── Data Fetching ──
-
   useEffect(() => {
     if (!profile) return
     fetchLeads()
@@ -411,11 +402,8 @@ export default function LeadsPage() {
     return leads.filter(l => l.status === status)
   }
 
-  // ── Render ──
-
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Modals */}
       {showChecklist && (
         <CompletionChecklist
           onConfirm={confirmComplete}
@@ -474,7 +462,6 @@ export default function LeadsPage() {
 
         {!loading && (
           <>
-            {/* Mobile Tabs */}
             <div className="md:hidden sticky top-0 z-10 bg-white border-b border-gray-200 flex mb-3 -mx-4 px-0">
               {MOBILE_TABS.map(tab => (
                 <button
@@ -491,7 +478,6 @@ export default function LeadsPage() {
               ))}
             </div>
 
-            {/* Mobile Columns */}
             <div className="md:hidden space-y-3">
               {COLUMNS
                 .filter(col => getColumnsForTab(activeTab).includes(col.key))
@@ -511,7 +497,6 @@ export default function LeadsPage() {
               }
             </div>
 
-            {/* Desktop Columns */}
             <div className="hidden md:flex gap-4 overflow-x-auto pb-4">
               {COLUMNS.map(col => (
                 <KanbanColumn
@@ -531,8 +516,6 @@ export default function LeadsPage() {
         )}
       </main>
 
-      {/* ── Bottom Sheet ── */}
-      {/* FIX: buttons reordered — navigate/call/SMS first, complete last */}
       <BottomSheet
         isOpen={sheetOpen}
         onClose={closeSheet}
@@ -553,7 +536,6 @@ export default function LeadsPage() {
               </details>
             )}
 
-            {/* Post-Sales Interface — completed jobs */}
             {sheetLead.status === 'completed' ? (
               <>
                 <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-center mb-2">
@@ -579,9 +561,7 @@ export default function LeadsPage() {
                 </div>
               </>
             ) : (
-              /* Standard Active Sales Interface — reordered for mobile use */
               <>
-                {/* 1. Navigate — most useful on-site action */}
                 {sheetLead.address && (
                   <button
                     onClick={() => {
@@ -594,7 +574,6 @@ export default function LeadsPage() {
                   </button>
                 )}
 
-                {/* 2. Call customer */}
                 <button
                   onClick={() => handleCall(sheetLead)}
                   className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base flex items-center justify-center gap-2"
@@ -602,7 +581,6 @@ export default function LeadsPage() {
                   📞 Call {sheetLead.name}
                 </button>
 
-                {/* 3. Send ETA text */}
                 <button
                   onClick={() => handleSMS(sheetLead)}
                   className="w-full py-4 rounded-xl bg-[#00B4C5] text-white font-semibold text-base flex items-center justify-center gap-2"
@@ -610,7 +588,6 @@ export default function LeadsPage() {
                   💬 Send ETA Text
                 </button>
 
-                {/* 4. Assign (only shown when relevant) */}
                 {sheetLead.status === 'unassigned' && profile?.role === 'manager' && (
                   <button
                     onClick={() => { setAssigningLead(sheetLead); closeSheet() }}
@@ -628,7 +605,6 @@ export default function LeadsPage() {
                   </button>
                 )}
 
-                {/* 5. Book appointment */}
                 <button
                   onClick={() => { setBookingLead(sheetLead); closeSheet() }}
                   className="w-full py-4 rounded-xl bg-gray-100 text-gray-700 font-semibold text-base"
@@ -636,7 +612,6 @@ export default function LeadsPage() {
                   📅 Book Appointment
                 </button>
 
-                {/* 6. Mark contact attempted */}
                 <button
                   onClick={async () => {
                     await supabase.from('leads').update({ status: 'contact_attempted' }).eq('id', sheetLead.id)
@@ -649,7 +624,6 @@ export default function LeadsPage() {
                   ✅ Mark as Attempted Contact
                 </button>
 
-                {/* 7. Complete job — deliberate action, placed last */}
                 <button
                   onClick={() => handleMarkComplete(sheetLead)}
                   className="w-full py-4 rounded-xl bg-green-600 text-white font-semibold text-base"
@@ -687,7 +661,7 @@ interface KanbanColumnProps {
 
 function KanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook }: KanbanColumnProps) {
   return (
-    <div className={`flex-shrink-0 w-full max-w-none bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200`}>
+    <div className={`flex-shrink-0 w-full md:w-72 bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200`}>
       <div className="p-3 border-b border-gray-100 flex items-center justify-between">
         <span className="font-semibold text-gray-700 text-sm">{col.label}</span>
         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${col.badge}`}>

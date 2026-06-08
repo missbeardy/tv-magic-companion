@@ -1,10 +1,28 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
+import { createHmac } from 'crypto'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
+
+// Optional: verify the request is genuinely from Mailgun
+function verifyMailgunSignature(
+  timestamp: string,
+  token: string,
+  signature: string
+): boolean {
+  const signingKey = process.env.MAILGUN_WEBHOOK_SIGNING_KEY
+  if (!signingKey) return true // skip verification if key not set
+
+  const value = timestamp + token
+  const expectedSig = createHmac('sha256', signingKey)
+    .update(value)
+    .digest('hex')
+
+  return expectedSig === signature
+}
 
 async function parseEmailWithClaude(rawEmail: string) {
   const prompt = `You are a CRM data extractor for a TV aerial and satellite installation business.
@@ -39,9 +57,14 @@ Return JSON only.`
     }),
   })
 
-  const data = (await response.json()) as any;
-const raw = data.content?.map((b: { type: string; text?: string }) => b.type === 'text' ? b.text : '').join('') ?? '';
-const cleaned = raw.replace(/```json\s*/gi, '').replace(/```/g, '').trim();
+  const data = (await response.json()) as any
+  const raw =
+    data.content
+      ?.map((b: { type: string; text?: string }) =>
+        b.type === 'text' ? b.text : ''
+      )
+      .join('') ?? ''
+  const cleaned = raw.replace(/```json\s*/gi, '').replace(/```/g, '').trim()
 
   try {
     return JSON.parse(cleaned)
@@ -57,9 +80,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // Works with Resend, SendGrid, Postmark — all send the plain text in different fields
     const body = req.body as Record<string, string>
-    const rawText = body.text || body.plain || body.html || body.body || ''
+
+    // Optional Mailgun signature verification
+    const { timestamp, token, signature } = body
+    if (timestamp && token && signature) {
+      if (!verifyMailgunSignature(timestamp, token, signature)) {
+        console.error('Mailgun signature verification failed')
+        return res.status(403).json({ error: 'Invalid signature' })
+      }
+    }
+
+    // Mailgun field names use hyphens — stripped-text removes quoted reply chains
+    const rawText =
+      body['stripped-text'] ||
+      body['body-plain'] ||
+      body.text ||
+      body.html ||
+      body.body ||
+      ''
 
     if (!rawText) {
       console.error('No email text in payload:', Object.keys(body))
