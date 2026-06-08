@@ -1,10 +1,14 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+const supabaseUrl = process.env.SUPABASE_URL
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+console.log('SUPABASE_URL starts with:', supabaseUrl?.slice(0, 30))
+console.log('SERVICE_ROLE_KEY starts with:', supabaseKey?.slice(0, 20))
+console.log('SERVICE_ROLE_KEY length:', supabaseKey?.length)
+
+const supabase = createClient(supabaseUrl!, supabaseKey!)
 
 async function parseSmswithClaude(smsText: string, fromNumber: string) {
   const prompt = `You are a CRM data extractor for a TV aerial and satellite installation business.
