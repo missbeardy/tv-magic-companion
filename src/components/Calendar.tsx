@@ -11,7 +11,7 @@ import { MobileResourceView } from './MobileResourceView'
 interface Event {
   id: string
   title: string
-  description: string
+  description?: string
   start_time: string
   end_time: string
   user_id: string
@@ -216,14 +216,14 @@ export default function Calendar() {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200">
       {/* Event Modal */}
-      {showModal && (
-        <EventModal
-          event={selectedEvent}
-          defaultDate={defaultDate}
-          onClose={() => setShowModal(false)}
-          onSaved={fetchEvents}
-        />
-      )}
+{showModal && (
+  <EventModal
+    event={selectedEvent ? { ...selectedEvent, description: selectedEvent.description || '' } : null}
+    defaultDate={defaultDate}
+    onClose={() => setShowModal(false)}
+    onSaved={fetchEvents}
+  />
+)}
 
       {/* ── Toolbar ── */}
       <div className="p-3 sm:p-4 border-b border-gray-100">

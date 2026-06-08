@@ -40,7 +40,7 @@ interface Profile {
 
 interface EventPayload {
   title: string
-  description: string
+  description: string | undefined
   start_time: string
   end_time: string
   color: string
