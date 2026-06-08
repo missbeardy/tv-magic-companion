@@ -43,12 +43,12 @@ interface LeadEvent {
 // ── Constants ─────────────────────────────────────────────────────────────
 
 const COLUMNS = [
-  { key: 'unassigned',       label: 'Unassigned',       color: 'border-gray-300',   badge: 'bg-gray-100 text-gray-600'     },
-  { key: 'assigned',         label: 'Assigned',         color: 'border-blue-300',   badge: 'bg-blue-100 text-blue-700'     },
-  { key: 'contact_attempted',label: 'Contact Attempted',color: 'border-amber-300',  badge: 'bg-amber-100 text-amber-700'   },
-  { key: 'booked',           label: 'Booked',           color: 'border-indigo-300', badge: 'bg-indigo-100 text-indigo-700' },
-  { key: 'lost',             label: 'Lost',             color: 'border-red-300',    badge: 'bg-red-100 text-red-600'       },
-  { key: 'completed',        label: 'Completed',        color: 'border-purple-300', badge: 'bg-purple-100 text-purple-700' },
+  { key: 'unassigned',        label: 'Unassigned',        color: 'border-gray-300',   badge: 'bg-gray-100 text-gray-600'     },
+  { key: 'assigned',          label: 'Assigned',          color: 'border-blue-300',   badge: 'bg-blue-100 text-blue-700'     },
+  { key: 'contact_attempted', label: 'Contact Attempted', color: 'border-amber-300',  badge: 'bg-amber-100 text-amber-700'   },
+  { key: 'booked',            label: 'Booked',            color: 'border-indigo-300', badge: 'bg-indigo-100 text-indigo-700' },
+  { key: 'lost',              label: 'Lost',              color: 'border-red-300',    badge: 'bg-red-100 text-red-600'       },
+  { key: 'completed',         label: 'Completed',         color: 'border-purple-300', badge: 'bg-purple-100 text-purple-700' },
 ]
 
 const MOBILE_TABS = [
@@ -88,7 +88,7 @@ function LeadCard({
   onBook,
 }: LeadCardProps) {
   const isExpanded = expandedLead === lead.id
-  const [events, setEvents] = useState<<LeadEvent[]>([])
+  const [events, setEvents] = useState<LeadEvent[]>([])
 
   useEffect(() => {
     if (!isExpanded) return
@@ -139,7 +139,7 @@ function LeadCard({
         <button
           onClick={(e) => {
             e.stopPropagation()
-            const encoded = encodeURIComponent(lead.address!)
+            const encoded = encodeURIComponent(lead.address as string)
             window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}`, '_blank')
           }}
           className="text-xs text-[#00B4C5] underline flex items-center gap-1 mt-1"
@@ -219,9 +219,9 @@ function LeadCard({
           {events.length > 0 && (
             <div className="mt-3 border-t border-gray-200 pt-3 space-y-1">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Activity</p>
-              {events.map((e) => (
-                <p key={e.id} className="text-xs text-gray-500">
-                  {new Date(e.created_at).toLocaleString()} — {e.note ?? e.event_type}
+              {events.map((ev) => (
+                <p key={ev.id} className="text-xs text-gray-500">
+                  {new Date(ev.created_at).toLocaleString()} — {ev.note ?? ev.event_type}
                 </p>
               ))}
             </div>
@@ -236,20 +236,20 @@ function LeadCard({
 
 export default function LeadsPage() {
   const { profile } = useAuth()
-  const [leads, setLeads] = useState<<Lead[]>([])
+  const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
-  const [assigningLead, setAssigningLead] = useState<<Lead | null>(null)
-  const [bookingLead, setBookingLead] = useState<<Lead | null>(null)
+  const [assigningLead, setAssigningLead] = useState<Lead | null>(null)
+  const [bookingLead, setBookingLead] = useState<Lead | null>(null)
   const [expandedLead, setExpandedLead] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'unassigned' | 'assigned' | 'contact' | 'closed'>('unassigned')
-  const [sheetLead, setSheetLead] = useState<<Lead | null>(null)
+  const [sheetLead, setSheetLead] = useState<Lead | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
 
   const [showChecklist, setShowChecklist] = useState(false)
-  const [checklistLead, setChecklistLead] = useState<<Lead | null>(null)
+  const [checklistLead, setChecklistLead] = useState<Lead | null>(null)
   const [showSignature, setShowSignature] = useState(false)
   const [showReceipt, setShowReceipt] = useState(false)
-  const [receiptLead, setReceiptLead] = useState<<Lead | null>(null)
+  const [receiptLead, setReceiptLead] = useState<Lead | null>(null)
 
   const fetchLeads = useCallback(async () => {
     let query = supabase
@@ -386,6 +386,16 @@ export default function LeadsPage() {
     }
   }, [])
 
+  const handleMarkContactAttempted = useCallback(async (lead: Lead) => {
+    await supabase
+      .from('leads')
+      .update({ status: 'contact_attempted' })
+      .eq('id', lead.id)
+    await logLeadEvent(lead.id, 'status_change', 'Status updated to Contact Attempted')
+    fetchLeads()
+    closeSheet()
+  }, [logLeadEvent, fetchLeads, closeSheet])
+
   useEffect(() => {
     if (!profile) return
     fetchLeads()
@@ -432,6 +442,7 @@ export default function LeadsPage() {
           onAssigned={fetchLeads}
         />
       )}
+
       {bookingLead && (
         <EventModal
           prefillLead={{
@@ -461,7 +472,7 @@ export default function LeadsPage() {
         {loading && <p className="text-gray-400 text-sm">Loading leads...</p>}
 
         {!loading && (
-          <>
+          <div>
             <div className="md:hidden sticky top-0 z-10 bg-white border-b border-gray-200 flex mb-3 -mx-4 px-0">
               {MOBILE_TABS.map(tab => (
                 <button
@@ -512,7 +523,7 @@ export default function LeadsPage() {
                 />
               ))}
             </div>
-          </>
+          </div>
         )}
       </main>
 
@@ -537,35 +548,37 @@ export default function LeadsPage() {
             )}
 
             {sheetLead.status === 'completed' ? (
-              <>
+              <div>
                 <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-center mb-2">
                   <span className="text-purple-700 font-semibold text-sm">✨ Job Completed Successfully</span>
                 </div>
 
-                <button
-                  onClick={() => handleSharePhoto(sheetLead)}
-                  className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base flex items-center justify-center gap-2"
-                >
-                  📸 Share Photo
-                </button>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => handleSharePhoto(sheetLead)}
+                    className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base flex items-center justify-center gap-2"
+                  >
+                    📸 Share Photo
+                  </button>
 
-                <a
-                  href="tel:04123456789"
-                  className="w-full py-4 rounded-xl bg-gray-800 text-white font-semibold text-base flex items-center justify-center gap-2 block text-center"
-                >
-                  📞 Call Manager (Nick)
-                </a>
+                  <a
+                    href="tel:04123456789"
+                    className="w-full py-4 rounded-xl bg-gray-800 text-white font-semibold text-base flex items-center justify-center gap-2 block text-center"
+                  >
+                    📞 Call Manager (Nick)
+                  </a>
 
-                <div className="pt-2 border-t border-gray-100">
-                  <LeadPhotos leadId={sheetLead.id} canUpload={true} />
+                  <div className="pt-2 border-t border-gray-100">
+                    <LeadPhotos leadId={sheetLead.id} canUpload={true} />
+                  </div>
                 </div>
-              </>
+              </div>
             ) : (
-              <>
+              <div className="space-y-3">
                 {sheetLead.address && (
                   <button
                     onClick={() => {
-                      const encoded = encodeURIComponent(sheetLead.address!)
+                      const encoded = encodeURIComponent(sheetLead.address as string)
                       window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}`, '_blank')
                     }}
                     className="w-full py-4 rounded-xl bg-gray-800 text-white font-semibold text-base flex items-center justify-center gap-2"
@@ -596,6 +609,7 @@ export default function LeadsPage() {
                     Assign to Technician
                   </button>
                 )}
+
                 {sheetLead.status === 'unassigned' && profile?.role === 'employee' && (
                   <button
                     onClick={() => { setAssigningLead(sheetLead); closeSheet() }}
@@ -613,12 +627,7 @@ export default function LeadsPage() {
                 </button>
 
                 <button
-                  onClick={async () => {
-                    await supabase.from('leads').update({ status: 'contact_attempted' }).eq('id', sheetLead.id)
-                    await logLeadEvent(sheetLead.id, 'status_change', 'Status updated to Contact Attempted')
-                    fetchLeads()
-                    closeSheet()
-                  }}
+                  onClick={() => handleMarkContactAttempted(sheetLead)}
                   className="w-full py-4 rounded-xl bg-amber-500 text-white font-semibold text-base"
                 >
                   ✅ Mark as Attempted Contact
@@ -630,7 +639,7 @@ export default function LeadsPage() {
                 >
                   Complete Job ✅
                 </button>
-              </>
+              </div>
             )}
 
             <button
