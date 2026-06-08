@@ -47,11 +47,6 @@ export default function LeadStatusMenu({ leadId, currentStatus, assignedTo, lead
   }, [open])
 
   async function updateStatus(newStatus: string) {
-    if (newStatus === 'booked') {
-      alert('Booked jobs must be created from the Calendar Booking workflow.')
-      return
-    }
-
     setSaving(true)
     setOpen(false)
 
@@ -60,7 +55,6 @@ export default function LeadStatusMenu({ leadId, currentStatus, assignedTo, lead
       .update({ status: newStatus })
       .eq('id', leadId)
 
-    // Send push notification if lead is completed or lost
     if ((newStatus === 'completed' || newStatus === 'lost') && assignedTo) {
       const statusLabel = newStatus === 'completed' ? 'Completed' : 'Lost'
       await sendPushNotification(
