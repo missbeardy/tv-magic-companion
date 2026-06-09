@@ -64,12 +64,12 @@ export default function SocialPage() {
   const [postError, setPostError] = useState('')
   const [posted, setPosted] = useState(false)
 
-  // Load completed job photos from Supabase Storage - paginated
+  // Load completed job photos from Supabase Storage
   useEffect(() => {
     async function loadPhotos() {
       setLoadingPhotos(true)
 
-      // Get leads with status 'completed', ordered by most recent
+      // Get completed leads, most recent first
       const { data: completedLeads, error: leadsError } = await supabase
         .from('leads')
         .select('id, created_at')
@@ -77,7 +77,7 @@ export default function SocialPage() {
         .order('created_at', { ascending: false })
         .limit(PHOTOS_PER_PAGE)
 
-      if (leadsError || !completedLeads) {
+      if (leadsError || !completedLeads || completedLeads.length === 0) {
         setLoadingPhotos(false)
         return
       }
@@ -87,28 +87,37 @@ export default function SocialPage() {
       const allPhotos: JobPhoto[] = []
 
       for (const lead of completedLeads) {
-        const { data: files } = await supabase.storage
+        // KEY FIX: trailing slash on the folder prefix is required by Supabase Storage
+        const { data: files, error: listError } = await supabase.storage
           .from('lead-photos')
-          .list(`${lead.id}`, { limit: 5, sortBy: { column: 'created_at', order: 'desc' } })
+          .list(`${lead.id}/`, {
+            limit: 5,
+            sortBy: { column: 'created_at', order: 'desc' },
+          })
 
-        if (!files) continue
+        if (listError || !files || files.length === 0) continue
 
         for (const file of files) {
+          // Skip placeholder files that Supabase sometimes inserts
+          if (file.name === '.emptyFolderPlaceholder') continue
+
           const path = `${lead.id}/${file.name}`
           const { data } = supabase.storage.from('lead-photos').getPublicUrl(path)
-          allPhotos.push({ 
-            name: path, 
+
+          allPhotos.push({
+            name: path,
             url: data.publicUrl,
             createdAt: file.created_at || lead.created_at,
           })
         }
       }
 
-      // Sort by most recent
+      // Sort all collected photos by most recent
       allPhotos.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       setJobPhotos(allPhotos.slice(0, PHOTOS_PER_PAGE))
       setLoadingPhotos(false)
     }
+
     loadPhotos()
   }, [])
 
@@ -135,7 +144,7 @@ export default function SocialPage() {
       try {
         const publicUrl = await uploadMedia(uploadedFile)
         setSelectedUrl(publicUrl)
-      } catch (err) {
+      } catch {
         alert('Upload failed. Please try again.')
         setUploading(false)
         return
@@ -408,7 +417,7 @@ export default function SocialPage() {
                 />
               </div>
             )}
-            
+
             {/* Channel selector */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
               <p className="text-sm font-semibold text-gray-700 mb-3">Post to</p>
@@ -444,7 +453,7 @@ export default function SocialPage() {
                 <p className="text-red-500 text-xs mt-2">Please select at least one channel.</p>
               )}
             </div>
-            
+
             {postError && (
               <p className="text-red-500 text-sm text-center">{postError}</p>
             )}
