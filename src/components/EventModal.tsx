@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import TimePicker from './TimePicker'
@@ -105,11 +105,6 @@ function validateTimes(startTime: string, endTime: string, date: string): string
 export default function EventModal({ event, defaultDate, prefillLead, onClose, onSaved }: Props) {
   const { profile } = useAuth()
 
-  // ── Refs ──
-  const autocompleteInputRef = useRef<HTMLInputElement>(null)
-  const autocompleteInstance = useRef<any>(null)
-  const googleScriptRef = useRef<HTMLScriptElement | null>(null)
-
   // ── Derived initial values ──
   const initDate = defaultDate
     ? defaultDate.slice(0, 10)
@@ -190,75 +185,6 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
     }
   }, [myAssignedLeads])
 
-  // ── Google Maps Autocomplete ──
-  useEffect(() => {
-    const isBookingView = isBookingCategory(category)
-    if (!isBookingView) return
-
-    // Cleanup previous instance
-    if (autocompleteInstance.current) {
-      // Use any to avoid google namespace dependency
-      const googleAny = (window as any).google
-      if (googleAny?.maps?.event) {
-        googleAny.maps.event.clearInstanceListeners(autocompleteInstance.current)
-      }
-      autocompleteInstance.current = null
-    }
-
-    const setupWidget = () => {
-      const googleAny = (window as any).google
-      if (!autocompleteInputRef.current || !googleAny?.maps?.places) return
-      if (autocompleteInstance.current) return
-
-      autocompleteInstance.current = new googleAny.maps.places.Autocomplete(
-        autocompleteInputRef.current,
-        {
-          types: ['address'],
-          componentRestrictions: { country: 'au' }
-        }
-      )
-
-      autocompleteInstance.current.addListener('place_changed', () => {
-        const place = autocompleteInstance.current?.getPlace()
-        if (place?.formatted_address) {
-          setClientAddress(place.formatted_address)
-        }
-      })
-    }
-
-    const googleAny = (window as any).google
-    if (!googleAny?.maps?.places) {
-      const existingScript = document.getElementById('google-maps-autocomplete-script') as HTMLScriptElement | null
-
-      if (!existingScript) {
-        ;(window as any).initAutocompleteCallback = () => {
-          setupWidget()
-        }
-        const script = document.createElement('script')
-        script.id = 'google-maps-autocomplete-script'
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&libraries=places&callback=initAutocompleteCallback`
-        script.async = true
-        script.defer = true
-        document.head.appendChild(script)
-        googleScriptRef.current = script
-      } else {
-        if (googleAny?.maps?.places) {
-          setupWidget()
-        }
-      }
-    } else {
-      setupWidget()
-    }
-
-    return () => {
-      const gAny = (window as any).google
-      if (gAny?.maps?.event && autocompleteInstance.current) {
-        gAny.maps.event.clearInstanceListeners(autocompleteInstance.current)
-      }
-      autocompleteInstance.current = null
-    }
-  }, [category])
-
   // ── Fetch Employees (Manager only) ──
   useEffect(() => {
     if (profile?.role !== 'manager') return
@@ -325,23 +251,19 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
       let previousLeadId: string | null = event?.lead_id ?? null
 
       if (event?.id) {
-        // Update existing
         const { error } = await supabase
           .from('events')
           .update(payload)
           .eq('id', event.id)
         dbError = error
 
-        // If lead changed on update, handle status transition
         if (!dbError && capturesDetails && finalLeadId !== previousLeadId) {
-          // Revert old lead if exists
           if (previousLeadId) {
             await supabase
               .from('leads')
               .update({ status: 'assigned' })
               .eq('id', previousLeadId)
           }
-          // Set new lead to booked
           if (finalLeadId) {
             await supabase
               .from('leads')
@@ -350,7 +272,6 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
           }
         }
       } else {
-        // Insert new
         const { error } = await supabase.from('events').insert(payload)
         dbError = error
 
@@ -363,21 +284,20 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
       }
 
       if (dbError) {
-  setError('Error saving event: ' + dbError.message)
-} else {
-  // Send push to assigned employee
-  if (selectedUserId && selectedUserId !== profile?.id) {
-    const action = event?.id ? 'updated' : 'created'
-    await sendPushNotification(
-      selectedUserId,
-      'Calendar Update',
-      `${action === 'created' ? 'New' : 'Updated'} appointment: ${title}`,
-      '/calendar'
-    )
-  }
-  onSaved()
-  onClose()
-}
+        setError('Error saving event: ' + dbError.message)
+      } else {
+        if (selectedUserId && selectedUserId !== profile?.id) {
+          const action = event?.id ? 'updated' : 'created'
+          await sendPushNotification(
+            selectedUserId,
+            'Calendar Update',
+            `${action === 'created' ? 'New' : 'Updated'} appointment: ${title}`,
+            '/calendar'
+          )
+        }
+        onSaved()
+        onClose()
+      }
     } catch (err) {
       setError('Unexpected error: ' + (err instanceof Error ? err.message : 'Unknown error'))
     } finally {
@@ -394,7 +314,6 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
     if (!event?.id) return
 
     try {
-      // If this event was linked to a lead, revert lead status
       if (event.lead_id) {
         await supabase
           .from('leads')
@@ -512,14 +431,13 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
 
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Address (Google Maps Autocomplete)
+                    Address
                   </label>
                   <input
-                    ref={autocompleteInputRef}
                     type="text"
                     value={clientAddress}
                     onChange={e => setClientAddress(e.target.value)}
-                    placeholder="Type to autocomplete..."
+                    placeholder="Enter address"
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
                   />
                 </div>
