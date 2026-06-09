@@ -12,8 +12,8 @@ export default function RevenueWidget() {
       const { count } = await supabase
         .from('leads')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'unassigned')
-        .not('assigned_to', 'is', null); // was assigned, then returned
+        .in('status', ['expired', 'lost'])
+        .not('assigned_to', 'is', null);
 
       setExpiredCount(count ?? 0);
       setLoading(false);
