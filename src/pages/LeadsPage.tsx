@@ -87,8 +87,6 @@ function LeadCard({
   onOpenSheet,
   onAssign,
   onBook,
-  onRefresh
-  ,
 }: LeadCardProps) {
   const isExpanded = expandedLead === lead.id
   const [events, setEvents] = useState<LeadEvent[]>([])
