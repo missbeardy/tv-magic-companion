@@ -87,7 +87,8 @@ function LeadCard({
   onOpenSheet,
   onAssign,
   onBook,
-  onRefresh,
+  onRefresh
+  ,
 }: LeadCardProps) {
   const isExpanded = expandedLead === lead.id
   const [events, setEvents] = useState<LeadEvent[]>([])
@@ -109,6 +110,10 @@ function LeadCard({
     return () => { cancelled = true }
   }, [isExpanded, lead.id])
 
+  function fetchLeads(): void {
+    throw new Error('Function not implemented.')
+  }
+
   return (
     <div
       className="bg-gray-50 rounded-lg p-3 border border-gray-200 cursor-pointer md:cursor-default"
@@ -126,7 +131,7 @@ function LeadCard({
             assignedTo={lead.assigned_to}
             leadName={lead.name}
             serviceType={lead.service_type}
-            onUpdated={onRefresh}
+            onUpdated={fetchLeads}
           />
         </div>
       </div>
@@ -331,62 +336,47 @@ export default function LeadsPage() {
     fetchLeads()
   }, [logLeadEvent, closeSheet, fetchLeads])
 
-  const handleSMS = useCallback(async (lead: Lead) => {
-    if (!lead.phone?.trim()) {
-      alert('No phone number saved for this lead.')
-      return
-    }
+    const handleSMS = useCallback((lead: Lead) => {
+        if (!lead.phone?.trim()) {
+          alert('No phone number saved for this lead.')
+          return
+        }
 
-    const rawPhone = lead.phone.replace(/\s+/g, '')
-    const to = rawPhone.startsWith('+') ? rawPhone
-      : rawPhone.startsWith('0') ? '+61' + rawPhone.slice(1)
-      : rawPhone
+        const rawPhone = lead.phone.replace(/\s+/g, '')
+        const to = rawPhone.startsWith('+') ? rawPhone
+          : rawPhone.startsWith('0') ? '+61' + rawPhone.slice(1)
+          : rawPhone
 
-    try {
-      const res = await fetch('/api/send-sms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to,
-          customerName: lead.name,
-          techName: profile?.full_name ?? 'Your technician',
-          address: lead.address ?? '',
-        }),
-      })
+        const techName = profile?.full_name ?? 'Your technician'
+        const mapsUrl = lead.address
+          ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(lead.address)}`
+          : null
 
-      if (res.ok) {
-        alert(`✅ On My Way SMS sent to ${lead.name}`)
-      } else {
-        const err = await res.json()
-        alert(`SMS failed: ${err.detail ?? err.error ?? 'Unknown error'}`)
-      }
-    } catch {
-      alert('Could not send SMS — check your connection.')
-    }
+        const message = mapsUrl
+          ? `Hi ${lead.name}, ${techName} is on their way to you. Track the route: ${mapsUrl} — TVMagic Team`
+          : `Hi ${lead.name}, ${techName} is on their way to you. — TVMagic Team`
 
-    if (lead.address?.trim()) {
-      const encoded = encodeURIComponent(lead.address)
-      window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}`, '_blank')
-    }
+        const smsLink = `sms:${to}?body=${encodeURIComponent(message)}`
+        window.open(smsLink, '_blank')
 
-    closeSheet()
-  }, [closeSheet, profile?.full_name])
+        closeSheet()
+      }, [closeSheet, profile?.full_name])
 
-  const handleSharePhoto = useCallback(async (lead: Lead) => {
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: `Job Photos: ${lead.name}`,
-          text: `Check out the completed job photos for ${lead.name} (${lead.service_type}).`,
-          url: window.location.href,
-        })
-      } catch (error) {
-        console.log('Error sharing:', error)
-      }
-    } else {
-      alert('Sharing is not supported on this device/browser. Copy the page URL to share manually.')
-    }
-  }, [])
+      const handleSharePhoto = useCallback(async (lead: Lead) => {
+        if (navigator.share) {
+          try {
+            await navigator.share({
+              title: `Job Photos: ${lead.name}`,
+              text: `Check out the completed job photos for ${lead.name} (${lead.service_type}).`,
+              url: window.location.href,
+            })
+          } catch (error) {
+            console.log('Error sharing:', error)
+          }
+        } else {
+          alert('Sharing is not supported on this device/browser. Copy the page URL to share manually.')
+        }
+      }, [])
 
   const handleMarkContactAttempted = useCallback(async (lead: Lead) => {
     await supabase
@@ -523,7 +513,7 @@ export default function LeadsPage() {
                   onOpenSheet={openSheet}
                   onAssign={setAssigningLead}
                   onBook={setBookingLead}
-                  onRefresh={fetchLeads}
+                   onRefresh={fetchLeads}
                 />
               ))}
             </div>
