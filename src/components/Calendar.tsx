@@ -74,6 +74,43 @@ function getEventHeight(startTime: string, endTime: string): number {
   return Math.max(diffHours * SLOT_HEIGHT, 28)
 }
 
+function startOfDay(date: Date): Date {
+  const d = new Date(date)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function endOfDay(date: Date): Date {
+  const d = new Date(date)
+  d.setHours(23, 59, 59, 999)
+  return d
+}
+
+function startOfWeek(date: Date): Date {
+  const d = new Date(date)
+  const day = d.getDay()
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1)
+  d.setDate(diff)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function endOfWeek(date: Date): Date {
+  const start = startOfWeek(date)
+  const end = new Date(start)
+  end.setDate(start.getDate() + 6)
+  end.setHours(23, 59, 59, 999)
+  return end
+}
+
+function startOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0)
+}
+
+function endOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999)
+}
+
 // ── Component ───────────────────────────────────────────────────────────────
 
 export default function Calendar() {
@@ -86,18 +123,39 @@ export default function Calendar() {
   const [defaultDate, setDefaultDate] = useState('')
   const [employees, setEmployees] = useState<Profile[]>([])
   const [filterEmployee, setFilterEmployee] = useState<string>('all')
+  const [isMobile, setIsMobile] = useState(false)
 
-  // ── Mobile resource view detection ──
-  // true when screen is narrower than 768px (md breakpoint)
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
   const showResourceView = isMobile && profile?.role === 'manager' && filterEmployee === 'all' && view !== 'month'
 
-  // ── Data Fetching ──
+  // ── Mobile detection with resize listener ──
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768)
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
+  // ── Date range helpers for queries ──
+  function getQueryRange(date: Date, viewMode: ViewMode): { start: Date; end: Date } {
+    switch (viewMode) {
+      case 'day':
+        return { start: startOfDay(date), end: endOfDay(date) }
+      case 'week':
+        return { start: startOfWeek(date), end: endOfWeek(date) }
+      case 'month':
+        return { start: startOfMonth(date), end: endOfMonth(date) }
+    }
+  }
+
+  // ── Data Fetching with date range ──
   async function fetchEvents() {
+    const { start, end } = getQueryRange(currentDate, view)
+
     let query = supabase
       .from('events')
       .select('*, profiles(full_name)')
+      .gte('start_time', start.toISOString())
+      .lte('start_time', end.toISOString())
       .order('start_time', { ascending: true })
 
     if (profile?.role === 'employee') {
@@ -119,13 +177,12 @@ export default function Calendar() {
         .select('id, full_name')
         .then(({ data }) => { if (data) setEmployees(data) })
     }
-  }, [profile, filterEmployee])
+  }, [profile, filterEmployee, currentDate, view])
 
   // ── Date Helpers ──
 
   function getWeekDays(date: Date): Date[] {
-    const start = new Date(date)
-    start.setDate(date.getDate() - date.getDay() + 1)
+    const start = startOfWeek(date)
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(start)
       d.setDate(start.getDate() + i)
@@ -215,15 +272,14 @@ export default function Calendar() {
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-      {/* Event Modal */}
-{showModal && (
-  <EventModal
-    event={selectedEvent ? { ...selectedEvent, description: selectedEvent.description || '' } : null}
-    defaultDate={defaultDate}
-    onClose={() => setShowModal(false)}
-    onSaved={fetchEvents}
-  />
-)}
+      {showModal && (
+        <EventModal
+          event={selectedEvent ? { ...selectedEvent, description: selectedEvent.description || '' } : null}
+          defaultDate={defaultDate}
+          onClose={() => setShowModal(false)}
+          onSaved={fetchEvents}
+        />
+      )}
 
       {/* ── Toolbar ── */}
       <div className="p-3 sm:p-4 border-b border-gray-100">
@@ -309,7 +365,7 @@ export default function Calendar() {
         </div>
       </div>
 
-      {/* ── MOBILE RESOURCE VIEW ── manager + all employees + week/day on mobile */}
+      {/* ── MOBILE RESOURCE VIEW ── */}
       {showResourceView && (
         <MobileResourceView
           events={events}
