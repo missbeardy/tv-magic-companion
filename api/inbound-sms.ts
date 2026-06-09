@@ -1,15 +1,46 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
+import { createHmac, timingSafeEqual } from 'crypto'
 
 const supabaseUrl = process.env.SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-console.log('SUPABASE_URL starts with:', supabaseUrl?.slice(0, 30))
-console.log('SERVICE_ROLE_KEY starts with:', supabaseKey?.slice(0, 20))
-console.log('SERVICE_ROLE_KEY length:', supabaseKey?.length)
-
 const supabase = createClient(supabaseUrl!, supabaseKey!)
 
+// ─── Twilio Signature Verification ───────────────────────────────────────────
+// Twilio signs every webhook with your Auth Token. We recreate the expected
+// signature and compare using timingSafeEqual to prevent timing attacks.
+function verifyTwilioSignature(req: VercelRequest, authToken: string): boolean {
+  const twilioSig = req.headers['x-twilio-signature'] as string
+  if (!twilioSig) return false
+
+  // Reconstruct the full URL Twilio signed
+  const url = `https://${req.headers.host}${req.url}`
+
+  // Sort params alphabetically and concatenate: url + key1value1 + key2value2...
+  const params = req.body as Record<string, string>
+  const sortedParamString = Object.keys(params)
+    .sort()
+    .reduce((acc, k) => acc + k + params[k], url)
+
+  // Create the expected signature using HMAC-SHA1
+  const expectedSig = createHmac('sha1', authToken)
+    .update(sortedParamString)
+    .digest('base64')
+
+  // Compare byte-by-byte in constant time to prevent timing attacks
+  try {
+    return timingSafeEqual(
+      Buffer.from(twilioSig),
+      Buffer.from(expectedSig)
+    )
+  } catch {
+    // timingSafeEqual throws if buffers differ in length — treat as invalid
+    return false
+  }
+}
+
+// ─── Claude SMS Parser ────────────────────────────────────────────────────────
 async function parseSmswithClaude(smsText: string, fromNumber: string) {
   const prompt = `You are a CRM data extractor for a TV aerial and satellite installation business.
 
@@ -41,11 +72,11 @@ Return JSON only.`
     }),
   })
 
-  const data = (await response.json()) as any;
-const raw = data.content
-  ?.map((b: { type: string; text?: string }) => b.type === 'text' ? b.text : '')
-  .join('') ?? ''
-const cleaned = raw.replace(/```json\s*/gi, '').replace(/```/g, '').trim()
+  const data = (await response.json()) as any
+  const raw = data.content
+    ?.map((b: { type: string; text?: string }) => (b.type === 'text' ? b.text : ''))
+    .join('') ?? ''
+  const cleaned = raw.replace(/```json\s*/gi, '').replace(/```/g, '').trim()
 
   try {
     return JSON.parse(cleaned)
@@ -55,8 +86,8 @@ const cleaned = raw.replace(/```json\s*/gi, '').replace(/```/g, '').trim()
   }
 }
 
+// ─── Manager Notifications ────────────────────────────────────────────────────
 async function notifyManagers(leadName: string, serviceType: string, fromNumber: string) {
-  // Find all manager profiles to notify
   const { data: managers } = await supabase
     .from('profiles')
     .select('id')
@@ -64,7 +95,6 @@ async function notifyManagers(leadName: string, serviceType: string, fromNumber:
 
   if (!managers?.length) return
 
-  // Insert a notification for each manager
   const notifications = managers.map((m) => ({
     user_id: m.id,
     title: 'New SMS Lead',
@@ -77,19 +107,30 @@ async function notifyManagers(leadName: string, serviceType: string, fromNumber:
   await supabase.from('notifications').insert(notifications)
 }
 
+// ─── Main Handler ─────────────────────────────────────────────────────────────
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  // ✅ Verify the request genuinely came from Twilio before doing anything else
+  const authToken = process.env.TWILIO_AUTH_TOKEN
+  if (!authToken) {
+    console.error('TWILIO_AUTH_TOKEN is not set')
+    return res.status(500).json({ error: 'Server misconfiguration' })
+  }
+
+  if (!verifyTwilioSignature(req, authToken)) {
+    console.warn('Rejected request with invalid Twilio signature')
+    return res.status(403).json({ error: 'Invalid Twilio signature' })
+  }
+
   try {
-    // Twilio sends form-encoded data
     const body = req.body as Record<string, string>
     const smsText = body.Body || ''
     const fromNumber = body.From || 'Unknown'
 
     if (!smsText.trim()) {
-      // Still return 200 — Twilio will retry on non-200
       return res.status(200).send('<Response></Response>')
     }
 
@@ -99,7 +140,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).send('<Response></Response>')
     }
 
-    // Insert as unassigned lead
     const { data: newLead, error } = await supabase
       .from('leads')
       .insert({
@@ -120,7 +160,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).send('<Response></Response>')
     }
 
-    // Notify managers
     await notifyManagers(
       parsed.customer_name || 'SMS Enquiry',
       parsed.service_type || 'Other',
@@ -129,7 +168,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('SMS lead created:', newLead?.id)
 
-    // Twilio expects TwiML response — empty response means no reply SMS is sent
     res.setHeader('Content-Type', 'text/xml')
     return res.status(200).send('<Response></Response>')
 
