@@ -30,6 +30,7 @@ interface Lead {
   address: string | undefined
   lead_source?: string | null
   raw_email?: string | null
+  raw_sms?: string | null
   profiles: { full_name: string } | null
 }
 
@@ -66,8 +67,6 @@ function getColumnsForTab(tab: string): string[] {
   return []
 }
 
-// ── LeadCard Component ──────────────────────────────────────────────────────
-
 interface LeadCardProps {
   lead: Lead
   profile: { role: string; id: string } | null
@@ -79,6 +78,8 @@ interface LeadCardProps {
   onRefresh: () => void
 }
 
+// ── LeadCard Component ──────────────────────────────────────────────────────
+
 function LeadCard({
   lead,
   profile,
@@ -87,6 +88,7 @@ function LeadCard({
   onOpenSheet,
   onAssign,
   onBook,
+  onRefresh,
 }: LeadCardProps) {
   const isExpanded = expandedLead === lead.id
   const [events, setEvents] = useState<LeadEvent[]>([])
@@ -108,10 +110,6 @@ function LeadCard({
     return () => { cancelled = true }
   }, [isExpanded, lead.id])
 
-  function fetchLeads(): void {
-    throw new Error('Function not implemented.')
-  }
-
   return (
     <div
       className="bg-gray-50 rounded-lg p-3 border border-gray-200 cursor-pointer md:cursor-default"
@@ -129,7 +127,7 @@ function LeadCard({
             assignedTo={lead.assigned_to}
             leadName={lead.name}
             serviceType={lead.service_type}
-            onUpdated={fetchLeads}
+            onUpdated={onRefresh}
           />
         </div>
       </div>
@@ -193,6 +191,38 @@ function LeadCard({
           {lead.details && (
             <p className="text-xs text-gray-500">{lead.details}</p>
           )}
+
+          {/* Raw email — collapsible, so it doesn't clutter the card */}
+          {lead.raw_email && (
+            <details className="mt-3">
+              <summary className="text-xs font-medium text-gray-500 cursor-pointer select-none">
+                📧 View original email
+              </summary>
+              <pre className="mt-2 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3 whitespace-pre-wrap overflow-auto max-h-48">
+                {lead.raw_email}
+              </pre>
+            </details>
+          )}
+
+          {/* Raw SMS — only shows if there's no email, pretty-prints JSON if possible */}
+          {lead.raw_sms && !lead.raw_email && (
+            <details className="mt-3">
+              <summary className="text-xs font-medium text-gray-500 cursor-pointer select-none">
+                💬 View original SMS / call details
+              </summary>
+              <pre className="mt-2 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3 whitespace-pre-wrap overflow-auto max-h-48">
+                {(() => {
+                  try {
+                    const parsed = JSON.parse(lead.raw_sms)
+                    return JSON.stringify(parsed, null, 2)
+                  } catch {
+                    return lead.raw_sms
+                  }
+                })()}
+              </pre>
+            </details>
+          )}
+
           <div className="flex flex-wrap gap-1 mt-2">
             {lead.status === 'unassigned' && profile?.role === 'manager' && (
               <button
@@ -351,8 +381,8 @@ export default function LeadsPage() {
           : null
 
         const message = mapsUrl
-          ? `Hi ${lead.name}, ${techName} is on their way to you. Track the route: ${mapsUrl} — TVMagic Team`
-          : `Hi ${lead.name}, ${techName} is on their way to you. — TVMagic Team`
+          ? `Hi ${lead.name}, ${techName} from TVMagic is on their way to you. Track the route: ${mapsUrl} — TVMagic Team`
+          : `Hi ${lead.name}, I ${techName} from TVMagic is on their way to you. — TVMagic Team`
 
         const smsLink = `sms:${to}?body=${encodeURIComponent(message)}`
         window.open(smsLink, '_blank')
