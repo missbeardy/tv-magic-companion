@@ -9,6 +9,7 @@ import { uploadMedia } from '../lib/uploadMedia'
 interface JobPhoto {
   url: string
   name: string
+  createdAt: string
 }
 
 type MediaType = 'image' | 'video'
@@ -21,12 +22,15 @@ function isVideoUrl(url: string): boolean {
   return /\.(mp4|mov|webm|avi|m4v)(\?|$)/i.test(url)
 }
 
+const PHOTOS_PER_PAGE = 20
+
 export default function SocialPage() {
   const [step, setStep] = useState<1 | 2 | 3>(1)
 
   // Step 1 state
   const [jobPhotos, setJobPhotos] = useState<JobPhoto[]>([])
   const [loadingPhotos, setLoadingPhotos] = useState(true)
+  const [hasMore, setHasMore] = useState(false)
   const [selectedUrl, setSelectedUrl] = useState<string | null>(null)
   const [selectedMediaType, setSelectedMediaType] = useState<MediaType>('image')
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
@@ -41,66 +45,72 @@ export default function SocialPage() {
   const [captionError, setCaptionError] = useState('')
 
   // Channel selection state
-const [channels, setChannels] = useState({
-  igPost: true,
-  igStory: false,
-  igReel: false,
-  fbPost: true,
-  fbStory: false,
-})
+  const [channels, setChannels] = useState({
+    igPost: true,
+    igStory: false,
+    igReel: false,
+    fbPost: true,
+    fbStory: false,
+  })
 
-function toggleChannel(key: keyof typeof channels) {
-  setChannels(prev => ({ ...prev, [key]: !prev[key] }))
-}
+  function toggleChannel(key: keyof typeof channels) {
+    setChannels(prev => ({ ...prev, [key]: !prev[key] }))
+  }
 
-const anyChannelSelected = Object.values(channels).some(Boolean)
+  const anyChannelSelected = Object.values(channels).some(Boolean)
 
   // Step 3 state
   const [posting, setPosting] = useState(false)
   const [postError, setPostError] = useState('')
   const [posted, setPosted] = useState(false)
 
-  // Load completed job photos from Supabase Storage
+  // Load completed job photos from Supabase Storage - paginated
   useEffect(() => {
-  async function loadPhotos() {
-    setLoadingPhotos(true)
+    async function loadPhotos() {
+      setLoadingPhotos(true)
 
-    // Step 1: list root to find lead UUID folders
-    const { data: folders, error: folderError } = await supabase.storage
-      .from('lead-photos')
-      .list('', { limit: 100 })
+      // Get leads with status 'completed', ordered by most recent
+      const { data: completedLeads, error: leadsError } = await supabase
+        .from('leads')
+        .select('id, created_at')
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(PHOTOS_PER_PAGE)
 
-    if (folderError || !folders) {
-      setLoadingPhotos(false)
-      return
-    }
-
-    // Step 2: for each folder (excluding social-uploads), list its contents
-    const leadFolders = folders.filter(
-      item => item.name !== 'social-uploads' && item.metadata === null
-    )
-
-    const allPhotos: JobPhoto[] = []
-
-    for (const folder of leadFolders) {
-      const { data: files } = await supabase.storage
-        .from('lead-photos')
-        .list(folder.name, { limit: 50, sortBy: { column: 'created_at', order: 'desc' } })
-
-      if (!files) continue
-
-      for (const file of files) {
-        const path = `${folder.name}/${file.name}`
-        const { data } = supabase.storage.from('lead-photos').getPublicUrl(path)
-        allPhotos.push({ name: path, url: data.publicUrl })
+      if (leadsError || !completedLeads) {
+        setLoadingPhotos(false)
+        return
       }
-    }
 
-    setJobPhotos(allPhotos)
-    setLoadingPhotos(false)
-  }
-  loadPhotos()
-}, [])
+      setHasMore(completedLeads.length === PHOTOS_PER_PAGE)
+
+      const allPhotos: JobPhoto[] = []
+
+      for (const lead of completedLeads) {
+        const { data: files } = await supabase.storage
+          .from('lead-photos')
+          .list(`${lead.id}`, { limit: 5, sortBy: { column: 'created_at', order: 'desc' } })
+
+        if (!files) continue
+
+        for (const file of files) {
+          const path = `${lead.id}/${file.name}`
+          const { data } = supabase.storage.from('lead-photos').getPublicUrl(path)
+          allPhotos.push({ 
+            name: path, 
+            url: data.publicUrl,
+            createdAt: file.created_at || lead.created_at,
+          })
+        }
+      }
+
+      // Sort by most recent
+      allPhotos.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      setJobPhotos(allPhotos.slice(0, PHOTOS_PER_PAGE))
+      setLoadingPhotos(false)
+    }
+    loadPhotos()
+  }, [])
 
   function handleSelectJobPhoto(photo: JobPhoto) {
     setSelectedUrl(photo.url)
@@ -120,7 +130,6 @@ const anyChannelSelected = Object.values(channels).some(Boolean)
   }
 
   async function handleNext() {
-    // If they picked an uploaded file, upload it now before moving to step 2
     if (uploadedFile) {
       setUploading(true)
       try {
@@ -153,23 +162,24 @@ const anyChannelSelected = Object.values(channels).some(Boolean)
   }
 
   async function handlePost() {
-  if (!selectedUrl || !caption.trim() || !anyChannelSelected) return
-  setPosting(true)
-  setPostError('')
-  const result = await postToSocial({
-    caption,
-    mediaUrl: selectedUrl,
-    mediaType: selectedMediaType,
-    channels,
-  })
-  setPosting(false)
-  if (result.success) {
-    setPosted(true)
-    setStep(3)
-  } else {
-    setPostError(result.error ?? 'Unknown error.')
+    if (!selectedUrl || !caption.trim() || !anyChannelSelected) return
+    setPosting(true)
+    setPostError('')
+    const result = await postToSocial({
+      caption,
+      mediaUrl: selectedUrl,
+      mediaType: selectedMediaType,
+      channels,
+    })
+    setPosting(false)
+    if (result.success) {
+      setPosted(true)
+      setStep(3)
+    } else {
+      setPostError(result.error ?? 'Unknown error.')
+    }
   }
-}
+
   function handleReset() {
     setStep(1)
     setSelectedUrl(null)
@@ -290,36 +300,43 @@ const anyChannelSelected = Object.values(channels).some(Boolean)
               )}
 
               {!loadingPhotos && jobPhotos.length > 0 && (
-                <div className="grid grid-cols-3 gap-2">
-                  {jobPhotos.map(photo => (
-                    <button
-                      key={photo.name}
-                      onClick={() => handleSelectJobPhoto(photo)}
-                      className={`relative rounded-xl overflow-hidden aspect-square border-2 transition-all ${
-                        selectedUrl === photo.url
-                          ? 'border-[#004B93] shadow-md'
-                          : 'border-transparent hover:border-[#00B4C5]'
-                      }`}
-                    >
-                      {isVideoUrl(photo.url) ? (
-                        <div className="w-full h-full bg-gray-900 flex items-center justify-center">
-                          <span className="text-2xl">▶️</span>
-                        </div>
-                      ) : (
-                        <img
-                          src={photo.url}
-                          alt={photo.name}
-                          className="w-full h-full object-cover"
-                        />
-                      )}
-                      {selectedUrl === photo.url && (
-                        <div className="absolute inset-0 bg-[#004B93] bg-opacity-20 flex items-center justify-center">
-                          <span className="text-white text-xl">✓</span>
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
+                <>
+                  <div className="grid grid-cols-3 gap-2">
+                    {jobPhotos.map(photo => (
+                      <button
+                        key={photo.name}
+                        onClick={() => handleSelectJobPhoto(photo)}
+                        className={`relative rounded-xl overflow-hidden aspect-square border-2 transition-all ${
+                          selectedUrl === photo.url
+                            ? 'border-[#004B93] shadow-md'
+                            : 'border-transparent hover:border-[#00B4C5]'
+                        }`}
+                      >
+                        {isVideoUrl(photo.url) ? (
+                          <div className="w-full h-full bg-gray-900 flex items-center justify-center">
+                            <span className="text-2xl">▶️</span>
+                          </div>
+                        ) : (
+                          <img
+                            src={photo.url}
+                            alt={photo.name}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                        {selectedUrl === photo.url && (
+                          <div className="absolute inset-0 bg-[#004B93] bg-opacity-20 flex items-center justify-center">
+                            <span className="text-white text-xl">✓</span>
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  {hasMore && (
+                    <p className="text-xs text-gray-400 text-center mt-3">
+                      Showing most recent {PHOTOS_PER_PAGE} jobs
+                    </p>
+                  )}
+                </>
               )}
             </div>
 
@@ -391,41 +408,43 @@ const anyChannelSelected = Object.values(channels).some(Boolean)
                 />
               </div>
             )}
-        {/* Channel selector */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-        <p className="text-sm font-semibold text-gray-700 mb-3">Post to</p>
-        <div className="grid grid-cols-2 gap-2">
-            {[
-            { key: 'igPost', label: '📸 IG Post' },
-            { key: 'igStory', label: '🎉 IG Story' },
-            { key: 'igReel', label: '🎬 IG Reel' },
-            { key: 'fbPost', label: '📘 FB Post' },
-            { key: 'fbStory', label: '📖 FB Story' },
-            ].map(({ key, label }) => (
-            <button
-                key={key}
-                onClick={() => toggleChannel(key as keyof typeof channels)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
-                channels[key as keyof typeof channels]
-                    ? 'border-[#004B93] bg-[#004B93] text-white'
-                    : 'border-gray-200 text-gray-400 hover:border-gray-300'
-                }`}
-            >
-                <span className={`w-4 h-4 rounded border-2 flex items-center justify-center text-xs ${
-                channels[key as keyof typeof channels]
-                    ? 'border-[#004B93] bg-[#004B93] text-white'
-                    : 'border-gray-300'
-                }`}>
-                {channels[key as keyof typeof channels] ? '✓' : ''}
-                </span>
-                {label}
-            </button>
-            ))}
-        </div>
-        {!anyChannelSelected && (
-            <p className="text-red-500 text-xs mt-2">Please select at least one channel.</p>
-        )}
-        </div>
+            
+            {/* Channel selector */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+              <p className="text-sm font-semibold text-gray-700 mb-3">Post to</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { key: 'igPost', label: '📸 IG Post' },
+                  { key: 'igStory', label: '🎉 IG Story' },
+                  { key: 'igReel', label: '🎬 IG Reel' },
+                  { key: 'fbPost', label: '📘 FB Post' },
+                  { key: 'fbStory', label: '📖 FB Story' },
+                ].map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => toggleChannel(key as keyof typeof channels)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
+                      channels[key as keyof typeof channels]
+                        ? 'border-[#004B93] bg-[#004B93] text-white'
+                        : 'border-gray-200 text-gray-400 hover:border-gray-300'
+                    }`}
+                  >
+                    <span className={`w-4 h-4 rounded border-2 flex items-center justify-center text-xs ${
+                      channels[key as keyof typeof channels]
+                        ? 'border-[#004B93] bg-[#004B93] text-white'
+                        : 'border-gray-300'
+                    }`}>
+                      {channels[key as keyof typeof channels] ? '✓' : ''}
+                    </span>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {!anyChannelSelected && (
+                <p className="text-red-500 text-xs mt-2">Please select at least one channel.</p>
+              )}
+            </div>
+            
             {postError && (
               <p className="text-red-500 text-sm text-center">{postError}</p>
             )}
