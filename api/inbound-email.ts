@@ -1,28 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-import { createHmac } from 'crypto'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
-
-// Optional: verify the request is genuinely from Mailgun
-function verifyMailgunSignature(
-  timestamp: string,
-  token: string,
-  signature: string
-): boolean {
-  const signingKey = process.env.MAILGUN_WEBHOOK_SIGNING_KEY
-  if (!signingKey) return true // skip verification if key not set
-
-  const value = timestamp + token
-  const expectedSig = createHmac('sha256', signingKey)
-    .update(value)
-    .digest('hex')
-
-  return expectedSig === signature
-}
 
 async function parseEmailWithClaude(rawEmail: string) {
   const prompt = `You are a CRM data extractor for a TV aerial and satellite installation business.
@@ -82,21 +64,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const body = req.body as Record<string, string>
 
-    // Optional Mailgun signature verification
-    const { timestamp, token, signature } = body
-    if (timestamp && token && signature) {
-      if (!verifyMailgunSignature(timestamp, token, signature)) {
-        console.error('Mailgun signature verification failed')
-        return res.status(403).json({ error: 'Invalid signature' })
-      }
-    }
-
-    // Mailgun field names use hyphens — stripped-text removes quoted reply chains
+    // Cloudmailin sends the email body in these fields (JSON Normalized format)
     const rawText =
-      body['stripped-text'] ||
-      body['body-plain'] ||
-      body.text ||
-      body.html ||
+      body['plain'] ||
+      body['html'] ||
       body.body ||
       ''
 
