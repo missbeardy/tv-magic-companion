@@ -20,17 +20,30 @@ export interface TechWithDistance {
   distanceLabel: string
 }
 
-export async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
-  const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
-  if (!key || !address?.trim()) return null
+export async function geocodeAddress(address: string): Promise<{ lat: number; lng: number; formattedAddress?: string } | null> {
+  if (!address?.trim()) return null
 
   try {
-    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${key}`
-    const res = await fetch(url)
-    const data = await res.json()
-    if (data.status === 'OK' && data.results?.[0]) {
-      const loc = data.results[0].geometry.location
-      return { lat: loc.lat, lng: loc.lng }
+    const { data: { session } } = await import('./supabase').then(m => m.supabase.auth.getSession())
+    
+    const response = await fetch('/api/geocode', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session?.access_token}`,
+      },
+      body: JSON.stringify({ address }),
+    })
+
+    if (!response.ok) return null
+    
+    const data = await response.json()
+    if (data.success) {
+      return {
+        lat: data.lat,
+        lng: data.lng,
+        formattedAddress: data.formattedAddress,
+      }
     }
     return null
   } catch {
