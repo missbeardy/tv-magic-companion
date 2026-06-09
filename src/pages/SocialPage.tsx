@@ -69,52 +69,29 @@ export default function SocialPage() {
     async function loadPhotos() {
       setLoadingPhotos(true)
 
-      // Get completed leads, most recent first
-      const { data: completedLeads, error: leadsError } = await supabase
-        .from('leads')
-        .select('id, created_at')
-        .eq('status', 'completed')
+      // Query lead_photos table directly, filtering to completed leads only
+      const { data: photos, error } = await supabase
+        .from('lead_photos')
+        .select('id, public_url, storage_path, created_at, leads!inner(status)')
+        .eq('leads.status', 'completed')
         .order('created_at', { ascending: false })
         .limit(PHOTOS_PER_PAGE)
 
-      if (leadsError || !completedLeads || completedLeads.length === 0) {
+      if (error || !photos || photos.length === 0) {
+        console.log('Photo load error or empty:', error, photos)
         setLoadingPhotos(false)
         return
       }
 
-      setHasMore(completedLeads.length === PHOTOS_PER_PAGE)
+      setHasMore(photos.length === PHOTOS_PER_PAGE)
 
-      const allPhotos: JobPhoto[] = []
+      const allPhotos: JobPhoto[] = photos.map(p => ({
+        name: p.storage_path,
+        url: p.public_url,
+        createdAt: p.created_at,
+      }))
 
-      for (const lead of completedLeads) {
-        // KEY FIX: trailing slash on the folder prefix is required by Supabase Storage
-        const { data: files, error: listError } = await supabase.storage
-          .from('lead-photos')
-          .list(`${lead.id}/`, {
-            limit: 5,
-            sortBy: { column: 'created_at', order: 'desc' },
-          })
-
-        if (listError || !files || files.length === 0) continue
-
-        for (const file of files) {
-          // Skip placeholder files that Supabase sometimes inserts
-          if (file.name === '.emptyFolderPlaceholder') continue
-
-          const path = `${lead.id}/${file.name}`
-          const { data } = supabase.storage.from('lead-photos').getPublicUrl(path)
-
-          allPhotos.push({
-            name: path,
-            url: data.publicUrl,
-            createdAt: file.created_at || lead.created_at,
-          })
-        }
-      }
-
-      // Sort all collected photos by most recent
-      allPhotos.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      setJobPhotos(allPhotos.slice(0, PHOTOS_PER_PAGE))
+      setJobPhotos(allPhotos)
       setLoadingPhotos(false)
     }
 
