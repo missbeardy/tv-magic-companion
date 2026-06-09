@@ -20,6 +20,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  // SEC-03: Shared secret authentication
+  // 3CX must send this header with every webhook call
+  const expectedSecret = process.env.THREECX_WEBHOOK_SECRET
+  const incomingSecret = req.headers['x-webhook-secret']
+
+  if (!expectedSecret || incomingSecret !== expectedSecret) {
+    console.warn('Inbound call rejected: invalid or missing webhook secret')
+    return res.status(403).json({ error: 'Forbidden' })
+  }
+
   try {
     const payload = req.body as ThreeCXPayload
 

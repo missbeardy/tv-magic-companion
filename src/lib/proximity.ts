@@ -1,3 +1,7 @@
+// src/lib/proximity.ts
+
+import { supabase } from './supabase'
+
 // Haversine straight-line distance between two coordinates in km
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371
@@ -20,23 +24,25 @@ export interface TechWithDistance {
   distanceLabel: string
 }
 
-export async function geocodeAddress(address: string): Promise<{ lat: number; lng: number; formattedAddress?: string } | null> {
+export async function geocodeAddress(
+  address: string
+): Promise<{ lat: number; lng: number; formattedAddress?: string } | null> {
   if (!address?.trim()) return null
 
   try {
-    const { data: { session } } = await import('./supabase').then(m => m.supabase.auth.getSession())
-    
+    const { data: { session } } = await supabase.auth.getSession()
+
     const response = await fetch('/api/geocode', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session?.access_token}`,
+        'Authorization': `Bearer ${session?.access_token ?? ''}`,
       },
       body: JSON.stringify({ address }),
     })
 
     if (!response.ok) return null
-    
+
     const data = await response.json()
     if (data.success) {
       return {
