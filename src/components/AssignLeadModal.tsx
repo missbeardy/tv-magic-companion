@@ -4,6 +4,7 @@ import { getExpiresAt } from '../lib/timer'
 import { useDemo } from '../context/DemoContext'
 import { useAuth } from '../context/AuthContext'
 import { geocodeAddress, rankTechsByDistance, type TechWithDistance } from '../lib/proximity'
+import { sendNotification } from '../lib/notify'
 
 interface Lead {
   id: string
@@ -29,7 +30,6 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
 
   useEffect(() => {
     async function fetchData() {
-      // Fetch all assignable profiles
       const { data: employeeData } = await supabase
         .from('profiles')
         .select('id, full_name, avatar_url, phone, suburb, role, lat, lng')
@@ -37,7 +37,6 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
 
       if (!employeeData) return
 
-      // Fetch active lead counts
       const { data: activeCounts } = await supabase
         .from('leads')
         .select('assigned_to')
@@ -49,7 +48,6 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
       })
       setCountMap(counts)
 
-      // Try to rank by proximity if address exists
       if (lead.address?.trim()) {
         const coords = await geocodeAddress(lead.address)
         if (coords) {
@@ -60,7 +58,6 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
         }
       }
 
-      // Fallback: no geocoding — show unranked
       setEmployees(
         employeeData.map((e) => ({
           ...e,
@@ -82,6 +79,7 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
     setSaving(true)
     setError('')
     const expiresAt = getExpiresAt(demoMode)
+
     const { error: assignError } = await supabase
       .from('leads')
       .update({
@@ -96,10 +94,19 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
     if (assignError) {
       setError('Failed to assign: ' + assignError.message)
       setSaving(false)
-    } else {
-      onAssigned()
-      onClose()
+      return
     }
+
+    // Notify the assigned tech on their phone via OneSignal
+    await sendNotification(
+      employeeId,
+      '📋 New Lead Assigned',
+      `You've been assigned: ${lead.name} — ${lead.service_type}`,
+      'https://tv-magic-companion.vercel.app/leads'
+    )
+
+    onAssigned()
+    onClose()
   }
 
   return (
@@ -150,7 +157,6 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
                     : 'border-gray-200 bg-white hover:border-[#004B93]'
                 }`}
               >
-                {/* Avatar */}
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0 overflow-hidden ${
                   (emp as any).role === 'manager' ? 'bg-purple-600' : 'bg-[#004B93]'
                 }`}>
@@ -160,7 +166,6 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
                   }
                 </div>
 
-                {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold text-gray-800 text-sm">{emp.full_name}</p>
@@ -185,7 +190,6 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
                   </p>
                 </div>
 
-                {/* Best badge */}
                 <div className="shrink-0">
                   {isRecommended && !isNearest && (
                     <span className="text-xs bg-green-500 text-white px-2 py-1 rounded-full font-semibold">★ Best</span>

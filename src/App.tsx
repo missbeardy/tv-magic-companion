@@ -13,12 +13,23 @@ import ProfilePage from './pages/ProfilePage'
 import SocialPage from './pages/SocialPage'
 import { useEffect } from 'react'
 import { useTechLocation } from './hooks/useTechLocation'
+import { initOneSignal, setOneSignalUser, clearOneSignalUser } from './lib/oneSignal'
 
 function Dashboard() {
   const { profile, loading } = useAuth()
 
-  // Silently capture tech's location and store on their profile
   useTechLocation(profile?.id ?? null)
+
+  // Link this device to the logged-in user in OneSignal
+  useEffect(() => {
+    if (profile?.id) {
+      setOneSignalUser(profile.id).catch(err =>
+        console.error('OneSignal user link failed:', err)
+      )
+    } else if (!loading && !profile) {
+      clearOneSignalUser().catch(() => {})
+    }
+  }, [profile?.id, loading])
 
   if (loading) return <p className="p-4 text-gray-400">Loading...</p>
   if (!profile) return <Navigate to="/login" replace />
@@ -28,6 +39,12 @@ function Dashboard() {
 
 function App() {
   useEffect(() => {
+    // Initialise OneSignal once on app load
+    initOneSignal().catch(err =>
+      console.error('OneSignal init failed:', err)
+    )
+
+    // Register existing service worker for offline support
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js')
         .then(reg => console.log('SW registered:', reg.scope))
