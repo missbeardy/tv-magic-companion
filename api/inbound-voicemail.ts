@@ -46,7 +46,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const body = req.body as Record<string, string>
 
     const fromPhone = body.caller_phone || body.from || 'Unknown'
-    const callStatus = body.call_status || 'Missed Call'
     const transcript = body.lead_notes || ''
     const timestamp = body.timestamp || new Date().toISOString()
 
