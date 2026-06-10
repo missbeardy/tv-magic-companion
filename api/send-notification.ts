@@ -28,24 +28,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: JSON.stringify({
         app_id: appId,
         target_channel: 'push',
-        filters: [
-          { field: 'external_id', value: userId }
-        ],
+        include_aliases: {
+          external_id: [userId]
+        },
         headings: { en: title },
         contents: { en: message },
         url: url || 'https://tv-magic-companion.vercel.app/leads',
       }),
     });
 
-    const data = await response.json();
+    const data = await response.json() as { id?: string; errors?: unknown };
 
     if (!response.ok) {
       console.error('OneSignal error:', data);
       return res.status(500).json({ error: 'Failed to send notification', details: data });
     }
 
-    const result = data as { id?: string };
-return res.status(200).json({ success: true, id: result.id });
+    return res.status(200).json({ success: true, id: data.id });
   } catch (err) {
     console.error('send-notification error:', err);
     return res.status(500).json({ error: 'Internal server error' });
