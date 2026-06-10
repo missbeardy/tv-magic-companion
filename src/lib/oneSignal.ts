@@ -1,26 +1,41 @@
 import OneSignal from 'react-onesignal';
 
 let initialized = false;
+let initPromise: Promise<void> | null = null;
 
-export async function initOneSignal() {
-  if (initialized) return;
-  initialized = true;
+export function initOneSignal(): Promise<void> {
+  if (initPromise) return initPromise;
 
-  await OneSignal.init({
+  initPromise = OneSignal.init({
     appId: '2eeab815-cfc2-4b65-bf79-a3c4415ced61',
     serviceWorkerPath: '/OneSignalSDKWorker.js',
     serviceWorkerParam: { scope: '/' },
     allowLocalhostAsSecureOrigin: true,
+  }).then(() => {
+    initialized = true;
+    OneSignal.Slidedown.promptPush();
   });
 
-  // Show the native browser permission prompt
-  OneSignal.Slidedown.promptPush();
+  return initPromise;
 }
 
 export async function setOneSignalUser(userId: string) {
-  await OneSignal.login(userId);
+  // Wait for init to fully complete before linking user
+  if (initPromise) await initPromise;
+  if (!initialized) return;
+
+  try {
+    await OneSignal.login(userId);
+  } catch (err) {
+    console.error('OneSignal login error:', err);
+  }
 }
 
 export async function clearOneSignalUser() {
-  await OneSignal.logout();
+  if (!initialized) return;
+  try {
+    await OneSignal.logout();
+  } catch (err) {
+    console.error('OneSignal logout error:', err);
+  }
 }
