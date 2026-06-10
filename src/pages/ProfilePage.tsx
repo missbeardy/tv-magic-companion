@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import NavBar from '../components/NavBar'
 import CreateEmployeeModal from '../components/CreateEmployeeModal'
+import { promptForNotifications } from '../lib/oneSignal'
 
 function ChangePassword() {
   const [newPassword, setNewPassword] = useState('')
@@ -52,6 +53,7 @@ function ChangePassword() {
     </div>
   )
 }
+
 export default function ProfilePage() {
   const { profile } = useAuth()
   const [fullName, setFullName] = useState('')
@@ -63,13 +65,13 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const [showCreateEmployee, setShowCreateEmployee] = useState(false)
+  const [notifStatus, setNotifStatus] = useState<'idle' | 'success' | 'denied'>('idle')
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!profile) return
     setFullName(profile.full_name ?? '')
 
-    // Load extended profile fields
     supabase
       .from('profiles')
       .select('suburb, phone, avatar_url')
@@ -83,6 +85,22 @@ export default function ProfilePage() {
         }
       })
   }, [profile])
+
+  async function handleEnableNotifications() {
+    try {
+      await promptForNotifications()
+      // Check if permission was granted
+      const permission = Notification.permission
+      if (permission === 'granted') {
+        setNotifStatus('success')
+      } else {
+        setNotifStatus('denied')
+      }
+    } catch (err) {
+      console.error('Notification prompt error:', err)
+      setNotifStatus('denied')
+    }
+  }
 
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -144,6 +162,8 @@ export default function ProfilePage() {
     setSaving(false)
   }
 
+  const notifPermission = typeof Notification !== 'undefined' ? Notification.permission : 'default'
+
   return (
     <div className="min-h-screen bg-gray-50">
       <NavBar />
@@ -184,6 +204,31 @@ export default function ProfilePage() {
             onChange={handleAvatarUpload}
           />
           <p className="text-xs text-gray-400">Tap to upload a photo from your camera or gallery</p>
+        </div>
+
+        {/* Notifications */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
+          <p className="text-sm font-semibold text-gray-700">🔔 Job Notifications</p>
+          <p className="text-xs text-gray-500">
+            Enable push notifications to get alerted on your phone when a lead is assigned to you.
+          </p>
+
+          {notifPermission === 'granted' || notifStatus === 'success' ? (
+            <div className="bg-green-50 text-green-700 text-sm p-3 rounded-lg font-medium">
+              ✅ Notifications are enabled on this device
+            </div>
+          ) : notifStatus === 'denied' || notifPermission === 'denied' ? (
+            <div className="bg-amber-50 text-amber-700 text-sm p-3 rounded-lg">
+              ⚠️ Notifications are blocked. Go to your browser settings and allow notifications for this site, then come back and tap the button again.
+            </div>
+          ) : (
+            <button
+              onClick={handleEnableNotifications}
+              className="w-full bg-[#00B4C5] text-white py-3 rounded-lg text-sm font-semibold hover:bg-[#009aaa] transition"
+            >
+              🔔 Enable Notifications on This Device
+            </button>
+          )}
         </div>
 
         {/* Details */}

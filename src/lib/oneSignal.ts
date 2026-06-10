@@ -13,17 +13,19 @@ export function initOneSignal(): Promise<void> {
     allowLocalhostAsSecureOrigin: true,
   }).then(() => {
     initialized = true;
-    OneSignal.Slidedown.promptPush();
   });
 
   return initPromise;
 }
 
+export async function promptForNotifications() {
+  if (initPromise) await initPromise;
+  OneSignal.Slidedown.promptPush();
+}
+
 export async function setOneSignalUser(userId: string) {
-  // Wait for init to fully complete before linking user
   if (initPromise) await initPromise;
   if (!initialized) return;
-
   try {
     await OneSignal.login(userId);
   } catch (err) {
