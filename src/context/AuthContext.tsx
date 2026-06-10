@@ -7,6 +7,7 @@ interface Profile {
   email: string
   full_name: string | null
   role: 'manager' | 'employee'
+  org_id: string | null
 }
 
 interface AuthContextType {
