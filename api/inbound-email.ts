@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
+import { checkRateLimit } from './_rateLimit'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -61,15 +62,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  // SEC-08: Rate limit — 60 req/min for webhook source IPs (Cloudmailin)
+  const ip = (req.headers['x-forwarded-for'] as string) ?? 'unknown'
+  if (!checkRateLimit(ip, 60, 60_000)) {
+    return res.status(429).json({ error: 'Too many requests' })
+  }
+
   try {
     const body = req.body as Record<string, string>
 
-    // Cloudmailin sends the email body in these fields (JSON Normalized format)
-    const rawText =
-      body['plain'] ||
-      body['html'] ||
-      body.body ||
-      ''
+    const rawText = body['plain'] || body['html'] || body.body || ''
 
     if (!rawText) {
       console.error('No email text in payload:', Object.keys(body))

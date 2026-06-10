@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { checkRateLimit } from './_rateLimit'
 
 interface GeocodeResult {
   status: string
@@ -11,6 +12,12 @@ interface GeocodeResult {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  // SEC-08: Rate limit — 20 requests per minute per IP
+  const ip = (req.headers['x-forwarded-for'] as string) ?? 'unknown'
+  if (!checkRateLimit(ip)) {
+    return res.status(429).json({ error: 'Too many requests. Please wait a moment.' })
   }
 
   const { address } = req.body as { address: string }

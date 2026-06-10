@@ -1,8 +1,15 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { checkRateLimit } from './_rateLimit'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  // SEC-08: Rate limit — 20 requests per minute per IP
+  const ip = (req.headers['x-forwarded-for'] as string) ?? 'unknown'
+  if (!checkRateLimit(ip)) {
+    return res.status(429).json({ error: 'Too many requests. Please wait a moment.' })
   }
 
   const apiKey = process.env.ZERNIO_API_KEY
@@ -59,8 +66,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const data = await response.json()
 
     if (!response.ok) {
-      const message = (data as { message?: string }).message ?? `HTTP ${response.status}`
-      return res.status(response.status).json({ error: `Zernio error: ${message}` })
+      const msg = (data as { message?: string }).message ?? `HTTP ${response.status}`
+      return res.status(response.status).json({ error: `Zernio error: ${msg}` })
     }
 
     return res.status(200).json({ success: true })

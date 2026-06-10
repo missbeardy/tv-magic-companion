@@ -1,46 +1,34 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { createHmac, timingSafeEqual } from 'crypto'
+import { checkRateLimit } from './_rateLimit'
 
 const supabaseUrl = process.env.SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 const supabase = createClient(supabaseUrl!, supabaseKey!)
 
-// ─── Twilio Signature Verification ───────────────────────────────────────────
-// Twilio signs every webhook with your Auth Token. We recreate the expected
-// signature and compare using timingSafeEqual to prevent timing attacks.
 function verifyTwilioSignature(req: VercelRequest, authToken: string): boolean {
   const twilioSig = req.headers['x-twilio-signature'] as string
   if (!twilioSig) return false
 
-  // Reconstruct the full URL Twilio signed
   const url = `https://${req.headers.host}${req.url}`
-
-  // Sort params alphabetically and concatenate: url + key1value1 + key2value2...
   const params = req.body as Record<string, string>
   const sortedParamString = Object.keys(params)
     .sort()
     .reduce((acc, k) => acc + k + params[k], url)
 
-  // Create the expected signature using HMAC-SHA1
   const expectedSig = createHmac('sha1', authToken)
     .update(sortedParamString)
     .digest('base64')
 
-  // Compare byte-by-byte in constant time to prevent timing attacks
   try {
-    return timingSafeEqual(
-      Buffer.from(twilioSig),
-      Buffer.from(expectedSig)
-    )
+    return timingSafeEqual(Buffer.from(twilioSig), Buffer.from(expectedSig))
   } catch {
-    // timingSafeEqual throws if buffers differ in length — treat as invalid
     return false
   }
 }
 
-// ─── Claude SMS Parser ────────────────────────────────────────────────────────
 async function parseSmswithClaude(smsText: string, fromNumber: string) {
   const prompt = `You are a CRM data extractor for a TV aerial and satellite installation business.
 
@@ -86,7 +74,6 @@ Return JSON only.`
   }
 }
 
-// ─── Manager Notifications ────────────────────────────────────────────────────
 async function notifyManagers(leadName: string, serviceType: string, fromNumber: string) {
   const { data: managers } = await supabase
     .from('profiles')
@@ -107,13 +94,18 @@ async function notifyManagers(leadName: string, serviceType: string, fromNumber:
   await supabase.from('notifications').insert(notifications)
 }
 
-// ─── Main Handler ─────────────────────────────────────────────────────────────
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // ✅ Verify the request genuinely came from Twilio before doing anything else
+  // SEC-08: Rate limit — 60 req/min for webhook source IPs (Twilio)
+  const ip = (req.headers['x-forwarded-for'] as string) ?? 'unknown'
+  if (!checkRateLimit(ip, 60, 60_000)) {
+    res.setHeader('Content-Type', 'text/xml')
+    return res.status(429).send('<Response></Response>')
+  }
+
   const authToken = process.env.TWILIO_AUTH_TOKEN
   if (!authToken) {
     console.error('TWILIO_AUTH_TOKEN is not set')
@@ -170,7 +162,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     res.setHeader('Content-Type', 'text/xml')
     return res.status(200).send('<Response></Response>')
-
   } catch (err) {
     console.error('Inbound SMS handler error:', err)
     res.setHeader('Content-Type', 'text/xml')

@@ -1,12 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
+import { checkRateLimit } from './_rateLimit'
 
 const supabaseUrl = process.env.SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 const supabase = createClient(supabaseUrl!, supabaseKey!)
 
-// ─── Manager Notifications ────────────────────────────────────────────────────
 async function notifyManagers(phone: string, hasTranscript: boolean) {
   const { data: managers } = await supabase
     .from('profiles')
@@ -31,16 +31,20 @@ async function notifyManagers(phone: string, hasTranscript: boolean) {
   await supabase.from('notifications').insert(notifications)
 }
 
-// ─── Main Handler ─────────────────────────────────────────────────────────────
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  // SEC-08: Rate limit — 60 req/min for webhook source IPs (3CX)
+  const ip = (req.headers['x-forwarded-for'] as string) ?? 'unknown'
+  if (!checkRateLimit(ip, 60, 60_000)) {
+    return res.status(429).json({ error: 'Too many requests' })
+  }
+
   try {
     const body = req.body as Record<string, string>
 
-    // 3CX sends these fields on every call webhook
     const fromPhone = body.caller_phone || body.from || 'Unknown'
     const callStatus = body.call_status || 'Missed Call'
     const transcript = body.lead_notes || ''
@@ -48,7 +52,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const hasTranscript = transcript.trim().length > 0
 
-    // Build the job details note shown on the lead card
     const jobDetails = hasTranscript
       ? `Voicemail transcript: ${transcript}`
       : `Missed call received at ${timestamp}. No voicemail left — customer callback required.`
@@ -78,7 +81,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('3CX missed call lead created:', newLead?.id)
 
     return res.status(200).json({ success: true, lead_id: newLead?.id })
-
   } catch (err) {
     console.error('Inbound voicemail handler error:', err)
     return res.status(500).json({ error: 'Internal server error' })

@@ -1,8 +1,15 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { checkRateLimit } from './_rateLimit'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  // SEC-08: Rate limit — 20 requests per minute per IP
+  const ip = (req.headers['x-forwarded-for'] as string) ?? 'unknown'
+  if (!checkRateLimit(ip)) {
+    return res.status(429).json({ error: 'Too many requests. Please wait a moment.' })
   }
 
   const { to, customerName, techName, address } = req.body as {
@@ -27,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}&travelmode=driving`
   const message = `Hi ${customerName}, your TVMagic engineer ${techName} is on their way. Track the route: ${mapsUrl} — TVMagic Team`
 
-  const body = new URLSearchParams({ To: to, From: from, Body: message })
+  const bodyParams = new URLSearchParams({ To: to, From: from, Body: message })
   const credentials = Buffer.from(`${sid}:${token}`).toString('base64')
 
   try {
@@ -37,7 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         Authorization: `Basic ${credentials}`,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: body.toString(),
+      body: bodyParams.toString(),
     })
 
     const twData = await twRes.json()
