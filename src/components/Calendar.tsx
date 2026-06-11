@@ -111,6 +111,35 @@ function endOfMonth(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999)
 }
 
+function isTimeSlotAvailable(
+  events: Event[],
+  date: Date,
+  hour: number,
+  durationMinutes: number = 60
+): boolean {
+  const slotStart = new Date(date)
+  slotStart.setHours(hour, 0, 0, 0)
+  const slotEnd = new Date(slotStart)
+  slotEnd.setMinutes(slotStart.getMinutes() + durationMinutes)
+
+  return !events.some(event => {
+    const eventStart = new Date(event.start_time)
+    const eventEnd = new Date(event.end_time)
+    return slotStart < eventEnd && slotEnd > eventStart
+  })
+}
+
+function getAvailabilityForDay(
+  events: Event[],
+  date: Date,
+  durationMinutes: number = 60
+): { hour: number; available: boolean }[] {
+  return HOUR_LABELS.map(hour => ({
+    hour,
+    available: isTimeSlotAvailable(events, date, hour, durationMinutes),
+  }))
+}
+
 // ── Component ───────────────────────────────────────────────────────────────
 
 export default function Calendar() {
@@ -124,6 +153,9 @@ export default function Calendar() {
   const [employees, setEmployees] = useState<Profile[]>([])
   const [filterEmployee, setFilterEmployee] = useState<string>('all')
   const [isMobile, setIsMobile] = useState(false)
+  const [showAvailability, setShowAvailability] = useState(false)
+  const [availabilityDuration, setAvailabilityDuration] = useState(60)
+  const [availabilityEmployee, setAvailabilityEmployee] = useState<string>('all')
 
   const showResourceView = isMobile && profile?.role === 'manager' && filterEmployee === 'all' && view !== 'month'
 
@@ -168,6 +200,30 @@ export default function Calendar() {
     if (data) setEvents(data as Event[])
   }
 
+  // ── Fetch all events for availability lookup (broader range) ──
+  async function fetchAllEventsForAvailability() {
+    const start = startOfWeek(currentDate)
+    const end = endOfWeek(currentDate)
+
+    let query = supabase
+      .from('events')
+      .select('*, profiles(full_name)')
+      .gte('start_time', start.toISOString())
+      .lte('start_time', end.toISOString())
+      .order('start_time', { ascending: true })
+
+    if (profile?.role === 'employee') {
+      query = query.eq('user_id', profile.id)
+    } else if (availabilityEmployee !== 'all') {
+      query = query.eq('user_id', availabilityEmployee)
+    } else if (filterEmployee !== 'all') {
+      query = query.eq('user_id', filterEmployee)
+    }
+
+    const { data } = await query
+    if (data) setEvents(data as Event[])
+  }
+
   useEffect(() => {
     if (!profile) return
     fetchEvents()
@@ -178,6 +234,12 @@ export default function Calendar() {
         .then(({ data }) => { if (data) setEmployees(data) })
     }
   }, [profile, filterEmployee, currentDate, view])
+
+  useEffect(() => {
+    if (showAvailability) {
+      fetchAllEventsForAvailability()
+    }
+  }, [showAvailability, availabilityEmployee, currentDate])
 
   // ── Date Helpers ──
 
@@ -248,6 +310,16 @@ export default function Calendar() {
     setShowModal(true)
   }
 
+  // ── Availability Helpers ──
+
+  function getAvailabilityColor(available: boolean): string {
+    return available ? 'bg-emerald-100 border-emerald-300' : 'bg-red-100 border-red-300'
+  }
+
+  function getAvailabilityText(available: boolean): string {
+    return available ? 'text-emerald-700' : 'text-red-700'
+  }
+
   // ── Header Label ──
 
   const weekDays = getWeekDays(currentDate)
@@ -316,7 +388,7 @@ export default function Calendar() {
           </button>
         </div>
 
-        {/* Row 2: Employee Filter + View Toggle + Add */}
+        {/* Row 2: Employee Filter + View Toggle + Add + Availability Toggle */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
           {profile?.role === 'manager' && (
             <select
@@ -348,6 +420,22 @@ export default function Calendar() {
               ))}
             </div>
 
+            {/* Availability Toggle Button */}
+            <button
+              onClick={() => setShowAvailability(!showAvailability)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1 whitespace-nowrap flex-shrink-0 border ${
+                showAvailability
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                  : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+              }`}
+              title="Toggle availability lookup view"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="hidden sm:inline">{showAvailability ? 'Hide' : 'Check'}</span>
+            </button>
+
             <button
               onClick={() => {
                 setSelectedEvent(null)
@@ -363,6 +451,163 @@ export default function Calendar() {
             </button>
           </div>
         </div>
+
+        {/* ── Availability Lookup Panel ── */}
+        {showAvailability && (
+          <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
+              <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-1">
+                <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Availability Lookup
+              </h3>
+
+              {profile?.role === 'manager' && (
+                <select
+                  value={availabilityEmployee}
+                  onChange={e => setAvailabilityEmployee(e.target.value)}
+                  className="w-full sm:w-auto text-xs border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#004B93] bg-white"
+                >
+                  <option value="all">All employees</option>
+                  {employees.map(emp => (
+                    <option key={emp.id} value={emp.id}>{emp.full_name}</option>
+                  ))}
+                </select>
+              )}
+
+              <select
+                value={availabilityDuration}
+                onChange={e => setAvailabilityDuration(Number(e.target.value))}
+                className="w-full sm:w-auto text-xs border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#004B93] bg-white"
+              >
+                <option value={30}>30 min job</option>
+                <option value={60}>1 hour job</option>
+                <option value={90}>1.5 hour job</option>
+                <option value={120}>2 hour job</option>
+                <option value={180}>3 hour job</option>
+                <option value={240}>4 hour job</option>
+                <option value={480}>Full day</option>
+              </select>
+
+              <div className="flex items-center gap-3 text-xs text-gray-500 ml-auto">
+                <span className="flex items-center gap-1">
+                  <span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-300 inline-block" />
+                  Free
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-3 h-3 rounded bg-red-100 border border-red-300 inline-block" />
+                  Busy
+                </span>
+              </div>
+            </div>
+
+            {/* Availability Grid */}
+            {view === 'day' && (
+              <div className="grid grid-cols-1 gap-1">
+                {getAvailabilityForDay(events, currentDate, availabilityDuration).map(({ hour, available }) => (
+                  <div
+                    key={hour}
+                    className={`flex items-center gap-2 px-2 py-1 rounded border text-xs transition cursor-pointer hover:opacity-80 ${getAvailabilityColor(available)}`}
+                    onClick={() => available && openNewEvent(new Date(currentDate), hour)}
+                    title={available ? `Click to book at ${String(hour).padStart(2, '0')}:00` : 'Slot unavailable'}
+                  >
+                    <span className="font-mono font-medium w-12">{String(hour).padStart(2, '0')}:00</span>
+                    <span className={`font-medium ${getAvailabilityText(available)}`}>
+                      {available ? '✓ Available' : '✗ Busy'}
+                    </span>
+                    {available && (
+                      <span className="ml-auto text-emerald-600 opacity-0 hover:opacity-100 transition text-[10px]">
+                        Click to book →
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {view === 'week' && (
+              <div className="grid grid-cols-7 gap-1">
+                {weekDays.map((day, i) => {
+                  const dayEvents = getEventsForDay(day)
+                  const availability = getAvailabilityForDay(dayEvents, day, availabilityDuration)
+                  const isToday = day.toDateString() === new Date().toDateString()
+                  const dayName = dayNames[i]
+                  const dateNum = day.getDate()
+
+                  return (
+                    <div key={i} className={`border rounded-lg overflow-hidden ${isToday ? 'border-[#004B93]' : 'border-gray-200'}`}>
+                      <div className={`text-center py-1 text-xs font-medium ${isToday ? 'bg-[#004B93] text-white' : 'bg-gray-100 text-gray-600'}`}>
+                        <div>{dayName}</div>
+                        <div>{dateNum}</div>
+                      </div>
+                      <div className="space-y-0.5 p-1">
+                        {availability.map(({ hour, available }) => (
+                          <div
+                            key={hour}
+                            className={`text-[9px] px-1 py-0.5 rounded border text-center cursor-pointer hover:opacity-80 transition ${getAvailabilityColor(available)}`}
+                            onClick={() => available && openNewEvent(new Date(day), hour)}
+                            title={available ? `${String(hour).padStart(2, '0')}:00 - Available` : `${String(hour).padStart(2, '0')}:00 - Busy`}
+                          >
+                            <span className={`font-medium ${getAvailabilityText(available)}`}>
+                              {available ? '✓' : '✗'}
+                            </span>
+                            <span className="ml-0.5 text-gray-500">{String(hour).padStart(2, '0')}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {view === 'month' && (
+              <div className="grid grid-cols-7 gap-1">
+                {dayNames.map(d => (
+                  <div key={d} className="text-center text-[10px] font-medium text-gray-500 py-1">
+                    {d}
+                  </div>
+                ))}
+                {monthDays.map((day, i) => {
+                  if (!day) return <div key={i} className="min-h-12 bg-gray-50 rounded" />
+                  const dayEvents = getEventsForDay(day)
+                  const availability = getAvailabilityForDay(dayEvents, day, availabilityDuration)
+                  const availableCount = availability.filter(a => a.available).length
+                  const totalSlots = availability.length
+                  const isToday = day.toDateString() === new Date().toDateString()
+                  const availabilityPercent = Math.round((availableCount / totalSlots) * 100)
+
+                  return (
+                    <div
+                      key={i}
+                      className={`min-h-12 p-1 rounded border cursor-pointer hover:opacity-80 transition ${
+                        isToday ? 'border-[#004B93] bg-blue-50' : 'border-gray-200'
+                      }`}
+                      onClick={() => { setCurrentDate(new Date(day)); setView('day') }}
+                    >
+                      <div className={`text-[10px] font-semibold mb-0.5 ${isToday ? 'text-[#004B93]' : 'text-gray-600'}`}>
+                        {day.getDate()}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-emerald-500 rounded-full transition-all"
+                            style={{ width: `${availabilityPercent}%` }}
+                          />
+                        </div>
+                        <span className="text-[9px] text-gray-500 font-medium">{availableCount}h</span>
+                      </div>
+                      <div className="mt-0.5 text-[9px] text-gray-400">
+                        {availableCount > 0 ? `${availableCount} slots free` : 'Fully booked'}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── MOBILE RESOURCE VIEW ── */}
