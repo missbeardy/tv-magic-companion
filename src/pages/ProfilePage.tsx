@@ -170,7 +170,7 @@ export default function ProfilePage() {
       <main className="p-6 max-w-lg mx-auto space-y-6">
         <div>
           <h2 className="text-2xl font-bold text-gray-800 mb-1">My Profile</h2>
-          <p className="text-gray-500 text-sm">Update your details and profile photo.</p>
+          <p className="text-gray-500 text-sm">Update your details and photo.</p>
         </div>
 
         {error && (
