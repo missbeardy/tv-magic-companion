@@ -4,7 +4,7 @@
     "target": "es2022",
     "lib": ["ES2022"],
     "module": "commonjs",
-    "moduleResolution": "node",
+    "moduleResolution": "node16",
     "types": ["node"],
     "skipLibCheck": true,
     "esModuleInterop": true,
