@@ -231,28 +231,30 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
     setLoadingDayEvents(true)
 
     async function fetchDayEvents() {
-      const startOfDay = new Date(`${date}T00:00:00`).toISOString()
-      const endOfDay = new Date(`${date}T23:59:59`).toISOString()
+  const startOfDay = new Date(`${date}T00:00:00`).toISOString()
+  const endOfDay = new Date(`${date}T23:59:59`).toISOString()
 
-      const { data, error } = await supabase
-        .from('events')
-        .select('*')
-        .eq('user_id', selectedUserId)
-        .gte('start_time', startOfDay)
-        .lte('start_time', endOfDay)
-        .order('start_time', { ascending: true })
+  const { data, error: dbError } = await supabase // Renamed to avoid shadowing the component's 'error' state
+    .from('events')
+    .select('*')
+    .eq('user_id', selectedUserId)
+    .gte('start_time', startOfDay)
+    .lte('start_time', endOfDay)
+    .order('start_time', { ascending: true })
 
-      if (!cancelled) {
-        if (data) {
-          // Exclude the current event being edited from the list
-          const filtered = event?.id
-            ? data.filter((e: CalendarEvent) => e.id !== event.id)
-            : data
-          setDayEvents(filtered as CalendarEvent[])
-        }
-        setLoadingDayEvents(false)
-      }
+  if (!cancelled) {
+    if (dbError) {
+      setError('Error checking availability: ' + dbError.message)
+    } else if (data) {
+      // Exclude the current event being edited from the list
+      const filtered = event?.id
+        ? data.filter((e: CalendarEvent) => e.id !== event.id)
+        : data
+      setDayEvents(filtered as CalendarEvent[])
     }
+    setLoadingDayEvents(false)
+  }
+}
 
     fetchDayEvents()
     return () => { cancelled = true }
