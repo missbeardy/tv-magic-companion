@@ -1,4 +1,17 @@
+// src/pages/LeadsPage.tsx
 import { useEffect, useState, useCallback } from 'react'
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  useDraggable,
+} from '@dnd-kit/core'
+import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core'
+import { CSS } from '@dnd-kit/utilities'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import NavBar from '../components/NavBar'
@@ -12,6 +25,8 @@ import BottomSheet from '../components/BottomSheet'
 import CompletionChecklist from '../components/CompletionChecklist'
 import SignatureCanvas from '../components/SignatureCanvas'
 import ReceiptPreview from '../components/ReceiptPreview'
+import LeadFilterBar from '../components/LeadFilterBar'
+import type { FilterState } from '../components/LeadFilterBar'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -67,6 +82,40 @@ function getColumnsForTab(tab: string): string[] {
   return []
 }
 
+const EMPTY_FILTERS: FilterState = { search: '', source: '', assignee: '' }
+
+// ── Drag-and-drop: Droppable Column Wrapper ──────────────────────────────
+
+function DroppableColumn({ id, children }: { id: string; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id })
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex-1 transition-colors duration-150 ${isOver ? 'bg-blue-50 rounded-xl' : ''}`}
+    >
+      {children}
+    </div>
+  )
+}
+
+// ── Drag-and-drop: Draggable Card Wrapper ────────────────────────────────
+
+function DraggableCard({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id })
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    opacity: isDragging ? 0.4 : 1,
+    touchAction: 'none' as const,
+  }
+  return (
+    <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
+      {children}
+    </div>
+  )
+}
+
+// ── LeadCard Component ──────────────────────────────────────────────────────
+
 interface LeadCardProps {
   lead: Lead
   profile: { role: string; id: string } | null
@@ -77,8 +126,6 @@ interface LeadCardProps {
   onBook: (lead: Lead) => void
   onRefresh: () => void
 }
-
-// ── LeadCard Component ──────────────────────────────────────────────────────
 
 function LeadCard({
   lead,
@@ -96,7 +143,6 @@ function LeadCard({
   useEffect(() => {
     if (!isExpanded) return
     let cancelled = false
-
     supabase
       .from('lead_events')
       .select('*')
@@ -106,7 +152,6 @@ function LeadCard({
       .then(({ data }) => {
         if (!cancelled) setEvents((data as LeadEvent[]) ?? [])
       })
-
     return () => { cancelled = true }
   }, [isExpanded, lead.id])
 
@@ -140,13 +185,12 @@ function LeadCard({
 
       {lead.address && (
         <button
-          onClick={(e) => {
+          onClick={e => {
             e.stopPropagation()
             const encoded = encodeURIComponent(lead.address as string)
             window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}`, '_blank')
           }}
           className="text-xs text-[#00B4C5] underline flex items-center gap-1 mt-1"
-          title="Open in Google Maps"
         >
           📍 {lead.address}
         </button>
@@ -163,9 +207,7 @@ function LeadCard({
         </span>
       )}
       {lead.profiles && (
-        <p className="text-xs text-[#004B93] mt-1 font-medium">
-          → {lead.profiles.full_name}
-        </p>
+        <p className="text-xs text-[#004B93] mt-1 font-medium">→ {lead.profiles.full_name}</p>
       )}
 
       {lead.status === 'unassigned' && (
@@ -188,11 +230,8 @@ function LeadCard({
         <div className="hidden md:block mt-2 space-y-2 border-t border-gray-200 pt-2">
           <p className="text-xs text-gray-600">{lead.phone}</p>
           <p className="text-xs text-gray-600">{lead.email}</p>
-          {lead.details && (
-            <p className="text-xs text-gray-500">{lead.details}</p>
-          )}
+          {lead.details && <p className="text-xs text-gray-500">{lead.details}</p>}
 
-          {/* Raw email — collapsible, so it doesn't clutter the card */}
           {lead.raw_email && (
             <details className="mt-3">
               <summary className="text-xs font-medium text-gray-500 cursor-pointer select-none">
@@ -204,7 +243,6 @@ function LeadCard({
             </details>
           )}
 
-          {/* Raw SMS — only shows if there's no email, pretty-prints JSON if possible */}
           {lead.raw_sms && !lead.raw_email && (
             <details className="mt-3">
               <summary className="text-xs font-medium text-gray-500 cursor-pointer select-none">
@@ -212,12 +250,8 @@ function LeadCard({
               </summary>
               <pre className="mt-2 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3 whitespace-pre-wrap overflow-auto max-h-48">
                 {(() => {
-                  try {
-                    const parsed = JSON.parse(lead.raw_sms)
-                    return JSON.stringify(parsed, null, 2)
-                  } catch {
-                    return lead.raw_sms
-                  }
+                  try { return JSON.stringify(JSON.parse(lead.raw_sms!), null, 2) }
+                  catch { return lead.raw_sms }
                 })()}
               </pre>
             </details>
@@ -247,6 +281,7 @@ function LeadCard({
               📅 Book
             </button>
           </div>
+
           {lead.status === 'completed' && (
             <LeadPhotos leadId={lead.id} canUpload={true} />
           )}
@@ -254,7 +289,7 @@ function LeadCard({
           {events.length > 0 && (
             <div className="mt-3 border-t border-gray-200 pt-3 space-y-1">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Activity</p>
-              {events.map((ev) => (
+              {events.map(ev => (
                 <p key={ev.id} className="text-xs text-gray-500">
                   {new Date(ev.created_at).toLocaleString()} — {ev.note ?? ev.event_type}
                 </p>
@@ -264,6 +299,54 @@ function LeadCard({
         </div>
       )}
     </div>
+  )
+}
+
+// ── KanbanColumn Component ──────────────────────────────────────────────────
+
+interface KanbanColumnProps {
+  col: typeof COLUMNS[0]
+  leads: Lead[]
+  profile: { role: string; id: string } | null
+  expandedLead: string | null
+  onToggleExpand: (leadId: string | null) => void
+  onOpenSheet: (lead: Lead) => void
+  onAssign: (lead: Lead) => void
+  onBook: (lead: Lead) => void
+  onRefresh: () => void
+}
+
+function KanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onRefresh }: KanbanColumnProps) {
+  return (
+    <DroppableColumn id={col.key}>
+      <div className={`flex-shrink-0 w-full md:w-72 bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200 h-full`}>
+        <div className="p-3 border-b border-gray-100 flex items-center justify-between">
+          <span className="font-semibold text-gray-700 text-sm">{col.label}</span>
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${col.badge}`}>
+            {leads.length}
+          </span>
+        </div>
+        <div className="p-2 space-y-2 max-h-screen overflow-y-auto">
+          {leads.length === 0 && (
+            <p className="text-xs text-gray-400 text-center py-4">No leads</p>
+          )}
+          {leads.map(lead => (
+            <DraggableCard key={lead.id} id={lead.id}>
+              <LeadCard
+                lead={lead}
+                profile={profile}
+                expandedLead={expandedLead}
+                onToggleExpand={onToggleExpand}
+                onOpenSheet={onOpenSheet}
+                onAssign={onAssign}
+                onBook={onBook}
+                onRefresh={onRefresh}
+              />
+            </DraggableCard>
+          ))}
+        </div>
+      </div>
+    </DroppableColumn>
   )
 }
 
@@ -279,12 +362,35 @@ export default function LeadsPage() {
   const [activeTab, setActiveTab] = useState<'unassigned' | 'assigned' | 'contact' | 'closed'>('unassigned')
   const [sheetLead, setSheetLead] = useState<Lead | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS)
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
 
   const [showChecklist, setShowChecklist] = useState(false)
   const [checklistLead, setChecklistLead] = useState<Lead | null>(null)
   const [showSignature, setShowSignature] = useState(false)
   const [showReceipt, setShowReceipt] = useState(false)
   const [receiptLead, setReceiptLead] = useState<Lead | null>(null)
+
+  // ── Derived filter options ─────────────────────────────────────────────
+
+  const sources = Array.from(new Set(leads.map(l => l.lead_source).filter(Boolean))) as string[]
+  const assignees = Array.from(new Set(leads.map(l => l.profiles?.full_name).filter(Boolean))) as string[]
+
+  // ── Filtered leads ─────────────────────────────────────────────────────
+
+  const filteredLeads = leads.filter(lead => {
+    const q = filters.search.toLowerCase()
+    if (q) {
+      const matchName  = (lead.name  ?? '').toLowerCase().includes(q)
+      const matchPhone = (lead.phone ?? '').toLowerCase().includes(q)
+      if (!matchName && !matchPhone) return false
+    }
+    if (filters.source && lead.lead_source !== filters.source) return false
+    if (filters.assignee && lead.profiles?.full_name !== filters.assignee) return false
+    return true
+  })
+
+  // ── Fetch ──────────────────────────────────────────────────────────────
 
   const fetchLeads = useCallback(async () => {
     let query = supabase
@@ -309,6 +415,50 @@ export default function LeadsPage() {
       created_by: profile?.id ?? null,
     })
   }, [profile?.id])
+
+  // ── Drag-and-drop handlers ─────────────────────────────────────────────
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor,   { activationConstraint: { delay: 200, tolerance: 8 } }),
+  )
+
+  function handleDragStart(event: DragStartEvent) {
+    setActiveDragId(event.active.id as string)
+  }
+
+  async function handleDragEnd(event: DragEndEvent) {
+    setActiveDragId(null)
+    const { active, over } = event
+    if (!over) return
+
+    const leadId    = active.id as string
+    const newStatus = over.id   as string
+    const lead      = leads.find(l => l.id === leadId)
+
+    if (!lead || lead.status === newStatus) return
+
+    // Optimistic update
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l))
+
+    const updatePayload: Record<string, unknown> = { status: newStatus }
+    if (newStatus === 'assigned' && !lead.assigned_at) {
+      updatePayload.assigned_at = new Date().toISOString()
+    }
+
+    const { error } = await supabase
+      .from('leads')
+      .update(updatePayload)
+      .eq('id', leadId)
+
+    if (error) {
+      fetchLeads()
+    } else {
+      await logLeadEvent(leadId, 'status_change', `Status changed to ${newStatus} via drag`)
+    }
+  }
+
+  // ── Sheet / action handlers ────────────────────────────────────────────
 
   const openSheet = useCallback((lead: Lead) => {
     setSheetLead(lead)
@@ -351,66 +501,46 @@ export default function LeadsPage() {
       `Call ${lead.name}?\n\nThis will update the lead status to "Contact Attempted".`
     )
     if (!confirmed) return
-
-    await supabase
-      .from('leads')
-      .update({ status: 'contact_attempted' })
-      .eq('id', lead.id)
-
+    await supabase.from('leads').update({ status: 'contact_attempted' }).eq('id', lead.id)
     await logLeadEvent(lead.id, 'call_attempted', `Called ${lead.phone}`)
-
     window.location.href = `tel:${lead.phone}`
     closeSheet()
     fetchLeads()
   }, [logLeadEvent, closeSheet, fetchLeads])
 
-    const handleSMS = useCallback((lead: Lead) => {
-        if (!lead.phone?.trim()) {
-          alert('No phone number saved for this lead.')
-          return
-        }
+  const handleSMS = useCallback((lead: Lead) => {
+    if (!lead.phone?.trim()) { alert('No phone number saved for this lead.'); return }
+    const rawPhone = lead.phone.replace(/\s+/g, '')
+    const to = rawPhone.startsWith('+') ? rawPhone
+      : rawPhone.startsWith('0') ? '+61' + rawPhone.slice(1)
+      : rawPhone
+    const techName = profile?.full_name ?? 'Your technician'
+    const mapsUrl = lead.address
+      ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(lead.address)}`
+      : null
+    const message = mapsUrl
+      ? `Hi ${lead.name}, ${techName} from TVMagic is on their way to you. Track the route: ${mapsUrl} — TVMagic Team`
+      : `Hi ${lead.name}, ${techName} from TVMagic is on their way to you. — TVMagic Team`
+    window.open(`sms:${to}?body=${encodeURIComponent(message)}`, '_blank')
+    closeSheet()
+  }, [closeSheet, profile?.full_name])
 
-        const rawPhone = lead.phone.replace(/\s+/g, '')
-        const to = rawPhone.startsWith('+') ? rawPhone
-          : rawPhone.startsWith('0') ? '+61' + rawPhone.slice(1)
-          : rawPhone
-
-        const techName = profile?.full_name ?? 'Your technician'
-        const mapsUrl = lead.address
-          ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(lead.address)}`
-          : null
-
-        const message = mapsUrl
-          ? `Hi ${lead.name}, ${techName} from TVMagic is on their way to you. Track the route: ${mapsUrl} — TVMagic Team`
-          : `Hi ${lead.name}, I ${techName} from TVMagic is on their way to you. — TVMagic Team`
-
-        const smsLink = `sms:${to}?body=${encodeURIComponent(message)}`
-        window.open(smsLink, '_blank')
-
-        closeSheet()
-      }, [closeSheet, profile?.full_name])
-
-      const handleSharePhoto = useCallback(async (lead: Lead) => {
-        if (navigator.share) {
-          try {
-            await navigator.share({
-              title: `Job Photos: ${lead.name}`,
-              text: `Check out the completed job photos for ${lead.name} (${lead.service_type}).`,
-              url: window.location.href,
-            })
-          } catch (error) {
-            console.log('Error sharing:', error)
-          }
-        } else {
-          alert('Sharing is not supported on this device/browser. Copy the page URL to share manually.')
-        }
-      }, [])
+  const handleSharePhoto = useCallback(async (lead: Lead) => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Job Photos: ${lead.name}`,
+          text: `Check out the completed job photos for ${lead.name} (${lead.service_type}).`,
+          url: window.location.href,
+        })
+      } catch {}
+    } else {
+      alert('Sharing is not supported on this device/browser.')
+    }
+  }, [])
 
   const handleMarkContactAttempted = useCallback(async (lead: Lead) => {
-    await supabase
-      .from('leads')
-      .update({ status: 'contact_attempted' })
-      .eq('id', lead.id)
+    await supabase.from('leads').update({ status: 'contact_attempted' }).eq('id', lead.id)
     await logLeadEvent(lead.id, 'status_change', 'Status updated to Contact Attempted')
     fetchLeads()
     closeSheet()
@@ -419,18 +549,18 @@ export default function LeadsPage() {
   useEffect(() => {
     if (!profile) return
     fetchLeads()
-
     const channel = supabase
       .channel('leads-page-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, fetchLeads)
       .subscribe()
-
     return () => { supabase.removeChannel(channel) }
   }, [profile, fetchLeads])
 
   function leadsForColumn(status: string) {
-    return leads.filter(l => l.status === status)
+    return filteredLeads.filter(l => l.status === status)
   }
+
+  const activeDragLead = activeDragId ? leads.find(l => l.id === activeDragId) : null
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -440,21 +570,18 @@ export default function LeadsPage() {
           onCancel={() => setShowChecklist(false)}
         />
       )}
-
       {showSignature && (
         <SignatureCanvas
           onSave={saveSignatureAndComplete}
           onSkip={() => saveSignatureAndComplete('')}
         />
       )}
-
       {showReceipt && receiptLead && (
         <ReceiptPreview
           lead={receiptLead}
           onClose={() => { setShowReceipt(false); setReceiptLead(null) }}
         />
       )}
-
       {assigningLead && (
         <AssignLeadModal
           lead={assigningLead}
@@ -462,7 +589,6 @@ export default function LeadsPage() {
           onAssigned={fetchLeads}
         />
       )}
-
       {bookingLead && (
         <EventModal
           prefillLead={{
@@ -489,10 +615,24 @@ export default function LeadsPage() {
           {profile?.role === 'manager' && <DemoToggle />}
         </div>
 
+        {!loading && (
+          <LeadFilterBar
+            filters={filters}
+            onChange={setFilters}
+            sources={sources}
+            assignees={assignees}
+            userId={profile?.id ?? 'guest'}
+          />
+        )}
+
         {loading && <p className="text-gray-400 text-sm">Loading leads...</p>}
 
         {!loading && (
-          <div>
+          <DndContext
+            sensors={sensors}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
             <div className="md:hidden sticky top-0 z-10 bg-white border-b border-gray-200 flex mb-3 -mx-4 px-0">
               {MOBILE_TABS.map(tab => (
                 <button
@@ -525,8 +665,7 @@ export default function LeadsPage() {
                     onBook={setBookingLead}
                     onRefresh={fetchLeads}
                   />
-                ))
-              }
+                ))}
             </div>
 
             <div className="hidden md:flex gap-4 overflow-x-auto pb-4">
@@ -541,19 +680,24 @@ export default function LeadsPage() {
                   onOpenSheet={openSheet}
                   onAssign={setAssigningLead}
                   onBook={setBookingLead}
-                   onRefresh={fetchLeads}
+                  onRefresh={fetchLeads}
                 />
               ))}
             </div>
-          </div>
+
+            <DragOverlay>
+              {activeDragLead && (
+                <div className="bg-white rounded-lg p-3 border border-[#004B93] shadow-xl opacity-90 w-64">
+                  <p className="font-medium text-gray-800 text-sm">{activeDragLead.name}</p>
+                  <p className="text-xs text-gray-500">{activeDragLead.service_type}</p>
+                </div>
+              )}
+            </DragOverlay>
+          </DndContext>
         )}
       </main>
 
-      <BottomSheet
-        isOpen={sheetOpen}
-        onClose={closeSheet}
-        title={sheetLead?.name ?? 'Lead Actions'}
-      >
+      <BottomSheet isOpen={sheetOpen} onClose={closeSheet} title={sheetLead?.name ?? 'Lead Actions'}>
         {sheetLead && (
           <div className="space-y-3">
             <p className="text-sm text-gray-500">{sheetLead.service_type}</p>
@@ -574,22 +718,20 @@ export default function LeadsPage() {
                 <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-center mb-2">
                   <span className="text-purple-700 font-semibold text-sm">✨ Job Completed Successfully</span>
                 </div>
-
                 <div className="space-y-3">
                   <button
-                    onClick={() => handleSharePhoto(sheetLead)}
+                    onClick={() => handleSharePhoto(sheetLead!)}
                     className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base flex items-center justify-center gap-2"
                   >
                     📸 Share Photo
                   </button>
-
+                  
                   <a
                     href="tel:04123456789"
                     className="w-full py-4 rounded-xl bg-gray-800 text-white font-semibold text-base flex items-center justify-center gap-2 block text-center"
                   >
                     📞 Call Manager (Nick)
                   </a>
-
                   <div className="pt-2 border-t border-gray-100">
                     <LeadPhotos leadId={sheetLead.id} canUpload={true} />
                   </div>
@@ -600,7 +742,7 @@ export default function LeadsPage() {
                 {sheetLead.address && (
                   <button
                     onClick={() => {
-                      const encoded = encodeURIComponent(sheetLead.address as string)
+                      const encoded = encodeURIComponent(sheetLead!.address as string)
                       window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}`, '_blank')
                     }}
                     className="w-full py-4 rounded-xl bg-gray-800 text-white font-semibold text-base flex items-center justify-center gap-2"
@@ -608,21 +750,18 @@ export default function LeadsPage() {
                     📍 Navigate to Job
                   </button>
                 )}
-
                 <button
-                  onClick={() => handleCall(sheetLead)}
+                  onClick={() => handleCall(sheetLead!)}
                   className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base flex items-center justify-center gap-2"
                 >
                   📞 Call {sheetLead.name}
                 </button>
-
                 <button
-                  onClick={() => handleSMS(sheetLead)}
+                  onClick={() => handleSMS(sheetLead!)}
                   className="w-full py-4 rounded-xl bg-[#00B4C5] text-white font-semibold text-base flex items-center justify-center gap-2"
                 >
                   💬 Send ETA Text
                 </button>
-
                 {sheetLead.status === 'unassigned' && profile?.role === 'manager' && (
                   <button
                     onClick={() => { setAssigningLead(sheetLead); closeSheet() }}
@@ -631,7 +770,6 @@ export default function LeadsPage() {
                     Assign to Technician
                   </button>
                 )}
-
                 {sheetLead.status === 'unassigned' && profile?.role === 'employee' && (
                   <button
                     onClick={() => { setAssigningLead(sheetLead); closeSheet() }}
@@ -640,23 +778,20 @@ export default function LeadsPage() {
                     Self-Assign This Lead
                   </button>
                 )}
-
                 <button
                   onClick={() => { setBookingLead(sheetLead); closeSheet() }}
                   className="w-full py-4 rounded-xl bg-gray-100 text-gray-700 font-semibold text-base"
                 >
                   📅 Book Appointment
                 </button>
-
                 <button
-                  onClick={() => handleMarkContactAttempted(sheetLead)}
+                  onClick={() => handleMarkContactAttempted(sheetLead!)}
                   className="w-full py-4 rounded-xl bg-amber-500 text-white font-semibold text-base"
                 >
                   ✅ Mark as Attempted Contact
                 </button>
-
                 <button
-                  onClick={() => handleMarkComplete(sheetLead)}
+                  onClick={() => handleMarkComplete(sheetLead!)}
                   className="w-full py-4 rounded-xl bg-green-600 text-white font-semibold text-base"
                 >
                   Complete Job ✅
@@ -673,51 +808,6 @@ export default function LeadsPage() {
           </div>
         )}
       </BottomSheet>
-    </div>
-  )
-}
-
-// ── KanbanColumn Component ──────────────────────────────────────────────────
-
-interface KanbanColumnProps {
-  col: typeof COLUMNS[0]
-  leads: Lead[]
-  profile: { role: string; id: string } | null
-  expandedLead: string | null
-  onToggleExpand: (leadId: string | null) => void
-  onOpenSheet: (lead: Lead) => void
-  onAssign: (lead: Lead) => void
-  onBook: (lead: Lead) => void
-  onRefresh: () => void
-}
-
-function KanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onRefresh }: KanbanColumnProps) {
-  return (
-    <div className={`flex-shrink-0 w-full md:w-72 bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200`}>
-      <div className="p-3 border-b border-gray-100 flex items-center justify-between">
-        <span className="font-semibold text-gray-700 text-sm">{col.label}</span>
-        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${col.badge}`}>
-          {leads.length}
-        </span>
-      </div>
-      <div className="p-2 space-y-2 max-h-screen overflow-y-auto">
-        {leads.length === 0 && (
-          <p className="text-xs text-gray-400 text-center py-4">No leads</p>
-        )}
-        {leads.map(lead => (
-          <LeadCard
-            key={lead.id}
-            lead={lead}
-            profile={profile}
-            expandedLead={expandedLead}
-            onToggleExpand={onToggleExpand}
-            onOpenSheet={onOpenSheet}
-            onAssign={onAssign}
-            onBook={onBook}
-            onRefresh={onRefresh}
-          />
-        ))}
-      </div>
     </div>
   )
 }
