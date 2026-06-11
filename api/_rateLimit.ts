@@ -1,24 +1,24 @@
 const requests = new Map<string, { count: number; reset: number }>()
 
-/**
- * Simple in-memory token bucket rate limiter.
- * Resets on Vercel cold starts — best-effort protection.
- *
- * @param ip      - The requester's IP address
- * @param limit   - Max requests allowed in the window
- * @param windowMs - Window size in milliseconds
- * @returns true if the request is allowed, false if rate limited
- */
 export function checkRateLimit(
   ip: string,
   limit = 20,
   windowMs = 60_000
 ): boolean {
   const now = Date.now()
-  const entry = requests.get(ip)
+  
+  // Handle undefined/null/invalid IP gracefully
+  let key: string
+  if (typeof ip === 'string' && ip.length > 0) {
+    key = ip.split(',')[0].trim().slice(0, 45)
+  } else {
+    key = 'unknown'
+  }
+
+  const entry = requests.get(key)
 
   if (!entry || now > entry.reset) {
-    requests.set(ip, { count: 1, reset: now + windowMs })
+    requests.set(key, { count: 1, reset: now + windowMs })
     return true
   }
 
