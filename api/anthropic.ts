@@ -5,7 +5,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).end();
 
   // SEC-08: Rate limiting — 20 requests per minute per IP
-  const ip = (req.headers['x-forwarded-for'] as string) ?? 'unknown';
+  
+const rawIp = req.headers['x-forwarded-for']
+const ip = Array.isArray(rawIp) ? rawIp[0] : (rawIp ?? 'unknown')
+  
   if (!checkRateLimit(ip)) {
     return res.status(429).json({ error: 'Too many requests. Please wait a moment.' });
   }
