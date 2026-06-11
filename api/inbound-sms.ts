@@ -3,17 +3,20 @@ import { createClient } from '@supabase/supabase-js'
 import { createHmac, timingSafeEqual } from 'crypto'
 import { checkRateLimit } from './_rateLimit'
 
-const supabaseUrl = process.env.SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-const supabase = createClient(supabaseUrl!, supabaseKey!)
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 function verifyTwilioSignature(req: VercelRequest, authToken: string): boolean {
   const twilioSig = req.headers['x-twilio-signature'] as string
   if (!twilioSig) return false
 
   const url = `https://${req.headers.host}${req.url}`
-  const params = req.body as Record<string, string>
+  const params = (req.body ?? {}) as Record<string, string>
+
+  if (typeof params !== 'object' || Array.isArray(params)) return false
+
   const sortedParamString = Object.keys(params)
     .sort()
     .reduce((acc, k) => acc + k + params[k], url)
@@ -29,7 +32,7 @@ function verifyTwilioSignature(req: VercelRequest, authToken: string): boolean {
   }
 }
 
-async function parseSmswithClaude(smsText: string, fromNumber: string) {
+async function parseSmsWithClaude(smsText: string, fromNumber: string) {
   const prompt = `You are a CRM data extractor for a TV aerial and satellite installation business.
 
 A customer has sent the following SMS enquiry. Extract what you can. Return ONLY valid JSON — no markdown, no explanation, no backticks.
@@ -99,7 +102,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // SEC-08: Rate limit — 60 req/min for webhook source IPs (Twilio)
   const ip = (req.headers['x-forwarded-for'] as string) ?? 'unknown'
   if (!checkRateLimit(ip, 60, 60_000)) {
     res.setHeader('Content-Type', 'text/xml')
@@ -112,8 +114,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Server misconfiguration' })
   }
 
+  console.log('Twilio body received:', JSON.stringify(req.body))
+
   if (!verifyTwilioSignature(req, authToken)) {
-    console.warn('Rejected request with invalid Twilio signature')
+    console.warn('Invalid Twilio signature — body was:', JSON.stringify(req.body))
     return res.status(403).json({ error: 'Invalid Twilio signature' })
   }
 
@@ -123,12 +127,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const fromNumber = body.From || 'Unknown'
 
     if (!smsText.trim()) {
+      res.setHeader('Content-Type', 'text/xml')
       return res.status(200).send('<Response></Response>')
     }
 
-    const parsed = await parseSmswithClaude(smsText, fromNumber)
+    const parsed = await parseSmsWithClaude(smsText, fromNumber)
 
     if (!parsed) {
+      res.setHeader('Content-Type', 'text/xml')
       return res.status(200).send('<Response></Response>')
     }
 
@@ -149,6 +155,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (error) {
       console.error('Supabase insert error:', error)
+      res.setHeader('Content-Type', 'text/xml')
       return res.status(200).send('<Response></Response>')
     }
 
