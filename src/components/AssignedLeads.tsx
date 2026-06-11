@@ -19,6 +19,25 @@ interface Lead {
   address?: string
 }
 
+// Skeleton for a single assigned lead card
+function AssignedLeadSkeleton() {
+  return (
+    <div className="p-4 animate-pulse">
+      <div className="flex items-start justify-between">
+        <div className="flex-1 space-y-2">
+          <div className="h-4 bg-gray-200 rounded w-40" />
+          <div className="h-3 bg-gray-200 rounded w-28" />
+          <div className="h-3 bg-gray-200 rounded w-52" />
+          <div className="h-7 bg-gray-200 rounded w-36 mt-3" />
+        </div>
+        <div className="ml-4">
+          <div className="h-8 bg-gray-200 rounded w-20" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function AssignedLeads() {
   const { profile } = useAuth()
   const [leads, setLeads] = useState<Lead[]>([])
@@ -57,7 +76,20 @@ export default function AssignedLeads() {
     return () => { supabase.removeChannel(channel) }
   }, [profile])
 
-  if (loading) return <p className="text-gray-400 text-sm">Loading assigned track indexes...</p>
+  // Loading skeleton — shows 2 placeholder cards while data fetches
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div className="p-4 border-b border-gray-100">
+          <div className="h-5 bg-gray-200 rounded w-40 animate-pulse" />
+        </div>
+        <div className="divide-y divide-gray-100">
+          <AssignedLeadSkeleton />
+          <AssignedLeadSkeleton />
+        </div>
+      </div>
+    )
+  }
 
   if (leads.length === 0) {
     return (

@@ -9,6 +9,19 @@ interface Lead {
   created_at: string
 }
 
+// Skeleton for a single lead row — matches the real card shape
+function LeadSkeleton() {
+  return (
+    <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100 animate-pulse">
+      <div className="space-y-1.5">
+        <div className="h-3.5 bg-gray-200 rounded w-32" />
+        <div className="h-3 bg-gray-200 rounded w-20" />
+      </div>
+      <div className="h-3 bg-gray-200 rounded w-16" />
+    </div>
+  )
+}
+
 export default function LeadsList() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
@@ -42,7 +55,14 @@ export default function LeadsList() {
         </button>
       </div>
 
-      {loading && <p className="text-sm text-gray-400">Loading...</p>}
+      {/* Loading skeleton — shows 3 placeholder rows while data fetches */}
+      {loading && (
+        <div className="space-y-2">
+          <LeadSkeleton />
+          <LeadSkeleton />
+          <LeadSkeleton />
+        </div>
+      )}
 
       {!loading && leads.length === 0 && (
         <p className="text-sm text-gray-400 text-center py-4">No unassigned leads 🎉</p>
