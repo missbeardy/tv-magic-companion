@@ -10,7 +10,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    console.error('Anthropic API Key is missing');
+    console.error('Anthropic API Key is missing in environment variables');
     return res.status(500).json({ error: 'API key not configured' });
   }
 
@@ -26,7 +26,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const clampedTokens = Math.min(max_tokens, 2000);
 
   try {
-    console.log('Fetching from Anthropic API...');
+    console.log('Attempting to call Anthropic API...');
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -53,7 +53,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(200).json(data);
   } catch (err) {
-    console.error('Anthropic proxy caught an exception:', err);
-    return res.status(500).json({ error: 'Upstream request failed' });
+    // Enhanced logging to capture specific 'Failed to fetch' details
+    console.error('Anthropic proxy failed to fetch. Error details:', {
+      message: (err as Error).message,
+      stack: (err as Error).stack,
+    });
+    
+    return res.status(502).json({ 
+      error: 'Upstream connection failed', 
+      details: (err as Error).message 
+    });
   }
 }
