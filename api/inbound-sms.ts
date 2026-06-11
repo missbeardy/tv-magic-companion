@@ -1,7 +1,17 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { createHmac, timingSafeEqual } from 'crypto'
-import { checkRateLimit } from './_rateLimit'
+
+const _requests = new Map<string, { count: number; reset: number }>()
+function checkRateLimit(ip: string, limit = 60, windowMs = 60_000): boolean {
+  const now = Date.now()
+  const key = typeof ip === 'string' && ip.length > 0 ? ip.split(',')[0].trim().slice(0, 45) : 'unknown'
+  const entry = _requests.get(key)
+  if (!entry || now > entry.reset) { _requests.set(key, { count: 1, reset: now + windowMs }); return true }
+  if (entry.count >= limit) return false
+  entry.count++
+  return true
+}
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
