@@ -4,7 +4,6 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
-  TouchSensor,
   useSensor,
   useSensors,
   useDroppable,
@@ -84,7 +83,7 @@ function getColumnsForTab(tab: string): string[] {
 
 const EMPTY_FILTERS: FilterState = { search: '', source: '', assignee: '' }
 
-// ── Drag-and-drop: Droppable Column Wrapper ──────────────────────────────
+// ── Drag-and-drop: Droppable Column Wrapper (desktop only) ───────────────
 
 function DroppableColumn({ id, children }: { id: string; children: React.ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id })
@@ -98,7 +97,7 @@ function DroppableColumn({ id, children }: { id: string; children: React.ReactNo
   )
 }
 
-// ── Drag-and-drop: Draggable Card Wrapper ────────────────────────────────
+// ── Drag-and-drop: Draggable Card Wrapper (desktop only) ─────────────────
 
 function DraggableCard({ id, children }: { id: string; children: React.ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id })
@@ -188,7 +187,7 @@ function LeadCard({
           onClick={e => {
             e.stopPropagation()
             const encoded = encodeURIComponent(lead.address as string)
-            window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}`, '_blank')
+            window.open(`https://www.google.com/maps/search/?api=1&query=${encoded}`, '_blank')
           }}
           className="text-xs text-[#00B4C5] underline flex items-center gap-1 mt-1"
         >
@@ -302,7 +301,7 @@ function LeadCard({
   )
 }
 
-// ── KanbanColumn Component ──────────────────────────────────────────────────
+// ── KanbanColumn — Mobile (no drag wrappers) ─────────────────────────────
 
 interface KanbanColumnProps {
   col: typeof COLUMNS[0]
@@ -316,10 +315,43 @@ interface KanbanColumnProps {
   onRefresh: () => void
 }
 
-function KanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onRefresh }: KanbanColumnProps) {
+function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onRefresh }: KanbanColumnProps) {
+  return (
+    <div className={`w-full bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200`}>
+      <div className="p-3 border-b border-gray-100 flex items-center justify-between">
+        <span className="font-semibold text-gray-700 text-sm">{col.label}</span>
+        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${col.badge}`}>
+          {leads.length}
+        </span>
+      </div>
+      <div className="p-2 space-y-2">
+        {leads.length === 0 && (
+          <p className="text-xs text-gray-400 text-center py-4">No leads</p>
+        )}
+        {leads.map(lead => (
+          <LeadCard
+            key={lead.id}
+            lead={lead}
+            profile={profile}
+            expandedLead={expandedLead}
+            onToggleExpand={onToggleExpand}
+            onOpenSheet={onOpenSheet}
+            onAssign={onAssign}
+            onBook={onBook}
+            onRefresh={onRefresh}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── KanbanColumn — Desktop (drag wrappers active) ────────────────────────
+
+function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onRefresh }: KanbanColumnProps) {
   return (
     <DroppableColumn id={col.key}>
-      <div className={`flex-shrink-0 w-full md:w-72 bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200 h-full`}>
+      <div className={`flex-shrink-0 w-72 bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200 h-full`}>
         <div className="p-3 border-b border-gray-100 flex items-center justify-between">
           <span className="font-semibold text-gray-700 text-sm">{col.label}</span>
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${col.badge}`}>
@@ -333,6 +365,7 @@ function KanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpe
           {leads.map(lead => (
             <DraggableCard key={lead.id} id={lead.id}>
               <LeadCard
+                key={lead.id}
                 lead={lead}
                 profile={profile}
                 expandedLead={expandedLead}
@@ -371,12 +404,8 @@ export default function LeadsPage() {
   const [showReceipt, setShowReceipt] = useState(false)
   const [receiptLead, setReceiptLead] = useState<Lead | null>(null)
 
-  // ── Derived filter options ─────────────────────────────────────────────
-
-  const sources = Array.from(new Set(leads.map(l => l.lead_source).filter(Boolean))) as string[]
+  const sources   = Array.from(new Set(leads.map(l => l.lead_source).filter(Boolean))) as string[]
   const assignees = Array.from(new Set(leads.map(l => l.profiles?.full_name).filter(Boolean))) as string[]
-
-  // ── Filtered leads ─────────────────────────────────────────────────────
 
   const filteredLeads = leads.filter(lead => {
     const q = filters.search.toLowerCase()
@@ -385,27 +414,23 @@ export default function LeadsPage() {
       const matchPhone = (lead.phone ?? '').toLowerCase().includes(q)
       if (!matchName && !matchPhone) return false
     }
-    if (filters.source && lead.lead_source !== filters.source) return false
-    if (filters.assignee && lead.profiles?.full_name !== filters.assignee) return false
+    if (filters.source   && lead.lead_source          !== filters.source)   return false
+    if (filters.assignee && lead.profiles?.full_name  !== filters.assignee) return false
     return true
   })
-
-  // ── Fetch ──────────────────────────────────────────────────────────────
 
   const fetchLeads = useCallback(async () => {
     let query = supabase
       .from('leads')
       .select('*, profiles(full_name)')
       .order('created_at', { ascending: false })
-
     if (profile?.role === 'employee') {
       query = query.or(`status.eq.unassigned,assigned_to.eq.${profile.id}`)
     }
-
     const { data } = await query
     if (data) setLeads(data as Lead[])
-    setLoading(false)
-  }, [profile])
+    loading && setLoading(false)
+  }, [profile, loading])
 
   const logLeadEvent = useCallback(async (leadId: string, eventType: string, note?: string) => {
     await supabase.from('lead_events').insert({
@@ -416,11 +441,8 @@ export default function LeadsPage() {
     })
   }, [profile?.id])
 
-  // ── Drag-and-drop handlers ─────────────────────────────────────────────
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor,   { activationConstraint: { delay: 200, tolerance: 8 } }),
   )
 
   function handleDragStart(event: DragStartEvent) {
@@ -431,14 +453,11 @@ export default function LeadsPage() {
     setActiveDragId(null)
     const { active, over } = event
     if (!over) return
-
     const leadId    = active.id as string
     const newStatus = over.id   as string
     const lead      = leads.find(l => l.id === leadId)
-
     if (!lead || lead.status === newStatus) return
 
-    // Optimistic update
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l))
 
     const updatePayload: Record<string, unknown> = { status: newStatus }
@@ -446,19 +465,13 @@ export default function LeadsPage() {
       updatePayload.assigned_at = new Date().toISOString()
     }
 
-    const { error } = await supabase
-      .from('leads')
-      .update(updatePayload)
-      .eq('id', leadId)
-
+    const { error } = await supabase.from('leads').update(updatePayload).eq('id', leadId)
     if (error) {
       fetchLeads()
     } else {
       await logLeadEvent(leadId, 'status_change', `Status changed to ${newStatus} via drag`)
     }
   }
-
-  // ── Sheet / action handlers ────────────────────────────────────────────
 
   const openSheet = useCallback((lead: Lead) => {
     setSheetLead(lead)
@@ -516,7 +529,7 @@ export default function LeadsPage() {
       : rawPhone
     const techName = profile?.full_name ?? 'Your technician'
     const mapsUrl = lead.address
-      ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(lead.address)}`
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lead.address)}`
       : null
     const message = mapsUrl
       ? `Hi ${lead.name}, ${techName} from TVMagic is on their way to you. Track the route: ${mapsUrl} — TVMagic Team`
@@ -561,6 +574,18 @@ export default function LeadsPage() {
   }
 
   const activeDragLead = activeDragId ? leads.find(l => l.id === activeDragId) : null
+
+  const columnProps = (col: typeof COLUMNS[0]) => ({
+    col,
+    leads: leadsForColumn(col.key),
+    profile,
+    expandedLead,
+    onToggleExpand: setExpandedLead,
+    onOpenSheet: openSheet,
+    onAssign: setAssigningLead,
+    onBook: setBookingLead,
+    onRefresh: fetchLeads,
+  })
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -628,72 +653,57 @@ export default function LeadsPage() {
         {loading && <p className="text-gray-400 text-sm">Loading leads...</p>}
 
         {!loading && (
-          <DndContext
-            sensors={sensors}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-          >
-            <div className="md:hidden sticky top-0 z-10 bg-white border-b border-gray-200 flex mb-3 -mx-4 px-0">
-              {MOBILE_TABS.map(tab => (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key as typeof activeTab)}
-                  className={`flex-1 py-3 text-sm font-semibold transition-colors ${
-                    activeTab === tab.key
-                      ? 'text-[#004B93] border-b-2 border-[#004B93]'
-                      : 'text-gray-400'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="md:hidden space-y-3">
-              {COLUMNS
-                .filter(col => getColumnsForTab(activeTab).includes(col.key))
-                .map(col => (
-                  <KanbanColumn
-                    key={col.key}
-                    col={col}
-                    leads={leadsForColumn(col.key)}
-                    profile={profile}
-                    expandedLead={expandedLead}
-                    onToggleExpand={setExpandedLead}
-                    onOpenSheet={openSheet}
-                    onAssign={setAssigningLead}
-                    onBook={setBookingLead}
-                    onRefresh={fetchLeads}
-                  />
+          <>
+            {/* ── Mobile View ── */}
+            <div className="md:hidden">
+              <div className="sticky top-0 z-10 bg-white border-b border-gray-200 flex mb-3 -mx-4 px-0">
+                {MOBILE_TABS.map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key as typeof activeTab)}
+                    className={`flex-1 py-3 text-sm font-semibold transition-colors ${
+                      activeTab === tab.key
+                        ? 'text-[#004B93] border-b-2 border-[#004B93]'
+                        : 'text-gray-400'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
                 ))}
+              </div>
+              <div className="space-y-3">
+                {COLUMNS
+                  .filter(col => getColumnsForTab(activeTab).includes(col.key))
+                  .map(col => (
+                    <MobileKanbanColumn key={col.key} {...columnProps(col)} />
+                  ))}
+              </div>
             </div>
 
-            <div className="hidden md:flex gap-4 overflow-x-auto pb-4">
-              {COLUMNS.map(col => (
-                <KanbanColumn
-                  key={col.key}
-                  col={col}
-                  leads={leadsForColumn(col.key)}
-                  profile={profile}
-                  expandedLead={expandedLead}
-                  onToggleExpand={setExpandedLead}
-                  onOpenSheet={openSheet}
-                  onAssign={setAssigningLead}
-                  onBook={setBookingLead}
-                  onRefresh={fetchLeads}
-                />
-              ))}
-            </div>
-
-            <DragOverlay>
-              {activeDragLead && (
-                <div className="bg-white rounded-lg p-3 border border-[#004B93] shadow-xl opacity-90 w-64">
-                  <p className="font-medium text-gray-800 text-sm">{activeDragLead.name}</p>
-                  <p className="text-xs text-gray-500">{activeDragLead.service_type}</p>
+            {/* ── Desktop View ── */}
+            <div className="hidden md:block">
+              <DndContext
+                sensors={sensors}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+              >
+                <div className="flex gap-4 overflow-x-auto pb-4">
+                  {COLUMNS.map(col => (
+                    <DesktopKanbanColumn key={col.key} {...columnProps(col)} />
+                  ))}
                 </div>
-              )}
-            </DragOverlay>
-          </DndContext>
+
+                <DragOverlay>
+                  {activeDragLead && (
+                    <div className="bg-white rounded-lg p-3 border border-[#004B93] shadow-xl opacity-90 w-64">
+                      <p className="font-medium text-gray-800 text-sm">{activeDragLead.name}</p>
+                      <p className="text-xs text-gray-500">{activeDragLead.service_type}</p>
+                    </div>
+                  )}
+                </DragOverlay>
+              </DndContext>
+            </div>
+          </>
         )}
       </main>
 
@@ -743,7 +753,7 @@ export default function LeadsPage() {
                   <button
                     onClick={() => {
                       const encoded = encodeURIComponent(sheetLead!.address as string)
-                      window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}`, '_blank')
+                      window.open(`https://www.google.com/maps/search/?api=1&query=${encoded}`, '_blank')
                     }}
                     className="w-full py-4 rounded-xl bg-gray-800 text-white font-semibold text-base flex items-center justify-center gap-2"
                   >
