@@ -62,6 +62,9 @@ function App() {
         <OrgProvider>
           <BrowserRouter>
             <Routes>
+              {/* ⚡ FIX: Added root path route so navigating to '/' doesn't hit the catch-all '*' rule */}
+              <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              
               <Route path="/login" element={<Login />} />
               <Route
                 path="/dashboard"

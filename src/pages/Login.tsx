@@ -1,11 +1,12 @@
-// src/pages/Login.tsx
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext' // ⚡ Added context import to access setProfile
 import { Tv2, Mail, Lock, LogIn } from 'lucide-react'
 
 export default function Login() {
   const navigate = useNavigate()
+  const { setProfile } = useAuth() // ⚡ Access the profile state modifier we opened up earlier
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -14,12 +15,33 @@ export default function Login() {
   async function handleLogin() {
     setLoading(true)
     setError('')
-    const { error: e } = await supabase.auth.signInWithPassword({ email, password })
-    if (e) {
-      setError('Invalid email or password')
+    
+    try {
+      const { error: e } = await supabase.auth.signInWithPassword({ email, password })
+      
+      if (e) {
+        setError('Invalid email or password')
+        setLoading(false)
+      } else {
+        // ⚡ FIX: Fetch the profile data immediately so it exists before we navigate away
+        const { data: sessionData } = await supabase.auth.getSession()
+        if (sessionData?.session?.user) {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', sessionData.session.user.id)
+            .single()
+          
+          if (profileData) {
+            setProfile(profileData) // Safely populate context state right away
+          }
+        }
+        
+        navigate('/')
+      }
+    } catch (err) {
+      setError('An unexpected error occurred')
       setLoading(false)
-    } else {
-      navigate('/')
     }
   }
 
