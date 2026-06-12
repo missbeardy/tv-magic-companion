@@ -1,75 +1,97 @@
+// src/pages/Login.tsx
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useNavigate } from 'react-router-dom'
+import { Tv2, Mail, Lock, LogIn } from 'lucide-react'
 
 export default function Login() {
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const navigate = useNavigate()
+  const [error, setError] = useState('')
 
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault()
-    e.stopPropagation()
+  async function handleLogin() {
     setLoading(true)
     setError('')
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) {
-      setError(error.message)
+    const { error: e } = await supabase.auth.signInWithPassword({ email, password })
+    if (e) {
+      setError('Invalid email or password')
+      setLoading(false)
     } else {
-      navigate('/dashboard')
+      navigate('/')
     }
-    setLoading(false)
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
-        <h1 className="text-2xl font-bold text-[#004B93] mb-2">TVMagic Companion</h1>
-        <p className="text-gray-500 mb-6">Sign in to your account</p>
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-sm">
 
-        {error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm">
-            {error}
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <div className="w-14 h-14 bg-[#004B93] rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[#004B93]/25">
+            <Tv2 size={28} className="text-white" />
           </div>
-        )}
+          <h1 className="font-display font-bold text-gray-900 text-2xl tracking-tight">
+            TV<span className="text-[#00B4C5]">Magic</span>
+          </h1>
+          <p className="text-gray-400 text-sm mt-1">Companion</p>
+        </div>
 
-        <form onSubmit={handleLogin} className="space-y-4">
+        {/* Card */}
+        <div className="card p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email
+            <h2 className="font-display font-semibold text-gray-900 text-lg">Sign in</h2>
+            <p className="text-sm text-gray-400 mt-0.5">Enter your credentials to continue</p>
+          </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-xl text-sm">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+              <Mail size={11} className="inline mr-1" />Email
             </label>
             <input
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
-              required
+              onKeyDown={e => e.key === 'Enter' && handleLogin()}
+              placeholder="you@company.com"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:border-[#004B93] transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+              <Lock size={11} className="inline mr-1" />Password
             </label>
             <input
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
-              required
+              onKeyDown={e => e.key === 'Enter' && handleLogin()}
+              placeholder="••••••••"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:border-[#004B93] transition-colors"
             />
           </div>
 
           <button
-            type="submit"
+            onClick={handleLogin}
             disabled={loading}
-            className="w-full bg-[#004B93] text-white py-2 rounded-lg font-medium hover:bg-[#003d7a] transition disabled:opacity-50"
+            className="w-full py-2.5 rounded-xl bg-[#004B93] text-white text-sm font-semibold hover:bg-[#003d7a] transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            <LogIn size={15} />
+            {loading ? 'Signing in…' : 'Sign in'}
           </button>
-        </form>
+        </div>
+
+        <p className="text-center text-xs text-gray-400 mt-6">
+          Powered by FieldBourne Digital
+        </p>
       </div>
     </div>
   )

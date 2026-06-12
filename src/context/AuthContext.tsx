@@ -14,12 +14,13 @@ interface Profile {
   lat?: number | null
   lng?: number | null
   location_updated_at?: string | null
-  location_enabled?: boolean  // ← ADD THIS LINE
+  location_enabled?: boolean
 }
 
 interface AuthContextType {
   user: User | null
   profile: Profile | null
+  setProfile: React.Dispatch<React.SetStateAction<Profile | null>>
   loading: boolean
   signOut: () => Promise<void>
 }
@@ -27,6 +28,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
+  setProfile: () => {},
   loading: true,
   signOut: async () => {},
 })
@@ -78,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signOut }}>
+    <AuthContext.Provider value={{ user, profile, setProfile, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   )
