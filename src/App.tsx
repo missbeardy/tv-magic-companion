@@ -40,7 +40,10 @@ function Dashboard() {
 }
 
 function App() {
+  console.log('🔴 App component mounted - checking if this prints')
+
   useEffect(() => {
+    console.log('🔴 useEffect running')
     initOneSignal().catch(err =>
       console.error('OneSignal init failed:', err)
     )
@@ -52,6 +55,7 @@ function App() {
     }
   }, [])
 
+  console.log('🔴 About to return JSX')
   return (
     <AuthProvider>
       <DemoProvider>
