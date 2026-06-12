@@ -2,12 +2,12 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import NavBar from '../components/NavBar'          // <-- ADDED
+import NavBar from '../components/NavBar'
 import AssignedLeads from '../components/AssignedLeads'
 import RevenueWidget from '../components/RevenueWidget'
 import { useTechLocation } from '../hooks/useTechLocation'
 import {
-  Users, Inbox, ClipboardCheck, Clock, TrendingUp, AlertCircle
+  Users, Inbox, ClipboardCheck, Clock, TrendingUp, AlertCircle, CalendarDays
 } from 'lucide-react'
 
 interface StatsRow {
@@ -41,6 +41,13 @@ function StatCard({ label, value, icon: Icon, colour }: {
       </div>
     </div>
   )
+}
+
+function getGreeting() {
+  const h = new Date().getHours()
+  if (h < 12) return 'morning'
+  if (h < 17) return 'afternoon'
+  return 'evening'
 }
 
 export default function ManagerDashboard() {
@@ -96,7 +103,7 @@ export default function ManagerDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <NavBar />   {/* <-- ADDED */}
+      <NavBar />
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
         {/* Welcome */}
         <div>
@@ -166,11 +173,4 @@ export default function ManagerDashboard() {
       </main>
     </div>
   )
-}
-
-function getGreeting() {
-  const h = new Date().getHours()
-  if (h < 12) return 'morning'
-  if (h < 17) return 'afternoon'
-  return 'evening'
 }
