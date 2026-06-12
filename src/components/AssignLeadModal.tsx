@@ -1,3 +1,4 @@
+// src/components/AssignLeadModal.tsx
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { getExpiresAt } from '../lib/timer'
@@ -5,6 +6,7 @@ import { useDemo } from '../context/DemoContext'
 import { useAuth } from '../context/AuthContext'
 import { geocodeAddress, rankTechsByDistance, type TechWithDistance } from '../lib/proximity'
 import { sendNotification } from '../lib/notify'
+import { X, MapPin, Zap, Navigation, Star } from 'lucide-react'
 
 interface Lead {
   id: string
@@ -33,7 +35,7 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
       const { data: employeeData } = await supabase
         .from('profiles')
         .select('id, full_name, avatar_url, phone, suburb, role, lat, lng')
-        .eq('org_id', profile?.org_id) 
+        .eq('org_id', profile?.org_id)
         .in('role', ['employee', 'manager'])
 
       if (!employeeData) return
@@ -59,16 +61,13 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
         }
       }
 
-      setEmployees(
-        employeeData.map((e) => ({
-          ...e,
-          distanceKm: null,
-          distanceLabel: 'Location unknown',
-        }))
-      )
+      setEmployees(employeeData.map((e) => ({
+        ...e,
+        distanceKm: null,
+        distanceLabel: 'Location unknown',
+      })))
       setLoadingProximity(false)
     }
-
     fetchData()
   }, [lead.id, lead.address])
 
@@ -98,10 +97,9 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
       return
     }
 
-    // Notify the assigned tech on their phone via OneSignal
     await sendNotification(
       employeeId,
-      '📋 New Lead Assigned',
+      'New Lead Assigned',
       `You've been assigned: ${lead.name} — ${lead.service_type}`,
       'https://tv-magic-companion.vercel.app/leads'
     )
@@ -111,103 +109,135 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
-        <h3 className="text-lg font-semibold text-gray-800 mb-1">Assign Lead</h3>
-        <p className="text-sm text-gray-500 mb-1">{lead.name} · {lead.service_type}</p>
-        {lead.address && (
-          <p className="text-xs text-[#00B4C5] mb-3">📍 {lead.address}</p>
-        )}
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
 
-        {demoMode && (
-          <div className="bg-amber-50 border border-amber-200 text-amber-700 text-sm p-3 rounded-lg mb-4">
-            ⚡ Demo mode — timer set to 30 seconds
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between">
+          <div>
+            <h3 className="font-display font-semibold text-gray-900 text-base">Assign Lead</h3>
+            <p className="text-sm text-gray-500 mt-0.5">{lead.name} · {lead.service_type}</p>
+            {lead.address && (
+              <div className="flex items-center gap-1 mt-1">
+                <MapPin size={11} className="text-[#00B4C5] shrink-0" />
+                <p className="text-xs text-[#00B4C5] font-medium">{lead.address}</p>
+              </div>
+            )}
           </div>
-        )}
-        {error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm">{error}</div>
-        )}
-
-        <p className="text-sm font-medium text-gray-700 mb-1">Select Technician</p>
-        {lead.address && (
-          <p className="text-xs text-gray-400 mb-3">
-            {loadingProximity ? 'Finding nearest technicians…' : 'Sorted by distance from job'}
-          </p>
-        )}
-
-        <div className="space-y-3 max-h-72 overflow-y-auto mb-6">
-          {employees.length === 0 && (
-            <p className="text-sm text-gray-400 text-center py-4">Loading technicians...</p>
-          )}
-          {employees.map((emp, index) => {
-            const activeCount = countMap[emp.id] ?? 0
-            const isRecommended = activeCount === minCount
-            const isSelf = emp.id === profile?.id
-            const isNearest = index === 0 && emp.distanceKm != null
-
-            return (
-              <button
-                key={emp.id}
-                disabled={saving}
-                onClick={() => handleAssign(emp.id)}
-                className={`w-full text-left flex items-center gap-4 p-3 rounded-xl border-2 transition hover:shadow-md disabled:opacity-50 ${
-                  isNearest
-                    ? 'border-[#00B4C5] bg-[#00B4C5]/5'
-                    : isRecommended
-                    ? 'border-green-400 bg-green-50'
-                    : 'border-gray-200 bg-white hover:border-[#004B93]'
-                }`}
-              >
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0 overflow-hidden ${
-                  (emp as any).role === 'manager' ? 'bg-purple-600' : 'bg-[#004B93]'
-                }`}>
-                  {(emp as unknown as { avatar_url?: string }).avatar_url
-                    ? <img src={(emp as unknown as { avatar_url: string }).avatar_url} className="w-full h-full object-cover" />
-                    : emp.full_name.charAt(0)
-                  }
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-gray-800 text-sm">{emp.full_name}</p>
-                    {isSelf && (
-                      <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-medium">Me</span>
-                    )}
-                    {(emp as any).role === 'manager' && !isSelf && (
-                      <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-medium">Manager</span>
-                    )}
-                    {isNearest && (
-                      <span className="text-xs bg-[#00B4C5] text-white px-1.5 py-0.5 rounded-full font-medium">📍 Nearest</span>
-                    )}
-                  </div>
-                  {(emp as unknown as { suburb?: string }).suburb && (
-                    <p className="text-xs text-gray-400">{(emp as unknown as { suburb: string }).suburb}</p>
-                  )}
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {activeCount} active lead{activeCount !== 1 ? 's' : ''}
-                    {emp.distanceKm != null && (
-                      <span className="ml-2 text-[#00B4C5]">· {emp.distanceLabel}</span>
-                    )}
-                  </p>
-                </div>
-
-                <div className="shrink-0">
-                  {isRecommended && !isNearest && (
-                    <span className="text-xs bg-green-500 text-white px-2 py-1 rounded-full font-semibold">★ Best</span>
-                  )}
-                </div>
-              </button>
-            )
-          })}
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          >
+            <X size={16} />
+          </button>
         </div>
 
-        <button
-          onClick={onClose}
-          disabled={saving}
-          className="w-full border border-gray-300 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition"
-        >
-          Cancel
-        </button>
+        <div className="px-6 py-4">
+          {/* Demo mode banner */}
+          {demoMode && (
+            <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 text-sm p-3 rounded-xl mb-4">
+              <Zap size={14} className="shrink-0" />
+              Demo mode — timer set to 30 seconds
+            </div>
+          )}
+
+          {/* Error */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-xl mb-4 text-sm">
+              {error}
+            </div>
+          )}
+
+          {/* Subheading */}
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold text-gray-700">Select Technician</p>
+            {lead.address && (
+              <p className="text-xs text-gray-400">
+                {loadingProximity ? 'Finding nearest…' : 'Sorted by distance'}
+              </p>
+            )}
+          </div>
+
+          {/* Tech list */}
+          <div className="space-y-2 max-h-72 overflow-y-auto pr-1 mb-4">
+            {employees.length === 0 && (
+              <p className="text-sm text-gray-400 text-center py-6">Loading technicians…</p>
+            )}
+            {employees.map((emp, index) => {
+              const activeCount = countMap[emp.id] ?? 0
+              const isRecommended = activeCount === minCount
+              const isSelf = emp.id === profile?.id
+              const isNearest = index === 0 && emp.distanceKm != null
+              const isManager = (emp as any).role === 'manager'
+
+              return (
+                <button
+                  key={emp.id}
+                  disabled={saving}
+                  onClick={() => handleAssign(emp.id)}
+                  className={`w-full text-left flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all hover:shadow-md disabled:opacity-50 ${
+                    isNearest
+                      ? 'border-[#00B4C5] bg-[#00B4C5]/5'
+                      : isRecommended
+                      ? 'border-green-400 bg-green-50/50'
+                      : 'border-gray-100 bg-white hover:border-[#004B93]/30'
+                  }`}
+                >
+                  {/* Avatar */}
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-display font-bold text-white text-sm shrink-0 overflow-hidden ring-2 ring-white ${
+                    isManager ? 'bg-purple-500' : 'bg-[#004B93]'
+                  }`}>
+                    {(emp as any).avatar_url
+                      ? <img src={(emp as any).avatar_url} className="w-full h-full object-cover" alt={emp.full_name} />
+                      : emp.full_name.charAt(0)
+                    }
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="font-semibold text-gray-800 text-sm">{emp.full_name}</p>
+                      {isSelf && <span className="badge badge-purple">Me</span>}
+                      {isManager && !isSelf && <span className="badge badge-purple">Manager</span>}
+                      {isNearest && (
+                        <span className="badge badge-cyan flex items-center gap-1">
+                          <Navigation size={9} /> Nearest
+                        </span>
+                      )}
+                    </div>
+                    {(emp as any).suburb && (
+                      <p className="text-xs text-gray-400 mt-0.5">{(emp as any).suburb}</p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {activeCount} active lead{activeCount !== 1 ? 's' : ''}
+                      {emp.distanceKm != null && (
+                        <span className="ml-1.5 text-[#00B4C5] font-medium">· {emp.distanceLabel}</span>
+                      )}
+                    </p>
+                  </div>
+
+                  {/* Best badge */}
+                  {isRecommended && !isNearest && (
+                    <span className="badge badge-green flex items-center gap-1 shrink-0">
+                      <Star size={9} /> Best
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 pb-5">
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="w-full py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-semibold hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   )

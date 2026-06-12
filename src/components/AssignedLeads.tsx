@@ -1,8 +1,10 @@
+// src/components/AssignedLeads.tsx
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import CountdownTimer from './CountdownTimer'
 import EventModal from './EventModal'
+import { CalendarPlus, User } from 'lucide-react'
 
 interface Lead {
   id: string
@@ -19,20 +21,17 @@ interface Lead {
   address?: string
 }
 
-// Skeleton for a single assigned lead card
 function AssignedLeadSkeleton() {
   return (
-    <div className="p-4 animate-pulse">
-      <div className="flex items-start justify-between">
+    <div className="p-5 animate-pulse">
+      <div className="flex items-start justify-between gap-4">
         <div className="flex-1 space-y-2">
-          <div className="h-4 bg-gray-200 rounded w-40" />
-          <div className="h-3 bg-gray-200 rounded w-28" />
-          <div className="h-3 bg-gray-200 rounded w-52" />
-          <div className="h-7 bg-gray-200 rounded w-36 mt-3" />
+          <div className="h-4 bg-gray-100 rounded-lg w-40" />
+          <div className="h-3 bg-gray-100 rounded-lg w-28" />
+          <div className="h-3 bg-gray-100 rounded-lg w-52" />
+          <div className="h-8 bg-gray-100 rounded-lg w-36 mt-3" />
         </div>
-        <div className="ml-4">
-          <div className="h-8 bg-gray-200 rounded w-20" />
-        </div>
+        <div className="h-8 bg-gray-100 rounded-lg w-20 shrink-0" />
       </div>
     </div>
   )
@@ -46,16 +45,13 @@ export default function AssignedLeads() {
 
   async function fetchLeads() {
     if (!profile) return
-
     let query = supabase
       .from('leads')
       .select('*, profiles(full_name, role)')
-      .eq('org_id', profile.org_id)  // ← ADD THIS - filter by org
+      .eq('org_id', profile.org_id)
       .eq('status', 'assigned')
       .order('timer_expires_at', { ascending: true })
-
     query = query.eq('assigned_to', profile.id)
-
     const { data } = await query
     if (data) setLeads(data as Lead[])
     setLoading(false)
@@ -64,27 +60,20 @@ export default function AssignedLeads() {
   useEffect(() => {
     if (!profile) return
     fetchLeads()
-
     const channel = supabase
       .channel('assigned-leads-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'leads' },
-        () => fetchLeads()
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => fetchLeads())
       .subscribe()
-
     return () => { supabase.removeChannel(channel) }
   }, [profile])
 
-  // Loading skeleton — shows 2 placeholder cards while data fetches
   if (loading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="p-4 border-b border-gray-100">
-          <div className="h-5 bg-gray-200 rounded w-40 animate-pulse" />
+      <div className="card">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <div className="h-5 bg-gray-100 rounded-lg w-40 animate-pulse" />
         </div>
-        <div className="divide-y divide-gray-100">
+        <div className="divide-y divide-gray-50">
           <AssignedLeadSkeleton />
           <AssignedLeadSkeleton />
         </div>
@@ -94,8 +83,12 @@ export default function AssignedLeads() {
 
   if (leads.length === 0) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 text-center">
-        <p className="text-gray-400 text-sm">No assigned leads inside your manager workflow window.</p>
+      <div className="card p-8 text-center">
+        <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center mx-auto mb-3">
+          <User size={18} className="text-gray-300" />
+        </div>
+        <p className="text-gray-400 text-sm font-medium">No assigned leads</p>
+        <p className="text-gray-300 text-xs mt-1">New leads will appear here when assigned to you</p>
       </div>
     )
   }
@@ -110,47 +103,39 @@ export default function AssignedLeads() {
         />
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="p-4 border-b border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-800">
-            My Assigned Leads
-            <span className="ml-2 bg-[#00B4C5] text-white text-xs px-2 py-0.5 rounded-full">
-              {leads.length}
-            </span>
-          </h3>
+      <div className="card overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="font-display font-semibold text-gray-800 text-base">My Assigned Leads</h3>
+          <span className="badge badge-cyan">{leads.length}</span>
         </div>
 
-        <div className="divide-y divide-gray-100">
+        <div className="divide-y divide-gray-50">
           {leads.map(lead => (
-            <div key={lead.id} className="p-4">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-gray-800">{lead.name || 'Unknown User'}</p>
+            <div key={lead.id} className="p-5 hover:bg-gray-50/50 transition-colors">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <p className="font-display font-semibold text-gray-900 text-sm">{lead.name || 'Unknown'}</p>
                     {profile?.role === 'manager' && lead.assigned_to === profile?.id && (
-                      <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
-                        Self-assigned
-                      </span>
+                      <span className="badge badge-purple">Self-assigned</span>
                     )}
                   </div>
-                  <p className="text-sm text-gray-500">{lead.service_type || 'No service type configured'}</p>
-                  <p className="text-sm text-gray-400 mt-1">{lead.phone} · {lead.email}</p>
+                  <p className="text-sm text-[#004B93] font-medium">{lead.service_type || 'No service type'}</p>
+                  <p className="text-xs text-gray-400 mt-1">{lead.phone} · {lead.email}</p>
                   {lead.details && (
-                    <p className="text-sm text-gray-600 mt-2">{lead.details}</p>
+                    <p className="text-xs text-gray-500 mt-2 leading-relaxed line-clamp-2">{lead.details}</p>
                   )}
                   <button
                     onClick={() => setBookingLead(lead)}
-                    className="mt-3 text-xs bg-[#00B4C5] text-white px-3 py-1 rounded-lg hover:bg-[#009aaa] transition"
+                    className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#004B93] text-white text-xs font-semibold hover:bg-[#003d7a] transition-colors"
                   >
-                    📅 Book Appointment
+                    <CalendarPlus size={12} />
+                    Book Appointment
                   </button>
                 </div>
-                <div className="ml-4 text-right">
+                <div className="shrink-0">
                   {lead.timer_expires_at && (
-                    <CountdownTimer
-                      expiresAt={lead.timer_expires_at}
-                      onExpire={fetchLeads}
-                    />
+                    <CountdownTimer expiresAt={lead.timer_expires_at} onExpire={fetchLeads} />
                   )}
                 </div>
               </div>
