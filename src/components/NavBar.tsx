@@ -25,20 +25,18 @@ export default function NavBar() {
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  const isManager = profile?.role === 'manager'
-
   async function handleLogout() {
     await supabase.auth.signOut()
     navigate('/login')
   }
 
   const navLinks = [
-    { to: '/',          label: 'Dashboard',        icon: LayoutDashboard, roles: ['manager', 'employee'] },
-    { to: '/leads',     label: 'Leads',            icon: Kanban,          roles: ['manager', 'employee'] },
-    { to: '/calendar',  label: 'Calendar',         icon: CalendarDays,    roles: ['manager', 'employee'] },
-    { to: '/all-leads', label: 'All Leads',        icon: Users,           roles: ['manager'] },
-    { to: '/social',    label: 'Social',           icon: Share2,          roles: ['manager'] },
-    { to: '/org-settings', label: 'Franchise Settings', icon: Settings,   roles: ['manager'] }, // Fixed: correct route and label
+    { to: '/',              label: 'Dashboard',         icon: LayoutDashboard, roles: ['manager', 'employee'] },
+    { to: '/leads',         label: 'Leads',             icon: Kanban,          roles: ['manager', 'employee'] },
+    { to: '/calendar',      label: 'Calendar',          icon: CalendarDays,    roles: ['manager', 'employee'] },
+    { to: '/all-leads',     label: 'All Leads',         icon: Users,           roles: ['manager'] },
+    { to: '/social',        label: 'Social',            icon: Share2,          roles: ['manager'] },
+    { to: '/org-settings',  label: 'Franchise Settings', icon: Settings,       roles: ['manager'] },
   ].filter(link => link.roles.includes(profile?.role ?? ''))
 
   function isActive(to: string) {
