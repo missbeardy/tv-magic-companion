@@ -1,10 +1,14 @@
 // src/components/LeadsList.tsx
+// Last updated: 13 June 2026
+// Restored: Assign button, real-time updates, clickable cards, proper data fetching
+
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import CountdownTimer from './CountdownTimer'
 import AssignLeadModal from './AssignLeadModal'
-import { MapPin, Phone, Mail, UserPlus, CheckCircle, Clock, Inbox } from 'lucide-react'
+import EventModal from './EventModal'
+import { MapPin, Phone, Mail, UserPlus, Inbox } from 'lucide-react'
 
 interface Lead {
   id: string
@@ -14,11 +18,9 @@ interface Lead {
   service_type: string
   details: string
   status: string
-  assigned_at: string
-  timer_expires_at: string
-  assigned_to: string
+  created_at: string
   address?: string
-  profiles: { full_name: string } | null
+  lead_source?: string | null
 }
 
 function LeadSkeleton() {
@@ -36,28 +38,24 @@ function LeadSkeleton() {
   )
 }
 
-function statusBadge(status: string) {
-  switch (status) {
-    case 'assigned':  return <span className="badge badge-blue">Assigned</span>
-    case 'completed': return <span className="badge badge-green">Completed</span>
-    case 'contact_attempted': return <span className="badge badge-amber">Attempted</span>
-    default:          return <span className="badge badge-grey">Unassigned</span>
-  }
-}
-
 export default function LeadsList() {
   const { profile } = useAuth()
+  const navigate = useNavigate()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [assigningLead, setAssigningLead] = useState<Lead | null>(null)
+  const [bookingLead, setBookingLead] = useState<Lead | null>(null)
 
   async function fetchLeads() {
-    if (!profile) return
+    if (!profile?.org_id) return
+
     const { data } = await supabase
       .from('leads')
-      .select('*, profiles(full_name)')
+      .select('*')
       .eq('org_id', profile.org_id)
+      .eq('status', 'unassigned')
       .order('created_at', { ascending: false })
+
     if (data) setLeads(data as Lead[])
     setLoading(false)
   }
@@ -65,12 +63,18 @@ export default function LeadsList() {
   useEffect(() => {
     if (!profile) return
     fetchLeads()
+
     const channel = supabase
       .channel('leads-list-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => fetchLeads())
       .subscribe()
+
     return () => { supabase.removeChannel(channel) }
   }, [profile])
+
+  const handleLeadClick = (leadId: string) => {
+    navigate(`/leads?highlight=${leadId}`)
+  }
 
   if (loading) {
     return (
@@ -79,7 +83,9 @@ export default function LeadsList() {
           <div className="h-5 bg-gray-100 rounded-lg w-32 animate-pulse" />
         </div>
         <div className="divide-y divide-gray-50">
-          <LeadSkeleton /><LeadSkeleton /><LeadSkeleton />
+          <LeadSkeleton />
+          <LeadSkeleton />
+          <LeadSkeleton />
         </div>
       </div>
     )
@@ -91,8 +97,8 @@ export default function LeadsList() {
         <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center mx-auto mb-3">
           <Inbox size={20} className="text-gray-300" />
         </div>
-        <p className="text-gray-400 text-sm font-medium">No leads yet</p>
-        <p className="text-gray-300 text-xs mt-1">Leads will appear here when they come in</p>
+        <p className="text-gray-400 text-sm font-medium">No unassigned leads</p>
+        <p className="text-gray-300 text-xs mt-1">New leads will appear here</p>
       </div>
     )
   }
@@ -106,10 +112,17 @@ export default function LeadsList() {
           onAssigned={() => { setAssigningLead(null); fetchLeads() }}
         />
       )}
+      {bookingLead && (
+        <EventModal
+          prefillLead={bookingLead}
+          onClose={() => setBookingLead(null)}
+          onSaved={() => setBookingLead(null)}
+        />
+      )}
 
       <div className="card overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="font-display font-semibold text-gray-800 text-base">All Leads</h3>
+          <h3 className="font-display font-semibold text-gray-800 text-base">Unassigned Leads</h3>
           <span className="badge badge-blue">{leads.length}</span>
         </div>
 
@@ -117,22 +130,24 @@ export default function LeadsList() {
           {leads.map(lead => (
             <div key={lead.id} className="p-5 hover:bg-gray-50/50 transition-colors">
               <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-
-                  {/* Name + status */}
+                {/* Clickable lead info */}
+                <div
+                  onClick={() => handleLeadClick(lead.id)}
+                  className="flex-1 min-w-0 cursor-pointer"
+                >
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <p className="font-display font-semibold text-gray-900 text-sm">
                       {lead.name || 'Unknown'}
                     </p>
-                    {statusBadge(lead.status)}
+                    {lead.lead_source && (
+                      <span className="badge badge-grey text-[10px]">{lead.lead_source}</span>
+                    )}
                   </div>
 
-                  {/* Service type */}
                   <p className="text-sm text-[#004B93] font-medium">
                     {lead.service_type || 'No service type'}
                   </p>
 
-                  {/* Contact row */}
                   <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                     {lead.phone && (
                       <span className="flex items-center gap-1 text-xs text-gray-400">
@@ -146,50 +161,36 @@ export default function LeadsList() {
                     )}
                   </div>
 
-                  {/* Address */}
                   {lead.address && (
                     <span className="flex items-center gap-1 text-xs text-gray-400 mt-1">
                       <MapPin size={10} className="shrink-0 text-[#00B4C5]" />{lead.address}
                     </span>
                   )}
 
-                  {/* Details */}
                   {lead.details && (
                     <p className="text-xs text-gray-500 mt-2 leading-relaxed line-clamp-2">
                       {lead.details}
                     </p>
                   )}
-
-                  {/* Assigned to */}
-                  {lead.profiles?.full_name && (
-                    <div className="flex items-center gap-1 mt-2">
-                      <CheckCircle size={11} className="text-green-400 shrink-0" />
-                      <span className="text-xs text-gray-400">
-                        Assigned to <span className="font-medium text-gray-600">{lead.profiles.full_name}</span>
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Assign button for unassigned */}
-                  {lead.status === 'unassigned' && profile?.role === 'manager' && (
-                    <button
-                      onClick={() => setAssigningLead(lead)}
-                      className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#004B93] text-white text-xs font-semibold hover:bg-[#003d7a] transition-colors"
-                    >
-                      <UserPlus size={12} />
-                      Assign Technician
-                    </button>
-                  )}
                 </div>
 
-                {/* Timer */}
-                <div className="shrink-0">
-                  {lead.timer_expires_at && lead.status === 'assigned' && (
-                    <div className="flex items-center gap-1">
-                      <Clock size={11} className="text-gray-300" />
-                      <CountdownTimer expiresAt={lead.timer_expires_at} onExpire={fetchLeads} />
-                    </div>
+                {/* Action buttons */}
+                <div className="shrink-0 flex flex-col gap-2">
+                  {profile?.role === 'manager' && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setAssigningLead(lead) }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#004B93] text-white text-xs font-semibold hover:bg-[#003d7a] transition-colors"
+                    >
+                      <UserPlus size={12} />
+                      Assign
+                    </button>
                   )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setBookingLead(lead) }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#00B4C5] text-white text-xs font-semibold hover:bg-[#009aaa] transition-colors"
+                  >
+                    📅 Book
+                  </button>
                 </div>
               </div>
             </div>
