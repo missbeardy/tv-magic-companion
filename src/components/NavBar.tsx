@@ -1,169 +1,176 @@
+// src/components/NavBar.tsx
 import { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { supabase } from '../lib/supabase'
+import { useDemo } from '../context/DemoContext'
 import NotificationBell from './NotificationBell'
-import TimerWatcher from './TimerWatcher'
-import DemoBanner from './DemoBanner'
-import OfflineBanner from './OfflineBanner'
+import DemoToggle from './DemoToggle'
+import {
+  LayoutDashboard,
+  Kanban,
+  CalendarDays,
+  Users,
+  Share2,
+  Settings,
+  LogOut,
+  Menu,
+  X,
+  Tv2,
+} from 'lucide-react'
 
 export default function NavBar() {
-  const { profile, signOut } = useAuth()
+  const { profile } = useAuth()
+  const { demoMode } = useDemo()
   const location = useLocation()
+  const navigate = useNavigate()
+  const [mobileOpen, setMobileOpen] = useState(false)
+
   const isManager = profile?.role === 'manager'
-  const [menuOpen, setMenuOpen] = useState(false)
 
-  const links = [
-  { to: '/dashboard', label: 'Dashboard', icon: '⊞' },
-  { to: '/leads', label: 'Leads', icon: '📋' },
-  { to: '/calendar', label: 'Calendar', icon: '📅' },
-  { to: '/tasks', label: 'Task Board', icon: '✅' },
-  { to: '/profile', label: 'My Profile', icon: '👤' },
-  ...(isManager ? [
-    { to: '/social', label: 'Social Media', icon: '📲' },
-    { to: '/org-settings', label: 'Franchise Settings', icon: '🏢' },
-  ] : []),
-]
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    navigate('/login')
+  }
 
-  const navBg = isManager
-    ? 'linear-gradient(135deg, #004B93 0%, #0066cc 100%)'
-    : 'linear-gradient(135deg, #00B4C5 0%, #0099aa 100%)'
+  const navLinks = [
+    { to: '/',          label: 'Dashboard', icon: LayoutDashboard, roles: ['manager', 'employee'] },
+    { to: '/leads',     label: 'Leads',     icon: Kanban,          roles: ['manager', 'employee'] },
+    { to: '/calendar',  label: 'Calendar',  icon: CalendarDays,    roles: ['manager', 'employee'] },
+    { to: '/all-leads', label: 'All Leads', icon: Users,           roles: ['manager'] },
+    { to: '/social',    label: 'Social',    icon: Share2,          roles: ['manager'] },
+    { to: '/org',       label: 'Settings',  icon: Settings,        roles: ['manager'] },
+  ].filter(link => link.roles.includes(profile?.role ?? ''))
 
-  const drawerBg = isManager
-    ? 'linear-gradient(180deg, #003d7a 0%, #004B93 40%, #005bb5 100%)'
-    : 'linear-gradient(180deg, #008a99 0%, #00B4C5 40%, #00cfe3 100%)'
+  function isActive(to: string) {
+    if (to === '/') return location.pathname === '/'
+    return location.pathname.startsWith(to)
+  }
 
   return (
     <>
-      <TimerWatcher />
-      <OfflineBanner />
-      <DemoBanner />
+      <nav className="sticky top-0 z-40 bg-[#004B93] shadow-lg">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex items-center justify-between h-14">
 
-      {/* Top bar */}
-      <nav
-        className="sticky top-0 z-40 text-white px-4 py-3 flex items-center justify-between shadow-lg"
-        style={{ background: navBg }}
-      >
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setMenuOpen(true)}
-            className="flex flex-col gap-1.5 p-1.5 rounded-lg hover:bg-white hover:bg-opacity-15 transition mr-1"
-            aria-label="Open menu"
-          >
-            <span className="block w-5 h-0.5 bg-white rounded-full" />
-            <span className="block w-5 h-0.5 bg-white rounded-full" />
-            <span className="block w-5 h-0.5 bg-white rounded-full" />
-          </button>
+            {/* Logo */}
+            <Link to="/" className="flex items-center gap-2 shrink-0">
+              <div className="w-7 h-7 bg-white/15 rounded-lg flex items-center justify-center">
+                <Tv2 size={15} className="text-white" />
+              </div>
+              <span className="font-display font-800 text-white text-base tracking-tight leading-none">
+                TV<span className="text-[#00B4C5]">Magic</span>
+              </span>
+              {demoMode && (
+                <span className="badge badge-amber ml-1">Demo</span>
+              )}
+            </Link>
 
-          <img
-            src="/tvmagic-logo.png"
-            alt="TVMagic"
-            className="h-9 w-9 object-contain rounded-lg"
-            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-          />
-          <div>
-            <p className="text-base font-bold leading-tight">TVMagic</p>
-            <p className="text-xs opacity-70 leading-tight">Companion</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <NotificationBell />
-          <span className="text-sm opacity-80 hidden sm:inline">
-            {profile?.full_name}
-          </span>
-        </div>
-      </nav>
-
-      {/* Backdrop */}
-      {menuOpen && (
-        <div
-          className="fixed inset-0 z-50"
-          style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.25)' }}
-          onClick={() => setMenuOpen(false)}
-        />
-      )}
-
-      {/* Slide-in Drawer */}
-      <div
-        className={`fixed top-0 left-0 h-full w-72 z-50 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out ${
-          menuOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-        style={{ background: drawerBg }}
-      >
-        {/* Drawer Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-4">
-          <div className="flex items-center gap-3">
-            <img
-              src="/tvmagic-logo.png"
-              alt="TVMagic"
-              className="h-11 w-11 object-contain rounded-xl bg-white bg-opacity-10 p-1"
-              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-            />
-            <div>
-              <p className="font-bold text-white text-base">TVMagic</p>
-              <p className="text-xs text-white opacity-60">Companion</p>
+            {/* Desktop links */}
+            <div className="hidden md:flex items-center gap-1">
+              {navLinks.map(link => {
+                const Icon = link.icon
+                const active = isActive(link.to)
+                return (
+                  <Link
+                    key={link.to}
+                    to={link.to}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      active
+                        ? 'bg-white/20 text-white'
+                        : 'text-white/70 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <Icon size={15} />
+                    {link.label}
+                  </Link>
+                )
+              })}
             </div>
-          </div>
-          <button
-            onClick={() => setMenuOpen(false)}
-            className="text-white opacity-60 hover:opacity-100 transition w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:bg-opacity-15 text-xl"
-          >
-            ×
-          </button>
-        </div>
 
-        {/* User Card */}
-        <div className="mx-4 mb-4 p-4 rounded-2xl bg-white bg-opacity-10 border border-white border-opacity-20">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold bg-white bg-opacity-20">
-              {profile?.full_name?.charAt(0) || '?'}
-            </div>
-            <div>
-              <p className="text-gray-900 font-semibold text-sm">{profile?.full_name}</p>
-              <p className="text-gray-500 text-xs capitalize">{profile?.role}</p>
-            </div>
-          </div>
-        </div>
+            {/* Right side */}
+            <div className="flex items-center gap-2">
+              {isManager && <DemoToggle />}
+              <NotificationBell />
 
-        {/* Nav Links */}
-        <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
-          <p className="text-white opacity-40 text-xs font-semibold uppercase tracking-widest px-3 mb-2">
-            Navigation
-          </p>
-          {links.map(link => {
-            const isActive = location.pathname === link.to
-            return (
-              <Link
-                key={link.to}
-                to={link.to}
-                onClick={() => setMenuOpen(false)}
-                className={`flex items-center gap-4 px-4 py-3 rounded-xl text-sm font-medium transition-all group ${
-                  isActive
-                    ? 'bg-white text-[#004B93] font-semibold shadow-md'
-                    : 'text-white hover:bg-white hover:text-[#004B93]'
-                }`}
-              >
-                <span className="text-lg">{link.icon}</span>
-                <span className={`${isActive ? 'text-[#004B93]' : 'text-white group-hover:text-[#004B93]'}`}>
-                  {link.label}
+              {/* Avatar + logout (desktop) */}
+              <div className="hidden md:flex items-center gap-2 ml-1 pl-3 border-l border-white/20">
+                <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
+                  <span className="text-white font-bold text-xs">
+                    {profile?.full_name?.charAt(0) ?? '?'}
+                  </span>
+                </div>
+                <span className="text-white/80 text-sm font-medium max-w-[100px] truncate">
+                  {profile?.full_name}
                 </span>
-                {isActive && <span className="ml-auto w-2 h-2 rounded-full bg-[#004B93]" />}
-              </Link>
-            )
-          })}
-        </nav>
+                <button
+                  onClick={handleLogout}
+                  className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+                  title="Sign out"
+                >
+                  <LogOut size={15} />
+                </button>
+              </div>
 
-        {/* Sign Out */}
-        <div className="px-4 py-5 border-t border-white border-opacity-10">
-          <button
-            onClick={() => { signOut(); setMenuOpen(false) }}
-            className="w-full flex items-center gap-4 px-4 py-3 rounded-xl text-sm font-medium text-white hover:bg-white hover:bg-opacity-15 transition"
-          >
-            <span className="text-lg">🚪</span>
-            Sign Out
-          </button>
+              {/* Mobile hamburger */}
+              <button
+                onClick={() => setMobileOpen(!mobileOpen)}
+                className="md:hidden p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+
+        {/* Mobile menu */}
+        {mobileOpen && (
+          <div className="md:hidden border-t border-white/10 bg-[#003d7a] animate-fade-in">
+            <div className="px-4 py-3 space-y-1">
+              {navLinks.map(link => {
+                const Icon = link.icon
+                const active = isActive(link.to)
+                return (
+                  <Link
+                    key={link.to}
+                    to={link.to}
+                    onClick={() => setMobileOpen(false)}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                      active
+                        ? 'bg-white/20 text-white'
+                        : 'text-white/70 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <Icon size={17} />
+                    {link.label}
+                  </Link>
+                )
+              })}
+
+              <div className="pt-2 mt-2 border-t border-white/10 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">
+                      {profile?.full_name?.charAt(0) ?? '?'}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-white text-sm font-semibold">{profile?.full_name}</p>
+                    <p className="text-white/50 text-xs capitalize">{profile?.role}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-1.5 text-white/60 hover:text-white text-sm font-medium transition-colors"
+                >
+                  <LogOut size={15} />
+                  Sign out
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </nav>
     </>
   )
 }

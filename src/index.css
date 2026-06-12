@@ -1,9 +1,14 @@
+/* src/index.css */
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500&display=swap');
 
 html, body {
   height: 100%;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 #root {
@@ -11,11 +16,89 @@ html, body {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* Heading font — apply via .font-display class */
+.font-display {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+/* ── Shared badge base ───────────────────────── */
+/* Usage: <span className="badge badge-blue">Assigned</span> */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.badge-blue    { background: #e8f0fc; color: #004B93; }
+.badge-cyan    { background: #e0f7fa; color: #007a87; }
+.badge-green   { background: #e8f5e9; color: #2e7d32; }
+.badge-amber   { background: #fff3e0; color: #b45309; }
+.badge-purple  { background: #f3e8ff; color: #6b21a8; }
+.badge-red     { background: #fef2f2; color: #b91c1c; }
+.badge-grey    { background: #f3f4f6; color: #4b5563; }
+
+/* ── Shared card base ────────────────────────── */
+.card {
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05), 0 4px 16px rgba(0,0,0,0.04);
+  transition: box-shadow 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07), 0 8px 24px rgba(0,0,0,0.06);
+}
+
+/* ── Shared action button (full-width, bottom sheet) */
+.action-btn {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  border-radius: 12px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  cursor: pointer;
+  border: none;
+}
+
+.action-btn:hover  { opacity: 0.92; transform: translateY(-1px); }
+.action-btn:active { opacity: 1;    transform: translateY(0); }
+
+/* ── Animations ──────────────────────────────── */
 @keyframes slide-up {
-  0% { transform: translateY(100%); }
+  0%   { transform: translateY(100%); }
   100% { transform: translateY(0); }
 }
 
 @utility animate-slide-up {
   animation: slide-up 0.25s ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@utility animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
