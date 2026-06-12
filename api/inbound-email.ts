@@ -1,145 +1,89 @@
+// api/inbound-email.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-
-const _requests = new Map<string, { count: number; reset: number }>()
-function checkRateLimit(ip: string, limit = 60, windowMs = 60_000): boolean {
-  const now = Date.now()
-  const key = typeof ip === 'string' && ip.length > 0 ? ip.split(',')[0].trim().slice(0, 45) : 'unknown'
-  const entry = _requests.get(key)
-  if (!entry || now > entry.reset) { _requests.set(key, { count: 1, reset: now + windowMs }); return true }
-  if (entry.count >= limit) return false
-  entry.count++
-  return true
-}
+import { checkRateLimit } from './_rateLimit'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// ─── FEAT-01: Input Sanitisation ─────────────────────────────────────────────
-// Claude's output is treated as untrusted. We validate every field before
-// it touches the database to guard against prompt injection and bad data.
-
-const VALID_SERVICE_TYPES = [
-  'TV Aerial',
-  'Satellite Dish',
-  'CCTV',
-  'Sky Q',
-  'Sky Glass',
-  'Freesat',
-  'Other',
-]
-
-function sanitiseParsedLead(raw: Record<string, unknown>) {
-  return {
-    name: String(raw.customer_name ?? '').slice(0, 200) || 'Unknown',
-    phone: String(raw.phone ?? '').replace(/[^0-9+\-\s()]/g, '').slice(0, 20),
-    service_type: VALID_SERVICE_TYPES.includes(String(raw.service_type))
-      ? String(raw.service_type)
-      : 'Other',
-    details: String(raw.job_details ?? '').slice(0, 2000),
-    address: String(raw.address ?? '').slice(0, 500),
-  }
-}
-
-// ─── Claude Email Parser ──────────────────────────────────────────────────────
 async function parseEmailWithClaude(rawEmail: string) {
-  const prompt = `You are a CRM data extractor for a TV aerial and satellite installation business.
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return null
 
-Extract the following fields from this inbound customer email. Return ONLY valid JSON — no markdown, no explanation, no backticks.
-
-Fields:
-- customer_name (string)
-- phone (string, empty string if not found)
-- service_type (string, one of: "TV Aerial", "Satellite Dish", "CCTV", "Sky Q", "Sky Glass", "Freesat", "Other")
-- job_details (string, 1-2 sentence summary)
-- address (string, empty string if not found)
-
-Email:
----
-${rawEmail}
----
-
-Return JSON only.`
-
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY!,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 500,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  })
-
-  const data = (await response.json()) as any
-  const raw =
-    data.content
-      ?.map((b: { type: string; text?: string }) =>
-        b.type === 'text' ? b.text : ''
-      )
-      .join('') ?? ''
-  const cleaned = raw.replace(/```json\s*/gi, '').replace(/```/g, '').trim()
+  const prompt = `Extract from this email. Return ONLY JSON: {"customer_name":"","phone":"","service_type":"","job_details":"","address":""}
+Email: ${rawEmail.substring(0, 3000)}`
 
   try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-3-haiku-20240307',
+        max_tokens: 500,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    })
+    const data = await response.json()
+    const raw = data.content?.[0]?.text || ''
+    const cleaned = raw.replace(/```json\s*|\s*```/g, '').trim()
     return JSON.parse(cleaned)
-  } catch {
-    console.error('Claude returned unparseable JSON:', cleaned)
+  } catch (err) {
+    console.error('Claude email parse error:', err)
     return null
   }
 }
 
-// ─── Main Handler ─────────────────────────────────────────────────────────────
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' })
-  }
-
-  // SEC-08: Rate limit — 60 req/min for webhook source IPs (Cloudmailin)
+  if (req.method !== 'POST') return res.status(405).end()
   const ip = (req.headers['x-forwarded-for'] as string) ?? 'unknown'
-  if (!checkRateLimit(ip, 60, 60_000)) {
-    return res.status(429).json({ error: 'Too many requests' })
-  }
+  if (!checkRateLimit(ip, 60, 60000)) return res.status(429).json({ error: 'Too many requests' })
 
   try {
     const body = req.body as Record<string, string>
+    const rawText = body.plain || body.html || body.body || ''
+    if (!rawText) return res.status(200).json({ skipped: true })
 
-    const rawText = body['plain'] || body['html'] || body.body || ''
-
-    if (!rawText) {
-      console.error('No email text in payload:', Object.keys(body))
-      return res.status(200).json({ skipped: true, reason: 'no_text' })
-    }
-
-    const parsed = await parseEmailWithClaude(rawText)
-
+    let parsed = await parseEmailWithClaude(rawText)
     if (!parsed) {
-      return res.status(200).json({ skipped: true, reason: 'parse_failed' })
+      parsed = { customer_name: 'Email Enquiry', phone: '', service_type: 'Other', job_details: rawText.substring(0, 500), address: '' }
     }
 
-    // FEAT-01: Sanitise before insert — never trust Claude's raw output
-    const sanitised = sanitiseParsedLead(parsed)
+    // Extract recipient email address (To) from webhook – depends on your email provider
+    const toEmail = body.to || body.recipient || ''
+    let orgId = null
+    if (toEmail) {
+      const { data: mapping } = await supabase
+        .from('org_emails')
+        .select('org_id')
+        .eq('email_address', toEmail)
+        .maybeSingle()
+      orgId = mapping?.org_id || process.env.DEFAULT_ORG_ID || null
+    } else {
+      orgId = process.env.DEFAULT_ORG_ID || null
+    }
 
-    const { error } = await supabase.from('leads').insert({
-      ...sanitised,
+    await supabase.from('leads').insert({
+      name: parsed.customer_name,
+      phone: parsed.phone || '',
+      service_type: parsed.service_type || 'Other',
+      details: parsed.job_details || rawText,
+      address: parsed.address || '',
       status: 'unassigned',
       source: 'email_webhook',
+      org_id: orgId,
+      raw_email: rawText,
       created_at: new Date().toISOString(),
     })
 
-    if (error) {
-      console.error('Supabase insert error:', error)
-      return res.status(500).json({ error: 'DB insert failed' })
-    }
-
     return res.status(200).json({ success: true })
   } catch (err) {
-    console.error('Inbound email handler error:', err)
+    console.error(err)
     return res.status(200).json({ skipped: true, reason: 'exception' })
   }
 }
