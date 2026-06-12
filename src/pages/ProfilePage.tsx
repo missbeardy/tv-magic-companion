@@ -1,3 +1,4 @@
+// src/pages/ProfilePage.tsx
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -54,12 +55,38 @@ function ChangePassword() {
   )
 }
 
+function InfoBubble({ text }: { text: string }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <span className="relative inline-block align-middle ml-1">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-5 h-5 rounded-full bg-gray-200 text-gray-500 text-xs font-bold flex items-center justify-center hover:bg-[#004B93] hover:text-white transition"
+        aria-label="More info"
+      >
+        ?
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute left-6 top-0 z-20 w-64 bg-gray-800 text-white text-xs rounded-xl p-3 shadow-lg leading-relaxed">
+            {text}
+          </div>
+        </>
+      )}
+    </span>
+  )
+}
+
 export default function ProfilePage() {
   const { profile } = useAuth()
   const [fullName, setFullName] = useState('')
   const [suburb, setSuburb] = useState('')
   const [phone, setPhone] = useState('')
   const [avatarUrl, setAvatarUrl] = useState('')
+  const [locationEnabled, setLocationEnabled] = useState(false)
+  const [locationSaving, setLocationSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -74,7 +101,7 @@ export default function ProfilePage() {
 
     supabase
       .from('profiles')
-      .select('suburb, phone, avatar_url')
+      .select('suburb, phone, avatar_url, location_enabled')
       .eq('id', profile.id)
       .single()
       .then(({ data }) => {
@@ -82,6 +109,7 @@ export default function ProfilePage() {
           setSuburb(data.suburb ?? '')
           setPhone(data.phone ?? '')
           setAvatarUrl(data.avatar_url ?? '')
+          setLocationEnabled(data.location_enabled ?? false)
         }
       })
   }, [profile])
@@ -89,7 +117,6 @@ export default function ProfilePage() {
   async function handleEnableNotifications() {
     try {
       await promptForNotifications()
-      // Check if permission was granted
       const permission = Notification.permission
       if (permission === 'granted') {
         setNotifStatus('success')
@@ -100,6 +127,17 @@ export default function ProfilePage() {
       console.error('Notification prompt error:', err)
       setNotifStatus('denied')
     }
+  }
+
+  async function handleLocationToggle(enabled: boolean) {
+    if (!profile) return
+    setLocationSaving(true)
+    const { error } = await supabase
+      .from('profiles')
+      .update({ location_enabled: enabled })
+      .eq('id', profile.id)
+    if (!error) setLocationEnabled(enabled)
+    setLocationSaving(false)
   }
 
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -229,6 +267,38 @@ export default function ProfilePage() {
               🔔 Enable Notifications on This Device
             </button>
           )}
+        </div>
+
+        {/* Location Sharing */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
+          <div className="flex items-center gap-1">
+            <p className="text-sm font-semibold text-gray-700">📍 Location Sharing</p>
+            <InfoBubble text="We use your GPS location to recommend the nearest available technician when a new job comes in. This helps you get leads that are close to you. Your location is only shared with your manager and updated every 10 minutes while the app is open. You can turn this off at any time." />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="flex-1 pr-4">
+              {locationEnabled ? (
+                <p className="text-xs text-green-600 font-medium">✅ Location sharing is on — you may be prioritised for nearby jobs</p>
+              ) : (
+                <p className="text-xs text-gray-500">Off — your location won't be used for job allocation</p>
+              )}
+            </div>
+            <button
+              onClick={() => handleLocationToggle(!locationEnabled)}
+              disabled={locationSaving}
+              className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50 ${
+                locationEnabled ? 'bg-[#004B93]' : 'bg-gray-300'
+              }`}
+              aria-label="Toggle location sharing"
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 ${
+                  locationEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
         </div>
 
         {/* Details */}

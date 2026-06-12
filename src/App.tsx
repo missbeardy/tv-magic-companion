@@ -11,7 +11,6 @@ import AllLeadsPage from './pages/AllLeadsPage'
 import LeadsPage from './pages/LeadsPage'
 import ProfilePage from './pages/ProfilePage'
 import SocialPage from './pages/SocialPage'
-import TaskBoardPage from './pages/TaskBoardPage'
 import { useEffect } from 'react'
 import { useTechLocation } from './hooks/useTechLocation'
 import { initOneSignal, setOneSignalUser, clearOneSignalUser } from './lib/oneSignal'
@@ -21,8 +20,9 @@ import { initOneSignal, setOneSignalUser, clearOneSignalUser } from './lib/oneSi
 function Dashboard() {
   const { profile, loading } = useAuth()
 
-  useTechLocation(profile?.id ?? null)
+useTechLocation(profile?.id ?? null, profile?.location_enabled ?? false)
 
+  // Link this device to the logged-in user in OneSignal
   useEffect(() => {
     if (profile?.id) {
       setOneSignalUser(profile.id).catch(err =>
@@ -41,10 +41,12 @@ function Dashboard() {
 
 function App() {
   useEffect(() => {
+    // Initialise OneSignal once on app load
     initOneSignal().catch(err =>
       console.error('OneSignal init failed:', err)
     )
 
+    // Register existing service worker for offline support
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js')
         .then(reg => console.log('SW registered:', reg.scope))
@@ -119,14 +121,6 @@ function App() {
               element={
                 <ProtectedRoute requiredRole="manager">
                   <SocialPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/tasks"
-              element={
-                <ProtectedRoute>
-                  <TaskBoardPage />
                 </ProtectedRoute>
               }
             />

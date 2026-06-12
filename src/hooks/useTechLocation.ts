@@ -1,9 +1,10 @@
+// src/hooks/useTechLocation.ts
 import { useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
-export function useTechLocation(userId: string | null) {
+export function useTechLocation(userId: string | null, locationEnabled: boolean) {
   useEffect(() => {
-    if (!userId || !navigator.geolocation) return
+    if (!userId || !locationEnabled || !navigator.geolocation) return
 
     const update = (position: GeolocationPosition) => {
       supabase
@@ -31,5 +32,5 @@ export function useTechLocation(userId: string | null) {
     }, 10 * 60 * 1000)
 
     return () => clearInterval(interval)
-  }, [userId])
+  }, [userId, locationEnabled])
 }

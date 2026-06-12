@@ -1,3 +1,4 @@
+// src/context/AuthContext.tsx
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
@@ -8,6 +9,7 @@ interface Profile {
   full_name: string | null
   role: 'manager' | 'employee'
   org_id: string | null
+  location_enabled: boolean
 }
 
 interface AuthContextType {
