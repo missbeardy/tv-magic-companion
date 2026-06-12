@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import NavBar from '../components/NavBar'          // <-- ADDED
 import AssignedLeads from '../components/AssignedLeads'
 import RevenueWidget from '../components/RevenueWidget'
 import { useTechLocation } from '../hooks/useTechLocation'
@@ -94,73 +95,75 @@ export default function ManagerDashboard() {
   }, [profile])
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-
-      {/* Welcome */}
-      <div>
-        <h1 className="font-display font-bold text-gray-900 text-xl">
-          Good {getGreeting()}, {profile?.full_name?.split(' ')[0]} 👋
-        </h1>
-        <p className="text-sm text-gray-400 mt-0.5">Here's what's happening in your business today</p>
-      </div>
-
-      {/* Unassigned alert */}
-      {stats.unassigned > 0 && (
-        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-          <AlertCircle size={16} className="text-amber-500 shrink-0" />
-          <p className="text-sm text-amber-700 font-medium">
-            {stats.unassigned} unassigned lead{stats.unassigned !== 1 ? 's' : ''} waiting for action
-          </p>
+    <div className="min-h-screen bg-gray-50">
+      <NavBar />   {/* <-- ADDED */}
+      <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+        {/* Welcome */}
+        <div>
+          <h1 className="font-display font-bold text-gray-900 text-xl">
+            Good {getGreeting()}, {profile?.full_name?.split(' ')[0]} 👋
+          </h1>
+          <p className="text-sm text-gray-400 mt-0.5">Here's what's happening in your business today</p>
         </div>
-      )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Unassigned"  value={stats.unassigned}         icon={Inbox}          colour="bg-amber-400" />
-        <StatCard label="Assigned"    value={stats.assigned}           icon={Clock}          colour="bg-[#004B93]" />
-        <StatCard label="Completed"   value={stats.completed}          icon={ClipboardCheck} colour="bg-green-500" />
-        <StatCard label="Attempted"   value={stats.contact_attempted}  icon={TrendingUp}     colour="bg-[#00B4C5]" />
-      </div>
+        {/* Unassigned alert */}
+        {stats.unassigned > 0 && (
+          <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+            <AlertCircle size={16} className="text-amber-500 shrink-0" />
+            <p className="text-sm text-amber-700 font-medium">
+              {stats.unassigned} unassigned lead{stats.unassigned !== 1 ? 's' : ''} waiting for action
+            </p>
+          </div>
+        )}
 
-      {/* Team workload */}
-      {!loading && techs.length > 0 && (
-        <div className="card overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-            <Users size={15} className="text-gray-400" />
-            <h2 className="font-display font-semibold text-gray-800 text-base">Team Workload</h2>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {techs.map(tech => (
-              <div key={tech.id} className="px-5 py-3.5 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-[#004B93] flex items-center justify-center shrink-0 overflow-hidden">
-                  {tech.avatar_url
-                    ? <img src={tech.avatar_url} className="w-full h-full object-cover" alt={tech.full_name} />
-                    : <span className="text-white font-bold text-xs">{tech.full_name.charAt(0)}</span>
-                  }
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-800 truncate">{tech.full_name}</p>
-                  <p className="text-xs text-gray-400">{tech.activeCount} active job{tech.activeCount !== 1 ? 's' : ''}</p>
-                </div>
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(tech.activeCount, 5) }).map((_, i) => (
-                    <div key={i} className="w-2 h-2 rounded-full bg-[#004B93]" />
-                  ))}
-                  {tech.activeCount === 0 && (
-                    <span className="badge badge-green">Free</span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <StatCard label="Unassigned"  value={stats.unassigned}         icon={Inbox}          colour="bg-amber-400" />
+          <StatCard label="Assigned"    value={stats.assigned}           icon={Clock}          colour="bg-[#004B93]" />
+          <StatCard label="Completed"   value={stats.completed}          icon={ClipboardCheck} colour="bg-green-500" />
+          <StatCard label="Attempted"   value={stats.contact_attempted}  icon={TrendingUp}     colour="bg-[#00B4C5]" />
         </div>
-      )}
 
-      {/* Assigned leads + revenue */}
-      <div className="grid md:grid-cols-2 gap-4">
-        <AssignedLeads />
-        <RevenueWidget />
-      </div>
+        {/* Team workload */}
+        {!loading && techs.length > 0 && (
+          <div className="card overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+              <Users size={15} className="text-gray-400" />
+              <h2 className="font-display font-semibold text-gray-800 text-base">Team Workload</h2>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {techs.map(tech => (
+                <div key={tech.id} className="px-5 py-3.5 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-[#004B93] flex items-center justify-center shrink-0 overflow-hidden">
+                    {tech.avatar_url
+                      ? <img src={tech.avatar_url} className="w-full h-full object-cover" alt={tech.full_name} />
+                      : <span className="text-white font-bold text-xs">{tech.full_name.charAt(0)}</span>
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-800 truncate">{tech.full_name}</p>
+                    <p className="text-xs text-gray-400">{tech.activeCount} active job{tech.activeCount !== 1 ? 's' : ''}</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(tech.activeCount, 5) }).map((_, i) => (
+                      <div key={i} className="w-2 h-2 rounded-full bg-[#004B93]" />
+                    ))}
+                    {tech.activeCount === 0 && (
+                      <span className="badge badge-green">Free</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Assigned leads + revenue */}
+        <div className="grid md:grid-cols-2 gap-4">
+          <AssignedLeads />
+          <RevenueWidget />
+        </div>
+      </main>
     </div>
   )
 }
