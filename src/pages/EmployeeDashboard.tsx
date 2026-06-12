@@ -1,8 +1,11 @@
 // src/pages/EmployeeDashboard.tsx
+// Last updated: 13 June 2026 - clickable stats, restored data fetching
+
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import NavBar from '../components/NavBar'          // <-- ADDED
+import NavBar from '../components/NavBar'
 import AssignedLeads from '../components/AssignedLeads'
 import { useTechLocation } from '../hooks/useTechLocation'
 import { Inbox, ClipboardCheck, Clock, Zap } from 'lucide-react'
@@ -13,14 +16,18 @@ interface Stats {
   unassigned: number
 }
 
-function StatCard({ label, value, icon: Icon, colour }: {
+function StatCard({ label, value, icon: Icon, colour, onClick }: {
   label: string
   value: number
   icon: React.ElementType
   colour: string
+  onClick?: () => void
 }) {
   return (
-    <div className="card p-4 flex items-center gap-3">
+    <div
+      onClick={onClick}
+      className={`card p-4 flex items-center gap-3 ${onClick ? 'cursor-pointer hover:shadow-md transition-all' : ''}`}
+    >
       <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${colour}`}>
         <Icon size={16} className="text-white" />
       </div>
@@ -34,8 +41,16 @@ function StatCard({ label, value, icon: Icon, colour }: {
 
 export default function EmployeeDashboard() {
   const { profile } = useAuth()
+  const navigate = useNavigate()
   const [stats, setStats] = useState<Stats>({ assigned: 0, completed: 0, unassigned: 0 })
   useTechLocation(profile?.id ?? null)
+
+  const today = new Date().toLocaleDateString('en-AU', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
 
   async function fetchStats() {
     if (!profile) return
@@ -65,34 +80,51 @@ export default function EmployeeDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <NavBar />   {/* <-- ADDED */}
+      <NavBar />
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {/* Welcome */}
-        <div>
-          <h1 className="font-display font-bold text-gray-900 text-xl">
-            Hey {profile?.full_name?.split(' ')[0]} 👋
-          </h1>
-          <p className="text-sm text-gray-400 mt-0.5">Here's your workload for today</p>
+        {/* Welcome + Date */}
+        <div className="flex flex-wrap justify-between items-baseline gap-2">
+          <div>
+            <h1 className="font-display font-bold text-gray-900 text-xl">
+              Hey {profile?.full_name?.split(' ')[0]} 👋
+            </h1>
+            <p className="text-sm text-gray-400 mt-0.5">{today}</p>
+          </div>
+          <div className="text-sm text-gray-400 bg-white px-3 py-1 rounded-full shadow-sm">
+            📅 {today}
+          </div>
         </div>
 
-        {/* Stats */}
+        {/* Stats row - clickable */}
         <div className="grid grid-cols-3 gap-3">
-          <StatCard label="My Jobs"       value={stats.assigned}   icon={Clock}          colour="bg-[#004B93]" />
-          <StatCard label="Completed"     value={stats.completed}  icon={ClipboardCheck} colour="bg-green-500" />
-          <StatCard label="In Pool"       value={stats.unassigned} icon={Inbox}          colour="bg-amber-400" />
+          <StatCard
+            label="My Jobs" value={stats.assigned} icon={Clock} colour="bg-[#004B93]"
+            onClick={() => navigate('/leads?status=assigned')}
+          />
+          <StatCard
+            label="Completed" value={stats.completed} icon={ClipboardCheck} colour="bg-green-500"
+            onClick={() => navigate('/leads?status=completed')}
+          />
+          <StatCard
+            label="In Pool" value={stats.unassigned} icon={Inbox} colour="bg-amber-400"
+            onClick={() => navigate('/leads?status=unassigned')}
+          />
         </div>
 
         {/* Unassigned pool nudge */}
         {stats.unassigned > 0 && (
-          <div className="flex items-center gap-3 bg-[#004B93]/5 border border-[#004B93]/15 rounded-xl px-4 py-3">
+          <div
+            onClick={() => navigate('/leads?status=unassigned')}
+            className="flex items-center gap-3 bg-[#004B93]/5 border border-[#004B93]/15 rounded-xl px-4 py-3 cursor-pointer hover:bg-[#004B93]/10 transition"
+          >
             <Zap size={15} className="text-[#004B93] shrink-0" />
             <p className="text-sm text-[#004B93] font-medium">
-              {stats.unassigned} lead{stats.unassigned !== 1 ? 's' : ''} in the pool — head to Leads to pick one up
+              {stats.unassigned} lead{stats.unassigned !== 1 ? 's' : ''} in the pool — tap to pick one up
             </p>
           </div>
         )}
 
-        {/* Assigned leads */}
+        {/* Assigned leads - each card clickable via AssignedLeads component (needs its own fix next) */}
         <AssignedLeads />
       </main>
     </div>
