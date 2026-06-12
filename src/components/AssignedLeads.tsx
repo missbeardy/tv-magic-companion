@@ -1,5 +1,8 @@
 // src/components/AssignedLeads.tsx
+// Last updated: 13 June 2026 - clickable cards, proper navigation
+
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import CountdownTimer from './CountdownTimer'
@@ -39,6 +42,7 @@ function AssignedLeadSkeleton() {
 
 export default function AssignedLeads() {
   const { profile } = useAuth()
+  const navigate = useNavigate()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [bookingLead, setBookingLead] = useState<Lead | null>(null)
@@ -66,6 +70,11 @@ export default function AssignedLeads() {
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [profile])
+
+  // Navigate to leads page and highlight this lead
+  const handleLeadClick = (leadId: string) => {
+    navigate(`/leads?highlight=${leadId}`)
+  }
 
   if (loading) {
     return (
@@ -113,7 +122,11 @@ export default function AssignedLeads() {
           {leads.map(lead => (
             <div key={lead.id} className="p-5 hover:bg-gray-50/50 transition-colors">
               <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
+                {/* Clickable lead info */}
+                <div
+                  onClick={() => handleLeadClick(lead.id)}
+                  className="flex-1 min-w-0 cursor-pointer"
+                >
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <p className="font-display font-semibold text-gray-900 text-sm">{lead.name || 'Unknown'}</p>
                     {profile?.role === 'manager' && lead.assigned_to === profile?.id && (
@@ -125,15 +138,20 @@ export default function AssignedLeads() {
                   {lead.details && (
                     <p className="text-xs text-gray-500 mt-2 leading-relaxed line-clamp-2">{lead.details}</p>
                   )}
+                </div>
+
+                {/* Right side: Book button + Timer */}
+                <div className="shrink-0 flex flex-col items-end gap-2">
                   <button
-                    onClick={() => setBookingLead(lead)}
-                    className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#004B93] text-white text-xs font-semibold hover:bg-[#003d7a] transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setBookingLead(lead)
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#004B93] text-white text-xs font-semibold hover:bg-[#003d7a] transition-colors"
                   >
                     <CalendarPlus size={12} />
-                    Book Appointment
+                    Book
                   </button>
-                </div>
-                <div className="shrink-0">
                   {lead.timer_expires_at && (
                     <CountdownTimer expiresAt={lead.timer_expires_at} onExpire={fetchLeads} />
                   )}
