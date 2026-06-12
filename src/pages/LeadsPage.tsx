@@ -24,7 +24,6 @@ import BottomSheet from '../components/BottomSheet'
 import CompletionChecklist from '../components/CompletionChecklist'
 import SignatureCanvas from '../components/SignatureCanvas'
 import ReceiptPreview from '../components/ReceiptPreview'
-import LeadFilterBar from '../components/LeadFilterBar'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -393,12 +392,6 @@ export default function LeadsPage() {
   const [sheetLead, setSheetLead] = useState<Lead | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
 
-  // Filter states for the original LeadFilterBar
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
-  const [serviceFilter, setServiceFilter] = useState('')
-  const [serviceTypes, setServiceTypes] = useState<string[]>([])
-
   const [showChecklist, setShowChecklist] = useState(false)
   const [checklistLead, setChecklistLead] = useState<Lead | null>(null)
   const [showSignature, setShowSignature] = useState(false)
@@ -407,7 +400,7 @@ export default function LeadsPage() {
 
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
 
-  // Fetch leads with proper org filter and memoized to prevent loops
+  // Fetch leads with proper org filter
   const fetchLeads = useCallback(async () => {
     if (!profile?.org_id) return
 
@@ -424,25 +417,9 @@ export default function LeadsPage() {
     const { data } = await query
     if (data) {
       setLeads(data as Lead[])
-      // Extract unique service types for filter bar
-      const types = Array.from(new Set(data.map(l => l.service_type).filter(Boolean))) as string[]
-      setServiceTypes(types)
     }
     setLoading(false)
   }, [profile?.org_id, profile?.role, profile?.id])
-
-  // Apply client-side filters
-  const filteredLeads = leads.filter(lead => {
-    if (search) {
-      const q = search.toLowerCase()
-      const matchName = (lead.name ?? '').toLowerCase().includes(q)
-      const matchPhone = (lead.phone ?? '').toLowerCase().includes(q)
-      if (!matchName && !matchPhone) return false
-    }
-    if (statusFilter && lead.status !== statusFilter) return false
-    if (serviceFilter && lead.service_type !== serviceFilter) return false
-    return true
-  })
 
   const logLeadEvent = useCallback(async (leadId: string, eventType: string, note?: string) => {
     await supabase.from('lead_events').insert({
@@ -582,7 +559,7 @@ export default function LeadsPage() {
   }, [profile, fetchLeads])
 
   function leadsForColumn(status: string) {
-    return filteredLeads.filter(l => l.status === status)
+    return leads.filter(l => l.status === status)
   }
 
   const activeDragLead = activeDragId ? leads.find(l => l.id === activeDragId) : null
@@ -651,18 +628,6 @@ export default function LeadsPage() {
           </div>
           {profile?.role === 'manager' && <DemoToggle />}
         </div>
-
-        {!loading && (
-          <LeadFilterBar
-            search={search}
-            onSearch={setSearch}
-            statusFilter={statusFilter}
-            onStatusFilter={setStatusFilter}
-            serviceFilter={serviceFilter}
-            onServiceFilter={setServiceFilter}
-            serviceTypes={serviceTypes}
-          />
-        )}
 
         {loading && <p className="text-gray-400 text-sm">Loading leads...</p>}
 
