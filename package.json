@@ -6,8 +6,6 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:check": "tsc -p tsconfig.app.json && vite build",
-    "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
