@@ -1,69 +1,173 @@
-import EmailParser from '../components/EmailParser'
-import LeadsList from '../components/LeadsList'
+// src/pages/ManagerDashboard.tsx
+import { useEffect, useState } from 'react'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 import AssignedLeads from '../components/AssignedLeads'
-import DemoToggle from '../components/DemoToggle'
-import NavBar from '../components/NavBar'
 import RevenueWidget from '../components/RevenueWidget'
-import { Link } from 'react-router-dom'
+import { useTechLocation } from '../hooks/useTechLocation'
+import {
+  Users, Inbox, ClipboardCheck, Clock, TrendingUp, AlertCircle
+} from 'lucide-react'
 
-export default function ManagerDashboard() {
+interface StatsRow {
+  unassigned: number
+  assigned: number
+  completed: number
+  contact_attempted: number
+}
+
+interface TechRow {
+  id: string
+  full_name: string
+  avatar_url?: string
+  activeCount: number
+}
+
+function StatCard({ label, value, icon: Icon, colour }: {
+  label: string
+  value: number
+  icon: React.ElementType
+  colour: string
+}) {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <NavBar />
-      <main className="p-6 max-w-4xl mx-auto space-y-6">
-
-        {/* Header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-1">Manager Dashboard</h2>
-            <p className="text-gray-500 text-sm">
-              Monitor operations, oversee active assignments, and balance lead volume.
-            </p>
-          </div>
-          <DemoToggle />
-        </div>
-
-        {/* Revenue Widget */}
-        <RevenueWidget />
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <Link
-            to="/leads"
-            className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col items-center gap-2 shadow-sm hover:shadow-md transition text-center"
-          >
-            <span className="text-2xl">📋</span>
-            <span className="text-sm font-semibold text-gray-700">Kanban Board</span>
-            <span className="text-xs text-gray-400">View all lead stages</span>
-          </Link>
-          <Link
-            to="/calendar"
-            className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col items-center gap-2 shadow-sm hover:shadow-md transition text-center"
-          >
-            <span className="text-2xl">📅</span>
-            <span className="text-sm font-semibold text-gray-700">Calendar</span>
-            <span className="text-xs text-gray-400">All team appointments</span>
-          </Link>
-          <Link
-            to="/social"
-            className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col items-center gap-2 shadow-sm hover:shadow-md transition text-center col-span-2 sm:col-span-1"
-          >
-            <span className="text-2xl">📲</span>
-            <span className="text-sm font-semibold text-gray-700">Social Media</span>
-            <span className="text-xs text-gray-400">Share completed jobs</span>
-          </Link>
-        </div>
-
-        {/* Email Parser */}
-        <EmailParser />
-
-        {/* Unassigned Pool */}
-        <LeadsList />
-
-        {/* Manager's Own Assigned Leads */}
-        <AssignedLeads />
-
-      </main>
+    <div className="card p-4 flex items-center gap-4">
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${colour}`}>
+        <Icon size={18} className="text-white" />
+      </div>
+      <div>
+        <p className="font-display font-bold text-2xl text-gray-900 leading-none">{value}</p>
+        <p className="text-xs text-gray-400 mt-0.5 font-medium">{label}</p>
+      </div>
     </div>
   )
+}
+
+export default function ManagerDashboard() {
+  const { profile } = useAuth()
+  const [stats, setStats] = useState<StatsRow>({ unassigned: 0, assigned: 0, completed: 0, contact_attempted: 0 })
+  const [techs, setTechs] = useState<TechRow[]>([])
+  const [loading, setLoading] = useState(true)
+  useTechLocation(profile?.id ?? null)
+
+  async function fetchData() {
+    if (!profile) return
+
+    const { data: leads } = await supabase
+      .from('leads')
+      .select('status, assigned_to')
+      .eq('org_id', profile.org_id)
+
+    if (leads) {
+      const s = { unassigned: 0, assigned: 0, completed: 0, contact_attempted: 0 }
+      leads.forEach(l => {
+        if (l.status in s) s[l.status as keyof StatsRow]++
+      })
+      setStats(s)
+
+      const countMap: Record<string, number> = {}
+      leads.filter(l => l.status === 'assigned').forEach(l => {
+        if (l.assigned_to) countMap[l.assigned_to] = (countMap[l.assigned_to] ?? 0) + 1
+      })
+
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url')
+        .eq('org_id', profile.org_id)
+        .in('role', ['employee', 'manager'])
+
+      if (profiles) {
+        setTechs(profiles.map(p => ({ ...p, activeCount: countMap[p.id] ?? 0 })))
+      }
+    }
+
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    if (!profile) return
+    fetchData()
+    const channel = supabase
+      .channel('manager-dashboard')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, fetchData)
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [profile])
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+      {/* Welcome */}
+      <div>
+        <h1 className="font-display font-bold text-gray-900 text-xl">
+          Good {getGreeting()}, {profile?.full_name?.split(' ')[0]} 👋
+        </h1>
+        <p className="text-sm text-gray-400 mt-0.5">Here's what's happening in your business today</p>
+      </div>
+
+      {/* Unassigned alert */}
+      {stats.unassigned > 0 && (
+        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <AlertCircle size={16} className="text-amber-500 shrink-0" />
+          <p className="text-sm text-amber-700 font-medium">
+            {stats.unassigned} unassigned lead{stats.unassigned !== 1 ? 's' : ''} waiting for action
+          </p>
+        </div>
+      )}
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard label="Unassigned"  value={stats.unassigned}         icon={Inbox}          colour="bg-amber-400" />
+        <StatCard label="Assigned"    value={stats.assigned}           icon={Clock}          colour="bg-[#004B93]" />
+        <StatCard label="Completed"   value={stats.completed}          icon={ClipboardCheck} colour="bg-green-500" />
+        <StatCard label="Attempted"   value={stats.contact_attempted}  icon={TrendingUp}     colour="bg-[#00B4C5]" />
+      </div>
+
+      {/* Team workload */}
+      {!loading && techs.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+            <Users size={15} className="text-gray-400" />
+            <h2 className="font-display font-semibold text-gray-800 text-base">Team Workload</h2>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {techs.map(tech => (
+              <div key={tech.id} className="px-5 py-3.5 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-[#004B93] flex items-center justify-center shrink-0 overflow-hidden">
+                  {tech.avatar_url
+                    ? <img src={tech.avatar_url} className="w-full h-full object-cover" alt={tech.full_name} />
+                    : <span className="text-white font-bold text-xs">{tech.full_name.charAt(0)}</span>
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-800 truncate">{tech.full_name}</p>
+                  <p className="text-xs text-gray-400">{tech.activeCount} active job{tech.activeCount !== 1 ? 's' : ''}</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(tech.activeCount, 5) }).map((_, i) => (
+                    <div key={i} className="w-2 h-2 rounded-full bg-[#004B93]" />
+                  ))}
+                  {tech.activeCount === 0 && (
+                    <span className="badge badge-green">Free</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Assigned leads + revenue */}
+      <div className="grid md:grid-cols-2 gap-4">
+        <AssignedLeads />
+        <RevenueWidget />
+      </div>
+    </div>
+  )
+}
+
+function getGreeting() {
+  const h = new Date().getHours()
+  if (h < 12) return 'morning'
+  if (h < 17) return 'afternoon'
+  return 'evening'
 }

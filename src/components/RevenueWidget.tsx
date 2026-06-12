@@ -1,49 +1,92 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+// src/components/RevenueWidget.tsx
+import { useEffect, useState } from 'react'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
+import { TrendingUp, DollarSign, CheckCircle, Clock } from 'lucide-react'
 
-const AVG_JOB_VALUE = 250;
+interface Props {
+  avgJobValue?: number
+}
 
-export default function RevenueWidget() {
-  const [expiredCount, setExpiredCount] = useState(0);
-  const [loading, setLoading] = useState(true);
+export default function RevenueWidget({ avgJobValue = 180 }: Props) {
+  const { profile } = useAuth()
+  const [completed, setCompleted] = useState(0)
+  const [assigned, setAssigned] = useState(0)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetch = async () => {
-      const { count } = await supabase
+    if (!profile) return
+    async function fetch() {
+      const { data } = await supabase
         .from('leads')
-        .select('*', { count: 'exact', head: true })
-        .in('status', ['expired', 'lost'])
-        .not('assigned_to', 'is', null);
+        .select('status')
+        .eq('org_id', profile!.org_id)
 
-      setExpiredCount(count ?? 0);
-      setLoading(false);
-    };
-    fetch();
-  }, []);
+      if (data) {
+        setCompleted(data.filter(l => l.status === 'completed').length)
+        setAssigned(data.filter(l => l.status === 'assigned').length)
+      }
+      setLoading(false)
+    }
+    fetch()
+  }, [profile])
 
-  const lostRevenue = expiredCount * AVG_JOB_VALUE;
-
-  if (loading) return null;
+  const earned    = completed * avgJobValue
+  const potential = assigned  * avgJobValue
 
   return (
-    <div className="bg-white rounded-2xl shadow p-5 border-l-4 border-red-400">
-      <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-        Revenue Rescue
-      </h2>
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-3xl font-bold text-red-500">
-            ${lostRevenue.toLocaleString()}
-          </p>
-          <p className="text-sm text-gray-500 mt-1">
-            Estimated lost from {expiredCount} expired lead{expiredCount !== 1 ? 's' : ''}
+    <div className="card overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+        <TrendingUp size={15} className="text-gray-400" />
+        <h2 className="font-display font-semibold text-gray-800 text-base">Revenue Snapshot</h2>
+      </div>
+
+      {loading ? (
+        <div className="p-5 space-y-3 animate-pulse">
+          <div className="h-8 bg-gray-100 rounded-lg w-32" />
+          <div className="h-4 bg-gray-100 rounded-lg w-48" />
+        </div>
+      ) : (
+        <div className="p-5 space-y-4">
+          {/* Earned */}
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center shrink-0">
+              <DollarSign size={18} className="text-green-500" />
+            </div>
+            <div>
+              <p className="font-display font-bold text-2xl text-gray-900">
+                ${earned.toLocaleString()}
+              </p>
+              <div className="flex items-center gap-1 mt-0.5">
+                <CheckCircle size={11} className="text-green-400" />
+                <p className="text-xs text-gray-400">{completed} completed job{completed !== 1 ? 's' : ''}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="h-px bg-gray-100" />
+
+          {/* Pipeline */}
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-xl bg-[#004B93]/10 flex items-center justify-center shrink-0">
+              <Clock size={18} className="text-[#004B93]" />
+            </div>
+            <div>
+              <p className="font-display font-bold text-xl text-gray-700">
+                ${potential.toLocaleString()}
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {assigned} job{assigned !== 1 ? 's' : ''} in progress
+              </p>
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-300 pt-1">
+            Estimate based on ${avgJobValue} avg job value
           </p>
         </div>
-        <div className="text-4xl">⚠️</div>
-      </div>
-      <p className="text-xs text-gray-400 mt-3">
-        Based on avg job value of ${AVG_JOB_VALUE}. Update in RevenueWidget.tsx.
-      </p>
+      )}
     </div>
-  );
+  )
 }
