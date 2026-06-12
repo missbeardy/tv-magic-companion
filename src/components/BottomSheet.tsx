@@ -1,47 +1,59 @@
-import { useEffect } from 'react';
+// src/components/BottomSheet.tsx
+import { useEffect } from 'react'
+import { X } from 'lucide-react'
 
-interface BottomSheetProps {
-  isOpen: boolean;
-  onClose: () => void;
-  children: React.ReactNode;
-  title?: string;
+interface Props {
+  isOpen: boolean
+  onClose: () => void
+  title?: string
+  children: React.ReactNode
 }
 
-export default function BottomSheet({ isOpen, onClose, children, title }: BottomSheetProps) {
-  // Prevent body scroll when sheet is open
+export default function BottomSheet({ isOpen, onClose, title, children }: Props) {
   useEffect(() => {
     if (isOpen) {
-      document.body.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden'
     } else {
-      document.body.style.overflow = '';
+      document.body.style.overflow = ''
     }
-    return () => { document.body.style.overflow = ''; };
-  }, [isOpen]);
+    return () => { document.body.style.overflow = '' }
+  }, [isOpen])
 
-  if (!isOpen) return null;
+  if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 md:hidden">
+    <div className="fixed inset-0 z-50 flex items-end">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/50"
         onClick={onClose}
       />
+
       {/* Sheet */}
-      <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl animate-slide-up">
-        {/* Handle bar */}
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 bg-gray-300 rounded-full" />
+      <div className="relative w-full bg-white rounded-t-3xl shadow-2xl animate-slide-up max-h-[90vh] flex flex-col">
+        {/* Handle */}
+        <div className="flex justify-center pt-3 pb-1 shrink-0">
+          <div className="w-10 h-1 rounded-full bg-gray-200" />
         </div>
+
+        {/* Header */}
         {title && (
-          <div className="px-5 py-3 border-b border-gray-100">
-            <h3 className="font-semibold text-gray-800 text-base">{title}</h3>
+          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 shrink-0">
+            <h2 className="font-display font-semibold text-gray-900 text-base">{title}</h2>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              <X size={18} />
+            </button>
           </div>
         )}
-        <div className="px-5 py-4 space-y-3 pb-8">
+
+        {/* Content */}
+        <div className="overflow-y-auto flex-1 px-5 py-4 pb-safe">
           {children}
         </div>
       </div>
     </div>
-  );
+  )
 }

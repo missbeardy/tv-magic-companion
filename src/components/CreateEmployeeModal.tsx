@@ -1,6 +1,8 @@
+// src/components/CreateEmployeeModal.tsx
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { X, UserPlus, Mail, Lock, User, Shield } from 'lucide-react'
 
 interface Props {
   onClose: () => void
@@ -8,143 +10,156 @@ interface Props {
 }
 
 export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
-  const { profile } = useAuth()  // ← ADD THIS to get current user's org
+  const { profile } = useAuth()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [role, setRole] = useState<'employee' | 'manager'>('employee')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
 
   async function handleCreate() {
-    if (!fullName || !email || !password) {
-      setError('Please fill in all fields.')
+    if (!fullName.trim() || !email.trim() || !password.trim()) {
+      setError('Please fill in all fields')
       return
     }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.')
-      return
-    }
-
-    // Check if current user has an org_id
-    if (!profile?.org_id) {
-      setError('Your account is not associated with a franchise. Please contact support.')
-      return
-    }
-
     setSaving(true)
     setError('')
 
-    const { data: { session } } = await supabase.auth.getSession()
+    const { data: signUpData, error: signUpError } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    })
 
-    const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-employee`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`,
-        },
-        body: JSON.stringify({ 
-          email, 
-          full_name: fullName, 
-          password,
-          org_id: profile.org_id  // ← ADD THIS - pass org_id to edge function
-        }),
-      }
-    )
-
-    const result = await response.json()
-
-    if (result.error) {
-      setError(result.error)
+    if (signUpError || !signUpData.user) {
+      setError(signUpError?.message ?? 'Failed to create user')
       setSaving(false)
       return
     }
 
-    setSuccess(true)
-    setSaving(false)
-    setTimeout(() => {
-      onCreated()
-      onClose()
-    }, 1500)
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({ full_name: fullName, role, org_id: profile?.org_id })
+      .eq('id', signUpData.user.id)
+
+    if (profileError) {
+      setError(profileError.message)
+      setSaving(false)
+      return
+    }
+
+    onCreated()
+    onClose()
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
-        <h3 className="text-lg font-semibold text-gray-800 mb-1">Create Employee Account</h3>
-        <p className="text-sm text-gray-500 mb-4">
-          This creates a login for a new technician. Send them the password separately.
-        </p>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
 
-        {/* Show which franchise they're being added to */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-          <p className="text-xs text-blue-700 font-medium">
-            🏢 Adding to: <span className="font-semibold">{profile?.org_id === '11111111-1111-1111-1111-111111111111' ? 'Default Organization' : 'Your Franchise'}</span>
-          </p>
-          <p className="text-xs text-blue-600 mt-1">
-            This employee will only have access to your franchise's data.
-          </p>
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-[#004B93]/10 flex items-center justify-center">
+              <UserPlus size={15} className="text-[#004B93]" />
+            </div>
+            <h3 className="font-display font-semibold text-gray-900 text-base">Add Team Member</h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          >
+            <X size={16} />
+          </button>
         </div>
 
-        {error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm">{error}</div>
-        )}
-        {success && (
-          <div className="bg-green-50 text-green-600 p-3 rounded-lg mb-4 text-sm">
-            ✅ Employee account created!
-          </div>
-        )}
+        <div className="px-6 py-5 space-y-4">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-xl text-sm">
+              {error}
+            </div>
+          )}
 
-        <div className="space-y-4">
+          {/* Full name */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Full Name</label>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+              <User size={11} className="inline mr-1" />Full Name
+            </label>
             <input
               type="text"
               value={fullName}
               onChange={e => setFullName(e.target.value)}
-              placeholder="e.g. Jake Smith"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
+              placeholder="Jane Smith"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:border-[#004B93] transition-colors"
             />
           </div>
+
+          {/* Email */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Email</label>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+              <Mail size={11} className="inline mr-1" />Email Address
+            </label>
             <input
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              placeholder="jake@tvmagic.com.au"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
+              placeholder="jane@company.com"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:border-[#004B93] transition-colors"
             />
           </div>
+
+          {/* Password */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Temporary Password</label>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+              <Lock size={11} className="inline mr-1" />Temporary Password
+            </label>
             <input
-              type="text"
+              type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              placeholder="Min 6 characters"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
+              placeholder="Min. 8 characters"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:border-[#004B93] transition-colors"
             />
-            <p className="text-xs text-gray-400 mt-1">The employee can change this from their profile page.</p>
+          </div>
+
+          {/* Role */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+              <Shield size={11} className="inline mr-1" />Role
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {(['employee', 'manager'] as const).map(r => (
+                <button
+                  key={r}
+                  onClick={() => setRole(r)}
+                  className={`py-2.5 rounded-xl border-2 text-sm font-semibold capitalize transition-all ${
+                    role === r
+                      ? 'border-[#004B93] bg-[#004B93]/5 text-[#004B93]'
+                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                  }`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div className="flex gap-3 mt-6">
+        {/* Footer */}
+        <div className="px-6 pb-5 flex gap-3">
           <button
             onClick={onClose}
             disabled={saving}
-            className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition"
+            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-semibold hover:bg-gray-50 transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleCreate}
-            disabled={saving || success}
-            className="flex-1 bg-[#004B93] text-white py-2 rounded-lg text-sm font-medium hover:bg-[#003d7a] transition disabled:opacity-50"
+            disabled={saving}
+            className="flex-1 py-2.5 rounded-xl bg-[#004B93] text-white text-sm font-semibold hover:bg-[#003d7a] transition-colors disabled:opacity-60"
           >
-            {saving ? 'Creating...' : 'Create Account'}
+            {saving ? 'Creating…' : 'Add Member'}
           </button>
         </div>
       </div>
