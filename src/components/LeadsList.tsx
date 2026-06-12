@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'  // ← ADD THIS
 
 interface Lead {
   id: string
@@ -23,14 +24,22 @@ function LeadSkeleton() {
 }
 
 export default function LeadsList() {
+  const { profile } = useAuth()  // ← ADD THIS
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
   useEffect(() => {
+    // Only fetch if we have a profile with org_id
+    if (!profile?.org_id) {
+      setLoading(false)
+      return
+    }
+
     supabase
       .from('leads')
       .select('id, name, service_type, created_at')
+      .eq('org_id', profile.org_id)  // ← ADD THIS - filter by org
       .eq('status', 'unassigned')
       .order('created_at', { ascending: false })
       .limit(5)
@@ -38,7 +47,7 @@ export default function LeadsList() {
         setLeads((data as Lead[]) ?? [])
         setLoading(false)
       })
-  }, [])
+  }, [profile?.org_id])  // ← ADD dependency
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">

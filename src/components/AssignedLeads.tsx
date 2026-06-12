@@ -50,6 +50,7 @@ export default function AssignedLeads() {
     let query = supabase
       .from('leads')
       .select('*, profiles(full_name, role)')
+      .eq('org_id', profile.org_id)  // ← ADD THIS - filter by org
       .eq('status', 'assigned')
       .order('timer_expires_at', { ascending: true })
 

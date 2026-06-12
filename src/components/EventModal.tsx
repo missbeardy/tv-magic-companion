@@ -47,6 +47,7 @@ interface EventPayload {
   category: string
   user_id: string
   lead_id: string | null
+  org_id?: string | null
   client_name?: string
   client_phone?: string
   client_email?: string
@@ -311,6 +312,7 @@ export default function EventModal({ event, defaultDate, prefillLead, onClose, o
       category,
       user_id: selectedUserId,
       lead_id: finalLeadId,
+      org_id: profile?.org_id,
     }
 
     const capturesDetails = isBookingCategory(category)

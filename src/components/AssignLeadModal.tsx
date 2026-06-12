@@ -33,6 +33,7 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
       const { data: employeeData } = await supabase
         .from('profiles')
         .select('id, full_name, avatar_url, phone, suburb, role, lat, lng')
+        .eq('org_id', profile?.org_id) 
         .in('role', ['employee', 'manager'])
 
       if (!employeeData) return

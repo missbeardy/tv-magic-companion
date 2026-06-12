@@ -6,6 +6,8 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+
+
 interface ThreeCXPayload {
   callerId?: string
   callerNumber?: string

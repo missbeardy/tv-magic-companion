@@ -13,13 +13,16 @@ export default function NavBar() {
   const [menuOpen, setMenuOpen] = useState(false)
 
   const links = [
-    { to: '/dashboard', label: 'Dashboard', icon: '⊞' },
-    { to: '/leads', label: 'Leads', icon: '📋' },
-    { to: '/calendar', label: 'Calendar', icon: '📅' },
-    { to: '/tasks', label: 'Task Board', icon: '✅' },
-    { to: '/profile', label: 'My Profile', icon: '👤' },
-    ...(isManager ? [{ to: '/social', label: 'Social Media', icon: '📲' }] : []),
-  ]
+  { to: '/dashboard', label: 'Dashboard', icon: '⊞' },
+  { to: '/leads', label: 'Leads', icon: '📋' },
+  { to: '/calendar', label: 'Calendar', icon: '📅' },
+  { to: '/tasks', label: 'Task Board', icon: '✅' },
+  { to: '/profile', label: 'My Profile', icon: '👤' },
+  ...(isManager ? [
+    { to: '/social', label: 'Social Media', icon: '📲' },
+    { to: '/org-settings', label: 'Franchise Settings', icon: '🏢' },
+  ] : []),
+]
 
   const navBg = isManager
     ? 'linear-gradient(135deg, #004B93 0%, #0066cc 100%)'

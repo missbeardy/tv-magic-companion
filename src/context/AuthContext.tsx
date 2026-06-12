@@ -1,4 +1,3 @@
-// src/context/AuthContext.tsx
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
@@ -8,8 +7,14 @@ interface Profile {
   email: string
   full_name: string | null
   role: 'manager' | 'employee'
-  org_id: string | null
-  location_enabled: boolean
+  org_id: string
+  avatar_url?: string
+  phone?: string
+  suburb?: string
+  lat?: number | null
+  lng?: number | null
+  location_updated_at?: string | null
+  location_enabled?: boolean  // ← ADD THIS LINE
 }
 
 interface AuthContextType {
@@ -37,7 +42,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .select('*')
       .eq('id', userId)
       .single()
-    if (data) setProfile(data)
+    
+    if (data) {
+      setProfile(data)
+    }
   }
 
   useEffect(() => {

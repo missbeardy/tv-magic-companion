@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 
 interface Props {
   onClose: () => void
@@ -7,6 +8,7 @@ interface Props {
 }
 
 export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
+  const { profile } = useAuth()  // ← ADD THIS to get current user's org
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -24,6 +26,12 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
       return
     }
 
+    // Check if current user has an org_id
+    if (!profile?.org_id) {
+      setError('Your account is not associated with a franchise. Please contact support.')
+      return
+    }
+
     setSaving(true)
     setError('')
 
@@ -37,7 +45,12 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session?.access_token}`,
         },
-        body: JSON.stringify({ email, full_name: fullName, password }),
+        body: JSON.stringify({ 
+          email, 
+          full_name: fullName, 
+          password,
+          org_id: profile.org_id  // ← ADD THIS - pass org_id to edge function
+        }),
       }
     )
 
@@ -64,6 +77,16 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
         <p className="text-sm text-gray-500 mb-4">
           This creates a login for a new technician. Send them the password separately.
         </p>
+
+        {/* Show which franchise they're being added to */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+          <p className="text-xs text-blue-700 font-medium">
+            🏢 Adding to: <span className="font-semibold">{profile?.org_id === '11111111-1111-1111-1111-111111111111' ? 'Default Organization' : 'Your Franchise'}</span>
+          </p>
+          <p className="text-xs text-blue-600 mt-1">
+            This employee will only have access to your franchise's data.
+          </p>
+        </div>
 
         {error && (
           <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm">{error}</div>

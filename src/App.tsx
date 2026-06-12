@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { DemoProvider } from './context/DemoContext'
+import { OrgProvider } from './context/OrgContext'
 import { useAuth } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Login from './pages/Login'
@@ -11,18 +12,17 @@ import AllLeadsPage from './pages/AllLeadsPage'
 import LeadsPage from './pages/LeadsPage'
 import ProfilePage from './pages/ProfilePage'
 import SocialPage from './pages/SocialPage'
+import TaskBoardPage from './pages/TaskBoardPage'
+import OrgSettingsPage from './pages/OrgSettingsPage'
 import { useEffect } from 'react'
 import { useTechLocation } from './hooks/useTechLocation'
 import { initOneSignal, setOneSignalUser, clearOneSignalUser } from './lib/oneSignal'
 
-
-
 function Dashboard() {
   const { profile, loading } = useAuth()
 
-useTechLocation(profile?.id ?? null, profile?.location_enabled ?? false)
+  useTechLocation(profile?.id ?? null)
 
-  // Link this device to the logged-in user in OneSignal
   useEffect(() => {
     if (profile?.id) {
       setOneSignalUser(profile.id).catch(err =>
@@ -41,12 +41,10 @@ useTechLocation(profile?.id ?? null, profile?.location_enabled ?? false)
 
 function App() {
   useEffect(() => {
-    // Initialise OneSignal once on app load
     initOneSignal().catch(err =>
       console.error('OneSignal init failed:', err)
     )
 
-    // Register existing service worker for offline support
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js')
         .then(reg => console.log('SW registered:', reg.scope))
@@ -57,77 +55,95 @@ function App() {
   return (
     <AuthProvider>
       <DemoProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/manager"
-              element={
-                <ProtectedRoute requiredRole="manager">
-                  <ManagerDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/employee"
-              element={
-                <ProtectedRoute requiredRole="employee">
-                  <EmployeeDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/leads"
-              element={
-                <ProtectedRoute>
-                  <LeadsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/calendar"
-              element={
-                <ProtectedRoute>
-                  <CalendarPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/all-leads"
-              element={
-                <ProtectedRoute requiredRole="manager">
-                  <AllLeadsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <ProfilePage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/social"
-              element={
-                <ProtectedRoute requiredRole="manager">
-                  <SocialPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/test" element={<p style={{ padding: 20 }}>Test page works</p>} />
-            <Route path="*" element={<Navigate to="/login" replace />} />
-          </Routes>
-        </BrowserRouter>
+        <OrgProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/manager"
+                element={
+                  <ProtectedRoute requiredRole="manager">
+                    <ManagerDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/employee"
+                element={
+                  <ProtectedRoute requiredRole="employee">
+                    <EmployeeDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/leads"
+                element={
+                  <ProtectedRoute>
+                    <LeadsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/calendar"
+                element={
+                  <ProtectedRoute>
+                    <CalendarPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/all-leads"
+                element={
+                  <ProtectedRoute requiredRole="manager">
+                    <AllLeadsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <ProfilePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/social"
+                element={
+                  <ProtectedRoute requiredRole="manager">
+                    <SocialPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/tasks"
+                element={
+                  <ProtectedRoute>
+                    <TaskBoardPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/org-settings"
+                element={
+                  <ProtectedRoute requiredRole="manager">
+                    <OrgSettingsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/test" element={<p style={{ padding: 20 }}>Test page works</p>} />
+              <Route path="*" element={<Navigate to="/login" replace />} />
+            </Routes>
+          </BrowserRouter>
+        </OrgProvider>
       </DemoProvider>
     </AuthProvider>
   )

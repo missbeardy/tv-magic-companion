@@ -420,17 +420,20 @@ export default function LeadsPage() {
   })
 
   const fetchLeads = useCallback(async () => {
-    let query = supabase
-      .from('leads')
-      .select('*, profiles(full_name)')
-      .order('created_at', { ascending: false })
-    if (profile?.role === 'employee') {
-      query = query.or(`status.eq.unassigned,assigned_to.eq.${profile.id}`)
-    }
-    const { data } = await query
-    if (data) setLeads(data as Lead[])
-    loading && setLoading(false)
-  }, [profile, loading])
+  let query = supabase
+    .from('leads')
+    .select('*, profiles(full_name)')
+    .eq('org_id', profile?.org_id)  // ← ADD THIS LINE - filter by org
+    .order('created_at', { ascending: false })
+  
+  if (profile?.role === 'employee') {
+    query = query.or(`status.eq.unassigned,assigned_to.eq.${profile.id}`)
+  }
+  
+  const { data } = await query
+  if (data) setLeads(data as Lead[])
+  loading && setLoading(false)
+}, [profile, loading])
 
   const logLeadEvent = useCallback(async (leadId: string, eventType: string, note?: string) => {
     await supabase.from('lead_events').insert({

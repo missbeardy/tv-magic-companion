@@ -179,13 +179,16 @@ export default function Calendar() {
     }
   }
 
-  // ── Data Fetching with date range ──
+  // ── Data Fetching with date range AND org filtering ──
   async function fetchEvents() {
+    if (!profile?.org_id) return  // ← ADD THIS
+    
     const { start, end } = getQueryRange(currentDate, view)
 
     let query = supabase
       .from('events')
       .select('*, profiles(full_name)')
+      .eq('org_id', profile.org_id)  // ← ADD THIS - filter by org
       .gte('start_time', start.toISOString())
       .lte('start_time', end.toISOString())
       .order('start_time', { ascending: true })
@@ -202,12 +205,15 @@ export default function Calendar() {
 
   // ── Fetch all events for availability lookup (broader range) ──
   async function fetchAllEventsForAvailability() {
+    if (!profile?.org_id) return  // ← ADD THIS
+    
     const start = startOfWeek(currentDate)
     const end = endOfWeek(currentDate)
 
     let query = supabase
       .from('events')
       .select('*, profiles(full_name)')
+      .eq('org_id', profile.org_id)  // ← ADD THIS - filter by org
       .gte('start_time', start.toISOString())
       .lte('start_time', end.toISOString())
       .order('start_time', { ascending: true })
@@ -228,9 +234,11 @@ export default function Calendar() {
     if (!profile) return
     fetchEvents()
     if (profile.role === 'manager') {
+      // Also filter employees by org
       supabase
         .from('profiles')
         .select('id, full_name')
+        .eq('org_id', profile.org_id)  // ← ADD THIS
         .then(({ data }) => { if (data) setEmployees(data) })
     }
   }, [profile, filterEmployee, currentDate, view])
@@ -502,7 +510,7 @@ export default function Calendar() {
               </div>
             </div>
 
-            {/* Availability Grid */}
+            {/* Availability Grid - keeping the existing implementation */}
             {view === 'day' && (
               <div className="grid grid-cols-1 gap-1">
                 {getAvailabilityForDay(events, currentDate, availabilityDuration).map(({ hour, available }) => (
