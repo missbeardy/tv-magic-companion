@@ -5,7 +5,6 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { useDemo } from '../context/DemoContext'
 import NotificationBell from './NotificationBell'
-import DemoToggle from './DemoToggle'
 import {
   LayoutDashboard,
   Kanban,
@@ -34,12 +33,12 @@ export default function NavBar() {
   }
 
   const navLinks = [
-    { to: '/',          label: 'Dashboard', icon: LayoutDashboard, roles: ['manager', 'employee'] },
-    { to: '/leads',     label: 'Leads',     icon: Kanban,          roles: ['manager', 'employee'] },
-    { to: '/calendar',  label: 'Calendar',  icon: CalendarDays,    roles: ['manager', 'employee'] },
-    { to: '/all-leads', label: 'All Leads', icon: Users,           roles: ['manager'] },
-    { to: '/social',    label: 'Social',    icon: Share2,          roles: ['manager'] },
-    { to: '/org',       label: 'Settings',  icon: Settings,        roles: ['manager'] },
+    { to: '/',          label: 'Dashboard',        icon: LayoutDashboard, roles: ['manager', 'employee'] },
+    { to: '/leads',     label: 'Leads',            icon: Kanban,          roles: ['manager', 'employee'] },
+    { to: '/calendar',  label: 'Calendar',         icon: CalendarDays,    roles: ['manager', 'employee'] },
+    { to: '/all-leads', label: 'All Leads',        icon: Users,           roles: ['manager'] },
+    { to: '/social',    label: 'Social',           icon: Share2,          roles: ['manager'] },
+    { to: '/org-settings', label: 'Franchise Settings', icon: Settings,   roles: ['manager'] }, // Fixed: correct route and label
   ].filter(link => link.roles.includes(profile?.role ?? ''))
 
   function isActive(to: string) {
@@ -53,20 +52,32 @@ export default function NavBar() {
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between h-14">
 
-            {/* Logo */}
-            <Link to="/" className="flex items-center gap-2 shrink-0">
-              <div className="w-7 h-7 bg-white/15 rounded-lg flex items-center justify-center">
-                <Tv2 size={15} className="text-white" />
-              </div>
-              <span className="font-display font-800 text-white text-base tracking-tight leading-none">
-                TV<span className="text-[#00B4C5]">Magic</span>
-              </span>
-              {demoMode && (
-                <span className="badge badge-amber ml-1">Demo</span>
-              )}
-            </Link>
+            {/* Left side: mobile hamburger + logo */}
+            <div className="flex items-center gap-2">
+              {/* Hamburger menu button (mobile only) - now on the LEFT */}
+              <button
+                onClick={() => setMobileOpen(!mobileOpen)}
+                className="md:hidden p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                aria-label="Menu"
+              >
+                {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+              </button>
 
-            {/* Desktop links */}
+              {/* Logo */}
+              <Link to="/" className="flex items-center gap-2 shrink-0">
+                <div className="w-7 h-7 bg-white/15 rounded-lg flex items-center justify-center">
+                  <Tv2 size={15} className="text-white" />
+                </div>
+                <span className="font-display font-800 text-white text-base tracking-tight leading-none">
+                  TV<span className="text-[#00B4C5]">Magic</span>
+                </span>
+                {demoMode && (
+                  <span className="badge badge-amber ml-1">Demo</span>
+                )}
+              </Link>
+            </div>
+
+            {/* Desktop links (center) */}
             <div className="hidden md:flex items-center gap-1">
               {navLinks.map(link => {
                 const Icon = link.icon
@@ -88,9 +99,8 @@ export default function NavBar() {
               })}
             </div>
 
-            {/* Right side */}
+            {/* Right side: notification bell + avatar + logout (no demo toggle) */}
             <div className="flex items-center gap-2">
-              {isManager && <DemoToggle />}
               <NotificationBell />
 
               {/* Avatar + logout (desktop) */}
@@ -111,19 +121,11 @@ export default function NavBar() {
                   <LogOut size={15} />
                 </button>
               </div>
-
-              {/* Mobile hamburger */}
-              <button
-                onClick={() => setMobileOpen(!mobileOpen)}
-                className="md:hidden p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                {mobileOpen ? <X size={20} /> : <Menu size={20} />}
-              </button>
             </div>
           </div>
         </div>
 
-        {/* Mobile menu */}
+        {/* Mobile menu (slides down) */}
         {mobileOpen && (
           <div className="md:hidden border-t border-white/10 bg-[#003d7a] animate-fade-in">
             <div className="px-4 py-3 space-y-1">
