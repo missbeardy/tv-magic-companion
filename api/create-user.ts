@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const SUPABASE_URL = process.env.SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY!;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
 interface InviteResponse {
   id?: string;
@@ -9,9 +9,17 @@ interface InviteResponse {
   msg?: string;
   message?: string;
   error?: string;
+  code?: number;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Log everything to Vercel logs
+  console.log('=== CREATE USER API CALLED ===');
+  console.log('Method:', req.method);
+  console.log('Body:', req.body);
+  console.log('SUPABASE_URL exists:', !!SUPABASE_URL);
+  console.log('SUPABASE_ANON_KEY exists:', !!SUPABASE_ANON_KEY);
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -19,12 +27,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { email, fullName, role, orgId } = req.body;
 
   if (!email || !fullName || !role || !orgId) {
-    return res.status(400).json({ error: 'Missing required fields' });
+    return res.status(400).json({ 
+      error: 'Missing required fields',
+      received: { email: !!email, fullName: !!fullName, role: !!role, orgId: !!orgId }
+    });
+  }
+
+  // Check environment variables
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.error('Missing env vars: URL=', !!SUPABASE_URL, 'ANON_KEY=', !!SUPABASE_ANON_KEY);
+    return res.status(500).json({ 
+      error: 'Server configuration error', 
+      details: 'Missing Supabase environment variables'
+    });
   }
 
   try {
-    // Send invitation email
-    const response = await fetch(`${SUPABASE_URL}/auth/v1/invite`, {
+    const inviteUrl = `${SUPABASE_URL}/auth/v1/invite`;
+    console.log('Calling invite URL:', inviteUrl);
+
+    const response = await fetch(inviteUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -41,26 +63,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }),
     });
 
+    console.log('Invite response status:', response.status);
     const data: InviteResponse = await response.json();
+    console.log('Invite response data:', data);
 
     if (!response.ok) {
-      console.error('Invite error:', data);
-      return res.status(500).json({ 
+      const errorMsg = data.msg || data.message || data.error || JSON.stringify(data);
+      return res.status(response.status).json({ 
         error: 'Invite failed', 
-        details: data.msg || data.message || data.error || 'Unknown error'
+        details: errorMsg
       });
     }
 
     return res.status(200).json({ 
       success: true, 
-      message: `Invitation sent to ${email}! They will receive an email to set their password.`
+      message: `Invitation sent to ${email}!` 
     });
 
-  } catch (err) {
-    console.error('Unexpected error:', err);
+  } catch (err: any) {
+    console.error('Caught error:', err);
     return res.status(500).json({ 
       error: 'Internal server error', 
-      details: err instanceof Error ? err.message : 'Unknown error'
+      details: err.message 
     });
   }
 }
