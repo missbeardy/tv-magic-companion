@@ -16,6 +16,7 @@ import {
   Menu,
   X,
   Tv2,
+  User,        // ← ADDED
 } from 'lucide-react'
 
 export default function NavBar() {
@@ -37,6 +38,7 @@ export default function NavBar() {
     { to: '/all-leads',     label: 'All Leads',         icon: Users,           roles: ['manager'] },
     { to: '/social',        label: 'Social',            icon: Share2,          roles: ['manager'] },
     { to: '/org-settings',  label: 'Franchise Settings', icon: Settings,       roles: ['manager'] },
+    { to: '/profile',       label: 'Profile',           icon: User,            roles: ['manager', 'employee'] }, // ← ADDED
   ].filter(link => link.roles.includes(profile?.role ?? ''))
 
   function isActive(to: string) {
@@ -52,7 +54,6 @@ export default function NavBar() {
 
             {/* Left side: mobile hamburger + logo */}
             <div className="flex items-center gap-2">
-              {/* Hamburger menu button (mobile only) - now on the LEFT */}
               <button
                 onClick={() => setMobileOpen(!mobileOpen)}
                 className="md:hidden p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
@@ -61,7 +62,6 @@ export default function NavBar() {
                 {mobileOpen ? <X size={20} /> : <Menu size={20} />}
               </button>
 
-              {/* Logo */}
               <Link to="/" className="flex items-center gap-2 shrink-0">
                 <div className="w-7 h-7 bg-white/15 rounded-lg flex items-center justify-center">
                   <Tv2 size={15} className="text-white" />
@@ -97,11 +97,10 @@ export default function NavBar() {
               })}
             </div>
 
-            {/* Right side: notification bell + avatar + logout (no demo toggle) */}
+            {/* Right side: notification bell + avatar + logout */}
             <div className="flex items-center gap-2">
               <NotificationBell />
 
-              {/* Avatar + logout (desktop) */}
               <div className="hidden md:flex items-center gap-2 ml-1 pl-3 border-l border-white/20">
                 <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
                   <span className="text-white font-bold text-xs">
@@ -123,7 +122,7 @@ export default function NavBar() {
           </div>
         </div>
 
-        {/* Mobile menu (slides down) */}
+        {/* Mobile menu */}
         {mobileOpen && (
           <div className="md:hidden border-t border-white/10 bg-[#003d7a] animate-fade-in">
             <div className="px-4 py-3 space-y-1">
