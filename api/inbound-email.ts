@@ -1,7 +1,7 @@
 // api/inbound-email.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-import { checkRateLimit } from './_rateLimit'
+import { checkRateLimit } from './_rateLimit.js'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -29,8 +29,8 @@ Email: ${rawEmail.substring(0, 3000)}`
         messages: [{ role: 'user', content: prompt }],
       }),
     })
-    const data = await response.json()
-    const raw = data.content?.[0]?.text || ''
+    const data = await response.json() as { content?: Array<{ text?: string }> }
+const raw = data.content?.[0]?.text || ''
     const cleaned = raw.replace(/```json\s*|\s*```/g, '').trim()
     return JSON.parse(cleaned)
   } catch (err) {

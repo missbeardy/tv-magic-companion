@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { checkRateLimit } from './_rateLimit'
+import { checkRateLimit } from './_rateLimit.js'
 
 interface GeocodeResult {
   status: string

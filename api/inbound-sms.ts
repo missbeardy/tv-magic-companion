@@ -2,7 +2,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { createHmac, timingSafeEqual } from 'crypto'
-import { checkRateLimit } from './_rateLimit'
+import { checkRateLimit } from './_rateLimit.js'
 
 // Initialize Supabase with SERVICE ROLE key (bypasses RLS)
 const supabase = createClient(
@@ -58,7 +58,7 @@ Response format: {"customer_name":"...","phone":"...","service_type":"...","job_
         messages: [{ role: 'user', content: prompt }],
       }),
     })
-    const data = await response.json()
+    const data = await response.json() as { content?: Array<{ text?: string }> }
     const raw = data.content?.[0]?.text || ''
     const cleaned = raw.replace(/```json\s*|\s*```/g, '').trim()
     return JSON.parse(cleaned)
