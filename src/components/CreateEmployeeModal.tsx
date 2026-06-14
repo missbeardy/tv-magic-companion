@@ -1,7 +1,7 @@
 // src/components/CreateEmployeeModal.tsx
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { X, UserPlus, Mail, Lock, User, Shield } from 'lucide-react'
+import { X, UserPlus, Mail, User, Shield, Send } from 'lucide-react'
 
 interface Props {
   onClose: () => void
@@ -12,19 +12,19 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
   const { profile } = useAuth()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [role, setRole] = useState<'employee' | 'manager'>('employee')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
-  // ✅ THIS IS THE ONLY FUNCTION THAT CHANGED
   async function handleCreate() {
-    if (!fullName.trim() || !email.trim() || !password.trim()) {
+    if (!fullName.trim() || !email.trim()) {
       setError('Please fill in all fields')
       return
     }
     setSaving(true)
     setError('')
+    setSuccess('')
 
     try {
       const response = await fetch('/api/create-user', {
@@ -32,7 +32,6 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email,
-          password,
           fullName,
           role,
           orgId: profile?.org_id,
@@ -40,10 +39,21 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
       })
 
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Creation failed')
+      if (!response.ok) throw new Error(data.error || 'Invitation failed')
 
-      onCreated()
-      onClose()
+      setSuccess(data.message || 'Invitation sent!')
+      
+      // Clear form
+      setFullName('')
+      setEmail('')
+      setRole('employee')
+      
+      // Close after 2 seconds
+      setTimeout(() => {
+        onCreated()
+        onClose()
+      }, 2000)
+      
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -51,7 +61,6 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
     }
   }
 
-  // ✅ EVERYTHING BELOW IS EXACTLY THE SAME AS BEFORE
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
@@ -62,7 +71,7 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
             <div className="w-8 h-8 rounded-lg bg-[#004B93]/10 flex items-center justify-center">
               <UserPlus size={15} className="text-[#004B93]" />
             </div>
-            <h3 className="font-display font-semibold text-gray-900 text-base">Add Team Member</h3>
+            <h3 className="font-display font-semibold text-gray-900 text-base">Invite Team Member</h3>
           </div>
           <button
             onClick={onClose}
@@ -76,6 +85,12 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-xl text-sm">
               {error}
+            </div>
+          )}
+          
+          {success && (
+            <div className="bg-green-50 border border-green-200 text-green-600 p-3 rounded-xl text-sm">
+              {success}
             </div>
           )}
 
@@ -105,20 +120,7 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
               placeholder="jane@company.com"
               className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:border-[#004B93] transition-colors"
             />
-          </div>
-
-          {/* Password */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-              <Lock size={11} className="inline mr-1" />Temporary Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="Min. 8 characters"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:border-[#004B93] transition-colors"
-            />
+            <p className="text-xs text-gray-400 mt-1">They'll receive an email to set their password</p>
           </div>
 
           {/* Role */}
@@ -156,9 +158,9 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
           <button
             onClick={handleCreate}
             disabled={saving}
-            className="flex-1 py-2.5 rounded-xl bg-[#004B93] text-white text-sm font-semibold hover:bg-[#003d7a] transition-colors disabled:opacity-60"
+            className="flex-1 py-2.5 rounded-xl bg-[#004B93] text-white text-sm font-semibold hover:bg-[#003d7a] transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
           >
-            {saving ? 'Creating…' : 'Add Member'}
+            {saving ? 'Sending...' : <><Send size={14} /> Send Invite</>}
           </button>
         </div>
       </div>

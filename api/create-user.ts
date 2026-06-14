@@ -1,13 +1,14 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY!;
 
-interface ManagementAPIResponse {
-  id: string;
-  email: string;
+interface InviteResponse {
+  id?: string;
+  email?: string;
   msg?: string;
   message?: string;
+  error?: string;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -15,49 +16,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { email, password, fullName, role, orgId } = req.body;
+  const { email, fullName, role, orgId } = req.body;
 
-  if (!email || !password || !fullName || !role || !orgId) {
+  if (!email || !fullName || !role || !orgId) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
   try {
-    // Use Supabase Management API to create user
-    const response = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
+    // Send invitation email
+    const response = await fetch(`${SUPABASE_URL}/auth/v1/invite`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': SUPABASE_SERVICE_ROLE_KEY,
-        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        'apikey': SUPABASE_ANON_KEY,
       },
       body: JSON.stringify({
         email,
-        password,
-        email_confirm: true,
-        user_metadata: {
+        data: {
           full_name: fullName,
           role: role,
           org_id: orgId,
         },
+        redirect_to: 'https://tv-magic-companion.vercel.app/login',
       }),
     });
 
-    const data = await response.json() as ManagementAPIResponse;
+    const data: InviteResponse = await response.json();
 
     if (!response.ok) {
-      console.error('Management API error:', data);
+      console.error('Invite error:', data);
       return res.status(500).json({ 
-        error: 'Auth creation failed', 
-        details: data.msg || data.message || 'Unknown error'
+        error: 'Invite failed', 
+        details: data.msg || data.message || data.error || 'Unknown error'
       });
     }
 
-    const userId = data.id;
-
-    // The database trigger will automatically create the profile
-    // with the metadata we passed above
-
-    return res.status(200).json({ success: true, userId });
+    return res.status(200).json({ 
+      success: true, 
+      message: `Invitation sent to ${email}! They will receive an email to set their password.`
+    });
 
   } catch (err) {
     console.error('Unexpected error:', err);
