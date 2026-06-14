@@ -1,6 +1,7 @@
 // src/components/CreateEmployeeModal.tsx
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { supabase } from '../lib/supabase';
 import { X, UserPlus, Mail, User, Shield, Send } from 'lucide-react'
 
 interface Props {
@@ -18,48 +19,57 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
   const [success, setSuccess] = useState('')
 
   async function handleCreate() {
-    if (!fullName.trim() || !email.trim()) {
-      setError('Please fill in all fields')
-      return
-    }
-    setSaving(true)
-    setError('')
-    setSuccess('')
-
-    try {
-      const response = await fetch('/api/create-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          fullName,
-          role,
-          orgId: profile?.org_id,
-        }),
-      })
-
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Invitation failed')
-
-      setSuccess(data.message || 'Invitation sent!')
-      
-      // Clear form
-      setFullName('')
-      setEmail('')
-      setRole('employee')
-      
-      // Close after 2 seconds
-      setTimeout(() => {
-        onCreated()
-        onClose()
-      }, 2000)
-      
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setSaving(false)
-    }
+  if (!fullName.trim() || !email.trim()) {
+    setError('Please fill in all fields');
+    return;
   }
+  setSaving(true);
+  setError('');
+  setSuccess('');
+
+  try {
+    // Get the current session to retrieve the access token
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('You must be logged in to perform this action');
+    }
+
+    const response = await fetch('/api/create-user', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        email,
+        fullName,
+        role,
+        orgId: profile?.org_id,
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || data.details || 'Invitation failed');
+
+    setSuccess(data.message || 'Invitation sent!');
+    
+    // Clear form
+    setFullName('');
+    setEmail('');
+    setRole('employee');
+    
+    // Close after 2 seconds
+    setTimeout(() => {
+      onCreated();
+      onClose();
+    }, 2000);
+    
+  } catch (err: any) {
+    setError(err.message);
+  } finally {
+    setSaving(false);
+  }
+}
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
