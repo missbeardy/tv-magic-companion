@@ -1,6 +1,5 @@
 // src/components/CreateEmployeeModal.tsx
 import { useState } from 'react'
-import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { X, UserPlus, Mail, Lock, User, Shield } from 'lucide-react'
 
@@ -18,6 +17,7 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  // ✅ THIS IS THE ONLY FUNCTION THAT CHANGED
   async function handleCreate() {
     if (!fullName.trim() || !email.trim() || !password.trim()) {
       setError('Please fill in all fields')
@@ -26,33 +26,32 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
     setSaving(true)
     setError('')
 
-    const { data: signUpData, error: signUpError } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-    })
+    try {
+      const response = await fetch('/api/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          password,
+          fullName,
+          role,
+          orgId: profile?.org_id,
+        }),
+      })
 
-    if (signUpError || !signUpData.user) {
-      setError(signUpError?.message ?? 'Failed to create user')
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Creation failed')
+
+      onCreated()
+      onClose()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
       setSaving(false)
-      return
     }
-
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .update({ full_name: fullName, role, org_id: profile?.org_id })
-      .eq('id', signUpData.user.id)
-
-    if (profileError) {
-      setError(profileError.message)
-      setSaving(false)
-      return
-    }
-
-    onCreated()
-    onClose()
   }
 
+  // ✅ EVERYTHING BELOW IS EXACTLY THE SAME AS BEFORE
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
