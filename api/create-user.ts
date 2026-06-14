@@ -2,7 +2,9 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY!;
-const INVITE_API_KEY = process.env.INVITE_API_KEY!;
+
+// TEMPORARY HARDCODED KEY – replace with env var later
+const INVITE_API_KEY = 'fieldbournedigital2026';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -10,6 +12,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const apiKey = req.headers['x-api-key'];
+  console.log('Received API Key:', apiKey);
+  console.log('Expected API Key:', INVITE_API_KEY);
+
   if (!apiKey || apiKey !== INVITE_API_KEY) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -24,7 +29,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        apikey: SUPABASE_ANON_KEY,
+        'apikey': SUPABASE_ANON_KEY,
       },
       body: JSON.stringify({
         email,

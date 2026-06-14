@@ -3,9 +3,8 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { X, UserPlus, Mail, User, Shield, Send } from 'lucide-react';
 
-// Hardcode the same key you set in Vercel env (INVITE_API_KEY)
-// For testing, use a simple value – later you can make it dynamic
-const INVITE_API_KEY = 'fieldbourndigital2026';
+// TEMPORARY HARDCODED KEY – must match INVITE_API_KEY in Vercel env
+const INVITE_API_KEY = 'fieldbournedigital2026';
 
 interface Props {
   onClose: () => void;
@@ -46,13 +45,17 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || data.details || 'Invitation failed');
+
+      if (!response.ok) {
+        throw new Error(data.error || data.details || 'Invitation failed');
+      }
 
       setSuccess(data.message || 'Invitation sent!');
       setFullName('');
       setEmail('');
       setRole('employee');
 
+      // Close modal after 2 seconds on success
       setTimeout(() => {
         onCreated();
         onClose();
