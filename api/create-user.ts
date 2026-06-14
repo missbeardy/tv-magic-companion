@@ -1,10 +1,14 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const SUPABASE_URL = process.env.SUPABASE_URL!;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+interface ManagementAPIResponse {
+  id: string;
+  email: string;
+  msg?: string;
+  message?: string;
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -14,76 +18,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { email, password, fullName, role, orgId } = req.body;
 
   if (!email || !password || !fullName || !role || !orgId) {
-    return res.status(400).json({ 
-      error: 'Missing required fields',
-      received: { email: !!email, password: !!password, fullName: !!fullName, role: !!role, orgId: !!orgId }
-    });
+    return res.status(400).json({ error: 'Missing required fields' });
   }
 
   try {
-    console.log('Creating user with:', { email, fullName, role, orgId });
-
-    // Step 1: Create the auth user
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
+    // Use Supabase Management API to create user
+    const response = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_SERVICE_ROLE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          full_name: fullName,
+          role: role,
+          org_id: orgId,
+        },
+      }),
     });
 
-    if (authError || !authData.user) {
-      console.error('Auth create error:', authError);
+    const data = await response.json() as ManagementAPIResponse;
+
+    if (!response.ok) {
+      console.error('Management API error:', data);
       return res.status(500).json({ 
         error: 'Auth creation failed', 
-        details: authError?.message || 'No user returned' 
+        details: data.msg || data.message || 'Unknown error'
       });
     }
 
-    console.log('Auth user created:', authData.user.id);
+    const userId = data.id;
 
-    // Step 2: Check if profile already exists
-    const { data: existingProfile, error: checkError } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', authData.user.id)
-      .single();
+    // The database trigger will automatically create the profile
+    // with the metadata we passed above
 
-    console.log('Existing profile check:', { exists: !!existingProfile, error: checkError });
-
-    // Step 3: Update or insert profile
-    let profileError;
-    if (existingProfile) {
-      // Update existing
-      const { error } = await supabase
-        .from('profiles')
-        .update({ full_name: fullName, role, org_id: orgId })
-        .eq('id', authData.user.id);
-      profileError = error;
-    } else {
-      // Insert new (shouldn't happen because trigger creates it, but just in case)
-      const { error } = await supabase
-        .from('profiles')
-        .insert({ id: authData.user.id, full_name: fullName, role, org_id: orgId });
-      profileError = error;
-    }
-
-    if (profileError) {
-      console.error('Profile update error:', profileError);
-      // Rollback - delete the auth user
-      await supabase.auth.admin.deleteUser(authData.user.id);
-      return res.status(500).json({ 
-        error: 'Database error updating profile', 
-        details: profileError.message,
-        hint: profileError.hint,
-        code: profileError.code
-      });
-    }
-
-    console.log('Profile updated successfully');
-
-    return res.status(200).json({ 
-      success: true, 
-      userId: authData.user.id 
-    });
+    return res.status(200).json({ success: true, userId });
 
   } catch (err) {
     console.error('Unexpected error:', err);
