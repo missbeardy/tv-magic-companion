@@ -1,6 +1,6 @@
 // src/pages/SetPasswordPage.tsx
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { Tv2, Lock, CheckCircle, AlertCircle } from 'lucide-react'
 
@@ -8,6 +8,7 @@ type Stage = 'loading' | 'set-password' | 'success' | 'error'
 
 export default function SetPasswordPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [stage, setStage] = useState<Stage>('loading')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -15,20 +16,26 @@ export default function SetPasswordPage() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    // Supabase puts the session tokens in the URL hash after the user clicks
-    // the invite email link. We call getSession() which automatically reads
-    // those tokens and establishes a temporary session — then we can update
-    // the password on that session.
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        // We have a valid session from the invite link — show the password form
-        setStage('set-password')
-      } else {
-        // No session — the link may have expired or already been used
-        setErrorMsg('This invite link has expired or has already been used. Ask your manager to send a new invite.')
-        setStage('error')
-      }
-    })
+    const tokenHash = searchParams.get('token_hash')
+    const type = searchParams.get('type')
+
+    if (!tokenHash || type !== 'invite') {
+      setErrorMsg('This invite link is invalid or has already been used. Ask your manager to send a new invite.')
+      setStage('error')
+      return
+    }
+
+    // verifyOtp exchanges the token_hash from the URL query string for a
+    // real session — this is Supabase's PKCE flow for invite links
+    supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'invite' })
+      .then(({ error }) => {
+        if (error) {
+          setErrorMsg('This invite link has expired or has already been used. Ask your manager to send a new invite.')
+          setStage('error')
+        } else {
+          setStage('set-password')
+        }
+      })
   }, [])
 
   async function handleSetPassword() {
@@ -44,8 +51,6 @@ export default function SetPasswordPage() {
     setSaving(true)
     setErrorMsg('')
 
-    // updateUser() sets the password on the currently active session
-    // (the one established from the invite link token)
     const { error } = await supabase.auth.updateUser({ password })
 
     if (error) {
@@ -54,7 +59,6 @@ export default function SetPasswordPage() {
       return
     }
 
-    // Password set successfully — show success then redirect to dashboard
     setStage('success')
     setTimeout(() => navigate('/'), 2000)
   }
@@ -144,7 +148,7 @@ export default function SetPasswordPage() {
           </div>
         )}
 
-        {/* Error / expired link */}
+        {/* Error */}
         {stage === 'error' && (
           <div className="card p-6 text-center space-y-3">
             <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto">
