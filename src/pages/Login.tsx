@@ -1,12 +1,13 @@
+// src/pages/Login.tsx
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext' // ⚡ Added context import to access setProfile
+import { useNavigate, Link } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import { Tv2, Mail, Lock, LogIn } from 'lucide-react'
 
 export default function Login() {
   const navigate = useNavigate()
-  const { setProfile } = useAuth() // ⚡ Access the profile state modifier we opened up earlier
+  const { setProfile } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -15,15 +16,12 @@ export default function Login() {
   async function handleLogin() {
     setLoading(true)
     setError('')
-    
     try {
       const { error: e } = await supabase.auth.signInWithPassword({ email, password })
-      
       if (e) {
         setError('Invalid email or password')
         setLoading(false)
       } else {
-        // ⚡ FIX: Fetch the profile data immediately so it exists before we navigate away
         const { data: sessionData } = await supabase.auth.getSession()
         if (sessionData?.session?.user) {
           const { data: profileData } = await supabase
@@ -31,12 +29,8 @@ export default function Login() {
             .select('*')
             .eq('id', sessionData.session.user.id)
             .single()
-          
-          if (profileData) {
-            setProfile(profileData) // Safely populate context state right away
-          }
+          if (profileData) setProfile(profileData)
         }
-        
         navigate('/')
       }
     } catch (err) {
@@ -109,6 +103,13 @@ export default function Login() {
             <LogIn size={15} />
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
+
+          {/* Forgot password */}
+          <p className="text-center text-xs text-gray-400">
+            <Link to="/forgot-password" className="text-[#004B93] hover:underline">
+              Forgot your password?
+            </Link>
+          </p>
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-6">
