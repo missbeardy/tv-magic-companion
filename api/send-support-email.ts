@@ -1,6 +1,20 @@
 // api/send-support-email.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { checkRateLimit } from './_rateLimit';
+
+// Inlined rate limit (matches pattern used in inbound-sms.ts)
+const requests = new Map<string, { count: number; reset: number }>();
+function checkRateLimit(ip: string, limit = 10, windowMs = 60000): boolean {
+  const now = Date.now();
+  const key = ip.split(',')[0].trim() || 'unknown';
+  const entry = requests.get(key);
+  if (!entry || now > entry.reset) {
+    requests.set(key, { count: 1, reset: now + windowMs });
+    return true;
+  }
+  if (entry.count >= limit) return false;
+  entry.count++;
+  return true;
+}
 
 interface SupportPayload {
   type: 'feature' | 'issue';
@@ -13,7 +27,6 @@ interface SupportPayload {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Always set JSON content type early
   res.setHeader('Content-Type', 'application/json');
 
   if (req.method !== 'POST') {
@@ -47,14 +60,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       <p style="color:#666; font-size:12px;">Submitted via TVMagic Companion Support page</p>
     `;
 
-    // Try to send email if Resend is available
     const RESEND_API_KEY = process.env.RESEND_API_KEY;
     let emailSent = false;
-    let emailError = null;
 
     if (RESEND_API_KEY) {
       try {
-        // Dynamic import – will fail if resend is not installed
         const { Resend } = await import('resend');
         const resend = new Resend(RESEND_API_KEY);
         const FROM_EMAIL = process.env.EMAIL_FROM || 'noreply@tv-magic-companion.com';
@@ -66,13 +76,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
         if (error) throw new Error(error.message);
         emailSent = true;
-      } catch (err: any) {
-        emailError = err.message;
+      } catch (err) {
         console.error('Resend email failed:', err);
       }
+    } else {
+      console.log('RESEND_API_KEY not set – email not sent');
     }
 
-    // Log the request for debugging (always)
     console.log('=== SUPPORT REQUEST ===');
     console.log('Type:', typeLabel);
     console.log('From:', userName, userEmail);
@@ -80,10 +90,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('Description:', description);
     console.log('Images:', imageUrls);
     console.log('Email sent:', emailSent);
-    if (emailError) console.log('Email error:', emailError);
     console.log('=======================');
 
-    // Always return success to the frontend (don't expose email errors)
     return res.status(200).json({
       success: true,
       emailSent,
@@ -92,10 +100,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   } catch (err: any) {
     console.error('Support API fatal error:', err);
-    // Return a proper JSON error even on crash
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error. Please try again later.'
-    });
+    return res.status(500).json({ error: 'Internal server error. Please try again later.' });
   }
 }
