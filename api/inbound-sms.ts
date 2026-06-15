@@ -3,7 +3,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { createHmac, timingSafeEqual } from 'crypto'
 
-// Simple rate limiter inline
+// Simple in-memory rate limiter
 const requests = new Map<string, { count: number; reset: number }>()
 
 function checkRateLimit(ip: string, limit = 60, windowMs = 60000): boolean {
@@ -39,20 +39,26 @@ function verifyTwilioSignature(req: VercelRequest, authToken: string): boolean {
   }
 }
 
+// Enhanced parser: first try Claude, then regex fallback
 async function parseSmsWithClaude(smsText: string, fromNumber: string) {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return null
 
-  const prompt = `Extract from this SMS. Return ONLY valid JSON. No markdown.
-SMS: "${smsText.substring(0, 800)}"
-Fields:
-- customer_name (string, default "SMS Enquiry")
-- phone (string, use "${fromNumber}")
-- service_type (string, one of: "TV Aerial","Satellite Dish","CCTV","Other", default "Other")
-- job_details (string)
-- address (string)
+  const prompt = `Extract customer details from this SMS. Return ONLY valid JSON. No markdown.
+SMS text:
+"""
+${smsText.substring(0, 1500)}
+"""
 
-Response: {"customer_name":"...","phone":"...","service_type":"...","job_details":"...","address":"..."}`
+Fields to extract:
+- customer_name: the customer's full name (look for "Your Name:" or similar)
+- phone: the customer's contact phone number (look for "Contact Phone:" or a phone number in the text; if not found, use the sender's number: ${fromNumber})
+- email: email address if present
+- service_type: infer from the job description (choose one: "TV Aerial", "Satellite Dish", "CCTV", "Home Automation", "Other")
+- job_details: a concise summary of the work requested
+- address: full address (combine Address, Suburb, State, Postcode if present)
+
+Return JSON: {"customer_name":"...","phone":"...","email":"...","service_type":"...","job_details":"...","address":"..."}`
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -63,7 +69,7 @@ Response: {"customer_name":"...","phone":"...","service_type":"...","job_details
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-3-haiku-20240307',
+        model: 'claude-sonnet-4-6',
         max_tokens: 500,
         messages: [{ role: 'user', content: prompt }],
       }),
@@ -73,9 +79,54 @@ Response: {"customer_name":"...","phone":"...","service_type":"...","job_details
     const raw = data.content?.[0]?.text || ''
     const cleaned = raw.replace(/```json\s*|\s*```/g, '').trim()
     return JSON.parse(cleaned)
-  } catch {
+  } catch (err) {
+    console.error('Claude parse error:', err)
     return null
   }
+}
+
+// Fallback regex parser for structured SMS like "Your Name: ..."
+function fallbackParse(smsText: string, fromNumber: string): any {
+  const result = {
+    customer_name: 'SMS Enquiry',
+    phone: fromNumber,
+    email: '',
+    service_type: 'Other',
+    job_details: smsText.substring(0, 200),
+    address: ''
+  }
+
+  // Extract name
+  const nameMatch = smsText.match(/Your Name:\s*(.+?)(?:\n|$)/i)
+  if (nameMatch) result.customer_name = nameMatch[1].trim()
+
+  // Extract phone
+  const phoneMatch = smsText.match(/Contact Phone:\s*(.+?)(?:\n|$)/i)
+  if (phoneMatch) result.phone = phoneMatch[1].trim()
+
+  // Extract email
+  const emailMatch = smsText.match(/Your Email:\s*(.+?)(?:\n|$)/i)
+  if (emailMatch) result.email = emailMatch[1].trim()
+
+  // Extract address components and combine
+  const addressMatch = smsText.match(/Address:\s*(.+?)(?:\n|$)/i)
+  const suburbMatch = smsText.match(/Suburb:\s*(.+?)(?:\n|$)/i)
+  const stateMatch = smsText.match(/State:\s*(.+?)(?:\n|$)/i)
+  const postcodeMatch = smsText.match(/Postcode:\s*(.+?)(?:\n|$)/i)
+  const addrParts = [addressMatch?.[1], suburbMatch?.[1], stateMatch?.[1], postcodeMatch?.[1]].filter(Boolean)
+  if (addrParts.length) result.address = addrParts.join(', ')
+
+  // Extract subject/message for service type hint
+  const subjectMatch = smsText.match(/Subject:\s*(.+?)(?:\n|$)/i)
+  const messageMatch = smsText.match(/Message:\s*(.+?)(?:\n|$)/is)
+  const fullText = [subjectMatch?.[1], messageMatch?.[1]].filter(Boolean).join(' ')
+  if (fullText.toLowerCase().includes('aerial') || fullText.toLowerCase().includes('antenna')) result.service_type = 'TV Aerial'
+  else if (fullText.toLowerCase().includes('satellite')) result.service_type = 'Satellite Dish'
+  else if (fullText.toLowerCase().includes('cctv')) result.service_type = 'CCTV'
+  else if (fullText.toLowerCase().includes('automation')) result.service_type = 'Home Automation'
+  
+  result.job_details = fullText || smsText.substring(0, 200)
+  return result
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -115,72 +166,71 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).send('<Response></Response>')
     }
 
-    console.log(`SMS from ${fromNumber} to ${toNumber}: ${smsText.substring(0, 100)}`)
+    console.log(`SMS from ${fromNumber} to ${toNumber}`)
 
-    // Normalize the Twilio To number to E.164 format (remove spaces, ensure +)
-    let normalizedTo = toNumber.replace(/\s+/g, '')
-    if (normalizedTo && !normalizedTo.startsWith('+')) {
-      if (normalizedTo.startsWith('0')) {
-        normalizedTo = '+61' + normalizedTo.slice(1)
-      } else if (normalizedTo.startsWith('61')) {
-        normalizedTo = '+' + normalizedTo
-      }
+    // Try Claude, then fallback regex
+    let parsed = await parseSmsWithClaude(smsText, fromNumber)
+    if (!parsed) {
+      console.log('Claude failed, using fallback parser')
+      parsed = fallbackParse(smsText, fromNumber)
     }
-    console.log(`Normalized To: ${normalizedTo}`)
 
-    // Look up org_id from org_phone_numbers table
+    // Determine org_id from the called number (To) with robust normalization
     let orgId: string | null = null
-    if (normalizedTo) {
+    if (toNumber) {
+      // Normalize: remove all non-digits, then ensure +61 prefix
+      let normalizedTo = toNumber.replace(/\D/g, '')
+      if (normalizedTo.startsWith('61')) normalizedTo = '+' + normalizedTo
+      else if (normalizedTo.startsWith('0')) normalizedTo = '+61' + normalizedTo.slice(1)
+      else normalizedTo = '+' + normalizedTo
+      
+      console.log(`Looking up org for normalized number: ${normalizedTo}`)
       const { data: mapping, error: lookupError } = await supabase
         .from('org_phone_numbers')
         .select('org_id')
         .eq('phone_number', normalizedTo)
         .maybeSingle()
       
-      if (lookupError) {
-        console.error('Lookup error:', lookupError)
-      }
-      orgId = mapping?.org_id || null
-      console.log(`Lookup result for ${normalizedTo}: org_id = ${orgId}`)
+      if (lookupError) console.error('Lookup error:', lookupError)
+      if (mapping) orgId = mapping.org_id
+      console.log(`Lookup result: orgId = ${orgId}`)
     }
 
-    // No fallback to DEFAULT_ORG_ID for multi-tenant – we rely solely on the mapping table
+    // Fallback to DEFAULT_ORG_ID if still null
+    if (!orgId && process.env.DEFAULT_ORG_ID) {
+      orgId = process.env.DEFAULT_ORG_ID
+      console.log(`Using DEFAULT_ORG_ID: ${orgId}`)
+    }
+
     if (!orgId) {
-      console.error(`No org_id found for phone number ${normalizedTo}. Lead not saved.`)
-      // Still return 200 to Twilio
+      console.error('CRITICAL: No org_id could be resolved. Lead will be rejected.')
       res.setHeader('Content-Type', 'text/xml')
       return res.status(200).send('<Response></Response>')
     }
 
-    // Parse SMS (Claude or fallback)
-    let parsed = await parseSmsWithClaude(smsText, fromNumber)
-    if (!parsed) {
-      parsed = {
-        customer_name: 'SMS Enquiry',
-        phone: fromNumber,
-        service_type: 'Other',
-        job_details: smsText,
-        address: '',
-      }
-    }
-
-    const { error: insertError } = await supabase.from('leads').insert({
-      name: parsed.customer_name,
-      phone: parsed.phone,
-      service_type: parsed.service_type,
-      details: parsed.job_details,
-      address: parsed.address,
-      status: 'unassigned',
-      source: 'sms',
-      org_id: orgId,
-      raw_sms: JSON.stringify(body),
-      created_at: new Date().toISOString(),
-    })
+    // Insert lead
+    const { data: newLead, error: insertError } = await supabase
+      .from('leads')
+      .insert({
+        name: parsed.customer_name,
+        phone: parsed.phone,
+        email: parsed.email || null,
+        service_type: parsed.service_type,
+        details: parsed.job_details,
+        address: parsed.address,
+        status: 'unassigned',
+        source: 'sms',
+        org_id: orgId,
+        raw_sms: JSON.stringify(body),
+        created_at: new Date().toISOString(),
+      })
+      .select('id')
+      .single()
 
     if (insertError) {
       console.error('Insert error:', insertError)
     } else {
-      console.log('Lead saved successfully')
+      console.log(`Lead created: ${newLead.id} for org ${orgId}`)
     }
 
     res.setHeader('Content-Type', 'text/xml')
