@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { X, UserPlus, Mail, User, Shield, Send } from 'lucide-react';
 
-// TEMPORARY HARDCODED KEY – must match INVITE_API_KEY in Vercel env
 const INVITE_API_KEY = 'fieldbournedigital2026';
 
 interface Props {
@@ -29,6 +28,17 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
     setError('');
     setSuccess('');
 
+    // DEBUG: Log what we're about to send
+    const payload = {
+      email,
+      fullName,
+      role,
+      orgId: profile?.org_id,
+    };
+    console.log('>>> DEBUG: profile object:', profile);
+    console.log('>>> DEBUG: payload being sent:', payload);
+    console.log('>>> DEBUG: orgId type:', typeof profile?.org_id, 'value:', profile?.org_id);
+
     try {
       const response = await fetch('/api/create-user', {
         method: 'POST',
@@ -36,15 +46,12 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
           'Content-Type': 'application/json',
           'x-api-key': INVITE_API_KEY,
         },
-        body: JSON.stringify({
-          email,
-          fullName,
-          role,
-          orgId: profile?.org_id,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
+      console.log('>>> DEBUG: API response status:', response.status);
+      console.log('>>> DEBUG: API response data:', data);
 
       if (!response.ok) {
         throw new Error(data.error || data.details || 'Invitation failed');
@@ -55,12 +62,12 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
       setEmail('');
       setRole('employee');
 
-      // Close modal after 2 seconds on success
       setTimeout(() => {
         onCreated();
         onClose();
       }, 2000);
     } catch (err: any) {
+      console.log('>>> DEBUG: Caught error:', err.message);
       setError(err.message);
     } finally {
       setSaving(false);
@@ -70,7 +77,6 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-        {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-[#004B93]/10 flex items-center justify-center">
@@ -98,7 +104,6 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
             </div>
           )}
 
-          {/* Full name */}
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1.5">
               <User size={11} className="inline mr-1" />Full Name
@@ -112,7 +117,6 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
             />
           </div>
 
-          {/* Email */}
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1.5">
               <Mail size={11} className="inline mr-1" />Email Address
@@ -127,7 +131,6 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
             <p className="text-xs text-gray-400 mt-1">They'll receive an email to set their password</p>
           </div>
 
-          {/* Role */}
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1.5">
               <Shield size={11} className="inline mr-1" />Role
@@ -150,7 +153,6 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
           </div>
         </div>
 
-        {/* Footer */}
         <div className="px-6 pb-5 flex gap-3">
           <button
             onClick={onClose}
