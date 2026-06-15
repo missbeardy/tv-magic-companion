@@ -4,7 +4,6 @@ import { createClient } from '@supabase/supabase-js'
 import { createHmac, timingSafeEqual } from 'crypto'
 import { checkRateLimit } from './_rateLimit.js'
 
-// Initialize Supabase with SERVICE ROLE key (bypasses RLS)
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -13,7 +12,10 @@ const supabase = createClient(
 // Helper: Verify Twilio signature
 function verifyTwilioSignature(req: VercelRequest, authToken: string): boolean {
   const twilioSig = req.headers['x-twilio-signature'] as string
-  if (!twilioSig) return false
+  if (!twilioSig) {
+    console.warn('Missing x-twilio-signature header')
+    return false
+  }
   const url = `https://${req.headers.host}${req.url}`
   const params = req.body as Record<string, string>
   const sortedParams = Object.keys(params).sort().map(k => k + params[k]).join('')
@@ -26,20 +28,22 @@ function verifyTwilioSignature(req: VercelRequest, authToken: string): boolean {
   }
 }
 
-// Claude parser (simplified, robust)
+// Simplified, robust SMS parser – never throws, always returns something
 async function parseSmsWithClaude(smsText: string, fromNumber: string) {
   const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) return null
+  if (!apiKey) {
+    console.warn('ANTHROPIC_API_KEY missing – skipping AI parse')
+    return null
+  }
 
-  const prompt = `You are a CRM extractor. Return ONLY valid JSON. No markdown, no extra text.
-Extract from this SMS:
-"${smsText}"
+  const prompt = `Extract from this SMS. Return ONLY valid JSON. No markdown, no extra text.
+SMS: "${smsText.substring(0, 800)}"
 
 Fields:
 - customer_name (string, default "SMS Enquiry")
 - phone (string, use "${fromNumber}" if not mentioned)
 - service_type (one of: "TV Aerial", "Satellite Dish", "CCTV", "Sky Q", "Sky Glass", "Freesat", "Other", default "Other")
-- job_details (string, summary)
+- job_details (string, brief summary)
 - address (string, empty if not mentioned)
 
 Response format: {"customer_name":"...","phone":"...","service_type":"...","job_details":"...","address":"..."}`
@@ -58,6 +62,10 @@ Response format: {"customer_name":"...","phone":"...","service_type":"...","job_
         messages: [{ role: 'user', content: prompt }],
       }),
     })
+    if (!response.ok) {
+      console.error(`Claude API error: ${response.status}`)
+      return null
+    }
     const data = await response.json() as { content?: Array<{ text?: string }> }
     const raw = data.content?.[0]?.text || ''
     const cleaned = raw.replace(/```json\s*|\s*```/g, '').trim()
@@ -70,39 +78,50 @@ Response format: {"customer_name":"...","phone":"...","service_type":"...","job_
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Only POST
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
 
-  // Rate limit
+  // Rate limit – but return TwiML on limit so Twilio doesn't retry
   const ip = (req.headers['x-forwarded-for'] as string) ?? 'unknown'
   if (!checkRateLimit(ip, 60, 60000)) {
+    console.warn(`Rate limit exceeded for ${ip}`)
     res.setHeader('Content-Type', 'text/xml')
-    return res.status(429).send('<Response></Response>')
+    return res.status(200).send('<Response></Response>')
   }
 
   // Twilio auth
   const authToken = process.env.TWILIO_AUTH_TOKEN
   if (!authToken) {
     console.error('TWILIO_AUTH_TOKEN missing')
-    return res.status(500).json({ error: 'Server misconfiguration' })
+    res.setHeader('Content-Type', 'text/xml')
+    return res.status(200).send('<Response></Response>')
   }
+  
   if (!verifyTwilioSignature(req, authToken)) {
-    console.warn('Invalid Twilio signature')
-    return res.status(403).json({ error: 'Invalid signature' })
+    console.warn('Invalid Twilio signature – ignoring')
+    res.setHeader('Content-Type', 'text/xml')
+    return res.status(200).send('<Response></Response>')
   }
 
   try {
     const body = req.body as Record<string, string>
     const smsText = body.Body || ''
     const fromNumber = body.From || ''
-    const toNumber = body.To || ''  // Your Twilio number
+    const toNumber = body.To || ''
 
     if (!smsText.trim()) {
+      console.log('Empty SMS body, ignoring')
+      res.setHeader('Content-Type', 'text/xml')
       return res.status(200).send('<Response></Response>')
     }
 
-    // Parse with Claude (fallback to raw text if Claude fails)
+    console.log(`Processing SMS from ${fromNumber} to ${toNumber}: "${smsText.substring(0, 100)}"`)
+
+    // Parse with Claude (fallback to raw)
     let parsed = await parseSmsWithClaude(smsText, fromNumber)
     if (!parsed) {
+      console.log('Claude parse failed, using fallback')
       parsed = {
         customer_name: 'SMS Enquiry',
         phone: fromNumber,
@@ -121,13 +140,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .select('org_id')
         .eq('phone_number', normalizedTo)
         .maybeSingle()
-      orgId = mapping?.org_id || process.env.DEFAULT_ORG_ID || null
-    } else {
-      orgId = process.env.DEFAULT_ORG_ID || null
+      orgId = mapping?.org_id || null
+      console.log(`Org lookup for ${normalizedTo} -> ${orgId}`)
+    }
+
+    // If still null, try DEFAULT_ORG_ID from env
+    if (!orgId && process.env.DEFAULT_ORG_ID) {
+      orgId = process.env.DEFAULT_ORG_ID
+      console.log(`Using DEFAULT_ORG_ID: ${orgId}`)
+    }
+
+    if (!orgId) {
+      console.error('CRITICAL: No org_id found and no DEFAULT_ORG_ID set. Lead will be rejected by RLS.')
+      // Still return 200 to Twilio, but log heavily
+      res.setHeader('Content-Type', 'text/xml')
+      return res.status(200).send('<Response></Response>')
     }
 
     // Insert lead
-    const { error: insertError } = await supabase
+    const { data: newLead, error: insertError } = await supabase
       .from('leads')
       .insert({
         name: parsed.customer_name,
@@ -141,17 +172,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         raw_sms: JSON.stringify(body),
         created_at: new Date().toISOString(),
       })
+      .select('id')
+      .single()
 
     if (insertError) {
       console.error('Supabase insert error:', insertError)
-      // Still return 200 to Twilio so they don't retry
+      // Still return 200 to Twilio
+    } else {
+      console.log(`Lead created successfully: ${newLead.id}`)
     }
 
     // Always return TwiML success
     res.setHeader('Content-Type', 'text/xml')
     return res.status(200).send('<Response></Response>')
+    
   } catch (err) {
-    console.error('Unhandled error:', err)
+    console.error('Unhandled error in inbound-sms:', err)
     res.setHeader('Content-Type', 'text/xml')
     return res.status(200).send('<Response></Response>')
   }
