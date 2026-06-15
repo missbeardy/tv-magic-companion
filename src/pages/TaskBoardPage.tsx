@@ -1,6 +1,8 @@
+// src/pages/TaskBoardPage.tsx
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import NavBar from '../components/NavBar'
 
 const NICK_USER_ID = import.meta.env.VITE_NICK_USER_ID as string
 
@@ -46,7 +48,6 @@ export default function TaskBoardPage() {
       .select('*, task_items(*)')
       .order('created_at', { ascending: false })
     if (!error && data) {
-      // Client-side filter for 'me_and_nick' visibility since pg setting isn't wired
       const filtered = (data as Task[]).filter(task => {
         if (task.visibility === 'everyone') return true
         if (task.created_by === user?.id) return true
@@ -92,20 +93,17 @@ export default function TaskBoardPage() {
   }
 
   async function handleCheck(taskId: string, itemId: string, currentValue: boolean) {
-    // Toggle this item
     await supabase
       .from('task_items')
       .update({ is_checked: !currentValue })
       .eq('id', itemId)
 
-    // Fetch all items for this task to check if all are done
     const { data: allItems } = await supabase
       .from('task_items')
       .select('id, is_checked')
       .eq('task_id', taskId)
 
     if (allItems) {
-      // Apply the toggle we just made to get the true current state
       const updated = allItems.map(i =>
         i.id === itemId ? { ...i, is_checked: !currentValue } : i
       )
@@ -139,190 +137,198 @@ export default function TaskBoardPage() {
     return 'bg-teal-100 text-teal-700'
   }
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64 text-gray-400">Loading tasks...</div>
-  )
-
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Task Board</h1>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium"
-          style={{ backgroundColor: '#004B93' }}
-        >
-          <span className="text-lg leading-none">+</span> New Task
-        </button>
-      </div>
+    <div className="min-h-screen bg-gray-50">
+      <NavBar />
+      <main className="max-w-2xl mx-auto px-4 py-6">
 
-      {/* Create Task Form */}
-      {showForm && (
-        <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 shadow-sm">
-          <p className="text-sm font-semibold text-gray-700 mb-3">New Task</p>
+        {loading && (
+          <div className="flex items-center justify-center h-64 text-gray-400">Loading tasks...</div>
+        )}
 
-          <input
-            type="text"
-            placeholder="Task title..."
-            value={newTitle}
-            onChange={e => setNewTitle(e.target.value)}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2"
-          />
-
-          <p className="text-xs text-gray-500 mb-2">Checklist items</p>
-          {newItems.map((item, idx) => (
-            <div key={idx} className="flex gap-2 mb-2">
-              <input
-                type="text"
-                placeholder={`Item ${idx + 1}...`}
-                value={item}
-                onChange={e => {
-                  const updated = [...newItems]
-                  updated[idx] = e.target.value
-                  setNewItems(updated)
-                }}
-                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none"
-              />
-              {newItems.length > 1 && (
-                <button
-                  onClick={() => setNewItems(newItems.filter((_, i) => i !== idx))}
-                  className="text-red-400 hover:text-red-600 text-lg px-1"
-                >×</button>
-              )}
-            </div>
-          ))}
-          <button
-            onClick={() => setNewItems([...newItems, ''])}
-            className="text-xs text-blue-600 hover:underline mb-4"
-          >+ Add item</button>
-
-          <div className="mb-4">
-            <p className="text-xs text-gray-500 mb-1">Visible to</p>
-            <div className="flex gap-2 flex-wrap">
-              {(['me', 'me_and_nick', 'everyone'] as const).map(v => (
-                <button
-                  key={v}
-                  onClick={() => setNewVisibility(v)}
-                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
-                    newVisibility === v
-                      ? 'border-transparent text-white'
-                      : 'border-gray-200 text-gray-500 bg-white'
-                  }`}
-                  style={newVisibility === v ? { backgroundColor: '#004B93' } : {}}
-                >
-                  {visibilityLabel(v)}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={handleCreate}
-              disabled={saving}
-              className="flex-1 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-50"
-              style={{ backgroundColor: '#004B93' }}
-            >
-              {saving ? 'Saving...' : 'Create Task'}
-            </button>
-            <button
-              onClick={() => setShowForm(false)}
-              className="px-4 py-2 rounded-lg text-sm text-gray-500 border border-gray-200"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Active Tasks */}
-      {activeTasks.length === 0 && !showForm && (
-        <div className="text-center text-gray-400 py-12 text-sm">
-          No active tasks. Hit <strong>New Task</strong> to get started.
-        </div>
-      )}
-
-      <div className="space-y-3 mb-6">
-        {activeTasks.map(task => (
-          <div key={task.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-2 mb-3">
-              <div>
-                <p className="font-semibold text-gray-900 text-sm">{task.title}</p>
-                <span className={`inline-block mt-1 text-xs px-2 py-0.5 rounded-full font-medium ${visibilityColor(task.visibility)}`}>
-                  {visibilityLabel(task.visibility)}
-                </span>
-              </div>
-              {task.created_by === user?.id && (
-                <button
-                  onClick={() => handleDelete(task.id)}
-                  className="text-gray-300 hover:text-red-400 text-lg leading-none mt-0.5"
-                >×</button>
-              )}
+        {!loading && (
+          <>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <h1 className="text-2xl font-bold text-gray-900">Task Board</h1>
+              <button
+                onClick={() => setShowForm(!showForm)}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium"
+                style={{ backgroundColor: '#004B93' }}
+              >
+                <span className="text-lg leading-none">+</span> New Task
+              </button>
             </div>
 
-            <div className="space-y-2">
-              {task.task_items.map(item => (
-                <label key={item.id} className="flex items-center gap-3 cursor-pointer group">
-                  <input
-                    type="checkbox"
-                    checked={item.is_checked}
-                    onChange={() => handleCheck(task.id, item.id, item.is_checked)}
-                    className="w-4 h-4 rounded accent-teal-500"
-                  />
-                  <span className={`text-sm ${item.is_checked ? 'line-through text-gray-400' : 'text-gray-700'}`}>
-                    {item.label}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
+            {/* Create Task Form */}
+            {showForm && (
+              <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 shadow-sm">
+                <p className="text-sm font-semibold text-gray-700 mb-3">New Task</p>
 
-      {/* Completed Section */}
-      {completedTasks.length > 0 && (
-        <div className="border-t border-gray-100 pt-4">
-          <button
-            onClick={() => setCompletedOpen(!completedOpen)}
-            className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600 mb-3 w-full"
-          >
-            <span>{completedOpen ? '▾' : '▸'}</span>
-            <span>Completed ({completedTasks.length})</span>
-          </button>
+                <input
+                  type="text"
+                  placeholder="Task title..."
+                  value={newTitle}
+                  onChange={e => setNewTitle(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2"
+                />
 
-          {completedOpen && (
-            <div className="space-y-3 opacity-60">
-              {completedTasks.map(task => (
-                <div key={task.id} className="bg-gray-50 border border-gray-100 rounded-xl p-4">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <p className="font-semibold text-gray-500 text-sm line-through">{task.title}</p>
-                    {task.created_by === user?.id && (
+                <p className="text-xs text-gray-500 mb-2">Checklist items</p>
+                {newItems.map((item, idx) => (
+                  <div key={idx} className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      placeholder={`Item ${idx + 1}...`}
+                      value={item}
+                      onChange={e => {
+                        const updated = [...newItems]
+                        updated[idx] = e.target.value
+                        setNewItems(updated)
+                      }}
+                      className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none"
+                    />
+                    {newItems.length > 1 && (
                       <button
-                        onClick={() => handleDelete(task.id)}
-                        className="text-gray-300 hover:text-red-400 text-lg leading-none"
+                        onClick={() => setNewItems(newItems.filter((_, i) => i !== idx))}
+                        className="text-red-400 hover:text-red-600 text-lg px-1"
                       >×</button>
                     )}
                   </div>
+                ))}
+                <button
+                  onClick={() => setNewItems([...newItems, ''])}
+                  className="text-xs text-blue-600 hover:underline mb-4"
+                >+ Add item</button>
+
+                <div className="mb-4">
+                  <p className="text-xs text-gray-500 mb-1">Visible to</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {(['me', 'me_and_nick', 'everyone'] as const).map(v => (
+                      <button
+                        key={v}
+                        onClick={() => setNewVisibility(v)}
+                        className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                          newVisibility === v
+                            ? 'border-transparent text-white'
+                            : 'border-gray-200 text-gray-500 bg-white'
+                        }`}
+                        style={newVisibility === v ? { backgroundColor: '#004B93' } : {}}
+                      >
+                        {visibilityLabel(v)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleCreate}
+                    disabled={saving}
+                    className="flex-1 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-50"
+                    style={{ backgroundColor: '#004B93' }}
+                  >
+                    {saving ? 'Saving...' : 'Create Task'}
+                  </button>
+                  <button
+                    onClick={() => setShowForm(false)}
+                    className="px-4 py-2 rounded-lg text-sm text-gray-500 border border-gray-200"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Active Tasks */}
+            {activeTasks.length === 0 && !showForm && (
+              <div className="text-center text-gray-400 py-12 text-sm">
+                No active tasks. Hit <strong>New Task</strong> to get started.
+              </div>
+            )}
+
+            <div className="space-y-3 mb-6">
+              {activeTasks.map(task => (
+                <div key={task.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <div>
+                      <p className="font-semibold text-gray-900 text-sm">{task.title}</p>
+                      <span className={`inline-block mt-1 text-xs px-2 py-0.5 rounded-full font-medium ${visibilityColor(task.visibility)}`}>
+                        {visibilityLabel(task.visibility)}
+                      </span>
+                    </div>
+                    {task.created_by === user?.id && (
+                      <button
+                        onClick={() => handleDelete(task.id)}
+                        className="text-gray-300 hover:text-red-400 text-lg leading-none mt-0.5"
+                      >×</button>
+                    )}
+                  </div>
+
                   <div className="space-y-2">
                     {task.task_items.map(item => (
-                      <label key={item.id} className="flex items-center gap-3 cursor-pointer">
+                      <label key={item.id} className="flex items-center gap-3 cursor-pointer group">
                         <input
                           type="checkbox"
                           checked={item.is_checked}
                           onChange={() => handleCheck(task.id, item.id, item.is_checked)}
                           className="w-4 h-4 rounded accent-teal-500"
                         />
-                        <span className="text-sm line-through text-gray-400">{item.label}</span>
+                        <span className={`text-sm ${item.is_checked ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                          {item.label}
+                        </span>
                       </label>
                     ))}
                   </div>
                 </div>
               ))}
             </div>
-          )}
-        </div>
-      )}
+
+            {/* Completed Section */}
+            {completedTasks.length > 0 && (
+              <div className="border-t border-gray-100 pt-4">
+                <button
+                  onClick={() => setCompletedOpen(!completedOpen)}
+                  className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600 mb-3 w-full"
+                >
+                  <span>{completedOpen ? '▾' : '▸'}</span>
+                  <span>Completed ({completedTasks.length})</span>
+                </button>
+
+                {completedOpen && (
+                  <div className="space-y-3 opacity-60">
+                    {completedTasks.map(task => (
+                      <div key={task.id} className="bg-gray-50 border border-gray-100 rounded-xl p-4">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <p className="font-semibold text-gray-500 text-sm line-through">{task.title}</p>
+                          {task.created_by === user?.id && (
+                            <button
+                              onClick={() => handleDelete(task.id)}
+                              className="text-gray-300 hover:text-red-400 text-lg leading-none"
+                            >×</button>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          {task.task_items.map(item => (
+                            <label key={item.id} className="flex items-center gap-3 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={item.is_checked}
+                                onChange={() => handleCheck(task.id, item.id, item.is_checked)}
+                                className="w-4 h-4 rounded accent-teal-500"
+                              />
+                              <span className="text-sm line-through text-gray-400">{item.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </main>
     </div>
   )
 }
