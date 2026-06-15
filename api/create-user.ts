@@ -36,8 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: JSON.stringify({
         email,
         data: { full_name: fullName, role, org_id: orgId },
-        // ← Changed: send new users to set-password page, not login
-        redirect_to: 'https://tv-magic-companion.vercel.app/set-password',
+        redirectTo: 'https://tv-magic-companion.vercel.app/set-password', // ← was redirect_to
       }),
     });
 
