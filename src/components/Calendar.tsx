@@ -159,7 +159,6 @@ export default function Calendar() {
 
   const showResourceView = isMobile && profile?.role === 'manager' && filterEmployee === 'all' && view !== 'month'
 
-  // ── Mobile detection with resize listener ──
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768)
     checkMobile()
@@ -167,7 +166,6 @@ export default function Calendar() {
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
-  // ── Date range helpers for queries ──
   function getQueryRange(date: Date, viewMode: ViewMode): { start: Date; end: Date } {
     switch (viewMode) {
       case 'day':
@@ -179,16 +177,15 @@ export default function Calendar() {
     }
   }
 
-  // ── Data Fetching with date range AND org filtering ──
   async function fetchEvents() {
-    if (!profile?.org_id) return  // ← ADD THIS
-    
+    if (!profile?.org_id) return
+
     const { start, end } = getQueryRange(currentDate, view)
 
     let query = supabase
       .from('events')
       .select('*, profiles(full_name)')
-      .eq('org_id', profile.org_id)  // ← ADD THIS - filter by org
+      .eq('org_id', profile.org_id)
       .gte('start_time', start.toISOString())
       .lte('start_time', end.toISOString())
       .order('start_time', { ascending: true })
@@ -203,17 +200,16 @@ export default function Calendar() {
     if (data) setEvents(data as Event[])
   }
 
-  // ── Fetch all events for availability lookup (broader range) ──
   async function fetchAllEventsForAvailability() {
-    if (!profile?.org_id) return  // ← ADD THIS
-    
+    if (!profile?.org_id) return
+
     const start = startOfWeek(currentDate)
     const end = endOfWeek(currentDate)
 
     let query = supabase
       .from('events')
       .select('*, profiles(full_name)')
-      .eq('org_id', profile.org_id)  // ← ADD THIS - filter by org
+      .eq('org_id', profile.org_id)
       .gte('start_time', start.toISOString())
       .lte('start_time', end.toISOString())
       .order('start_time', { ascending: true })
@@ -234,11 +230,10 @@ export default function Calendar() {
     if (!profile) return
     fetchEvents()
     if (profile.role === 'manager') {
-      // Also filter employees by org
       supabase
         .from('profiles')
         .select('id, full_name')
-        .eq('org_id', profile.org_id)  // ← ADD THIS
+        .eq('org_id', profile.org_id)
         .then(({ data }) => { if (data) setEmployees(data) })
     }
   }, [profile, filterEmployee, currentDate, view])
@@ -248,8 +243,6 @@ export default function Calendar() {
       fetchAllEventsForAvailability()
     }
   }, [showAvailability, availabilityEmployee, currentDate])
-
-  // ── Date Helpers ──
 
   function getWeekDays(date: Date): Date[] {
     const start = startOfWeek(date)
@@ -283,8 +276,6 @@ export default function Calendar() {
     return [...blanks, ...days]
   }
 
-  // ── Navigation ──
-
   function navigate(dir: number) {
     const d = new Date(currentDate)
     if (view === 'day') d.setDate(d.getDate() + dir)
@@ -296,8 +287,6 @@ export default function Calendar() {
   function goToToday() {
     setCurrentDate(new Date())
   }
-
-  // ── Event Modal ──
 
   function openNewEvent(date: Date, hour?: number) {
     const target = new Date(date)
@@ -318,8 +307,6 @@ export default function Calendar() {
     setShowModal(true)
   }
 
-  // ── Availability Helpers ──
-
   function getAvailabilityColor(available: boolean): string {
     return available ? 'bg-emerald-100 border-emerald-300' : 'bg-red-100 border-red-300'
   }
@@ -327,8 +314,6 @@ export default function Calendar() {
   function getAvailabilityText(available: boolean): string {
     return available ? 'text-emerald-700' : 'text-red-700'
   }
-
-  // ── Header Label ──
 
   const weekDays = getWeekDays(currentDate)
   const monthDays = getMonthDays(currentDate)
@@ -348,13 +333,11 @@ export default function Calendar() {
     return currentDate.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
   })()
 
-  // ── Render ──────────────────────────────────────────────────────────────────
-
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200">
       {showModal && (
         <EventModal
-          event={selectedEvent ? { ...selectedEvent, description: selectedEvent.description || '' } : null}
+          existingEvent={selectedEvent ?? undefined}
           defaultDate={defaultDate}
           onClose={() => setShowModal(false)}
           onSaved={fetchEvents}
@@ -363,7 +346,6 @@ export default function Calendar() {
 
       {/* ── Toolbar ── */}
       <div className="p-3 sm:p-4 border-b border-gray-100">
-        {/* Row 1: Navigation + Date + Today */}
         <div className="flex items-center justify-between mb-2 sm:mb-3">
           <div className="flex items-center gap-1 sm:gap-2">
             <button
@@ -396,7 +378,6 @@ export default function Calendar() {
           </button>
         </div>
 
-        {/* Row 2: Employee Filter + View Toggle + Add + Availability Toggle */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
           {profile?.role === 'manager' && (
             <select
@@ -428,7 +409,6 @@ export default function Calendar() {
               ))}
             </div>
 
-            {/* Availability Toggle Button */}
             <button
               onClick={() => setShowAvailability(!showAvailability)}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1 whitespace-nowrap flex-shrink-0 border ${
@@ -510,7 +490,6 @@ export default function Calendar() {
               </div>
             </div>
 
-            {/* Availability Grid - keeping the existing implementation */}
             {view === 'day' && (
               <div className="grid grid-cols-1 gap-1">
                 {getAvailabilityForDay(events, currentDate, availabilityDuration).map(({ hour, available }) => (
@@ -629,7 +608,6 @@ export default function Calendar() {
         />
       )}
 
-      {/* ── Standard views — hidden on mobile when resource view is showing ── */}
       {!showResourceView && (
         <>
           {/* ── DAY VIEW ── */}
