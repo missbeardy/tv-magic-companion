@@ -1,3 +1,4 @@
+// src/components/LeadStatusMenu.tsx
 import { useState, useRef, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { sendPushNotification } from '../lib/sendPush'
@@ -26,7 +27,8 @@ export default function LeadStatusMenu({ leadId, currentStatus, assignedTo, lead
   const [dropUp, setDropUp] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
 
-  const current = STATUSES.find(s => s.value === currentStatus) || STATUSES[0]
+  // If currentStatus isn't in our list (e.g. some legacy value), fall back to the first item
+  const current = STATUSES.find(s => s.value === currentStatus) ?? STATUSES[0]
 
   useEffect(() => {
     if (!open || !buttonRef.current) return
@@ -50,11 +52,21 @@ export default function LeadStatusMenu({ leadId, currentStatus, assignedTo, lead
     setSaving(true)
     setOpen(false)
 
+    // When moving back to unassigned, clear all assignment fields
+    // so the lead is truly free for anyone to pick up
+    const updatePayload: Record<string, unknown> = { status: newStatus }
+    if (newStatus === 'unassigned') {
+      updatePayload.assigned_to = null
+      updatePayload.assigned_at = null
+      updatePayload.timer_expires_at = null
+    }
+
     await supabase
       .from('leads')
-      .update({ status: newStatus })
+      .update(updatePayload)
       .eq('id', leadId)
 
+    // Notify the previously-assigned employee when a job is completed or lost
     if ((newStatus === 'completed' || newStatus === 'lost') && assignedTo) {
       const statusLabel = newStatus === 'completed' ? 'Completed' : 'Lost'
       await sendPushNotification(
@@ -83,11 +95,11 @@ export default function LeadStatusMenu({ leadId, currentStatus, assignedTo, lead
 
       {open && (
         <div
-          className={`fixed z-[9999] bg-white rounded-xl shadow-2xl border border-gray-200 min-w-36 overflow-hidden`}
+          className="fixed z-[9999] bg-white rounded-xl shadow-2xl border border-gray-200 min-w-36 overflow-hidden"
           style={{
             top: buttonRef.current
               ? dropUp
-                ? buttonRef.current.getBoundingClientRect().top - 180
+                ? buttonRef.current.getBoundingClientRect().top - (STATUSES.length * 40)
                 : buttonRef.current.getBoundingClientRect().bottom + 4
               : 0,
             left: buttonRef.current
@@ -99,10 +111,13 @@ export default function LeadStatusMenu({ leadId, currentStatus, assignedTo, lead
             <button
               key={s.value}
               onClick={() => updateStatus(s.value)}
-              className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition capitalize ${s.value === currentStatus ? 'font-semibold' : ''}`}
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition capitalize ${s.value === currentStatus ? 'font-semibold bg-gray-50' : ''}`}
             >
               <span className={`inline-block w-2 h-2 rounded-full mr-2 ${s.color.split(' ')[0]}`} />
               {s.label}
+              {s.value === 'unassigned' && assignedTo && (
+                <span className="ml-1 text-[10px] text-gray-400">(unassigns)</span>
+              )}
             </button>
           ))}
         </div>
