@@ -14,6 +14,7 @@ import EmployeeDashboard from './pages/EmployeeDashboard'
 import CalendarPage from './pages/CalendarPage'
 import AllLeadsPage from './pages/AllLeadsPage'
 import LeadsPage from './pages/LeadsPage'
+import SupportPage from './pages/SupportPage';
 import ProfilePage from './pages/ProfilePage'
 import SocialPage from './pages/SocialPage'
 import TaskBoardPage from './pages/TaskBoardPage'
@@ -69,6 +70,7 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/set-password" element={<SetPasswordPage />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/support" element={<ProtectedRoute> <SupportPage /> </ProtectedRoute> }/>
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route
                 path="/dashboard"

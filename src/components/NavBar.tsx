@@ -18,6 +18,7 @@ import {
   Tv2,
   User,
   ClipboardList,
+  HelpCircle,
 } from 'lucide-react'
 
 export default function NavBar() {
@@ -40,6 +41,7 @@ export default function NavBar() {
     { to: '/all-leads',     label: 'All Leads',          icon: Users,           roles: ['manager'] },
     { to: '/social',        label: 'Social',             icon: Share2,          roles: ['manager'] },
     { to: '/org-settings',  label: 'Franchise Settings', icon: Settings,        roles: ['manager'] },
+    { to: '/support',       label: 'Support',            icon: HelpCircle,      roles: ['manager', 'employee'] },
     { to: '/profile',       label: 'Profile',            icon: User,            roles: ['manager', 'employee'] },
   ].filter(link => link.roles.includes(profile?.role ?? ''))
 
