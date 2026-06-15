@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import TimePicker from './TimePicker'
-import { X, CalendarDays, Clock, User, FileText, MapPin, Phone, Briefcase } from 'lucide-react'
+import { X, CalendarDays, Clock, User, FileText, MapPin, Phone, Briefcase, Link, Search } from 'lucide-react'
 
 interface Lead {
   id: string
@@ -11,6 +11,16 @@ interface Lead {
   service_type: string
   address?: string
   phone?: string
+  email?: string
+  details?: string
+}
+
+interface LeadSearchResult {
+  id: string
+  name: string
+  phone: string
+  service_type: string
+  address?: string
   email?: string
   details?: string
 }
@@ -32,16 +42,31 @@ interface Props {
     client_address?: string
     client_job?: string
   }
+  defaultDate?: string
 }
 
-export default function EventModal({ prefillLead, onClose, onSaved, existingEvent }: Props) {
+export default function EventModal({ prefillLead, onClose, onSaved, existingEvent, defaultDate }: Props) {
   const { profile } = useAuth()
+
+  // Derive initial date/time from defaultDate or existingEvent
+  const initialDate = existingEvent
+    ? existingEvent.start_time.split('T')[0]
+    : defaultDate
+      ? defaultDate.split('T')[0]
+      : new Date().toISOString().split('T')[0]
+
+  const initialStartTime = existingEvent
+    ? existingEvent.start_time.slice(11, 16)
+    : defaultDate
+      ? defaultDate.slice(11, 16)
+      : '09:00'
+
   const [title, setTitle] = useState(existingEvent?.title ?? (prefillLead ? `${prefillLead.service_type} — ${prefillLead.name}` : ''))
-  const [date, setDate] = useState(existingEvent ? existingEvent.start_time.split('T')[0] : new Date().toISOString().split('T')[0])
-  const [startTime, setStartTime] = useState(existingEvent ? existingEvent.start_time.slice(11, 16) : '09:00')
+  const [date, setDate] = useState(initialDate)
+  const [startTime, setStartTime] = useState(initialStartTime)
   const [endTime, setEndTime] = useState(existingEvent ? existingEvent.end_time.slice(11, 16) : '10:00')
   const [notes, setNotes] = useState(existingEvent?.notes ?? '')
-  
+
   // Customer fields
   const [clientName, setClientName] = useState(existingEvent?.client_name ?? prefillLead?.name ?? '')
   const [clientPhone, setClientPhone] = useState(existingEvent?.client_phone ?? prefillLead?.phone ?? '')
@@ -49,10 +74,36 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
   const [clientAddress, setClientAddress] = useState(existingEvent?.client_address ?? prefillLead?.address ?? '')
   const [clientJob, setClientJob] = useState(existingEvent?.client_job ?? prefillLead?.details ?? prefillLead?.service_type ?? '')
 
+  // Lead linking
+  const [linkedLeadId, setLinkedLeadId] = useState<string | null>(
+    prefillLead?.id ?? existingEvent?.lead_id ?? null
+  )
+  const [linkedLeadName, setLinkedLeadName] = useState<string>('')
+  const [leadSearch, setLeadSearch] = useState('')
+  const [leadResults, setLeadResults] = useState<LeadSearchResult[]>([])
+  const [searchingLeads, setSearchingLeads] = useState(false)
+  const [showLeadSearch, setShowLeadSearch] = useState(false)
+
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  // Update fields if prefillLead changes (e.g., when modal opens with a different lead)
+  // If editing an event with a lead_id, load the lead name to display
+  useEffect(() => {
+    if (existingEvent?.lead_id && !prefillLead) {
+      supabase
+        .from('leads')
+        .select('id, name, service_type')
+        .eq('id', existingEvent.lead_id)
+        .single()
+        .then(({ data }) => {
+          if (data) setLinkedLeadName(`${data.name} — ${data.service_type}`)
+        })
+    } else if (prefillLead) {
+      setLinkedLeadName(`${prefillLead.name} — ${prefillLead.service_type}`)
+    }
+  }, [existingEvent?.lead_id, prefillLead])
+
+  // Update fields if prefillLead changes
   useEffect(() => {
     if (prefillLead && !existingEvent) {
       setTitle(`${prefillLead.service_type} — ${prefillLead.name}`)
@@ -61,8 +112,50 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
       setClientEmail(prefillLead.email ?? '')
       setClientAddress(prefillLead.address ?? '')
       setClientJob(prefillLead.details ?? prefillLead.service_type)
+      setLinkedLeadId(prefillLead.id)
+      setLinkedLeadName(`${prefillLead.name} — ${prefillLead.service_type}`)
     }
   }, [prefillLead, existingEvent])
+
+  // Search leads as user types
+  useEffect(() => {
+    if (!leadSearch.trim() || leadSearch.length < 2) {
+      setLeadResults([])
+      return
+    }
+    const timer = setTimeout(async () => {
+      setSearchingLeads(true)
+      const { data } = await supabase
+        .from('leads')
+        .select('id, name, phone, service_type, address, email, details')
+        .eq('org_id', profile?.org_id)
+        .or(`name.ilike.%${leadSearch}%,phone.ilike.%${leadSearch}%,service_type.ilike.%${leadSearch}%`)
+        .limit(6)
+      setLeadResults((data as LeadSearchResult[]) ?? [])
+      setSearchingLeads(false)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [leadSearch, profile?.org_id])
+
+  function selectLead(lead: LeadSearchResult) {
+    setLinkedLeadId(lead.id)
+    setLinkedLeadName(`${lead.name} — ${lead.service_type}`)
+    // Auto-fill customer fields from lead
+    setClientName(lead.name)
+    setClientPhone(lead.phone ?? '')
+    setClientEmail(lead.email ?? '')
+    setClientAddress(lead.address ?? '')
+    setClientJob(lead.details ?? lead.service_type)
+    if (!title) setTitle(`${lead.service_type} — ${lead.name}`)
+    setLeadSearch('')
+    setLeadResults([])
+    setShowLeadSearch(false)
+  }
+
+  function unlinkLead() {
+    setLinkedLeadId(null)
+    setLinkedLeadName('')
+  }
 
   async function handleSave() {
     if (!title.trim()) { setError('Please add a title'); return }
@@ -82,7 +175,7 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
       client_email: clientEmail,
       client_address: clientAddress,
       client_job: clientJob,
-      lead_id: prefillLead?.id ?? existingEvent?.lead_id ?? null,
+      lead_id: linkedLeadId ?? null,
       user_id: profile?.id,
       org_id: profile?.org_id,
     }
@@ -133,11 +226,77 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
             </div>
           )}
 
+          {/* ── Lead Link Section ── */}
+          <div className="bg-gray-50 rounded-xl p-3 border border-gray-200">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-gray-600 flex items-center gap-1">
+                <Link size={11} />
+                Linked Lead
+              </p>
+              {!linkedLeadId && !showLeadSearch && (
+                <button
+                  onClick={() => setShowLeadSearch(true)}
+                  className="text-xs text-[#004B93] font-medium hover:underline flex items-center gap-1"
+                >
+                  <Search size={11} /> Search leads
+                </button>
+              )}
+            </div>
+
+            {linkedLeadId ? (
+              <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                <span className="text-sm text-blue-800 font-medium truncate">{linkedLeadName || 'Lead linked'}</span>
+                <button
+                  onClick={unlinkLead}
+                  className="text-blue-400 hover:text-blue-600 ml-2 shrink-0"
+                  title="Unlink lead"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : showLeadSearch ? (
+              <div className="relative">
+                <input
+                  type="text"
+                  autoFocus
+                  value={leadSearch}
+                  onChange={e => setLeadSearch(e.target.value)}
+                  placeholder="Search by name, phone, or service…"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#004B93]"
+                />
+                {searchingLeads && (
+                  <p className="text-xs text-gray-400 mt-1 px-1">Searching…</p>
+                )}
+                {leadResults.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 overflow-hidden">
+                    {leadResults.map(lead => (
+                      <button
+                        key={lead.id}
+                        onClick={() => selectLead(lead)}
+                        className="w-full text-left px-3 py-2.5 hover:bg-gray-50 transition border-b border-gray-100 last:border-0"
+                      >
+                        <p className="text-sm font-medium text-gray-800">{lead.name}</p>
+                        <p className="text-xs text-gray-500">{lead.service_type} · {lead.phone}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <button
+                  onClick={() => { setShowLeadSearch(false); setLeadSearch(''); setLeadResults([]) }}
+                  className="text-xs text-gray-400 hover:text-gray-600 mt-1"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400">No lead linked. Customer details entered manually.</p>
+            )}
+          </div>
+
           {/* Customer Information Section */}
           <div className="bg-[#004B93]/5 rounded-xl p-3 space-y-3">
             <p className="text-xs font-semibold text-[#004B93] uppercase tracking-wide">Customer Information</p>
-            
-            {/* Name */}
+
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">
                 <User size={11} className="inline mr-1" />Full Name
@@ -151,7 +310,6 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
               />
             </div>
 
-            {/* Phone + Email inline on desktop */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -179,7 +337,6 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
               </div>
             </div>
 
-            {/* Address */}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">
                 <MapPin size={11} className="inline mr-1" />Address
@@ -193,7 +350,6 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
               />
             </div>
 
-            {/* Job details / Service type */}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">
                 <Briefcase size={11} className="inline mr-1" />Job Details
@@ -211,8 +367,7 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
           {/* Appointment Section */}
           <div className="border-t border-gray-100 pt-3">
             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Appointment Details</p>
-            
-            {/* Title */}
+
             <div className="mb-3">
               <label className="block text-xs font-medium text-gray-600 mb-1">
                 <FileText size={11} className="inline mr-1" />Title
@@ -226,7 +381,6 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
               />
             </div>
 
-            {/* Date */}
             <div className="mb-3">
               <label className="block text-xs font-medium text-gray-600 mb-1">
                 <CalendarDays size={11} className="inline mr-1" />Date
@@ -239,7 +393,6 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
               />
             </div>
 
-            {/* Times */}
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -255,7 +408,6 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
               </div>
             </div>
 
-            {/* Notes */}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">
                 Notes <span className="font-normal text-gray-400">(optional)</span>
@@ -271,7 +423,7 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
           </div>
         </div>
 
-        {/* Footer - buttons fixed at bottom */}
+        {/* Footer */}
         <div className="px-6 pb-5 pt-2 border-t border-gray-100 shrink-0 flex gap-3">
           <button
             onClick={onClose}
