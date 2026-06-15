@@ -65,7 +65,7 @@ Return: {"customer_name":"...","phone":"...","email":"...","service_type":"...",
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-sonnet-4-6',  // updated model name
         max_tokens: 500,
         messages: [{ role: 'user', content: prompt }],
       }),
@@ -155,10 +155,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       parsed = fallbackParse(smsText, fromNumber)
     }
 
-    // Prepend "SMS Lead: " to the customer name
     const leadName = `SMS Lead: ${parsed.customer_name}`
 
-    // Determine org_id: try lookup, then fallback to DEFAULT_ORG_ID
+    // Resolve org_id
     let orgId: string | null = null
     if (toNumber) {
       let normalizedTo = toNumber.replace(/\D/g, '')
@@ -184,22 +183,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).send('<Response></Response>')
     }
 
+    // Explicit insert with org_id
+    const insertPayload = {
+      name: leadName,
+      phone: parsed.phone,
+      email: parsed.email || null,
+      service_type: parsed.service_type,
+      details: parsed.job_details,
+      address: parsed.address,
+      status: 'unassigned',
+      source: 'sms',
+      lead_source: 'SMS',
+      org_id: orgId,   // <-- critical
+      raw_sms: JSON.stringify(body),
+      created_at: new Date().toISOString(),
+    }
+
+    console.log(`Inserting lead with org_id: ${orgId}`)
+
     const { data: newLead, error } = await supabase
       .from('leads')
-      .insert({
-        name: leadName,
-        phone: parsed.phone,
-        email: parsed.email || null,
-        service_type: parsed.service_type,
-        details: parsed.job_details,
-        address: parsed.address,
-        status: 'unassigned',
-        source: 'sms',
-        lead_source: 'SMS',           // explicitly set lead source
-        org_id: orgId,
-        raw_sms: JSON.stringify(body),
-        created_at: new Date().toISOString(),
-      })
+      .insert(insertPayload)
       .select('id')
       .single()
 
