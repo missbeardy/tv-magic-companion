@@ -37,8 +37,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         email,
         data: { full_name: fullName, role, org_id: orgId },
         redirectTo: 'https://tv-magic-companion.vercel.app/set-password', // ← was redirect_to
-      }),
+          }),
+      
     });
+
+    const payload = {
+    email,
+    data: { full_name: fullName, role, org_id: orgId },
+    redirectTo: 'https://tv-magic-companion.vercel.app/set-password',
+};
+    console.log("DEBUG PAYLOAD:", JSON.stringify(payload));
 
     const data: any = await response.json();
 
