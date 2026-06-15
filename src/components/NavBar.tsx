@@ -16,7 +16,8 @@ import {
   Menu,
   X,
   Tv2,
-  User,        // ← ADDED
+  User,
+  ClipboardList,
 } from 'lucide-react'
 
 export default function NavBar() {
@@ -32,13 +33,14 @@ export default function NavBar() {
   }
 
   const navLinks = [
-    { to: '/',              label: 'Dashboard',         icon: LayoutDashboard, roles: ['manager', 'employee'] },
-    { to: '/leads',         label: 'Leads',             icon: Kanban,          roles: ['manager', 'employee'] },
-    { to: '/calendar',      label: 'Calendar',          icon: CalendarDays,    roles: ['manager', 'employee'] },
-    { to: '/all-leads',     label: 'All Leads',         icon: Users,           roles: ['manager'] },
-    { to: '/social',        label: 'Social',            icon: Share2,          roles: ['manager'] },
-    { to: '/org-settings',  label: 'Franchise Settings', icon: Settings,       roles: ['manager'] },
-    { to: '/profile',       label: 'Profile',           icon: User,            roles: ['manager', 'employee'] }, // ← ADDED
+    { to: '/',              label: 'Dashboard',          icon: LayoutDashboard, roles: ['manager', 'employee'] },
+    { to: '/leads',         label: 'Leads',              icon: Kanban,          roles: ['manager', 'employee'] },
+    { to: '/calendar',      label: 'Calendar',           icon: CalendarDays,    roles: ['manager', 'employee'] },
+    { to: '/tasks',         label: 'Tasks',              icon: ClipboardList,   roles: ['manager', 'employee'] },
+    { to: '/all-leads',     label: 'All Leads',          icon: Users,           roles: ['manager'] },
+    { to: '/social',        label: 'Social',             icon: Share2,          roles: ['manager'] },
+    { to: '/org-settings',  label: 'Franchise Settings', icon: Settings,        roles: ['manager'] },
+    { to: '/profile',       label: 'Profile',            icon: User,            roles: ['manager', 'employee'] },
   ].filter(link => link.roles.includes(profile?.role ?? ''))
 
   function isActive(to: string) {
