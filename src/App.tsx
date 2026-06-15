@@ -6,7 +6,9 @@ import { OrgProvider } from './context/OrgContext'
 import { useAuth } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Login from './pages/Login'
-import SetPasswordPage from './pages/SetPasswordPage'   // ← ADD THIS
+import SetPasswordPage from './pages/SetPasswordPage'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 import ManagerDashboard from './pages/ManagerDashboard'
 import EmployeeDashboard from './pages/EmployeeDashboard'
 import CalendarPage from './pages/CalendarPage'
@@ -65,7 +67,9 @@ function App() {
             <Routes>
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/login" element={<Login />} />
-              <Route path="/set-password" element={<SetPasswordPage />} />  {/* ← ADD THIS */}
+              <Route path="/set-password" element={<SetPasswordPage />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route
                 path="/dashboard"
                 element={
