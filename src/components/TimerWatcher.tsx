@@ -1,8 +1,5 @@
 // src/components/TimerWatcher.tsx
-// Last updated: 13 June 2026
-// - Unassigns leads when timer expires
-// - Logs expiry event with employee ID for reporting
-// - Sends push notification for low timer and expiry
+// FIXED: Now watches ANY lead assigned to the current user, regardless of role
 
 import { useEffect } from 'react'
 import { supabase } from '../lib/supabase'
@@ -13,16 +10,16 @@ export default function TimerWatcher() {
   const { profile } = useAuth()
 
   useEffect(() => {
-    // Only employees have timers to watch
-    if (!profile || profile.role !== 'employee') return
+    // No role check anymore – we watch leads assigned to this user, whatever their role
+    if (!profile) return
 
     async function checkTimers() {
-      // Get all assigned leads for this employee
+      // Get all leads assigned to THIS user (manager OR employee)
       const { data: leads } = await supabase
         .from('leads')
         .select('id, name, timer_expires_at, status')
         .eq('status', 'assigned')
-        .eq('assigned_to', profile!.id)
+        .eq('assigned_to', profile.id)  // ← key change: assigned to current user
 
       if (!leads) return
 
@@ -38,7 +35,6 @@ export default function TimerWatcher() {
         // 1. Handle EXPIRED leads – unassign and log
         // ──────────────────────────────────────────────
         if (isExpired) {
-          // Unassign the lead
           await supabase
             .from('leads')
             .update({
@@ -49,15 +45,13 @@ export default function TimerWatcher() {
             })
             .eq('id', lead.id)
 
-          // Log who let it expire (for reporting)
           await supabase.from('lead_events').insert({
             lead_id: lead.id,
             event_type: 'expired',
             note: `Lead expired while assigned to ${profile.full_name} (${profile.id})`,
-            created_by: profile.id,  // ← tracks which employee
+            created_by: profile.id,
           })
 
-          // Notify employee that lead expired
           await supabase.from('notifications').insert({
             user_id: profile.id,
             title: '⚠️ Lead Expired',
@@ -66,7 +60,7 @@ export default function TimerWatcher() {
             lead_id: lead.id,
           })
 
-          continue  // No need to check low timer for expired leads
+          continue
         }
 
         // ──────────────────────────────────────────────
@@ -94,7 +88,6 @@ export default function TimerWatcher() {
       }
     }
 
-    // Run immediately, then every 30 seconds
     checkTimers()
     const interval = setInterval(checkTimers, 30000)
     return () => clearInterval(interval)
