@@ -3,7 +3,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { createHmac, timingSafeEqual } from 'crypto'
 
-// Simple in-memory rate limiter (60 requests per minute per IP)
+// Simple rate limiter inline
 const requests = new Map<string, { count: number; reset: number }>()
 
 function checkRateLimit(ip: string, limit = 60, windowMs = 60000): boolean {
@@ -117,6 +117,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log(`SMS from ${fromNumber} to ${toNumber}: ${smsText.substring(0, 100)}`)
 
+    // Normalize the Twilio To number to E.164 format (remove spaces, ensure +)
+    let normalizedTo = toNumber.replace(/\s+/g, '')
+    if (normalizedTo && !normalizedTo.startsWith('+')) {
+      if (normalizedTo.startsWith('0')) {
+        normalizedTo = '+61' + normalizedTo.slice(1)
+      } else if (normalizedTo.startsWith('61')) {
+        normalizedTo = '+' + normalizedTo
+      }
+    }
+    console.log(`Normalized To: ${normalizedTo}`)
+
+    // Look up org_id from org_phone_numbers table
+    let orgId: string | null = null
+    if (normalizedTo) {
+      const { data: mapping, error: lookupError } = await supabase
+        .from('org_phone_numbers')
+        .select('org_id')
+        .eq('phone_number', normalizedTo)
+        .maybeSingle()
+      
+      if (lookupError) {
+        console.error('Lookup error:', lookupError)
+      }
+      orgId = mapping?.org_id || null
+      console.log(`Lookup result for ${normalizedTo}: org_id = ${orgId}`)
+    }
+
+    // No fallback to DEFAULT_ORG_ID for multi-tenant – we rely solely on the mapping table
+    if (!orgId) {
+      console.error(`No org_id found for phone number ${normalizedTo}. Lead not saved.`)
+      // Still return 200 to Twilio
+      res.setHeader('Content-Type', 'text/xml')
+      return res.status(200).send('<Response></Response>')
+    }
+
+    // Parse SMS (Claude or fallback)
     let parsed = await parseSmsWithClaude(smsText, fromNumber)
     if (!parsed) {
       parsed = {
@@ -128,28 +164,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    let orgId: string | null = null
-    if (toNumber) {
-      const normalizedTo = toNumber.replace(/\s+/g, '')
-      const { data: mapping } = await supabase
-        .from('org_phone_numbers')
-        .select('org_id')
-        .eq('phone_number', normalizedTo)
-        .maybeSingle()
-      orgId = mapping?.org_id || null
-    }
-
-    if (!orgId && process.env.DEFAULT_ORG_ID) {
-      orgId = process.env.DEFAULT_ORG_ID
-    }
-
-    if (!orgId) {
-      console.error('No org_id found – lead will be rejected by RLS')
-      res.setHeader('Content-Type', 'text/xml')
-      return res.status(200).send('<Response></Response>')
-    }
-
-    const { error } = await supabase.from('leads').insert({
+    const { error: insertError } = await supabase.from('leads').insert({
       name: parsed.customer_name,
       phone: parsed.phone,
       service_type: parsed.service_type,
@@ -162,10 +177,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       created_at: new Date().toISOString(),
     })
 
-    if (error) {
-      console.error('Insert error:', error)
+    if (insertError) {
+      console.error('Insert error:', insertError)
     } else {
-      console.log('Lead saved')
+      console.log('Lead saved successfully')
     }
 
     res.setHeader('Content-Type', 'text/xml')
