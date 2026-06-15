@@ -1,3 +1,4 @@
+// src/App.tsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { DemoProvider } from './context/DemoContext'
@@ -5,6 +6,7 @@ import { OrgProvider } from './context/OrgContext'
 import { useAuth } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Login from './pages/Login'
+import SetPasswordPage from './pages/SetPasswordPage'   // ← ADD THIS
 import ManagerDashboard from './pages/ManagerDashboard'
 import EmployeeDashboard from './pages/EmployeeDashboard'
 import CalendarPage from './pages/CalendarPage'
@@ -55,17 +57,15 @@ function App() {
     }
   }, [])
 
-  console.log('🔴 About to return JSX')
   return (
     <AuthProvider>
       <DemoProvider>
         <OrgProvider>
           <BrowserRouter>
             <Routes>
-              {/* ⚡ FIX: Added root path route so navigating to '/' doesn't hit the catch-all '*' rule */}
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              
               <Route path="/login" element={<Login />} />
+              <Route path="/set-password" element={<SetPasswordPage />} />  {/* ← ADD THIS */}
               <Route
                 path="/dashboard"
                 element={

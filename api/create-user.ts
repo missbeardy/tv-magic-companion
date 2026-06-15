@@ -1,11 +1,8 @@
 // api/create-user.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-// These must exist in Vercel env vars (NOT VITE_ prefixed — those are frontend only)
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-// Simple shared secret between this API and the frontend modal
 const INVITE_API_KEY = 'fieldbournedigital2026';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -13,10 +10,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Verify the shared secret from the frontend
   const apiKey = req.headers['x-api-key'];
   if (!apiKey || apiKey !== INVITE_API_KEY) {
-    console.log('Auth failed — received key:', apiKey);
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -25,15 +20,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Missing required fields: email, fullName, role, orgId' });
   }
 
-  // Safety check — make sure env vars loaded correctly
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    console.error('Missing Supabase env vars', { SUPABASE_URL: !!SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY: !!SUPABASE_SERVICE_ROLE_KEY });
+    console.error('Missing Supabase env vars');
     return res.status(500).json({ error: 'Server misconfiguration — missing env vars' });
   }
 
   try {
-    // The /auth/v1/invite endpoint requires the service_role key — NOT the anon key
-    // The service_role key has admin privileges to create users
     const response = await fetch(`${SUPABASE_URL}/auth/v1/invite`, {
       method: 'POST',
       headers: {
@@ -44,7 +36,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: JSON.stringify({
         email,
         data: { full_name: fullName, role, org_id: orgId },
-        redirect_to: 'https://tv-magic-companion.vercel.app/login',
+        // ← Changed: send new users to set-password page, not login
+        redirect_to: 'https://tv-magic-companion.vercel.app/set-password',
       }),
     });
 
