@@ -93,6 +93,20 @@ export default function OrgSettingsPage() {
         throw new Error(result.error || 'Failed to update');
       }
 
+      // Save avg_job_value directly to orgs table (not via Edge Function)
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('org_id')
+        .eq('id', session.user.id)
+        .single()
+
+      if (profileData?.org_id) {
+        await supabase
+          .from('orgs')
+          .update({ avg_job_value: avgJobValue })
+          .eq('id', profileData.org_id)
+      }
+
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err: unknown) {
