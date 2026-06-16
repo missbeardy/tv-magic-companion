@@ -1,166 +1,158 @@
 // api/inbound-email.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
+import Anthropic from '@anthropic-ai/sdk'
+import { Webhook } from 'svix'
 
-// Inlined rate limit (no shared imports — ESM/Vercel constraint)
-const requests = new Map<string, { count: number; reset: number }>()
-function checkRateLimit(ip: string, limit = 60, windowMs = 60000): boolean {
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL!,
+  process.env.VITE_SUPABASE_ANON_KEY!
+)
+
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+
+// ── Inline rate limiter ────────────────────────────────────────────────────
+const requestCounts = new Map<string, { count: number; resetTime: number }>()
+
+function checkRateLimit(ip: string, limit = 10, windowMs = 60000): boolean {
   const now = Date.now()
-  const key = ip.split(',')[0].trim() || 'unknown'
-  const entry = requests.get(key)
-  if (!entry || now > entry.reset) {
-    requests.set(key, { count: 1, reset: now + windowMs })
+  const record = requestCounts.get(ip)
+  if (!record || now > record.resetTime) {
+    requestCounts.set(ip, { count: 1, resetTime: now + windowMs })
     return true
   }
-  if (entry.count >= limit) return false
-  entry.count++
+  if (record.count >= limit) return false
+  record.count++
   return true
 }
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
-async function parseEmailWithClaude(rawEmail: string) {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) return null
-
-  const prompt = `Extract customer details from this email. Return ONLY valid JSON.
-Email:
-${rawEmail.substring(0, 3000)}
-
-Fields:
-- customer_name (string)
-- phone (string or empty)
-- email (string or empty)
-- service_type (one of: "TV Aerial","Satellite Dish","CCTV","Home Automation","Other")
-- job_details (string, summary)
-- address (string or empty)
-
-Return: {"customer_name":"...","phone":"...","email":"...","service_type":"...","job_details":"...","address":"..."}`
-
+// ── Verify Resend webhook signature ───────────────────────────────────────
+function verifyResendWebhook(req: VercelRequest, body: string): boolean {
+  const secret = process.env.RESEND_WEBHOOK_SECRET
+  if (!secret) return false
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 500,
-        messages: [{ role: 'user', content: prompt }],
-      }),
+    const wh = new Webhook(secret)
+    wh.verify(body, {
+      'svix-id': req.headers['svix-id'] as string,
+      'svix-timestamp': req.headers['svix-timestamp'] as string,
+      'svix-signature': req.headers['svix-signature'] as string,
     })
-    if (!response.ok) return null
-    const data = await response.json() as { content?: Array<{ text?: string }> }
-    const raw = data.content?.[0]?.text || ''
-    const cleaned = raw.replace(/```json\s*|\s*```/g, '').trim()
-    return JSON.parse(cleaned)
-  } catch (err) {
-    console.error('Claude email parse error:', err)
-    return null
+    return true
+  } catch {
+    return false
   }
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') return res.status(405).end()
+// ── Fetch email body from Resend API ──────────────────────────────────────
+async function fetchEmailContent(emailId: string): Promise<{ plain: string; html: string }> {
+  const res = await fetch(`https://api.resend.com/emails/${emailId}`, {
+    headers: {
+      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+    },
+  })
+  if (!res.ok) throw new Error(`Resend API error: ${res.status}`)
+  const data = await res.json()
+  return {
+    plain: data.text || '',
+    html: data.html || '',
+  }
+}
 
-  const ip = (req.headers['x-forwarded-for'] as string) ?? 'unknown'
-  if (!checkRateLimit(ip, 60, 60000)) {
-    return res.status(429).json({ error: 'Too many requests' })
+// ── Claude lead extraction ────────────────────────────────────────────────
+async function extractLeadWithClaude(emailText: string, subject: string, from: string) {
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 500,
+    messages: [
+      {
+        role: 'user',
+        content: `Extract lead information from this email and return ONLY a JSON object with no markdown, no code fences, just raw JSON.
+
+Fields to extract:
+- name: full name of the person (or null)
+- phone: phone number (or null)
+- email: email address
+- service_type: type of service requested (e.g. "TV Aerial", "Satellite", "MATV", "General Enquiry")
+- details: brief summary of their request (1-2 sentences)
+- address: street address if mentioned (or null)
+
+Email From: ${from}
+Subject: ${subject}
+Body: ${emailText}`,
+      },
+    ],
+  })
+
+  const raw = message.content[0].type === 'text' ? message.content[0].text : ''
+  const clean = raw.replace(/```json|```/g, '').trim()
+  return JSON.parse(clean)
+}
+
+// ── Main handler ──────────────────────────────────────────────────────────
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || 'unknown'
+  if (!checkRateLimit(ip)) {
+    return res.status(429).json({ error: 'Rate limit exceeded' })
+  }
+
+  // Get raw body for signature verification
+  const rawBody = JSON.stringify(req.body)
+
+  if (!verifyResendWebhook(req, rawBody)) {
+    console.error('Invalid Resend webhook signature')
+    return res.status(401).json({ error: 'Invalid signature' })
+  }
+
+  const event = req.body
+
+  // Only handle inbound email events
+  if (event.type !== 'email.received') {
+    return res.status(200).json({ received: true })
+  }
+
+  const { email_id, from, to, subject } = event.data
+
   try {
-    // Resend inbound webhook payload shape
-    const body = req.body as {
-      from?: string
-      to?: string[]
-      subject?: string
-      text?: string
-      html?: string
-      headers?: Record<string, string>
+    // Fetch the actual email body from Resend
+    const { plain, html } = await fetchEmailContent(email_id)
+    const emailText = plain || html.replace(/<[^>]+>/g, ' ')
+
+    if (!emailText.trim()) {
+      console.error('Empty email body for id:', email_id)
+      return res.status(200).json({ received: true })
     }
 
-    // Prefer plain text, fall back to HTML
-    const rawText = body.text || body.html || ''
-    if (!rawText.trim()) {
-      return res.status(200).json({ skipped: true, reason: 'empty body' })
-    }
+    // Extract lead data with Claude
+    const lead = await extractLeadWithClaude(emailText, subject || '', from)
 
-    const subject = body.subject || ''
-    const fromEmail = body.from || ''
-    // Resend sends `to` as an array
-    const toEmail = Array.isArray(body.to) ? body.to[0] : (body.to || '')
+    // Get org_id
+    const orgId = process.env.DEFAULT_ORG_ID
+    if (!orgId) throw new Error('DEFAULT_ORG_ID not set')
 
-    console.log(`Inbound email from ${fromEmail} to ${toEmail} — subject: ${subject}`)
+    // Insert lead into Supabase
+    const { error } = await supabase.from('leads').insert({
+      org_id: orgId,
+      name: lead.name || from,
+      phone: lead.phone || null,
+      email: lead.email || from,
+      service_type: lead.service_type || 'General Enquiry',
+      details: lead.details || subject || 'Inbound email enquiry',
+      address: lead.address || null,
+      status: 'unassigned',
+      source: 'email',
+    })
 
-    // Parse with Claude
-    const emailContent = `Subject: ${subject}\nFrom: ${fromEmail}\n\n${rawText}`
-    let parsed = await parseEmailWithClaude(emailContent)
-    if (!parsed) {
-      console.log('Claude failed, using fallback')
-      parsed = {
-        customer_name: 'Email Enquiry',
-        phone: '',
-        email: fromEmail,
-        service_type: 'Other',
-        job_details: rawText.substring(0, 500),
-        address: '',
-      }
-    }
+    if (error) throw error
 
-    // Resolve org_id from recipient email address
-    let orgId: string | null = null
-    if (toEmail) {
-      const { data: mapping } = await supabase
-        .from('org_emails')
-        .select('org_id')
-        .eq('email_address', toEmail)
-        .maybeSingle()
-      if (mapping) orgId = mapping.org_id
-    }
-
-    if (!orgId && process.env.DEFAULT_ORG_ID) {
-      orgId = process.env.DEFAULT_ORG_ID
-      console.log(`Using DEFAULT_ORG_ID: ${orgId}`)
-    }
-
-    if (!orgId) {
-      console.error('No org_id resolved — lead rejected')
-      return res.status(200).json({ skipped: true, reason: 'no org' })
-    }
-
-    const { data: newLead, error } = await supabase
-      .from('leads')
-      .insert({
-        name: `Email Lead: ${parsed.customer_name}`,
-        phone: parsed.phone || '',
-        email: parsed.email || fromEmail || null,
-        service_type: parsed.service_type || 'Other',
-        details: parsed.job_details || rawText.substring(0, 500),
-        address: parsed.address || '',
-        status: 'unassigned',
-        source: 'email',
-        lead_source: 'Email',
-        org_id: orgId,
-        raw_email: rawText.substring(0, 5000),
-        created_at: new Date().toISOString(),
-      })
-      .select('id')
-      .single()
-
-    if (error) {
-      console.error('Insert error:', error)
-    } else {
-      console.log(`Lead saved: ${newLead.id} with org ${orgId}`)
-    }
-
+    console.log('Lead created from Resend inbound email:', lead.name || from)
     return res.status(200).json({ success: true })
+
   } catch (err) {
-    console.error('Unhandled error:', err)
-    return res.status(200).json({ skipped: true, reason: 'exception' })
+    console.error('Inbound email processing error:', err)
+    return res.status(500).json({ error: 'Processing failed' })
   }
 }
