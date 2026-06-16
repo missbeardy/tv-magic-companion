@@ -116,7 +116,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const event = req.body
-
+    console.log("DEBUG PAYLOAD:", JSON.stringify(event, null, 2))
   // Only handle inbound email events
   if (event.type !== 'email.received') {
     return res.status(200).json({ received: true })
