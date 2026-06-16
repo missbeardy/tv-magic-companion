@@ -1,34 +1,46 @@
 // src/components/RevenueWidget.tsx
+// Last updated: 17 June 2026 - reads avg_job_value from orgs table
+
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { TrendingUp, DollarSign, CheckCircle, Clock } from 'lucide-react'
 
-interface Props {
-  avgJobValue?: number
-}
-
-export default function RevenueWidget({ avgJobValue = 180 }: Props) {
+export default function RevenueWidget() {
   const { profile } = useAuth()
   const [completed, setCompleted] = useState(0)
   const [assigned, setAssigned] = useState(0)
+  const [avgJobValue, setAvgJobValue] = useState<number>(180)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!profile) return
-    async function fetch() {
-      const { data } = await supabase
+    async function fetchAll() {
+      // Fetch lead counts
+      const { data: leads } = await supabase
         .from('leads')
         .select('status')
         .eq('org_id', profile!.org_id)
 
-      if (data) {
-        setCompleted(data.filter(l => l.status === 'completed').length)
-        setAssigned(data.filter(l => l.status === 'assigned').length)
+      if (leads) {
+        setCompleted(leads.filter(l => l.status === 'completed').length)
+        setAssigned(leads.filter(l => l.status === 'assigned').length)
       }
+
+      // Fetch avg_job_value from orgs table
+      const { data: org } = await supabase
+        .from('orgs')
+        .select('avg_job_value')
+        .eq('id', profile!.org_id)
+        .single()
+
+      if (org?.avg_job_value != null) {
+        setAvgJobValue(org.avg_job_value)
+      }
+
       setLoading(false)
     }
-    fetch()
+    fetchAll()
   }, [profile])
 
   const earned    = completed * avgJobValue
@@ -83,7 +95,7 @@ export default function RevenueWidget({ avgJobValue = 180 }: Props) {
           </div>
 
           <p className="text-xs text-gray-300 pt-1">
-            Estimate based on ${avgJobValue} avg job value
+            Estimate based on ${avgJobValue} avg job value · <a href="/org-settings" className="underline hover:text-gray-400 transition">Edit in Settings</a>
           </p>
         </div>
       )}

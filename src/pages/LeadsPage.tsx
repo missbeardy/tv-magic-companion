@@ -22,6 +22,7 @@ import EventModal from '../components/EventModal'
 import DemoToggle from '../components/DemoToggle'
 import BottomSheet from '../components/BottomSheet'
 import CompletionChecklist from '../components/CompletionChecklist'
+import { MapPin, Phone, Mail, UserPlus, Inbox, ChevronRight } from 'lucide-react'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -163,6 +164,8 @@ function LeadCard({
           <p className="font-medium text-gray-800 text-sm truncate">{lead.name || 'Unknown'}</p>
           <p className="text-xs text-gray-500 truncate">{lead.service_type}</p>
         </div>
+        {/* Mobile tap affordance — hidden on desktop */}
+        <ChevronRight size={14} className="md:hidden text-gray-300 shrink-0 mt-0.5" />
         <div onClick={e => e.stopPropagation()}>
           <LeadStatusMenu
             leadId={lead.id}
@@ -324,8 +327,11 @@ function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand,
         </span>
       </div>
       <div className="p-2 space-y-2">
-        {leads.length === 0 && (
-          <p className="text-xs text-gray-400 text-center py-4">No leads</p>
+       {leads.length === 0 && (
+          <div className="py-6 text-center">
+            <p className="text-xs text-gray-400">No leads here yet</p>
+            <p className="text-[10px] text-gray-300 mt-0.5">New leads will appear in this column</p>
+          </div>
         )}
         {leads.map(lead => (
           <LeadCard
@@ -359,7 +365,10 @@ function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand
         </div>
         <div className="p-2 space-y-2 max-h-screen overflow-y-auto">
           {leads.length === 0 && (
-            <p className="text-xs text-gray-400 text-center py-4">No leads</p>
+            <div className="py-6 text-center">
+              <p className="text-xs text-gray-400">No leads here yet</p>
+              <p className="text-[10px] text-gray-300 mt-0.5">New leads will appear in this column</p>
+            </div>
           )}
           {leads.map(lead => (
             <DraggableCard key={lead.id} id={lead.id}>
