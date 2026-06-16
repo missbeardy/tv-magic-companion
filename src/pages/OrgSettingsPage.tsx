@@ -1,3 +1,6 @@
+// src/pages/OrgSettingsPage.tsx
+// Last updated: 17 June 2026 - added avg_job_value field
+
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import NavBar from '../components/NavBar';
@@ -11,8 +14,8 @@ export default function OrgSettingsPage() {
   const [secondaryColor, setSecondaryColor] = useState('#00B4C5');
   const [supportPhone, setSupportPhone] = useState('');
   const [supportEmail, setSupportEmail] = useState('');
+  const [avgJobValue, setAvgJobValue] = useState<number>(180);
 
-  // Load org data
   useEffect(() => {
     async function loadOrg() {
       try {
@@ -31,31 +34,32 @@ export default function OrgSettingsPage() {
             .select('*')
             .eq('id', profile.org_id)
             .single();
-          
+
           if (org) {
             setOrgName(org.name || '');
             setPrimaryColor(org.primary_color || '#004B93');
             setSecondaryColor(org.secondary_color || '#00B4C5');
             setSupportPhone(org.support_phone || '');
             setSupportEmail(org.support_email || '');
+            setAvgJobValue(org.avg_job_value ?? 180);
           }
         }
       } catch (err) {
         console.error('Load error:', err);
       }
     }
-    
+
     loadOrg();
   }, []);
 
-  async function handleSave(e) {
+  async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError('');
-    
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         setError('You must be logged in');
         setLoading(false);
@@ -63,7 +67,7 @@ export default function OrgSettingsPage() {
       }
 
       const supabaseUrl = 'https://abnheynzugpicikxwwmv.supabase.co';
-      
+
       const response = await fetch(
         `${supabaseUrl}/functions/v1/update-org`,
         {
@@ -78,6 +82,7 @@ export default function OrgSettingsPage() {
             secondary_color: secondaryColor,
             support_phone: supportPhone,
             support_email: supportEmail,
+            avg_job_value: avgJobValue,
           }),
         }
       );
@@ -90,9 +95,9 @@ export default function OrgSettingsPage() {
 
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Save error:', err);
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
     }
@@ -110,7 +115,7 @@ export default function OrgSettingsPage() {
         {error && (
           <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm">{error}</div>
         )}
-        
+
         {saved && (
           <div className="bg-green-50 text-green-600 p-3 rounded-lg text-sm">✅ Settings saved!</div>
         )}
@@ -118,7 +123,6 @@ export default function OrgSettingsPage() {
         {/* Brand Name */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
           <p className="text-sm font-semibold text-gray-700">🏢 Franchise Name</p>
-          
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Name</label>
             <input
@@ -136,7 +140,7 @@ export default function OrgSettingsPage() {
         {/* Brand Colors */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
           <p className="text-sm font-semibold text-gray-700">🎨 Brand Colors</p>
-          
+
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Primary Color</label>
             <div className="flex items-center gap-2">
@@ -155,7 +159,7 @@ export default function OrgSettingsPage() {
               />
             </div>
           </div>
-          
+
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Secondary Color</label>
             <div className="flex items-center gap-2">
@@ -176,10 +180,31 @@ export default function OrgSettingsPage() {
           </div>
         </div>
 
+        {/* Revenue Settings */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+          <p className="text-sm font-semibold text-gray-700">💰 Revenue Settings</p>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Average Job Value (AUD)</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={avgJobValue}
+                onChange={(e) => setAvgJobValue(Number(e.target.value))}
+                className="w-full border border-gray-300 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
+                placeholder="180"
+              />
+            </div>
+            <p className="text-xs text-gray-400 mt-1">Used to estimate revenue in the Revenue Snapshot widget on your dashboard</p>
+          </div>
+        </div>
+
         {/* Contact Information */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
           <p className="text-sm font-semibold text-gray-700">📞 Contact Information</p>
-          
+
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Support Phone</label>
             <input
@@ -191,7 +216,7 @@ export default function OrgSettingsPage() {
             />
             <p className="text-xs text-gray-400 mt-1">Shown to customers for support inquiries</p>
           </div>
-          
+
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Support Email</label>
             <input
@@ -205,7 +230,6 @@ export default function OrgSettingsPage() {
           </div>
         </div>
 
-        {/* Save Button */}
         <button
           onClick={handleSave}
           disabled={loading}
