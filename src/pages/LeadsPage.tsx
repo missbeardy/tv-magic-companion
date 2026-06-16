@@ -22,8 +22,6 @@ import EventModal from '../components/EventModal'
 import DemoToggle from '../components/DemoToggle'
 import BottomSheet from '../components/BottomSheet'
 import CompletionChecklist from '../components/CompletionChecklist'
-import SignatureCanvas from '../components/SignatureCanvas'
-import ReceiptPreview from '../components/ReceiptPreview'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -60,7 +58,7 @@ const COLUMNS = [
   { key: 'assigned',          label: 'Assigned',          color: 'border-blue-300',   badge: 'bg-blue-100 text-blue-700'     },
   { key: 'contact_attempted', label: 'Contact Attempted', color: 'border-amber-300',  badge: 'bg-amber-100 text-amber-700'   },
   { key: 'booked',            label: 'Booked',            color: 'border-indigo-300', badge: 'bg-indigo-100 text-indigo-700' },
-  { key: 'lost',              label: 'Lost',              color: 'border-red-300',    badge: 'bg-red-100 text-red-600'       },
+  { key: 'lost',              label: 'Lost',              color: 'border-red-300',    badge: 'bg-red-100 text-red-600'        },
   { key: 'completed',         label: 'Completed',         color: 'border-purple-300', badge: 'bg-purple-100 text-purple-700' },
 ]
 
@@ -396,13 +394,8 @@ export default function LeadsPage() {
   const [activeTab, setActiveTab] = useState<'unassigned' | 'assigned' | 'contact' | 'closed'>('unassigned')
   const [sheetLead, setSheetLead] = useState<Lead | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
-
   const [showChecklist, setShowChecklist] = useState(false)
   const [checklistLead, setChecklistLead] = useState<Lead | null>(null)
-  const [showSignature, setShowSignature] = useState(false)
-  const [showReceipt, setShowReceipt] = useState(false)
-  const [receiptLead, setReceiptLead] = useState<Lead | null>(null)
-
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
 
   const fetchLeads = useCallback(async () => {
@@ -455,7 +448,6 @@ export default function LeadsPage() {
 
     const updatePayload: Record<string, unknown> = { status: newStatus }
 
-    // When dragging to unassigned, clear all assignment data
     if (newStatus === 'unassigned') {
       updatePayload.assigned_to = null
       updatePayload.assigned_at = null
@@ -488,25 +480,18 @@ export default function LeadsPage() {
     closeSheet()
   }, [closeSheet])
 
+  // Checklist confirmed → mark complete directly, no signature or receipt
   const confirmComplete = useCallback(async () => {
-    setShowChecklist(false)
-    setShowSignature(true)
-  }, [])
-
-  const saveSignatureAndComplete = useCallback(async (dataUrl: string) => {
     if (!checklistLead) return
+    setShowChecklist(false)
     await supabase
       .from('leads')
-      .update({ status: 'completed', signature_data: dataUrl })
+      .update({ status: 'completed' })
       .eq('id', checklistLead.id)
-    await logLeadEvent(checklistLead.id, 'signed_off', 'Customer signature captured')
-    setReceiptLead(checklistLead)
-    setShowReceipt(true)
-    setShowSignature(false)
+    await logLeadEvent(checklistLead.id, 'completed', 'Job marked complete via checklist')
     setChecklistLead(null)
-    closeSheet()
     fetchLeads()
-  }, [checklistLead, logLeadEvent, closeSheet, fetchLeads])
+  }, [checklistLead, logLeadEvent, fetchLeads])
 
   const handleCall = useCallback(async (lead: Lead) => {
     const confirmed = window.confirm(
@@ -558,7 +543,6 @@ export default function LeadsPage() {
     closeSheet()
   }, [logLeadEvent, fetchLeads, closeSheet])
 
-  // Unassign a lead — clears the employee assignment and timer, returns to pool
   const handleUnassign = useCallback(async (lead: Lead) => {
     const confirmed = window.confirm(
       `Unassign "${lead.name}" from ${lead.profiles?.full_name ?? 'this employee'}?\n\nThe lead will return to the unassigned pool.`
@@ -611,19 +595,7 @@ export default function LeadsPage() {
       {showChecklist && (
         <CompletionChecklist
           onConfirm={confirmComplete}
-          onCancel={() => setShowChecklist(false)}
-        />
-      )}
-      {showSignature && (
-        <SignatureCanvas
-          onSave={saveSignatureAndComplete}
-          onSkip={() => saveSignatureAndComplete('')}
-        />
-      )}
-      {showReceipt && receiptLead && (
-        <ReceiptPreview
-          lead={receiptLead}
-          onClose={() => { setShowReceipt(false); setReceiptLead(null) }}
+          onCancel={() => { setShowChecklist(false); setChecklistLead(null) }}
         />
       )}
       {assigningLead && (
@@ -716,7 +688,6 @@ export default function LeadsPage() {
         )}
       </main>
 
-      {/* Double Guard: Only mount/render the BottomSheet if it's explicitly open AND we are on a mobile screen viewport */}
       {sheetOpen && window.innerWidth < 768 && (
         <BottomSheet isOpen={sheetOpen} onClose={closeSheet} title={sheetLead?.name ?? 'Lead Actions'}>
           {sheetLead && (
@@ -753,6 +724,7 @@ export default function LeadsPage() {
                     >
                       📞 Call Manager (Nick)
                     </a>
+                    
                     <div className="pt-2 border-t border-gray-100">
                       <LeadPhotos leadId={sheetLead.id} canUpload={true} />
                     </div>
@@ -799,7 +771,6 @@ export default function LeadsPage() {
                       Self-Assign This Lead
                     </button>
                   )}
-                  {/* Manager unassign button — shown when lead is assigned to someone */}
                   {sheetLead.assigned_to && profile?.role === 'manager' && sheetLead.status !== 'unassigned' && (
                     <button
                       onClick={() => handleUnassign(sheetLead!)}
@@ -817,7 +788,7 @@ export default function LeadsPage() {
                   <button
                     onClick={() => handleMarkContactAttempted(sheetLead!)}
                     className="w-full py-4 rounded-xl bg-amber-500 text-white font-semibold text-base"
-                  >
+                    >
                     ✅ Mark as Attempted Contact
                   </button>
                   <button
