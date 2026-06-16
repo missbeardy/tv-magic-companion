@@ -1,61 +1,12 @@
-// api/inbound-email.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-import { Webhook } from 'svix'
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL!,
   process.env.VITE_SUPABASE_ANON_KEY!
 )
 
-// ── Inline rate limiter ────────────────────────────────────────────────────
-const requestCounts = new Map<string, { count: number; resetTime: number }>()
-
-function checkRateLimit(ip: string, limit = 10, windowMs = 60000): boolean {
-  const now = Date.now()
-  const record = requestCounts.get(ip)
-  if (!record || now > record.resetTime) {
-    requestCounts.set(ip, { count: 1, resetTime: now + windowMs })
-    return true
-  }
-  if (record.count >= limit) return false
-  record.count++
-  return true
-}
-
-// ── Verify Resend webhook signature ───────────────────────────────────────
-function verifyResendWebhook(req: VercelRequest, body: string): boolean {
-  const secret = process.env.RESEND_WEBHOOK_SECRET
-  if (!secret) return false
-  try {
-    const wh = new Webhook(secret)
-    wh.verify(body, {
-      'svix-id': req.headers['svix-id'] as string,
-      'svix-timestamp': req.headers['svix-timestamp'] as string,
-      'svix-signature': req.headers['svix-signature'] as string,
-    })
-    return true
-  } catch {
-    return false
-  }
-}
-
-// ── Fetch email body from Resend API ──────────────────────────────────────
-async function fetchEmailContent(emailId: string): Promise<{ plain: string; html: string }> {
-  const res = await fetch(`https://api.resend.com/emails/${emailId}`, {
-    headers: {
-      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-    },
-  })
-  if (!res.ok) throw new Error(`Resend API error: ${res.status}`)
-  const data = await res.json() as { text?: string; html?: string }
-  return {
-    plain: data.text || '',
-    html: data.html || '',
-  }
-}
-
-// ── Claude lead extraction (raw fetch — no SDK) ───────────────────────────
+// ── Claude lead extraction (raw fetch) ───────────────────────────
 async function extractLeadWithClaude(emailText: string, subject: string, from: string) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -96,46 +47,34 @@ Body: ${emailText}`,
   return JSON.parse(clean)
 }
 
-// ── Main handler ──────────────────────────────────────────────────────────
+// ── Main CloudMailin Handler ──────────────────────────────────────
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || 'unknown'
-  if (!checkRateLimit(ip)) {
-    return res.status(429).json({ error: 'Rate limit exceeded' })
+  // ── Simple Security Passcode ───────────────────────────────────
+  // Checks for a simple password appended to your URL (?secret=...)
+  const { secret } = req.query
+  if (secret !== process.env.INBOUND_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' })
   }
 
-  // Get raw body for signature verification
-  const rawBody = JSON.stringify(req.body)
+  // ── Grab data from CloudMailin payload ──────────────────────────
+  const { plain, html, headers } = req.body
+  
+  const emailText = plain || html?.replace(/<[^>]+>/g, ' ') || ''
+  const subject = req.body.subject || headers?.subject || 'No Subject'
+  const from = req.body.from || headers?.from || 'Unknown Sender'
 
-  if (!verifyResendWebhook(req, rawBody)) {
-    console.error('Invalid Resend webhook signature')
-    return res.status(401).json({ error: 'Invalid signature' })
-  }
-
-  const event = req.body
-    console.log("DEBUG PAYLOAD:", JSON.stringify(event, null, 2))
-  // Only handle inbound email events
-  if (event.type !== 'email.received') {
+  if (!emailText.trim()) {
+    console.error('Empty email body received from CloudMailin')
     return res.status(200).json({ received: true })
   }
 
-// ✅ NEW CLEAN CODE:
-const { email_id, from, to, subject, text, html } = event.data
-
-try {
-  // Resend already gave us the text! No need to fetch anything.
-  const emailText = text || html?.replace(/<[^>]+>/g, ' ') || ''
-
-    if (!emailText.trim()) {
-      console.error('Empty email body for id:', email_id)
-      return res.status(200).json({ received: true })
-    }
-
+  try {
     // Extract lead data with Claude
-    const lead = await extractLeadWithClaude(emailText, subject || '', from)
+    const lead = await extractLeadWithClaude(emailText, subject, from)
 
     // Get org_id
     const orgId = process.env.DEFAULT_ORG_ID
@@ -156,7 +95,7 @@ try {
 
     if (error) throw error
 
-    console.log('Lead created from Resend inbound email:', lead.name || from)
+    console.log('Lead successfully created via CloudMailin:', lead.name || from)
     return res.status(200).json({ success: true })
 
   } catch (err) {
