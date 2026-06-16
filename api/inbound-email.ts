@@ -1,15 +1,12 @@
 // api/inbound-email.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-import Anthropic from '@anthropic-ai/sdk'
 import { Webhook } from 'svix'
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL!,
   process.env.VITE_SUPABASE_ANON_KEY!
 )
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
 // ── Inline rate limiter ────────────────────────────────────────────────────
 const requestCounts = new Map<string, { count: number; resetTime: number }>()
@@ -51,22 +48,29 @@ async function fetchEmailContent(emailId: string): Promise<{ plain: string; html
     },
   })
   if (!res.ok) throw new Error(`Resend API error: ${res.status}`)
-  const data = await res.json()
+  const data = await res.json() as { text?: string; html?: string }
   return {
     plain: data.text || '',
     html: data.html || '',
   }
 }
 
-// ── Claude lead extraction ────────────────────────────────────────────────
+// ── Claude lead extraction (raw fetch — no SDK) ───────────────────────────
 async function extractLeadWithClaude(emailText: string, subject: string, from: string) {
-  const message = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 500,
-    messages: [
-      {
-        role: 'user',
-        content: `Extract lead information from this email and return ONLY a JSON object with no markdown, no code fences, just raw JSON.
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': process.env.ANTHROPIC_API_KEY!,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 500,
+      messages: [
+        {
+          role: 'user',
+          content: `Extract lead information from this email and return ONLY a JSON object with no markdown, no code fences, just raw JSON.
 
 Fields to extract:
 - name: full name of the person (or null)
@@ -79,11 +83,15 @@ Fields to extract:
 Email From: ${from}
 Subject: ${subject}
 Body: ${emailText}`,
-      },
-    ],
+        },
+      ],
+    }),
   })
 
-  const raw = message.content[0].type === 'text' ? message.content[0].text : ''
+  if (!res.ok) throw new Error(`Anthropic API error: ${res.status}`)
+
+  const result = await res.json() as { content: Array<{ type: string; text: string }> }
+  const raw = result.content[0]?.type === 'text' ? result.content[0].text : ''
   const clean = raw.replace(/```json|```/g, '').trim()
   return JSON.parse(clean)
 }
@@ -114,12 +122,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ received: true })
   }
 
-  const { email_id, from, to, subject } = event.data
+// ✅ NEW CLEAN CODE:
+const { email_id, from, to, subject, text, html } = event.data
 
-  try {
-    // Fetch the actual email body from Resend
-    const { plain, html } = await fetchEmailContent(email_id)
-    const emailText = plain || html.replace(/<[^>]+>/g, ' ')
+try {
+  // Resend already gave us the text! No need to fetch anything.
+  const emailText = text || html?.replace(/<[^>]+>/g, ' ') || ''
 
     if (!emailText.trim()) {
       console.error('Empty email body for id:', email_id)
