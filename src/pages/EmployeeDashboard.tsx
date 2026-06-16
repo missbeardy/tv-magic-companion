@@ -1,5 +1,5 @@
 // src/pages/EmployeeDashboard.tsx
-// Last updated: 13 June 2026 - clickable stats, restored data fetching
+// Last updated: 17 June 2026 - removed duplicate date pill
 
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -82,17 +82,12 @@ export default function EmployeeDashboard() {
     <div className="min-h-screen bg-gray-50">
       <NavBar />
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {/* Welcome + Date */}
-        <div className="flex flex-wrap justify-between items-baseline gap-2">
-          <div>
-            <h1 className="font-display font-bold text-gray-900 text-xl">
-              Hey {profile?.full_name?.split(' ')[0]} 👋
-            </h1>
-            <p className="text-sm text-gray-400 mt-0.5">{today}</p>
-          </div>
-          <div className="text-sm text-gray-400 bg-white px-3 py-1 rounded-full shadow-sm">
-            📅 {today}
-          </div>
+        {/* Welcome + Date — pill badge removed (was duplicate) */}
+        <div>
+          <h1 className="font-display font-bold text-gray-900 text-xl">
+            Hey {profile?.full_name?.split(' ')[0]} 👋
+          </h1>
+          <p className="text-sm text-gray-400 mt-0.5">{today}</p>
         </div>
 
         {/* Stats row - clickable */}
@@ -124,7 +119,6 @@ export default function EmployeeDashboard() {
           </div>
         )}
 
-        {/* Assigned leads - each card clickable via AssignedLeads component (needs its own fix next) */}
         <AssignedLeads />
       </main>
     </div>

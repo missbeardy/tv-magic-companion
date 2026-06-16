@@ -1,5 +1,5 @@
 // src/pages/ManagerDashboard.tsx
-// Last updated: 13 June 2026 - added clickable cards + navigation
+// Last updated: 17 June 2026 - removed duplicate date pill
 
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -10,7 +10,7 @@ import AssignedLeads from '../components/AssignedLeads'
 import RevenueWidget from '../components/RevenueWidget'
 import { useTechLocation } from '../hooks/useTechLocation'
 import {
-  Users, Inbox, ClipboardCheck, Clock, TrendingUp, AlertCircle, CalendarDays
+  Users, Inbox, ClipboardCheck, Clock, TrendingUp, AlertCircle
 } from 'lucide-react'
 
 interface StatsRow {
@@ -65,7 +65,6 @@ export default function ManagerDashboard() {
   const [loading, setLoading] = useState(true)
   useTechLocation(profile?.id ?? null)
 
-  // Today's date for validation
   const today = new Date().toLocaleDateString('en-AU', {
     weekday: 'long',
     year: 'numeric',
@@ -121,17 +120,12 @@ export default function ManagerDashboard() {
     <div className="min-h-screen bg-gray-50">
       <NavBar />
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        {/* Welcome + Date */}
-        <div className="flex flex-wrap justify-between items-baseline gap-2">
-          <div>
-            <h1 className="font-display font-bold text-gray-900 text-xl">
-              Good {getGreeting()}, {profile?.full_name?.split(' ')[0]} 👋
-            </h1>
-            <p className="text-sm text-gray-400 mt-0.5">{today}</p>
-          </div>
-          <div className="text-sm text-gray-400 bg-white px-3 py-1 rounded-full shadow-sm">
-            📅 {today}
-          </div>
+        {/* Welcome + Date — pill badge removed (was duplicate) */}
+        <div>
+          <h1 className="font-display font-bold text-gray-900 text-xl">
+            Good {getGreeting()}, {profile?.full_name?.split(' ')[0]} 👋
+          </h1>
+          <p className="text-sm text-gray-400 mt-0.5">{today}</p>
         </div>
 
         {/* Unassigned alert */}
