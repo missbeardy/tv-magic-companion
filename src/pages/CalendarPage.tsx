@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import Calendar from '../components/Calendar'
 import EventModal from '../components/EventModal'
+import NavBar from '../components/NavBar'
 import { CalendarDays, Plus } from 'lucide-react'
 
 export default function CalendarPage() {
