@@ -153,7 +153,12 @@ function LeadCard({
   return (
     <div
       className="bg-gray-50 rounded-lg p-3 border border-gray-200 cursor-pointer md:cursor-default"
-      onClick={() => onOpenSheet(lead)}
+      onClick={() => {
+        // ONLY open the bottom sheet action drawer if the viewport is mobile (under 768px wide)
+        if (window.innerWidth < 768) {
+          onOpenSheet(lead)
+        }
+      }}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
@@ -711,126 +716,129 @@ export default function LeadsPage() {
         )}
       </main>
 
-      <BottomSheet isOpen={sheetOpen} onClose={closeSheet} title={sheetLead?.name ?? 'Lead Actions'}>
-        {sheetLead && (
-          <div className="space-y-3">
-            <p className="text-sm text-gray-500">{sheetLead.service_type}</p>
+      {/* Double Guard: Only mount/render the BottomSheet if it's explicitly open AND we are on a mobile screen viewport */}
+      {sheetOpen && window.innerWidth < 768 && (
+        <BottomSheet isOpen={sheetOpen} onClose={closeSheet} title={sheetLead?.name ?? 'Lead Actions'}>
+          {sheetLead && (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-500">{sheetLead.service_type}</p>
 
-            {sheetLead.raw_email && (
-              <details className="mt-3">
-                <summary className="text-xs font-medium text-gray-500 cursor-pointer">
-                  View original email
-                </summary>
-                <pre className="mt-2 text-xs text-gray-600 bg-gray-50 rounded-lg p-3 whitespace-pre-wrap overflow-auto max-h-48">
-                  {sheetLead.raw_email}
-                </pre>
-              </details>
-            )}
+              {sheetLead.raw_email && (
+                <details className="mt-3">
+                  <summary className="text-xs font-medium text-gray-500 cursor-pointer">
+                    View original email
+                  </summary>
+                  <pre className="mt-2 text-xs text-gray-600 bg-gray-50 rounded-lg p-3 whitespace-pre-wrap overflow-auto max-h-48">
+                    {sheetLead.raw_email}
+                  </pre>
+                </details>
+              )}
 
-            {sheetLead.status === 'completed' ? (
-              <div>
-                <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-center mb-2">
-                  <span className="text-purple-700 font-semibold text-sm">✨ Job Completed Successfully</span>
-                </div>
-                <div className="space-y-3">
-                  <button
-                    onClick={() => handleSharePhoto(sheetLead!)}
-                    className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base flex items-center justify-center gap-2"
-                  >
-                    📸 Share Photo
-                  </button>
-                  
-                  <a
-                    href="tel:04123456789"
-                    className="w-full py-4 rounded-xl bg-gray-800 text-white font-semibold text-base flex items-center justify-center gap-2 block text-center"
-                  >
-                    📞 Call Manager (Nick)
-                  </a>
-                  <div className="pt-2 border-t border-gray-100">
-                    <LeadPhotos leadId={sheetLead.id} canUpload={true} />
+              {sheetLead.status === 'completed' ? (
+                <div>
+                  <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-center mb-2">
+                    <span className="text-purple-700 font-semibold text-sm">✨ Job Completed Successfully</span>
+                  </div>
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => handleSharePhoto(sheetLead!)}
+                      className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base flex items-center justify-center gap-2"
+                    >
+                      📸 Share Photo
+                    </button>
+                    
+                    <a
+                      href="tel:04123456789"
+                      className="w-full py-4 rounded-xl bg-gray-800 text-white font-semibold text-base flex items-center justify-center gap-2 block text-center"
+                    >
+                      📞 Call Manager (Nick)
+                    </a>
+                    <div className="pt-2 border-t border-gray-100">
+                      <LeadPhotos leadId={sheetLead.id} canUpload={true} />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {sheetLead.address && (
+              ) : (
+                <div className="space-y-3">
+                  {sheetLead.address && (
+                    <button
+                      onClick={() => {
+                        const encoded = encodeURIComponent(sheetLead!.address as string)
+                        window.open(`https://www.google.com/maps/search/?api=1&query=${encoded}`, '_blank')
+                      }}
+                      className="w-full py-4 rounded-xl bg-gray-800 text-white font-semibold text-base flex items-center justify-center gap-2"
+                    >
+                      📍 Navigate to Job
+                    </button>
+                  )}
                   <button
-                    onClick={() => {
-                      const encoded = encodeURIComponent(sheetLead!.address as string)
-                      window.open(`https://www.google.com/maps/search/?api=1&query=${encoded}`, '_blank')
-                    }}
-                    className="w-full py-4 rounded-xl bg-gray-800 text-white font-semibold text-base flex items-center justify-center gap-2"
+                    onClick={() => handleCall(sheetLead!)}
+                    className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base flex items-center justify-center gap-2"
                   >
-                    📍 Navigate to Job
+                    📞 Call {sheetLead.name}
                   </button>
-                )}
-                <button
-                  onClick={() => handleCall(sheetLead!)}
-                  className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base flex items-center justify-center gap-2"
-                >
-                  📞 Call {sheetLead.name}
-                </button>
-                <button
-                  onClick={() => handleSMS(sheetLead!)}
-                  className="w-full py-4 rounded-xl bg-[#00B4C5] text-white font-semibold text-base flex items-center justify-center gap-2"
-                >
-                  💬 Send ETA Text
-                </button>
-                {sheetLead.status === 'unassigned' && profile?.role === 'manager' && (
                   <button
-                    onClick={() => { setAssigningLead(sheetLead); closeSheet() }}
-                    className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base"
+                    onClick={() => handleSMS(sheetLead!)}
+                    className="w-full py-4 rounded-xl bg-[#00B4C5] text-white font-semibold text-base flex items-center justify-center gap-2"
                   >
-                    Assign to Technician
+                    💬 Send ETA Text
                   </button>
-                )}
-                {sheetLead.status === 'unassigned' && profile?.role === 'employee' && (
+                  {sheetLead.status === 'unassigned' && profile?.role === 'manager' && (
+                    <button
+                      onClick={() => { setAssigningLead(sheetLead); closeSheet() }}
+                      className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base"
+                    >
+                      Assign to Technician
+                    </button>
+                  )}
+                  {sheetLead.status === 'unassigned' && profile?.role === 'employee' && (
+                    <button
+                      onClick={() => { setAssigningLead(sheetLead); closeSheet() }}
+                      className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base"
+                    >
+                      Self-Assign This Lead
+                    </button>
+                  )}
+                  {/* Manager unassign button — shown when lead is assigned to someone */}
+                  {sheetLead.assigned_to && profile?.role === 'manager' && sheetLead.status !== 'unassigned' && (
+                    <button
+                      onClick={() => handleUnassign(sheetLead!)}
+                      className="w-full py-4 rounded-xl bg-orange-500 text-white font-semibold text-base"
+                    >
+                      ↩ Unassign Lead
+                    </button>
+                  )}
                   <button
-                    onClick={() => { setAssigningLead(sheetLead); closeSheet() }}
-                    className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base"
+                    onClick={() => { setBookingLead(sheetLead); closeSheet() }}
+                    className="w-full py-4 rounded-xl bg-gray-100 text-gray-700 font-semibold text-base"
                   >
-                    Self-Assign This Lead
+                    📅 Book Appointment
                   </button>
-                )}
-                {/* Manager unassign button — shown when lead is assigned to someone */}
-                {sheetLead.assigned_to && profile?.role === 'manager' && sheetLead.status !== 'unassigned' && (
                   <button
-                    onClick={() => handleUnassign(sheetLead!)}
-                    className="w-full py-4 rounded-xl bg-orange-500 text-white font-semibold text-base"
+                    onClick={() => handleMarkContactAttempted(sheetLead!)}
+                    className="w-full py-4 rounded-xl bg-amber-500 text-white font-semibold text-base"
                   >
-                    ↩ Unassign Lead
+                    ✅ Mark as Attempted Contact
                   </button>
-                )}
-                <button
-                  onClick={() => { setBookingLead(sheetLead); closeSheet() }}
-                  className="w-full py-4 rounded-xl bg-gray-100 text-gray-700 font-semibold text-base"
-                >
-                  📅 Book Appointment
-                </button>
-                <button
-                  onClick={() => handleMarkContactAttempted(sheetLead!)}
-                  className="w-full py-4 rounded-xl bg-amber-500 text-white font-semibold text-base"
-                >
-                  ✅ Mark as Attempted Contact
-                </button>
-                <button
-                  onClick={() => handleMarkComplete(sheetLead!)}
-                  className="w-full py-4 rounded-xl bg-green-600 text-white font-semibold text-base"
-                >
-                  Complete Job ✅
-                </button>
-              </div>
-            )}
+                  <button
+                    onClick={() => handleMarkComplete(sheetLead!)}
+                    className="w-full py-4 rounded-xl bg-green-600 text-white font-semibold text-base"
+                  >
+                    Complete Job ✅
+                  </button>
+                </div>
+              )}
 
-            <button
-              onClick={closeSheet}
-              className="w-full py-4 rounded-xl bg-gray-50 text-gray-400 font-semibold text-base border border-gray-200"
-            >
-              Close
-            </button>
-          </div>
-        )}
-      </BottomSheet>
+              <button
+                onClick={closeSheet}
+                className="w-full py-4 rounded-xl bg-gray-50 text-gray-400 font-semibold text-base border border-gray-200"
+              >
+                Close
+              </button>
+            </div>
+          )}
+        </BottomSheet>
+      )}
     </div>
   )
 }
