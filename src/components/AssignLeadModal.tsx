@@ -97,12 +97,34 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
       return
     }
 
+    // Push notification (in-app)
     await sendNotification(
       employeeId,
       'New Lead Assigned',
       `You've been assigned: ${lead.name} — ${lead.service_type}`,
       'https://tv-magic-companion.vercel.app/leads'
     )
+
+    // SMS notification to technician's phone
+    const assignedEmployee = employees.find((e) => e.id === employeeId)
+    const techPhone = (assignedEmployee as any)?.phone as string | null | undefined
+    if (techPhone) {
+      try {
+        await fetch('/api/send-sms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'tech_assignment',
+            to: techPhone,
+            leadName: lead.name,
+            serviceType: lead.service_type,
+          }),
+        })
+      } catch (smsErr) {
+        // SMS failure is non-fatal — assignment still succeeds
+        console.error('Tech assignment SMS failed:', smsErr)
+      }
+    }
 
     onAssigned()
     onClose()

@@ -1,10 +1,11 @@
+// src/components/CompletionChecklist.tsx
 import { useState } from 'react';
 
 const CHECKLIST = [
   'Equipment tested and working correctly',
   'Work area left clean and tidy',
   'Customer shown how to use the equipment',
-  'Receipt / invoice discussed with customer',
+  'Have you collected a Google Review?'
 ];
 
 const UPSELLS = [
