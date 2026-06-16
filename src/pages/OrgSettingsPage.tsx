@@ -1,5 +1,5 @@
 // src/pages/OrgSettingsPage.tsx
-// Last updated: 17 June 2026 - added avg_job_value field
+// Last updated: 17 June 2026 - save via direct Supabase client (removed missing update-org edge function call)
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
@@ -9,6 +9,7 @@ export default function OrgSettingsPage() {
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [orgId, setOrgId] = useState<string | null>(null);
   const [orgName, setOrgName] = useState('');
   const [primaryColor, setPrimaryColor] = useState('#004B93');
   const [secondaryColor, setSecondaryColor] = useState('#00B4C5');
@@ -29,6 +30,8 @@ export default function OrgSettingsPage() {
           .single();
 
         if (profile?.org_id) {
+          setOrgId(profile.org_id);
+
           const { data: org } = await supabase
             .from('orgs')
             .select('*')
@@ -52,66 +55,35 @@ export default function OrgSettingsPage() {
     loadOrg();
   }, []);
 
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSave() {
+    if (!orgId) {
+      setError('Organisation not loaded. Please refresh and try again.');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { error: updateError } = await supabase
+        .from('orgs')
+        .update({
+          name: orgName,
+          primary_color: primaryColor,
+          secondary_color: secondaryColor,
+          support_phone: supportPhone,
+          support_email: supportEmail,
+          avg_job_value: avgJobValue,
+        })
+        .eq('id', orgId);
 
-      if (!session) {
-        setError('You must be logged in');
-        setLoading(false);
-        return;
-      }
-
-      const supabaseUrl = 'https://abnheynzugpicikxwwmv.supabase.co';
-
-      const response = await fetch(
-        `${supabaseUrl}/functions/v1/update-org`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({
-            name: orgName,
-            primary_color: primaryColor,
-            secondary_color: secondaryColor,
-            support_phone: supportPhone,
-            support_email: supportEmail,
-            avg_job_value: avgJobValue,
-          }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to update');
-      }
-
-      // Save avg_job_value directly to orgs table (not via Edge Function)
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('org_id')
-        .eq('id', session.user.id)
-        .single()
-
-      if (profileData?.org_id) {
-        await supabase
-          .from('orgs')
-          .update({ avg_job_value: avgJobValue })
-          .eq('id', profileData.org_id)
-      }
+      if (updateError) throw updateError;
 
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err: unknown) {
       console.error('Save error:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      setError(err instanceof Error ? err.message : 'Failed to save settings');
     } finally {
       setLoading(false);
     }
@@ -145,7 +117,6 @@ export default function OrgSettingsPage() {
               onChange={(e) => setOrgName(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
               placeholder="e.g., TVMagic Brisbane"
-              required
             />
             <p className="text-xs text-gray-400 mt-1">This appears throughout the app and on customer communications</p>
           </div>
