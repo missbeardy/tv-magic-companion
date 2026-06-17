@@ -1,4 +1,3 @@
-// src/components/AssignLeadModal.tsx
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { getExpiresAt } from '../lib/timer'
@@ -32,6 +31,7 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
 
   useEffect(() => {
     async function fetchData() {
+      // 1. Fetch raw personnel data matching the organization
       const { data: employeeData } = await supabase
         .from('profiles')
         .select('id, full_name, avatar_url, phone, suburb, role, lat, lng')
@@ -39,6 +39,11 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
         .in('role', ['employee', 'manager'])
 
       if (!employeeData) return
+
+      // 2. Filter down the roster if the user is an employee
+      const visibleEmployees = profile?.role === 'employee'
+        ? employeeData.filter(emp => emp.id === profile.id)
+        : employeeData
 
       const { data: activeCounts } = await supabase
         .from('leads')
@@ -54,14 +59,14 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
       if (lead.address?.trim()) {
         const coords = await geocodeAddress(lead.address)
         if (coords) {
-          const ranked = rankTechsByDistance(coords.lat, coords.lng, employeeData)
+          const ranked = rankTechsByDistance(coords.lat, coords.lng, visibleEmployees)
           setEmployees(ranked)
           setLoadingProximity(false)
           return
         }
       }
 
-      setEmployees(employeeData.map((e) => ({
+      setEmployees(visibleEmployees.map((e) => ({
         ...e,
         distanceKm: null,
         distanceLabel: 'Location unknown',
@@ -69,13 +74,19 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
       setLoadingProximity(false)
     }
     fetchData()
-  }, [lead.id, lead.address])
+  }, [lead.id, lead.address, profile])
 
   const minCount = employees.length > 0
     ? Math.min(...employees.map((e) => countMap[e.id] ?? 0))
     : 0
 
   async function handleAssign(employeeId: string) {
+    // Backend Guard Rule: Employees cannot assign leads to anyone else
+    if (profile?.role === 'employee' && employeeId !== profile.id) {
+      setError('Permission denied: Employees can only self-assign leads.')
+      return
+    }
+
     setSaving(true)
     setError('')
     const expiresAt = getExpiresAt(demoMode)
@@ -121,7 +132,6 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
           }),
         })
       } catch (smsErr) {
-        // SMS failure is non-fatal — assignment still succeeds
         console.error('Tech assignment SMS failed:', smsErr)
       }
     }
@@ -172,8 +182,10 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
 
           {/* Subheading */}
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-semibold text-gray-700">Select Technician</p>
-            {lead.address && (
+            <p className="text-sm font-semibold text-gray-700">
+              {profile?.role === 'employee' ? 'Confirm Assignment' : 'Select Technician'}
+            </p>
+            {lead.address && profile?.role !== 'employee' && (
               <p className="text-xs text-gray-400">
                 {loadingProximity ? 'Finding nearest…' : 'Sorted by distance'}
               </p>
@@ -183,13 +195,13 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
           {/* Tech list */}
           <div className="space-y-2 max-h-72 overflow-y-auto pr-1 mb-4">
             {employees.length === 0 && (
-              <p className="text-sm text-gray-400 text-center py-6">Loading technicians…</p>
+              <p className="text-sm text-gray-400 text-center py-6">Loading roster configuration…</p>
             )}
             {employees.map((emp, index) => {
               const activeCount = countMap[emp.id] ?? 0
               const isRecommended = activeCount === minCount
               const isSelf = emp.id === profile?.id
-              const isNearest = index === 0 && emp.distanceKm != null
+              const isNearest = index === 0 && emp.distanceKm != null && profile?.role !== 'employee'
               const isManager = (emp as any).role === 'manager'
 
               return (
@@ -200,7 +212,7 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
                   className={`w-full text-left flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all hover:shadow-md disabled:opacity-50 ${
                     isNearest
                       ? 'border-[#00B4C5] bg-[#00B4C5]/5'
-                      : isRecommended
+                      : isRecommended && profile?.role !== 'employee'
                       ? 'border-green-400 bg-green-50/50'
                       : 'border-gray-100 bg-white hover:border-[#004B93]/30'
                   }`}
@@ -232,14 +244,14 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
                     )}
                     <p className="text-xs text-gray-500 mt-0.5">
                       {activeCount} active lead{activeCount !== 1 ? 's' : ''}
-                      {emp.distanceKm != null && (
+                      {emp.distanceKm != null && profile?.role !== 'employee' && (
                         <span className="ml-1.5 text-[#00B4C5] font-medium">· {emp.distanceLabel}</span>
                       )}
                     </p>
                   </div>
 
                   {/* Best badge */}
-                  {isRecommended && !isNearest && (
+                  {isRecommended && !isNearest && profile?.role !== 'employee' && (
                     <span className="badge badge-green flex items-center gap-1 shrink-0">
                       <Star size={9} /> Best
                     </span>
