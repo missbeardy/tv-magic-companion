@@ -1,12 +1,29 @@
+// api/anthropic.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
+// Inlined rate limiter (no shared imports — ESM/Vercel fix)
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+function checkRateLimit(key: string, limit = 10, windowMs = 60_000): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(key);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+  if (entry.count >= limit) return false;
+  entry.count++;
+  return true;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Ensure we only accept POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  console.log('Anthropic handler started');
+  const ip = (req.headers['x-forwarded-for'] as string) ?? 'unknown';
+  if (!checkRateLimit(ip)) {
+    return res.status(429).json({ error: 'Too many requests. Please wait a moment.' });
+  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -26,8 +43,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const clampedTokens = Math.min(max_tokens, 2000);
 
   try {
-    console.log('Attempting to call Anthropic API...');
-
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -42,8 +57,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }),
     });
 
-    console.log(`Anthropic response status: ${response.status}`);
-
     const data = await response.json();
 
     if (!response.ok) {
@@ -53,15 +66,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(200).json(data);
   } catch (err) {
-    // Enhanced logging to capture specific 'Failed to fetch' details
-    console.error('Anthropic proxy failed to fetch. Error details:', {
-      message: (err as Error).message,
-      stack: (err as Error).stack,
-    });
-    
-    return res.status(502).json({ 
-      error: 'Upstream connection failed', 
-      details: (err as Error).message 
+    console.error('Anthropic proxy failed to fetch:', (err as Error).message);
+    return res.status(502).json({
+      error: 'Upstream connection failed',
+      details: (err as Error).message,
     });
   }
 }
