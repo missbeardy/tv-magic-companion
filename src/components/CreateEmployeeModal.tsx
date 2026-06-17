@@ -1,9 +1,8 @@
 // src/components/CreateEmployeeModal.tsx
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import { X, UserPlus, Mail, User, Shield, Send } from 'lucide-react';
-
-const INVITE_API_KEY = 'fieldbournedigital2026';
 
 interface Props {
   onClose: () => void;
@@ -28,30 +27,29 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
     setError('');
     setSuccess('');
 
-    // DEBUG: Log what we're about to send
     const payload = {
       email,
       fullName,
       role,
       orgId: profile?.org_id,
     };
-    console.log('>>> DEBUG: profile object:', profile);
-    console.log('>>> DEBUG: payload being sent:', payload);
-    console.log('>>> DEBUG: orgId type:', typeof profile?.org_id, 'value:', profile?.org_id);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Your session has expired. Please log out and back in.');
+      }
+
       const response = await fetch('/api/create-user', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': INVITE_API_KEY,
+          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify(payload),
       });
 
       const data = await response.json();
-      console.log('>>> DEBUG: API response status:', response.status);
-      console.log('>>> DEBUG: API response data:', data);
 
       if (!response.ok) {
         throw new Error(data.error || data.details || 'Invitation failed');
@@ -67,7 +65,6 @@ export default function CreateEmployeeModal({ onClose, onCreated }: Props) {
         onClose();
       }, 2000);
     } catch (err: any) {
-      console.log('>>> DEBUG: Caught error:', err.message);
       setError(err.message);
     } finally {
       setSaving(false);
