@@ -91,6 +91,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       address: lead.address || null,
       status: 'unassigned',
       source: 'email',
+      raw_email: emailText,   // ← NEW: stores the full email body for display on the lead card
     })
 
     if (error) throw error

@@ -1,37 +1,48 @@
-interface Props {
-  value: string // HH:MM format
+// src/components/TimePicker.tsx
+
+interface TimePickerProps {
+  value: string
   onChange: (value: string) => void
 }
 
-export default function TimePicker({ value, onChange }: Props) {
-  const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
-  const minutes = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55']
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
+const MINUTES = ['00', '15', '30', '45']
 
-  const [selectedHour, selectedMinute] = value ? value.split(':') : ['09', '00']
+function isMobileViewport() {
+  return typeof window !== 'undefined' && window.innerWidth < 768
+}
 
+export default function TimePicker({ value, onChange }: TimePickerProps) {
+  const [hour, minute] = value.split(':')
+
+  // Mobile: native time input — brings up the OS's built-in time picker UI
+  if (isMobileViewport()) {
+    return (
+      <input
+        type="time"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full px-3.5 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#004B93]"
+      />
+    )
+  }
+
+  // Desktop: keep the two-dropdown picker
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-1">
       <select
-        value={selectedHour}
-        onChange={e => onChange(`${e.target.value}:${selectedMinute}`)}
-        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
+        value={hour}
+        onChange={e => onChange(`${e.target.value}:${minute}`)}
+        className="flex-1 px-2 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#004B93]"
       >
-        {hours.map(h => (
-          <option key={h} value={h}>
-            {h}:00
-          </option>
-        ))}
+        {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
       </select>
       <select
-        value={selectedMinute}
-        onChange={e => onChange(`${selectedHour}:${e.target.value}`)}
-        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
+        value={minute}
+        onChange={e => onChange(`${hour}:${e.target.value}`)}
+        className="flex-1 px-2 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#004B93]"
       >
-        {minutes.map(m => (
-          <option key={m} value={m}>
-            :{m}
-          </option>
-        ))}
+        {MINUTES.map(m => <option key={m} value={m}>{m}</option>)}
       </select>
     </div>
   )
