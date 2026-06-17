@@ -1,5 +1,19 @@
+// api/geocode.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { checkRateLimit } from './_rateLimit.js'
+
+// Inlined rate limiter (no shared imports — ESM/Vercel fix)
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+function checkRateLimit(key: string, limit = 20, windowMs = 60_000): boolean {
+  const now = Date.now()
+  const entry = rateLimitMap.get(key)
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + windowMs })
+    return true
+  }
+  if (entry.count >= limit) return false
+  entry.count++
+  return true
+}
 
 interface GeocodeResult {
   status: string
@@ -14,7 +28,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // SEC-08: Rate limit — 20 requests per minute per IP
   const ip = (req.headers['x-forwarded-for'] as string) ?? 'unknown'
   if (!checkRateLimit(ip)) {
     return res.status(429).json({ error: 'Too many requests. Please wait a moment.' })
