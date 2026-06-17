@@ -21,8 +21,6 @@ export function useCalendarEvents() {
   const [error, setError] = useState<string | null>(null);
   const { user, profile } = useAuth();
 
-  // useCallback prevents fetchEvents from being recreated on every render,
-  // which avoids an infinite loop in the useEffect below.
   const fetchEvents = useCallback(async () => {
     if (!user) return;
     try {
@@ -54,6 +52,36 @@ export function useCalendarEvents() {
     }
   }, [fetchEvents, user, profile]);
 
+  // Reusable helper — looks up the current user's manager and sends them a notification.
+  // Wrapped in its own try/catch so it never blocks the main action if it fails.
+  const notifyManager = async (message: string) => {
+    try {
+      const { data: empProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('first_name, last_name, manager_id')
+        .eq('id', user!.id)
+        .single();
+
+      if (profileError || !empProfile?.manager_id) return;
+
+      const employeeName = `${empProfile.first_name || 'An employee'} ${empProfile.last_name || ''}`.trim();
+
+      await supabase
+        .from('notifications')
+        .insert([{
+          user_id: empProfile.manager_id,
+          title: 'Calendar Updated',
+          message: `${employeeName} ${message}`,
+          type: 'calendar',
+          read: false,
+          org_id: profile?.org_id
+        }]);
+    } catch (err) {
+      // Non-fatal — log but never surface to the user
+      console.warn('Manager notification failed (non-fatal):', err);
+    }
+  };
+
   const createEvent = async (eventData: Omit<CalendarEvent, 'id' | 'user_id' | 'created_at'>) => {
     if (!user) throw new Error('User must be authenticated');
     try {
@@ -69,33 +97,9 @@ export function useCalendarEvents() {
 
       if (createError) throw createError;
 
-      // Notify the manager in a separate try/catch so that if this fails
-      // (e.g. RLS blocks the profile lookup), the event is still created successfully.
-      // TODO: Move this notification logic to a Supabase Edge Function (DB trigger)
-      // to avoid exposing other users' manager_id through the browser client.
-      try {
-        const { data: empProfile, error: profileError } = await supabase
-          .from('profiles')
-          .select('first_name, last_name, manager_id')
-          .eq('id', user.id)
-          .single();
-
-        if (!profileError && empProfile?.manager_id) {
-          const employeeName = `${empProfile.first_name || 'An employee'} ${empProfile.last_name || ''}`.trim();
-          await supabase
-            .from('notifications')
-            .insert([{
-              user_id: empProfile.manager_id,
-              title: 'New Calendar Event Created',
-              message: `${employeeName} scheduled a new event: "${eventData.title}"`,
-              type: 'calendar',
-              read: false,
-              org_id: profile?.org_id
-            }]);
-        }
-      } catch (notifyErr) {
-        // Non-fatal: log but don't surface to the user
-        console.warn('Manager notification failed (non-fatal):', notifyErr);
+      // Only notify if the current user is an employee
+      if (profile?.role === 'employee') {
+        await notifyManager(`scheduled a new event: "${eventData.title}"`);
       }
 
       setEvents(prev => [...prev, data]);
@@ -116,6 +120,13 @@ export function useCalendarEvents() {
         .single();
 
       if (updateError) throw updateError;
+
+      // Notify manager on updates too, not just creates
+      if (profile?.role === 'employee') {
+        const title = eventData.title ?? events.find(e => e.id === id)?.title ?? 'an event';
+        await notifyManager(`updated an event: "${title}"`);
+      }
+
       setEvents(prev => prev.map(e => e.id === id ? data : e));
       return data;
     } catch (err: any) {
@@ -126,12 +137,21 @@ export function useCalendarEvents() {
 
   const deleteEvent = async (id: string) => {
     try {
+      // Grab the title before deleting so the notification message is useful
+      const eventTitle = events.find(e => e.id === id)?.title ?? 'an event';
+
       const { error: deleteError } = await supabase
         .from('events')
         .delete()
         .eq('id', id);
 
       if (deleteError) throw deleteError;
+
+      // Notify manager on deletes too
+      if (profile?.role === 'employee') {
+        await notifyManager(`removed an event: "${eventTitle}"`);
+      }
+
       setEvents(prev => prev.filter(e => e.id !== id));
     } catch (err: any) {
       setError(err.message);
