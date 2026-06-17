@@ -1,5 +1,4 @@
-// src/pages/Login.tsx
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -12,6 +11,46 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  
+  // State for dynamically discovered tenant branding
+  const [dynamicLogo, setDynamicLogo] = useState<string | null>(null)
+
+  // Debounce email typing to look up organization branding pre-auth
+  useEffect(() => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email.trim())) {
+      setDynamicLogo(null) // Reset if email becomes incomplete or invalid
+      return
+    }
+
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        // 1. Look up the user's public profile link via email
+        const { data: profileLookup, error: pError } = await supabase
+          .from('profiles')
+          .select('org_id')
+          .eq('email', email.trim().toLowerCase()) // Assumes your profiles table tracks email
+          .maybeSingle()
+
+        if (pError || !profileLookup?.org_id) return
+
+        // 2. Fetch the logo tied to that organization
+        const { data: orgLookup } = await supabase
+          .from('orgs')
+          .select('logo_url')
+          .eq('id', profileLookup.org_id)
+          .maybeSingle()
+
+        if (orgLookup?.logo_url) {
+          setDynamicLogo(orgLookup.logo_url)
+        }
+      } catch (err) {
+        console.error('Pre-auth branding lookup failed:', err)
+      }
+    }, 400) // 400ms debounce buffer while typing
+
+    return () => clearTimeout(delayDebounceFn)
+  }, [email])
 
   async function handleLogin() {
     setLoading(true)
@@ -43,11 +82,24 @@ export default function Login() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
 
-        {/* Logo */}
+        {/* Logo Frame */}
         <div className="text-center mb-8">
-          <div className="w-14 h-14 bg-[#004B93] rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[#004B93]/25">
-            <Tv2 size={28} className="text-white" />
-          </div>
+          {dynamicLogo ? (
+            /* Shows their customized brand logo smoothly when recognized */
+            <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg p-2 border border-gray-100 transition-all duration-300 transform scale-105">
+              <img 
+                src={dynamicLogo} 
+                alt="Business Branding" 
+                className="max-w-full max-h-full object-contain"
+              />
+            </div>
+          ) : (
+            /* Default fallback app logo container */
+            <div className="w-14 h-14 bg-[#004B93] rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[#004B93]/25 transition-all duration-300">
+              <Tv2 size={28} className="text-white" />
+            </div>
+          )}
+          
           <h1 className="font-display font-bold text-gray-900 text-2xl tracking-tight">
             TV<span className="text-[#00B4C5]">Magic</span>
           </h1>
@@ -55,7 +107,7 @@ export default function Login() {
         </div>
 
         {/* Card */}
-        <div className="card p-6 space-y-4">
+        <div className="card p-6 space-y-4 bg-white rounded-2xl border border-gray-200 shadow-sm">
           <div>
             <h2 className="font-display font-semibold text-gray-900 text-lg">Sign in</h2>
             <p className="text-sm text-gray-400 mt-0.5">Enter your credentials to continue</p>
