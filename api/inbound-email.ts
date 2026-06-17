@@ -1,9 +1,10 @@
+// api/inbound-email.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
-  process.env.VITE_SUPABASE_URL!,
-  process.env.VITE_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
 // ── Claude lead extraction (raw fetch) ───────────────────────────
@@ -16,7 +17,7 @@ async function extractLeadWithClaude(emailText: string, subject: string, from: s
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-4-6', 
       max_tokens: 500,
       messages: [
         {
@@ -62,7 +63,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── Grab data from CloudMailin payload ──────────────────────────
   const { plain, html, headers } = req.body
-  
+
   const emailText = plain || html?.replace(/<[^>]+>/g, ' ') || ''
   const subject = req.body.subject || headers?.subject || 'No Subject'
   const from = req.body.from || headers?.from || 'Unknown Sender'
@@ -91,7 +92,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       address: lead.address || null,
       status: 'unassigned',
       source: 'email',
-      raw_email: emailText,   // ← NEW: stores the full email body for display on the lead card
+      raw_email: emailText,
     })
 
     if (error) throw error
