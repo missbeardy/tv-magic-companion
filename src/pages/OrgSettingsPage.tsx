@@ -1,6 +1,4 @@
-// src/pages/OrgSettingsPage.tsx
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, ChangeEvent } from 'react';
 import { supabase } from '../lib/supabase';
 import NavBar from '../components/NavBar';
 import UpsellSettingsPanel from '../components/settings/UpsellSettingsPanel';
@@ -16,6 +14,10 @@ export default function OrgSettingsPage() {
   const [supportPhone, setSupportPhone] = useState('');
   const [supportEmail, setSupportEmail] = useState('');
   const [avgJobValue, setAvgJobValue] = useState<number>(180);
+  
+  // Image upload states
+  const [imageUrl, setImageUrl] = useState<string>('');
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     async function loadOrg() {
@@ -45,6 +47,7 @@ export default function OrgSettingsPage() {
             setSupportPhone(org.support_phone || '');
             setSupportEmail(org.support_email || '');
             setAvgJobValue(org.avg_job_value ?? 180);
+            setImageUrl(org.logo_url || ''); // Match this key to your database column
           }
         }
       } catch (err) {
@@ -54,6 +57,43 @@ export default function OrgSettingsPage() {
 
     loadOrg();
   }, []);
+
+  // Handles bucket uploading and returns a public URL reference
+  async function handleImageUpload(e: ChangeEvent<HTMLInputElement>) {
+    try {
+      setError('');
+      if (!e.target.files || e.target.files.length === 0) return;
+      if (!orgId) {
+        setError('Organisation context not found. Cannot upload.');
+        return;
+      }
+
+      setUploadingImage(true);
+      const file = e.target.files[0];
+      const fileExt = file.name.split('.').pop();
+      // Scoping the path by orgId handles file organization gracefully
+      const filePath = `${orgId}/business-logo-${Math.random().toString(36).substring(2)}.${fileExt}`;
+
+      // Upload file directly into 'org-assets' public bucket
+      const { error: uploadError } = await supabase.storage
+        .from('org-assets')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Extract public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('org-assets')
+        .getPublicUrl(filePath);
+
+      setImageUrl(publicUrl);
+    } catch (err: unknown) {
+      console.error('Upload failed:', err);
+      setError(err instanceof Error ? err.message : 'Failed to upload image');
+    } finally {
+      setUploadingImage(false);
+    }
+  }
 
   async function handleSave() {
     if (!orgId) {
@@ -74,6 +114,7 @@ export default function OrgSettingsPage() {
           support_phone: supportPhone,
           support_email: supportEmail,
           avg_job_value: avgJobValue,
+          logo_url: imageUrl, // Saves public asset string path reference to DB
         })
         .eq('id', orgId);
 
@@ -119,6 +160,39 @@ export default function OrgSettingsPage() {
               placeholder="e.g., TVMagic Brisbane"
             />
             <p className="text-xs text-gray-400 mt-1">This appears throughout the app and on customer communications</p>
+          </div>
+        </div>
+
+        {/* Business Image Upload Card */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+          <p className="text-sm font-semibold text-gray-700">🖼️ Business Image / Logo</p>
+          <div className="flex flex-col items-center justify-center gap-4 border-2 border-dashed border-gray-200 rounded-xl p-4 bg-gray-50">
+            {imageUrl ? (
+              <div className="relative group w-full flex flex-col items-center">
+                <img
+                  src={imageUrl}
+                  alt="Business Preview"
+                  className="max-h-40 object-contain rounded-lg shadow-sm bg-white p-1"
+                />
+                <p className="text-xs text-gray-400 mt-2 text-center truncate max-w-xs">{imageUrl}</p>
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <p className="text-sm text-gray-500">No profile image uploaded yet</p>
+                <p className="text-xs text-gray-400">Supports PNG, JPG, or WEBP</p>
+              </div>
+            )}
+            
+            <label className="w-full flex justify-center items-center px-4 py-2 bg-white border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer transition focus-within:ring-2 focus-within:ring-[#004B93]">
+              <span>{uploadingImage ? 'Uploading to Storage...' : imageUrl ? 'Change Image' : 'Select Business Image'}</span>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                disabled={uploadingImage}
+                className="sr-only"
+              />
+            </label>
           </div>
         </div>
 
@@ -209,12 +283,12 @@ export default function OrgSettingsPage() {
           </div>
         </div>
 
-        {/* Upsell Items — orgId passed as prop so it doesn't depend on auth context timing */}
+        {/* Upsell Items */}
         {orgId && <UpsellSettingsPanel orgId={orgId} />}
 
         <button
           onClick={handleSave}
-          disabled={loading}
+          disabled={loading || uploadingImage}
           className="w-full bg-[#004B93] text-white py-2 rounded-lg text-sm font-medium hover:bg-[#003d7a] transition disabled:opacity-50"
         >
           {loading ? 'Saving...' : 'Save Settings'}
