@@ -1,8 +1,14 @@
+// src/components/Layout/Header.tsx
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { Bell, LogOut, Menu, User, Shield } from 'lucide-react';
+import { Bell, LogOut, Menu, Shield } from 'lucide-react';
+
+// TODO (Multi-tenancy): Replace hardcoded brand values below with org config from
+// your organisations table once the white-label theme context is built.
+// Affected: bg-[#004B93], "TVMagic", "Companion" badge, and the notification icon path.
 
 interface HeaderProps {
   onMenuToggle: () => void;
@@ -31,7 +37,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
     }
   }, []);
 
-  // Fetch initial notifications and subscribe to changes in real-time
+  // Fetch initial notifications and subscribe to real-time changes
   useEffect(() => {
     if (!user) return;
 
@@ -51,7 +57,6 @@ export default function Header({ onMenuToggle }: HeaderProps) {
 
     fetchNotifications();
 
-    // Listen for new insertions into the notification table for this user
     const channel = supabase
       .channel(`user-notifications-${user.id}`)
       .on(
@@ -67,10 +72,10 @@ export default function Header({ onMenuToggle }: HeaderProps) {
           setNotifications(prev => [newNotif, ...prev.slice(0, 4)]);
           setUnreadCount(c => c + 1);
 
-          // Trigger a native browser desktop toast notification (Chrome / Brave)
           if ('Notification' in window && Notification.permission === 'granted') {
             new Notification(newNotif.title, {
               body: newNotif.message,
+              // TODO (Multi-tenancy): Replace with org logo URL from org config
               icon: '/tvmagic-logo.png'
             });
           }
@@ -108,7 +113,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
   return (
     <header className="bg-[#004B93] text-white h-16 fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 shadow-md">
       <div className="flex items-center space-x-3">
-        <button 
+        <button
           onClick={onMenuToggle}
           className="p-2 hover:bg-blue-800 rounded-md transition-colors"
           aria-label="Toggle navigation menu"
@@ -116,6 +121,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
           <Menu className="h-6 w-6" />
         </button>
         <div className="flex items-center space-x-2">
+          {/* TODO (Multi-tenancy): Replace "TVMagic" and "Companion" with org config values */}
           <span className="font-bold text-lg tracking-wider">TVMagic</span>
           <span className="text-xs bg-blue-500 px-2 py-0.5 rounded-full font-medium hidden sm:inline-block">
             Companion
@@ -124,9 +130,9 @@ export default function Header({ onMenuToggle }: HeaderProps) {
       </div>
 
       <div className="flex items-center space-x-2">
-        {/* Notifications Popover Trigger */}
+        {/* Notifications */}
         <div className="relative">
-          <button 
+          <button
             onClick={() => setShowDropdown(!showDropdown)}
             className="p-2 hover:bg-blue-800 rounded-full transition-colors relative"
             aria-label="View notifications"
@@ -165,7 +171,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
           )}
         </div>
 
-        {/* User Context Info - Fixed for TS Profiles */}
+        {/* User info */}
         <div className="hidden md:flex flex-col items-end text-xs mr-2">
           <span className="font-medium">{user?.email?.split('@')[0]}</span>
           <span className="opacity-75 capitalize flex items-center gap-1">
@@ -174,7 +180,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
           </span>
         </div>
 
-        <button 
+        <button
           onClick={handleSignOut}
           className="p-2 hover:bg-blue-800 rounded-full transition-colors text-blue-200 hover:text-white"
           title="Sign Out"

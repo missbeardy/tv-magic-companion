@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+// src/hooks/useCalendarEvents.ts
+
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
@@ -19,7 +21,9 @@ export function useCalendarEvents() {
   const [error, setError] = useState<string | null>(null);
   const { user, profile } = useAuth();
 
-  const fetchEvents = async () => {
+  // useCallback prevents fetchEvents from being recreated on every render,
+  // which avoids an infinite loop in the useEffect below.
+  const fetchEvents = useCallback(async () => {
     if (!user) return;
     try {
       setLoading(true);
@@ -35,7 +39,6 @@ export function useCalendarEvents() {
       }
 
       const { data, error: fetchError } = await query;
-
       if (fetchError) throw fetchError;
       setEvents(data || []);
     } catch (err: any) {
@@ -43,51 +46,56 @@ export function useCalendarEvents() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, profile]);
 
   useEffect(() => {
     if (user && profile) {
       fetchEvents();
     }
-  }, [user, profile]);
+  }, [fetchEvents, user, profile]);
 
   const createEvent = async (eventData: Omit<CalendarEvent, 'id' | 'user_id' | 'created_at'>) => {
     if (!user) throw new Error('User must be authenticated');
     try {
-      // 1. Insert the calendar event matching your schema layout
       const { data, error: createError } = await supabase
         .from('events')
-        .insert([{ 
-          ...eventData, 
+        .insert([{
+          ...eventData,
           user_id: user.id,
-          org_id: profile?.org_id 
+          org_id: profile?.org_id
         }])
         .select()
         .single();
 
       if (createError) throw createError;
 
-      // 2. Check if the current user has a manager_id to notify
-      const { data: empProfile, error: profileError } = await supabase
-        .from('profiles')
-        .select('first_name, last_name, manager_id')
-        .eq('id', user.id)
-        .single();
+      // Notify the manager in a separate try/catch so that if this fails
+      // (e.g. RLS blocks the profile lookup), the event is still created successfully.
+      // TODO: Move this notification logic to a Supabase Edge Function (DB trigger)
+      // to avoid exposing other users' manager_id through the browser client.
+      try {
+        const { data: empProfile, error: profileError } = await supabase
+          .from('profiles')
+          .select('first_name, last_name, manager_id')
+          .eq('id', user.id)
+          .single();
 
-      if (!profileError && empProfile?.manager_id) {
-        const employeeName = `${empProfile.first_name || 'An employee'} ${empProfile.last_name || ''}`.trim();
-        
-        // 3. Insert notification row for the manager
-        await supabase
-          .from('notifications')
-          .insert([{
-            user_id: empProfile.manager_id,
-            title: 'New Calendar Event Created',
-            message: `${employeeName} scheduled a new event: "${eventData.title}"`,
-            type: 'calendar',
-            read: false,
-            org_id: profile?.org_id
-          }]);
+        if (!profileError && empProfile?.manager_id) {
+          const employeeName = `${empProfile.first_name || 'An employee'} ${empProfile.last_name || ''}`.trim();
+          await supabase
+            .from('notifications')
+            .insert([{
+              user_id: empProfile.manager_id,
+              title: 'New Calendar Event Created',
+              message: `${employeeName} scheduled a new event: "${eventData.title}"`,
+              type: 'calendar',
+              read: false,
+              org_id: profile?.org_id
+            }]);
+        }
+      } catch (notifyErr) {
+        // Non-fatal: log but don't surface to the user
+        console.warn('Manager notification failed (non-fatal):', notifyErr);
       }
 
       setEvents(prev => [...prev, data]);

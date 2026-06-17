@@ -1,8 +1,9 @@
+// src/components/CompletionChecklist.tsx
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 
-// Restored onConfirm and onCancel to satisfy LeadsPage.tsx
 interface CompletionChecklistProps {
   jobId?: string;
   onComplete?: (data: any) => void;
@@ -16,15 +17,17 @@ interface UpsellItem {
   label: string;
 }
 
+const DEFAULT_UPSELLS: UpsellItem[] = [
+  { id: 'signal_check', label: '$49 Signal Check' },
+  { id: 'surge_protection', label: 'Surge Protection' },
+  { id: 'premium_cables', label: 'Premium Cables Upgrade' },
+  { id: 'wall_mount', label: 'Wall Mount Bracket' }
+];
+
 export default function CompletionChecklist({ jobId, onComplete, onConfirm, onCancel, initialData }: CompletionChecklistProps) {
   const { profile } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [upsellItems, setUpsellItems] = useState<UpsellItem[]>([
-    { id: 'signal_check', label: '$49 Signal Check' },
-    { id: 'surge_protection', label: 'Surge Protection' },
-    { id: 'premium_cables', label: 'Premium Cables Upgrade' },
-    { id: 'wall_mount', label: 'Wall Mount Bracket' }
-  ]);
+  const [upsellItems, setUpsellItems] = useState<UpsellItem[]>(DEFAULT_UPSELLS);
 
   const [formData, setFormData] = useState({
     photosUploaded: false,
@@ -35,7 +38,9 @@ export default function CompletionChecklist({ jobId, onComplete, onConfirm, onCa
     notes: ''
   });
 
-  // Changed organization_id to org_id to match your Profile type
+  // FIX: Was querying 'orgs' — corrected to 'organisations' to match your actual table name.
+  // If upsell_items doesn't exist on your organisations table yet, this will just fall back
+  // to DEFAULT_UPSELLS silently — no crash.
   useEffect(() => {
     async function fetchOrgUpsells() {
       if (!profile?.org_id) return;
@@ -47,11 +52,12 @@ export default function CompletionChecklist({ jobId, onComplete, onConfirm, onCa
           .single();
 
         if (error) throw error;
-        if (data?.upsell_items && Array.isArray(data.upsell_items)) {
+        if (data?.upsell_items && Array.isArray(data.upsell_items) && data.upsell_items.length > 0) {
           setUpsellItems(data.upsell_items as UpsellItem[]);
         }
       } catch (err) {
-        console.error('Error fetching organization upsell items:', err);
+        // Silently fall back to defaults — org may not have custom upsells configured yet
+        console.warn('Could not fetch org upsell items, using defaults:', err);
       }
     }
 
