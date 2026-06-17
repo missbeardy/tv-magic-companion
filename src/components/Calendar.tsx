@@ -49,8 +49,14 @@ const fullDayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'S
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatTime(dateStr: string): string {
+  // Parse as UTC, display in local time
   const d = new Date(dateStr)
-  return d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false })
+  return d.toLocaleTimeString('en-AU', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+  })
 }
 
 function formatDuration(start: string, end: string): string {
@@ -59,6 +65,7 @@ function formatDuration(start: string, end: string): string {
 
 function getEventTop(startTime: string): number {
   const d = new Date(startTime)
+  // getHours() and getMinutes() already return local time — this is correct
   const hour = d.getHours()
   const minute = d.getMinutes()
   if (hour < DAY_START_HOUR) return 0

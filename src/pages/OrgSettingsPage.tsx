@@ -1,9 +1,9 @@
 // src/pages/OrgSettingsPage.tsx
-// Last updated: 17 June 2026 - save via direct Supabase client (removed missing update-org edge function call)
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import NavBar from '../components/NavBar';
+import UpsellSettingsPanel from '../components/settings/UpsellSettingsPanel';
 
 export default function OrgSettingsPage() {
   const [loading, setLoading] = useState(false);
@@ -125,7 +125,6 @@ export default function OrgSettingsPage() {
         {/* Brand Colors */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
           <p className="text-sm font-semibold text-gray-700">🎨 Brand Colors</p>
-
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Primary Color</label>
             <div className="flex items-center gap-2">
@@ -144,7 +143,6 @@ export default function OrgSettingsPage() {
               />
             </div>
           </div>
-
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Secondary Color</label>
             <div className="flex items-center gap-2">
@@ -182,14 +180,13 @@ export default function OrgSettingsPage() {
                 placeholder="180"
               />
             </div>
-            <p className="text-xs text-gray-400 mt-1">Used to estimate revenue in the Revenue Snapshot widget on your dashboard</p>
+            <p className="text-xs text-gray-400 mt-1">Used to estimate revenue in the Revenue Snapshot widget</p>
           </div>
         </div>
 
         {/* Contact Information */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
           <p className="text-sm font-semibold text-gray-700">📞 Contact Information</p>
-
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Support Phone</label>
             <input
@@ -199,9 +196,7 @@ export default function OrgSettingsPage() {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
               placeholder="1300 000 000"
             />
-            <p className="text-xs text-gray-400 mt-1">Shown to customers for support inquiries</p>
           </div>
-
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Support Email</label>
             <input
@@ -211,9 +206,11 @@ export default function OrgSettingsPage() {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
               placeholder="support@yourfranchise.com"
             />
-            <p className="text-xs text-gray-400 mt-1">Used for customer support and notifications</p>
           </div>
         </div>
+
+        {/* Upsell Items — orgId passed as prop so it doesn't depend on auth context timing */}
+        {orgId && <UpsellSettingsPanel orgId={orgId} />}
 
         <button
           onClick={handleSave}

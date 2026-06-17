@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../context/AuthContext';
 import { Plus, Trash2, Save } from 'lucide-react';
 
 interface UpsellItem {
@@ -10,12 +9,15 @@ interface UpsellItem {
   label: string;
 }
 
+interface UpsellSettingsPanelProps {
+  orgId: string;
+}
+
 function makeId() {
   return Math.random().toString(36).slice(2, 9);
 }
 
-export default function UpsellSettingsPanel() {
-  const { profile } = useAuth();
+export default function UpsellSettingsPanel({ orgId }: UpsellSettingsPanelProps) {
   const [items, setItems] = useState<UpsellItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -24,12 +26,12 @@ export default function UpsellSettingsPanel() {
 
   useEffect(() => {
     async function load() {
-      if (!profile?.org_id) return;
+      if (!orgId) return;
       setLoading(true);
       const { data, error } = await supabase
-        .from('orgs')                         // ← correct table name
+        .from('orgs')
         .select('upsell_items')
-        .eq('id', profile.org_id)
+        .eq('id', orgId)
         .single();
 
       if (error) {
@@ -40,7 +42,7 @@ export default function UpsellSettingsPanel() {
       setLoading(false);
     }
     load();
-  }, [profile?.org_id]);
+  }, [orgId]);
 
   const handleLabelChange = (id: string, newLabel: string) => {
     setItems(prev => prev.map(item => item.id === id ? { ...item, label: newLabel } : item));
@@ -55,7 +57,7 @@ export default function UpsellSettingsPanel() {
   };
 
   const handleSave = async () => {
-    if (!profile?.org_id) return;
+    if (!orgId) return;
 
     if (items.some(item => !item.label.trim())) {
       setError('All upsell items must have a name before saving.');
@@ -66,9 +68,9 @@ export default function UpsellSettingsPanel() {
     setError(null);
 
     const { error: saveError } = await supabase
-      .from('orgs')                           // ← correct table name
+      .from('orgs')
       .update({ upsell_items: items })
-      .eq('id', profile.org_id);
+      .eq('id', orgId);
 
     setSaving(false);
 
