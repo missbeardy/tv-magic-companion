@@ -1,5 +1,4 @@
-// src/components/NavBar.tsx
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -27,6 +26,32 @@ export default function NavBar() {
   const location = useLocation()
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
+  
+  // State to hold the dynamically loaded organization brand image
+  const [orgLogo, setOrgLogo] = useState<string | null>(null)
+
+  // Fetch the brand image when profile data becomes available
+  useEffect(() => {
+    async function fetchOrgLogo() {
+      if (!profile?.org_id) return
+      
+      try {
+        const { data, error } = await supabase
+          .from('orgs')
+          .select('logo_url')
+          .eq('id', profile.org_id)
+          .single()
+
+        if (!error && data?.logo_url) {
+          setOrgLogo(data.logo_url)
+        }
+      } catch (err) {
+        console.error('Error fetching org logo for NavBar:', err)
+      }
+    }
+
+    fetchOrgLogo()
+  }, [profile?.org_id])
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -67,9 +92,20 @@ export default function NavBar() {
               </button>
 
               <Link to="/" className="flex items-center gap-2 shrink-0">
-                <div className="w-7 h-7 bg-white/15 rounded-lg flex items-center justify-center">
-                  <Tv2 size={15} className="text-white" />
-                </div>
+                {orgLogo ? (
+                  /* Renders uploaded image asset if found */
+                  <img 
+                    src={orgLogo} 
+                    alt="Brand Logo" 
+                    className="w-7 h-7 object-contain rounded bg-white p-0.5" 
+                  />
+                ) : (
+                  /* Fallback icon shell if no image upload found */
+                  <div className="w-7 h-7 bg-white/15 rounded-lg flex items-center justify-center">
+                    <Tv2 size={15} className="text-white" />
+                  </div>
+                )}
+                
                 <span className="font-display font-800 text-white text-base tracking-tight leading-none">
                   TV<span className="text-[#00B4C5]">Magic</span>
                 </span>
