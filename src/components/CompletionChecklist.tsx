@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import { useConfetti } from '../hooks/useConfetti';
 
 const CHECKLIST = [
   'Equipment tested and working correctly',
@@ -31,6 +32,7 @@ interface Props {
 
 export default function CompletionChecklist({ onConfirm, onCancel }: Props) {
   const { profile } = useAuth();
+  const { fireConfetti } = useConfetti();
   const [checked, setChecked] = useState<boolean[]>(CHECKLIST.map(() => false));
   const [upsellDone, setUpsellDone] = useState(false);
   const [upsellLabels, setUpsellLabels] = useState<string[]>(DEFAULT_UPSELLS);
@@ -58,6 +60,11 @@ export default function CompletionChecklist({ onConfirm, onCancel }: Props) {
 
   const toggle = (i: number) => {
     setChecked((prev) => prev.map((v, idx) => (idx === i ? !v : v)));
+  };
+
+  const handleConfirm = () => {
+    fireConfetti();
+    onConfirm();
   };
 
   return (
@@ -111,7 +118,7 @@ export default function CompletionChecklist({ onConfirm, onCancel }: Props) {
             Cancel
           </button>
           <button
-            onClick={onConfirm}
+            onClick={handleConfirm}
             disabled={!allChecked || !upsellDone}
             className="flex-1 py-3 rounded-xl bg-green-500 text-white font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
           >

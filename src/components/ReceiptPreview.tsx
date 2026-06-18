@@ -1,3 +1,6 @@
+// src/components/ReceiptPreview.tsx
+import { useOrg } from '../context/OrgContext';
+
 interface Lead {
   id: string;
   name: string;
@@ -13,11 +16,15 @@ interface Props {
 }
 
 export default function ReceiptPreview({ lead, onClose }: Props) {
+  const { org } = useOrg();
+  const businessName = org?.name || 'TVMagic';
+  const supportPhone = org?.support_phone || '1300 TVMagic';
+
   const date = new Date().toLocaleDateString('en-AU', {
     day: 'numeric', month: 'long', year: 'numeric',
   });
 
-  const receiptText = `TVMagic Receipt\n${date}\n\nCustomer: ${lead.name}\nPhone: ${lead.phone}\nAddress: ${lead.address ?? 'N/A'}\nService: ${lead.service_type ?? 'TV Aerial / Satellite'}\n\nThank you for choosing TVMagic. Job completed and signed off.\n\nFor queries call 1300 TVMagic`;
+  const receiptText = `${businessName} Receipt\n${date}\n\nCustomer: ${lead.name}\nPhone: ${lead.phone}\nAddress: ${lead.address ?? 'N/A'}\nService: ${lead.service_type ?? 'TV Aerial / Satellite'}\n\nThank you for choosing ${businessName}. Job completed and signed off.\n\nFor queries call ${supportPhone}`;
 
   const handleSMS = () => {
     const encoded = encodeURIComponent(receiptText);
