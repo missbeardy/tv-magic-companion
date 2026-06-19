@@ -23,11 +23,13 @@ interface MobileResourceViewProps {
   selectedDate: Date
   onEventClick: (event: CalEvent) => void
   onAddEvent: (date: Date, hour: number) => void
+  onLeaveClick?: (event: CalEvent) => void
 }
 
 const DAY_START_HOUR = 6   // matches your Calendar.tsx constant
 const DAY_END_HOUR = 20    // matches your Calendar.tsx constant
 const SLOT_HEIGHT = 64     // matches your Calendar.tsx constant
+const LEAVE_ROW_HEIGHT = 20 // px per leave entry in the banner strip
 const HOURS = Array.from(
   { length: DAY_END_HOUR - DAY_START_HOUR + 1 },
   (_, i) => DAY_START_HOUR + i
@@ -60,15 +62,42 @@ function isSameDay(isoTime: string, date: Date): boolean {
   )
 }
 
+function isLeaveEvent(e: CalEvent): boolean {
+  return e.category === 'Leave'
+}
+
+// Leave blocks can span multiple days, so unlike timed appointments we check
+// whether `date` falls anywhere inside [start_time, end_time], not just
+// whether start_time happens to be on that day.
+function leaveActiveOnDay(event: CalEvent, date: Date): boolean {
+  const dayStart = new Date(date)
+  dayStart.setHours(0, 0, 0, 0)
+  const dayEnd = new Date(date)
+  dayEnd.setHours(23, 59, 59, 999)
+  const evStart = new Date(event.start_time)
+  const evEnd = new Date(event.end_time)
+  return evStart <= dayEnd && evEnd >= dayStart
+}
+
 export function MobileResourceView({
   events,
   employees,
   selectedDate,
   onEventClick,
   onAddEvent,
+  onLeaveClick,
 }: MobileResourceViewProps) {
-  const dayEvents = events.filter(e => isSameDay(e.start_time, selectedDate))
+  const timedDayEvents = events.filter(e => !isLeaveEvent(e) && isSameDay(e.start_time, selectedDate))
+  const leaveEventsForDay = events.filter(e => isLeaveEvent(e) && leaveActiveOnDay(e, selectedDate))
   const totalHeight = HOURS.length * SLOT_HEIGHT
+
+  // Reserve enough banner height for whichever technician has the most leave
+  // entries today, so every column (and the time gutter) stays aligned.
+  const maxLeaveRows = employees.reduce((max, emp) => {
+    const count = leaveEventsForDay.filter(e => e.user_id === emp.id).length
+    return Math.max(max, count)
+  }, 0)
+  const leaveBannerHeight = maxLeaveRows > 0 ? maxLeaveRows * LEAVE_ROW_HEIGHT + 6 : 0
 
   return (
     <div className="flex flex-col" style={{ maxHeight: '70vh' }}>
@@ -91,6 +120,10 @@ export function MobileResourceView({
         <div className="flex-none w-12 bg-gray-50 border-r border-gray-100 flex-shrink-0">
           {/* header spacer */}
           <div className="h-10 border-b border-gray-100" />
+          {/* leave banner spacer — keeps gutter aligned with tech columns */}
+          {leaveBannerHeight > 0 && (
+            <div className="border-b border-gray-100" style={{ height: leaveBannerHeight }} />
+          )}
           <div className="relative" style={{ height: totalHeight }}>
             {HOURS.map(hour => (
               <div
@@ -109,7 +142,8 @@ export function MobileResourceView({
         {/* Tech columns — horizontal scroll */}
         <div className="flex overflow-x-auto">
           {employees.map(emp => {
-            const techEvents = dayEvents.filter(e => e.user_id === emp.id)
+            const techEvents = timedDayEvents.filter(e => e.user_id === emp.id)
+            const techLeave = leaveEventsForDay.filter(e => e.user_id === emp.id)
 
             return (
               <div key={emp.id} className="flex-none w-36 border-r border-gray-100">
@@ -119,6 +153,25 @@ export function MobileResourceView({
                     {emp.full_name}
                   </span>
                 </div>
+
+                {/* Leave/blackout banner */}
+                {leaveBannerHeight > 0 && (
+                  <div
+                    className="bg-gray-900 border-b border-gray-100 px-1 py-0.5 space-y-0.5 overflow-hidden"
+                    style={{ height: leaveBannerHeight }}
+                  >
+                    {techLeave.map(ev => (
+                      <div
+                        key={ev.id}
+                        onClick={() => (onLeaveClick ?? onEventClick)(ev)}
+                        className="text-[9px] text-white rounded px-1 py-0.5 truncate cursor-pointer hover:bg-gray-800 transition"
+                        title={`${ev.title} — tap to remove`}
+                      >
+                        🚫 {ev.title}
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {/* Event area */}
                 <div

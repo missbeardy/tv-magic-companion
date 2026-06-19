@@ -647,6 +647,7 @@ export default function Calendar() {
           selectedDate={currentDate}
           onEventClick={openEditEvent}
           onAddEvent={openNewEvent}
+          onLeaveClick={handleDeleteLeave}
         />
       )}
 
