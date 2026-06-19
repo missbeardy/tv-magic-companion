@@ -346,7 +346,94 @@ export default function Calendar() {
     return available ? 'text-emerald-700' : 'text-red-700'
   }
 
-  const weekDays = getWeekDays(currentDate)
+  // Renders one 7-day week grid (header row + leave banner + event cells).
+  // Called once for normal week view, twice (stacked) for the 2-week view.
+  function renderWeekGrid(days: Date[], weekKey: number) {
+    return (
+      <div key={weekKey}>
+        <div className="grid grid-cols-7 divide-x divide-gray-100 border-b border-gray-100">
+          {days.map((day, i) => {
+            const isToday = day.toDateString() === new Date().toDateString()
+            return (
+              <div
+                key={i}
+                className={`p-1 sm:p-2 text-center cursor-pointer hover:bg-gray-50 transition ${isToday ? 'bg-blue-50' : ''}`}
+                onClick={() => { setCurrentDate(new Date(day)); setView('day') }}
+              >
+                <p className="text-[10px] sm:text-xs text-gray-400">{dayNames[i]}</p>
+                <p className={`text-sm sm:text-base font-semibold ${isToday ? 'text-[#004B93]' : 'text-gray-700'}`}>
+                  {day.getDate()}
+                </p>
+              </div>
+            )
+          })}
+        </div>
+
+        {days.some(day => getEventsForDay(day).some(isLeaveEvent)) && (
+          <div className="grid grid-cols-7 divide-x divide-gray-100 border-b border-gray-100 bg-gray-50">
+            {days.map((day, i) => {
+              const leaveEvents = getEventsForDay(day).filter(isLeaveEvent)
+              return (
+                <div key={i} className="p-1 space-y-0.5 min-h-[1.5rem]">
+                  {leaveEvents.map(ev => (
+                    <div
+                      key={ev.id}
+                      onClick={() => handleDeleteLeave(ev)}
+                      className="text-[9px] sm:text-[10px] bg-gray-900 text-white rounded px-1 py-0.5 truncate cursor-pointer hover:bg-gray-800 transition"
+                      title={`${ev.title} — click to remove`}
+                    >
+                      🚫 {ev.title}
+                    </div>
+                  ))}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        <div className="grid grid-cols-7 divide-x divide-gray-100">
+          {days.map((day, i) => {
+            const isToday = day.toDateString() === new Date().toDateString()
+            const dayEvents = getEventsForDay(day).filter(e => !isLeaveEvent(e))
+            return (
+              <div key={i} className="min-h-32 sm:min-h-40">
+                <div
+                  className={`p-1 space-y-1 min-h-full ${isToday ? 'bg-blue-50/30' : ''}`}
+                  onClick={() => openNewEvent(new Date(day))}
+                >
+                  {dayEvents.map(event => (
+                    <div
+                      key={event.id}
+                      onClick={e => { e.stopPropagation(); openEditEvent(event) }}
+                      className="text-[10px] sm:text-xs p-1 sm:p-1.5 rounded cursor-pointer text-white hover:opacity-90 transition shadow-sm"
+                      style={{ backgroundColor: event.color }}
+                      title={`${event.title}\n${formatDuration(event.start_time, event.end_time)}`}
+                    >
+                      <p className="font-medium truncate">{event.title}</p>
+                      <p className="text-[9px] sm:text-[10px] opacity-90">
+                        {formatTime(event.start_time)} – {formatTime(event.end_time)}
+                      </p>
+                      {event.client_name && (
+                        <p className="text-[9px] sm:text-[10px] opacity-90 truncate">👤 {event.client_name}</p>
+                      )}
+                      {profile?.role === 'manager' && event.profiles && (
+                        <p className="text-[9px] sm:text-[10px] opacity-75 truncate">{event.profiles.full_name}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  const twoWeekView = view === 'week' && isTabletUp
+  const weekDays = getWeekDays(currentDate, twoWeekView ? 2 : 1)
+  const weekChunks: Date[][] = twoWeekView ? [weekDays.slice(0, 7), weekDays.slice(7, 14)] : [weekDays]
+  const availabilityWeekDays = weekDays.slice(0, 7) // Availability lookup always shows just the current week
   const monthDays = getMonthDays(currentDate)
 
   const headerLabel = (() => {
@@ -359,7 +446,8 @@ export default function Calendar() {
       })
     }
     if (view === 'week') {
-      return `${weekDays[0].toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} – ${weekDays[6].toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}`
+      const last = weekDays[weekDays.length - 1]
+      return `${weekDays[0].toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} – ${last.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}`
     }
     return currentDate.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
   })()
@@ -566,7 +654,7 @@ export default function Calendar() {
 
             {view === 'week' && (
               <div className="grid grid-cols-7 gap-1">
-                {weekDays.map((day, i) => {
+                {availabilityWeekDays.map((day, i) => {
                   const dayEvents = getEventsForDay(day)
                   const availability = getAvailabilityForDay(dayEvents, day, availabilityDuration)
                   const isToday = day.toDateString() === new Date().toDateString()
@@ -786,82 +874,8 @@ export default function Calendar() {
 
           {/* ── WEEK VIEW ── */}
           {view === 'week' && (
-            <div>
-              <div className="grid grid-cols-7 divide-x divide-gray-100 border-b border-gray-100">
-                {weekDays.map((day, i) => {
-                  const isToday = day.toDateString() === new Date().toDateString()
-                  return (
-                    <div
-                      key={i}
-                      className={`p-1 sm:p-2 text-center cursor-pointer hover:bg-gray-50 transition ${isToday ? 'bg-blue-50' : ''}`}
-                      onClick={() => { setCurrentDate(new Date(day)); setView('day') }}
-                    >
-                      <p className="text-[10px] sm:text-xs text-gray-400">{dayNames[i]}</p>
-                      <p className={`text-sm sm:text-base font-semibold ${isToday ? 'text-[#004B93]' : 'text-gray-700'}`}>
-                        {day.getDate()}
-                      </p>
-                    </div>
-                  )
-                })}
-              </div>
-
-              {weekDays.some(day => getEventsForDay(day).some(isLeaveEvent)) && (
-                <div className="grid grid-cols-7 divide-x divide-gray-100 border-b border-gray-100 bg-gray-50">
-                  {weekDays.map((day, i) => {
-                    const leaveEvents = getEventsForDay(day).filter(isLeaveEvent)
-                    return (
-                      <div key={i} className="p-1 space-y-0.5 min-h-[1.5rem]">
-                        {leaveEvents.map(ev => (
-                          <div
-                            key={ev.id}
-                            onClick={() => handleDeleteLeave(ev)}
-                            className="text-[9px] sm:text-[10px] bg-gray-900 text-white rounded px-1 py-0.5 truncate cursor-pointer hover:bg-gray-800 transition"
-                            title={`${ev.title} — click to remove`}
-                          >
-                            🚫 {ev.title}
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-
-              <div className="grid grid-cols-7 divide-x divide-gray-100">
-                {weekDays.map((day, i) => {
-                  const isToday = day.toDateString() === new Date().toDateString()
-                  const dayEvents = getEventsForDay(day).filter(e => !isLeaveEvent(e))
-                  return (
-                    <div key={i} className="min-h-32 sm:min-h-40">
-                      <div
-                        className={`p-1 space-y-1 min-h-full ${isToday ? 'bg-blue-50/30' : ''}`}
-                        onClick={() => openNewEvent(new Date(day))}
-                      >
-                        {dayEvents.map(event => (
-                          <div
-                            key={event.id}
-                            onClick={e => { e.stopPropagation(); openEditEvent(event) }}
-                            className="text-[10px] sm:text-xs p-1 sm:p-1.5 rounded cursor-pointer text-white hover:opacity-90 transition shadow-sm"
-                            style={{ backgroundColor: event.color }}
-                            title={`${event.title}\n${formatDuration(event.start_time, event.end_time)}`}
-                          >
-                            <p className="font-medium truncate">{event.title}</p>
-                            <p className="text-[9px] sm:text-[10px] opacity-90">
-                              {formatTime(event.start_time)} – {formatTime(event.end_time)}
-                            </p>
-                            {event.client_name && (
-                              <p className="text-[9px] sm:text-[10px] opacity-90 truncate">👤 {event.client_name}</p>
-                            )}
-                            {profile?.role === 'manager' && event.profiles && (
-                              <p className="text-[9px] sm:text-[10px] opacity-75 truncate">{event.profiles.full_name}</p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+            <div className={twoWeekView ? 'divide-y-2 divide-gray-200' : ''}>
+              {weekChunks.map((chunk, idx) => renderWeekGrid(chunk, idx))}
             </div>
           )}
 
