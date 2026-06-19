@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import TimePicker from './TimePicker'
-import { X, CalendarDays, Clock, User, FileText, MapPin, Phone, Briefcase, Link, Search } from 'lucide-react'
+import { X, CalendarDays, Clock, User, FileText, MapPin, Phone, Briefcase, Link, Search, DollarSign } from 'lucide-react'
 
 interface Lead {
   id: string
@@ -41,6 +41,7 @@ interface Props {
     client_email?: string
     client_address?: string
     client_job?: string
+    job_quote?: number | string | null
   }
   defaultDate?: string
 }
@@ -84,6 +85,16 @@ function localTimeStr(isoStr: string): string {
   return `${hour}:${minute}`
 }
 
+// ── Numeric-only sanitizer for the Job Quote field ────────────────────────────
+// Strips anything that isn't a digit or a decimal point, and collapses
+// multiple decimal points down to just the first one.
+function sanitizeNumericInput(raw: string): string {
+  const stripped = raw.replace(/[^0-9.]/g, '')
+  const firstDot = stripped.indexOf('.')
+  if (firstDot === -1) return stripped
+  return stripped.slice(0, firstDot + 1) + stripped.slice(firstDot + 1).replace(/\./g, '')
+}
+
 export default function EventModal({ prefillLead, onClose, onSaved, existingEvent, defaultDate }: Props) {
   const { profile } = useAuth()
 
@@ -112,6 +123,11 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
   const [clientEmail, setClientEmail] = useState(existingEvent?.client_email ?? prefillLead?.email ?? '')
   const [clientAddress, setClientAddress] = useState(existingEvent?.client_address ?? prefillLead?.address ?? '')
   const [clientJob, setClientJob] = useState(existingEvent?.client_job ?? prefillLead?.details ?? prefillLead?.service_type ?? '')
+  const [jobQuote, setJobQuote] = useState(
+    existingEvent?.job_quote !== undefined && existingEvent?.job_quote !== null
+      ? String(existingEvent.job_quote)
+      : ''
+  )
 
   const [linkedLeadId, setLinkedLeadId] = useState<string | null>(
     prefillLead?.id ?? existingEvent?.lead_id ?? null
@@ -242,6 +258,7 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
       client_email: clientEmail,
       client_address: clientAddress,
       client_job: clientJob,
+      job_quote: jobQuote.trim() === '' ? null : Number(jobQuote),
       lead_id: linkedLeadId ?? null,
       user_id: profile?.id,
       org_id: profile?.org_id,
@@ -417,6 +434,19 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
                 rows={2}
                 placeholder="What needs to be done?"
                 className="w-full px-3.5 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#004B93] resize-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                <DollarSign size={11} className="inline mr-1" />Job Quote / Estimate
+              </label>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={jobQuote}
+                onChange={e => setJobQuote(sanitizeNumericInput(e.target.value))}
+                placeholder="0.00"
+                className="w-full px-3.5 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#004B93]"
               />
             </div>
           </div>

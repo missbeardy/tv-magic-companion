@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import EventModal from './EventModal'
+import BlackoutModal from './BlackoutModal'
 import { MobileResourceView } from './MobileResourceView'
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -22,6 +23,7 @@ interface Event {
   client_email?: string
   client_address?: string
   client_job?: string
+  job_quote?: string | number | null
   lead_id?: string
   profiles?: { full_name: string }
 }
@@ -147,6 +149,10 @@ function getAvailabilityForDay(
   }))
 }
 
+function isLeaveEvent(e: Event): boolean {
+  return e.category === 'Leave'
+}
+
 // ── Component ───────────────────────────────────────────────────────────────
 
 export default function Calendar() {
@@ -156,6 +162,7 @@ export default function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const [showModal, setShowModal] = useState(false)
+  const [showBlackoutModal, setShowBlackoutModal] = useState(false)
   const [defaultDate, setDefaultDate] = useState('')
   const [employees, setEmployees] = useState<Profile[]>([])
   const [filterEmployee, setFilterEmployee] = useState<string>('all')
@@ -314,6 +321,14 @@ export default function Calendar() {
     setShowModal(true)
   }
 
+  async function handleDeleteLeave(ev: Event) {
+    const canDelete = profile?.role === 'manager' || ev.user_id === profile?.id
+    if (!canDelete) return
+    if (!window.confirm(`Remove this leave block: "${ev.title}"?`)) return
+    await supabase.from('events').delete().eq('id', ev.id)
+    fetchEvents()
+  }
+
   function getAvailabilityColor(available: boolean): string {
     return available ? 'bg-emerald-100 border-emerald-300' : 'bg-red-100 border-red-300'
   }
@@ -347,6 +362,14 @@ export default function Calendar() {
           existingEvent={selectedEvent ?? undefined}
           defaultDate={defaultDate}
           onClose={() => setShowModal(false)}
+          onSaved={fetchEvents}
+        />
+      )}
+
+      {showBlackoutModal && (
+        <BlackoutModal
+          employees={employees}
+          onClose={() => setShowBlackoutModal(false)}
           onSaved={fetchEvents}
         />
       )}
@@ -429,6 +452,18 @@ export default function Calendar() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <span className="hidden sm:inline">{showAvailability ? 'Hide' : 'Check'}</span>
+            </button>
+
+            <button
+              onClick={() => setShowBlackoutModal(true)}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1 whitespace-nowrap flex-shrink-0 border bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+              title="Block out a day as leave/unavailable"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="9" strokeWidth={2} />
+                <path strokeLinecap="round" strokeWidth={2} d="M5.5 5.5l13 13" />
+              </svg>
+              <span className="hidden sm:inline">Leave</span>
             </button>
 
             <button
@@ -619,99 +654,121 @@ export default function Calendar() {
         <>
           {/* ── DAY VIEW ── */}
           {view === 'day' && (
-            <div className="flex">
-              <div className="w-14 sm:w-16 flex-shrink-0 border-r border-gray-100 bg-gray-50">
-                <div className="h-10 border-b border-gray-100" />
-                {HOUR_LABELS.map(hour => (
-                  <div
-                    key={hour}
-                    className="text-[10px] sm:text-xs text-gray-400 text-right pr-1 sm:pr-2 pt-1"
-                    style={{ height: SLOT_HEIGHT }}
-                  >
-                    {String(hour).padStart(2, '0')}:00
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex-1 relative">
-                <div className="h-10 border-b border-gray-100 flex items-center justify-center bg-white sticky top-0 z-10">
-                  <span className="text-sm font-semibold text-gray-700">
-                    {fullDayNames[currentDate.getDay() === 0 ? 6 : currentDate.getDay() - 1]}
-                  </span>
+            <div>
+              {/* All-day leave banner */}
+              {getEventsForDay(currentDate).filter(isLeaveEvent).length > 0 && (
+                <div className="px-3 sm:px-4 py-2 bg-gray-900 border-b border-gray-100 space-y-1">
+                  {getEventsForDay(currentDate).filter(isLeaveEvent).map(ev => (
+                    <div
+                      key={ev.id}
+                      onClick={() => handleDeleteLeave(ev)}
+                      className="flex items-center gap-2 text-white text-xs sm:text-sm rounded px-2 py-1 cursor-pointer hover:bg-gray-800 transition"
+                      title="Click to remove this leave block"
+                    >
+                      <span>🚫</span>
+                      <span className="font-medium">{ev.title}</span>
+                    </div>
+                  ))}
                 </div>
+              )}
 
-                <div className="relative">
+              <div className="flex">
+                <div className="w-14 sm:w-16 flex-shrink-0 border-r border-gray-100 bg-gray-50">
+                  <div className="h-10 border-b border-gray-100" />
                   {HOUR_LABELS.map(hour => (
                     <div
                       key={hour}
-                      className="border-b border-gray-100 hover:bg-gray-50/50 transition cursor-pointer"
+                      className="text-[10px] sm:text-xs text-gray-400 text-right pr-1 sm:pr-2 pt-1"
                       style={{ height: SLOT_HEIGHT }}
-                      onClick={() => openNewEvent(new Date(currentDate), hour)}
-                    />
+                    >
+                      {String(hour).padStart(2, '0')}:00
+                    </div>
                   ))}
+                </div>
 
-                  {(() => {
-                    const now = new Date()
-                    const isToday = currentDate.toDateString() === now.toDateString()
-                    if (!isToday) return null
-                    const minutes = now.getHours() * 60 + now.getMinutes()
-                    const dayMinutes = DAY_START_HOUR * 60
-                    const totalDayMinutes = (DAY_END_HOUR - DAY_START_HOUR + 1) * 60
-                    const elapsed = minutes - dayMinutes
-                    if (elapsed < 0 || elapsed > totalDayMinutes) return null
-                    const top = (elapsed / 60) * SLOT_HEIGHT
-                    return (
-                      <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top }}>
-                        <div className="flex items-center">
-                          <div className="w-2 h-2 rounded-full bg-red-500 -ml-1" />
-                          <div className="flex-1 h-px bg-red-500" />
-                        </div>
-                      </div>
-                    )
-                  })()}
+                <div className="flex-1 relative">
+                  <div className="h-10 border-b border-gray-100 flex items-center justify-center bg-white sticky top-0 z-10">
+                    <span className="text-sm font-semibold text-gray-700">
+                      {fullDayNames[currentDate.getDay() === 0 ? 6 : currentDate.getDay() - 1]}
+                    </span>
+                  </div>
 
-                  {getEventsForDay(currentDate).map(event => {
-                    const top = getEventTop(event.start_time)
-                    const height = getEventHeight(event.start_time, event.end_time)
-                    const isBooking = event.category === 'Booking' || event.category === 'Assigned Leads'
-
-                    return (
+                  <div className="relative">
+                    {HOUR_LABELS.map(hour => (
                       <div
-                        key={event.id}
-                        className="absolute left-1 right-1 rounded-lg cursor-pointer hover:brightness-95 transition overflow-hidden shadow-sm"
-                        style={{ top, height, backgroundColor: event.color, minHeight: 28 }}
-                        onClick={e => { e.stopPropagation(); openEditEvent(event) }}
-                      >
-                        <div className="p-1 sm:p-1.5 text-white h-full flex flex-col">
-                          <p className="text-[10px] sm:text-xs font-semibold truncate leading-tight">{event.title}</p>
-                          <p className="text-[9px] sm:text-[10px] opacity-90 leading-tight mt-0.5">
-                            {formatTime(event.start_time)} – {formatTime(event.end_time)}
-                          </p>
-                          {isBooking && height > 50 && (
-                            <div className="mt-1 space-y-0.5">
-                              {event.client_name && (
-                                <p className="text-[9px] sm:text-[10px] opacity-90 truncate">👤 {event.client_name}</p>
-                              )}
-                              {event.client_phone && height > 70 && (
-                                <p className="text-[9px] sm:text-[10px] opacity-90 truncate">📞 {event.client_phone}</p>
-                              )}
-                              {event.client_address && height > 90 && (
-                                <p className="text-[9px] sm:text-[10px] opacity-90 truncate">📍 {event.client_address}</p>
-                              )}
-                              {event.client_job && height > 110 && (
-                                <p className="text-[9px] sm:text-[10px] opacity-80 truncate">📝 {event.client_job}</p>
-                              )}
-                            </div>
-                          )}
-                          {profile?.role === 'manager' && event.profiles && height > 50 && (
-                            <p className="text-[9px] sm:text-[10px] opacity-75 mt-auto pt-1 truncate">
-                              {event.profiles.full_name}
-                            </p>
-                          )}
+                        key={hour}
+                        className="border-b border-gray-100 hover:bg-gray-50/50 transition cursor-pointer"
+                        style={{ height: SLOT_HEIGHT }}
+                        onClick={() => openNewEvent(new Date(currentDate), hour)}
+                      />
+                    ))}
+
+                    {(() => {
+                      const now = new Date()
+                      const isToday = currentDate.toDateString() === now.toDateString()
+                      if (!isToday) return null
+                      const minutes = now.getHours() * 60 + now.getMinutes()
+                      const dayMinutes = DAY_START_HOUR * 60
+                      const totalDayMinutes = (DAY_END_HOUR - DAY_START_HOUR + 1) * 60
+                      const elapsed = minutes - dayMinutes
+                      if (elapsed < 0 || elapsed > totalDayMinutes) return null
+                      const top = (elapsed / 60) * SLOT_HEIGHT
+                      return (
+                        <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top }}>
+                          <div className="flex items-center">
+                            <div className="w-2 h-2 rounded-full bg-red-500 -ml-1" />
+                            <div className="flex-1 h-px bg-red-500" />
+                          </div>
                         </div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })()}
+
+                    {getEventsForDay(currentDate).filter(e => !isLeaveEvent(e)).map(event => {
+                      const top = getEventTop(event.start_time)
+                      const height = getEventHeight(event.start_time, event.end_time)
+                      const isBooking = event.category === 'Booking' || event.category === 'Assigned Leads'
+
+                      return (
+                        <div
+                          key={event.id}
+                          className="absolute left-1 right-1 rounded-lg cursor-pointer hover:brightness-95 transition overflow-hidden shadow-sm"
+                          style={{ top, height, backgroundColor: event.color, minHeight: 28 }}
+                          onClick={e => { e.stopPropagation(); openEditEvent(event) }}
+                        >
+                          <div className="p-1 sm:p-1.5 text-white h-full flex flex-col">
+                            <p className="text-[10px] sm:text-xs font-semibold truncate leading-tight">{event.title}</p>
+                            <p className="text-[9px] sm:text-[10px] opacity-90 leading-tight mt-0.5">
+                              {formatTime(event.start_time)} – {formatTime(event.end_time)}
+                            </p>
+                            {isBooking && height > 50 && (
+                              <div className="mt-1 space-y-0.5">
+                                {event.client_name && (
+                                  <p className="text-[9px] sm:text-[10px] opacity-90 truncate">👤 {event.client_name}</p>
+                                )}
+                                {event.client_phone && height > 70 && (
+                                  <p className="text-[9px] sm:text-[10px] opacity-90 truncate">📞 {event.client_phone}</p>
+                                )}
+                                {event.client_address && height > 90 && (
+                                  <p className="text-[9px] sm:text-[10px] opacity-90 truncate">📍 {event.client_address}</p>
+                                )}
+                                {event.client_job && height > 110 && (
+                                  <p className="text-[9px] sm:text-[10px] opacity-80 truncate">📝 {event.client_job}</p>
+                                )}
+                                {event.job_quote && height > 110 && (
+                                  <p className="text-[9px] sm:text-[10px] opacity-80 truncate">💲 Quote: ${event.job_quote}</p>
+                                )}
+                              </div>
+                            )}
+                            {profile?.role === 'manager' && event.profiles && height > 50 && (
+                              <p className="text-[9px] sm:text-[10px] opacity-75 mt-auto pt-1 truncate">
+                                {event.profiles.full_name}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
@@ -738,10 +795,32 @@ export default function Calendar() {
                 })}
               </div>
 
+              {weekDays.some(day => getEventsForDay(day).some(isLeaveEvent)) && (
+                <div className="grid grid-cols-7 divide-x divide-gray-100 border-b border-gray-100 bg-gray-50">
+                  {weekDays.map((day, i) => {
+                    const leaveEvents = getEventsForDay(day).filter(isLeaveEvent)
+                    return (
+                      <div key={i} className="p-1 space-y-0.5 min-h-[1.5rem]">
+                        {leaveEvents.map(ev => (
+                          <div
+                            key={ev.id}
+                            onClick={() => handleDeleteLeave(ev)}
+                            className="text-[9px] sm:text-[10px] bg-gray-900 text-white rounded px-1 py-0.5 truncate cursor-pointer hover:bg-gray-800 transition"
+                            title={`${ev.title} — click to remove`}
+                          >
+                            🚫 {ev.title}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
               <div className="grid grid-cols-7 divide-x divide-gray-100">
                 {weekDays.map((day, i) => {
                   const isToday = day.toDateString() === new Date().toDateString()
-                  const dayEvents = getEventsForDay(day)
+                  const dayEvents = getEventsForDay(day).filter(e => !isLeaveEvent(e))
                   return (
                     <div key={i} className="min-h-32 sm:min-h-40">
                       <div
@@ -805,13 +884,22 @@ export default function Calendar() {
                         {dayEvents.slice(0, 3).map(event => (
                           <div
                             key={event.id}
-                            onClick={e => { e.stopPropagation(); openEditEvent(event) }}
+                            onClick={e => {
+                              e.stopPropagation()
+                              isLeaveEvent(event) ? handleDeleteLeave(event) : openEditEvent(event)
+                            }}
                             className="text-[9px] sm:text-xs p-0.5 px-1 rounded cursor-pointer text-white truncate hover:opacity-80 transition shadow-sm"
                             style={{ backgroundColor: event.color }}
                             title={`${event.title}\n${formatDuration(event.start_time, event.end_time)}`}
                           >
-                            <span className="font-medium">{formatTime(event.start_time)}</span>{' '}
-                            <span>{event.title}</span>
+                            {isLeaveEvent(event) ? (
+                              <span className="font-medium">🚫 {event.title}</span>
+                            ) : (
+                              <>
+                                <span className="font-medium">{formatTime(event.start_time)}</span>{' '}
+                                <span>{event.title}</span>
+                              </>
+                            )}
                           </div>
                         ))}
                         {dayEvents.length > 3 && (
