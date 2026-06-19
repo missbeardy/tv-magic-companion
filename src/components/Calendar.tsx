@@ -167,6 +167,7 @@ export default function Calendar() {
   const [employees, setEmployees] = useState<Profile[]>([])
   const [filterEmployee, setFilterEmployee] = useState<string>('all')
   const [isMobile, setIsMobile] = useState(false)
+  const [isTabletUp, setIsTabletUp] = useState(false)
   const [showAvailability, setShowAvailability] = useState(false)
   const [availabilityDuration, setAvailabilityDuration] = useState(60)
   const [availabilityEmployee, setAvailabilityEmployee] = useState<string>('all')
@@ -174,18 +175,26 @@ export default function Calendar() {
   const showResourceView = isMobile && profile?.role === 'manager' && filterEmployee === 'all' && view !== 'month'
 
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768)
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
+    const checkScreenSize = () => {
+      setIsMobile(window.innerWidth < 768)
+      setIsTabletUp(window.innerWidth >= 640)
+    }
+    checkScreenSize()
+    window.addEventListener('resize', checkScreenSize)
+    return () => window.removeEventListener('resize', checkScreenSize)
   }, [])
 
   function getQueryRange(date: Date, viewMode: ViewMode): { start: Date; end: Date } {
     switch (viewMode) {
       case 'day':
         return { start: startOfDay(date), end: endOfDay(date) }
-      case 'week':
-        return { start: startOfWeek(date), end: endOfWeek(date) }
+      case 'week': {
+        // On tablet/desktop we show 2 weeks at once, so pull 14 days of events
+        const weekEnd = isTabletUp
+          ? new Date(endOfWeek(date).getTime() + 7 * 24 * 60 * 60 * 1000)
+          : endOfWeek(date)
+        return { start: startOfWeek(date), end: weekEnd }
+      }
       case 'month':
         return { start: startOfMonth(date), end: endOfMonth(date) }
     }
@@ -258,9 +267,9 @@ export default function Calendar() {
     }
   }, [showAvailability, availabilityEmployee, currentDate])
 
-  function getWeekDays(date: Date): Date[] {
+  function getWeekDays(date: Date, weekCount: number = 1): Date[] {
     const start = startOfWeek(date)
-    return Array.from({ length: 7 }, (_, i) => {
+    return Array.from({ length: 7 * weekCount }, (_, i) => {
       const d = new Date(start)
       d.setDate(start.getDate() + i)
       return d
