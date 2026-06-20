@@ -1,3 +1,4 @@
+// File: src/components/NavBar.tsx
 import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -8,7 +9,6 @@ import {
   LayoutDashboard,
   Kanban,
   CalendarDays,
-  Users,
   Share2,
   Settings,
   LogOut,
@@ -63,7 +63,7 @@ export default function NavBar() {
     { to: '/leads',         label: 'Leads',              icon: Kanban,          roles: ['manager', 'employee'] },
     { to: '/calendar',      label: 'Calendar',           icon: CalendarDays,    roles: ['manager', 'employee'] },
     { to: '/tasks',         label: 'Tasks',              icon: ClipboardList,   roles: ['manager', 'employee'] },
-    { to: '/customers',     label: 'Customers',          icon: Users,           roles: ['manager', 'employee'] },    { to: '/social',        label: 'Social',             icon: Share2,          roles: ['manager'] },
+    { to: '/social',        label: 'Social',             icon: Share2,          roles: ['manager'] },
     { to: '/org-settings',  label: 'Franchise Settings', icon: Settings,        roles: ['manager'] },
     { to: '/support',       label: 'Support',            icon: HelpCircle,      roles: ['manager', 'employee'] },
     { to: '/profile',       label: 'Profile',            icon: User,            roles: ['manager', 'employee'] },
