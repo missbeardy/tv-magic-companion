@@ -245,19 +245,19 @@ function LeadCard({
             </details>
           )}
 
-          {lead.raw_sms && !lead.raw_email && (
-            <details className="mt-3">
-              <summary className="text-xs font-medium text-gray-500 cursor-pointer select-none">
-                💬 View original SMS / call details
-              </summary>
-              <pre className="mt-2 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3 whitespace-pre-wrap overflow-auto max-h-48">
-                {(() => {
-                  try { return JSON.stringify(JSON.parse(lead.raw_sms!), null, 2) }
-                  catch { return lead.raw_sms }
-                })()}
-              </pre>
-            </details>
-          )}
+              {lead.raw_sms && (
+      <details className="mt-3">
+        <summary className="text-xs font-medium text-gray-500 cursor-pointer select-none">
+          💬 View original SMS / call details
+        </summary>
+        <pre className="mt-2 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3 whitespace-pre-wrap overflow-auto max-h-48">
+          {(() => {
+            try { return JSON.stringify(JSON.parse(lead.raw_sms!), null, 2) }
+            catch { return lead.raw_sms }
+          })()}
+        </pre>
+      </details>
+    )}
 
           <div className="flex flex-wrap gap-1 mt-2">
             {lead.status === 'unassigned' && profile?.role === 'manager' && (
@@ -731,19 +731,19 @@ export default function LeadsPage() {
                 </details>
               )}
 
-              {sheetLead.raw_sms && !sheetLead.raw_email && (
-                <details className="mt-3">
-                  <summary className="text-xs font-medium text-gray-500 cursor-pointer">
-                    View original SMS / call details
-                  </summary>
-                  <pre className="mt-2 text-xs text-gray-600 bg-gray-50 rounded-lg p-3 whitespace-pre-wrap overflow-auto max-h-48">
-                    {(() => {
-                      try { return JSON.stringify(JSON.parse(sheetLead.raw_sms!), null, 2) }
-                      catch { return sheetLead.raw_sms }
-                    })()}
-                  </pre>
-                </details>
-              )}
+             {sheetLead.raw_sms && (
+              <details className="mt-3">
+                <summary className="text-xs font-medium text-gray-500 cursor-pointer">
+                  View original SMS / call details
+                </summary>
+                <pre className="mt-2 text-xs text-gray-600 bg-gray-50 rounded-lg p-3 whitespace-pre-wrap overflow-auto max-h-48">
+                  {(() => {
+                    try { return JSON.stringify(JSON.parse(sheetLead.raw_sms!), null, 2) }
+                    catch { return sheetLead.raw_sms }
+                  })()}
+                </pre>
+              </details>
+            )}
 
               {sheetLead.status === 'completed' ? (
                 <div>
