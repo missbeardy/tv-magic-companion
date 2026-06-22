@@ -248,6 +248,50 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
     const startISO = toLocalISO(date, startTime)
     const endISO   = toLocalISO(date, endTime)
 
+    let leadIdToUse = linkedLeadId
+
+    // NEW: if no existing lead is linked but a customer name was typed in,
+    // create a lead now so this booking shows up in the Leads Kanban board.
+    if (!leadIdToUse && clientName.trim()) {
+      const { data: newLead, error: leadError } = await supabase
+        .from('leads')
+        .insert({
+          org_id: profile?.org_id,
+          name: clientName.trim(),
+          phone: clientPhone || null,
+          email: clientEmail || null,
+          address: clientAddress || null,
+          service_type: clientJob.trim() || title.trim(),
+          details: clientJob || null,
+          status: 'booked',
+          source: 'manual',
+          lead_source: 'Calendar Booking',
+        })
+        .select()
+        .single()
+
+      if (leadError) {
+        setError('Could not create lead: ' + leadError.message)
+        setSaving(false)
+        return
+      }
+      leadIdToUse = newLead.id
+      setLinkedLeadId(newLead.id)
+    } else if (leadIdToUse) {
+      // NEW: this booking IS linked to an existing lead — push any edits
+      // made here (name/phone/email/address/job) back onto that lead.
+      await supabase
+        .from('leads')
+        .update({
+          name: clientName.trim(),
+          phone: clientPhone,
+          email: clientEmail,
+          address: clientAddress,
+          details: clientJob,
+        })
+        .eq('id', leadIdToUse)
+    }
+
     const eventData = {
       title,
       start_time: startISO,
@@ -259,7 +303,7 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
       client_address: clientAddress,
       client_job: clientJob,
       job_quote: jobQuote.trim() === '' ? null : Number(jobQuote),
-      lead_id: linkedLeadId ?? null,
+      lead_id: leadIdToUse ?? null,
       user_id: profile?.id,
       org_id: profile?.org_id,
     }

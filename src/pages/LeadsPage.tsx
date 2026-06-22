@@ -22,7 +22,9 @@ import EventModal from '../components/EventModal'
 import DemoToggle from '../components/DemoToggle'
 import BottomSheet from '../components/BottomSheet'
 import CompletionChecklist from '../components/CompletionChecklist'
-import { MapPin, Phone, Mail, UserPlus, Inbox, ChevronRight } from 'lucide-react'
+import { MapPin, Phone, Mail, UserPlus, Inbox, ChevronRight, Plus } from 'lucide-react'
+import AddLeadModal from '../components/AddLeadModal'
+import { openNavigation } from '../lib/navigation'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -188,8 +190,7 @@ function LeadCard({
         <button
           onClick={e => {
             e.stopPropagation()
-            const encoded = encodeURIComponent(lead.address as string)
-            window.open(`https://www.google.com/maps/search/?api=1&query=${encoded}`, '_blank')
+            openNavigation(lead.address as string)
           }}
           className="text-xs text-[#00B4C5] underline flex items-center gap-1 mt-1"
         >
@@ -397,6 +398,7 @@ export default function LeadsPage() {
   const { profile } = useAuth()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
+  const [showAddLead, setShowAddLead] = useState(false)
   const [assigningLead, setAssigningLead] = useState<Lead | null>(null)
   const [bookingLead, setBookingLead] = useState<Lead | null>(null)
   const [expandedLead, setExpandedLead] = useState<string | null>(null)
@@ -637,8 +639,23 @@ export default function LeadsPage() {
             <h2 className="text-2xl font-bold text-gray-800 mb-1">Leads</h2>
             <p className="text-gray-500 text-sm">Manage and track all leads across every stage.</p>
           </div>
-          {profile?.role === 'manager' && <DemoToggle />}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowAddLead(true)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-[#004B93] hover:bg-[#003d7a] transition"
+            >
+              <Plus size={14} /> Add Lead
+            </button>
+            {profile?.role === 'manager' && <DemoToggle />}
+          </div>
         </div>
+
+        {showAddLead && (
+          <AddLeadModal
+            onClose={() => setShowAddLead(false)}
+            onCreated={() => { setShowAddLead(false); fetchLeads() }}
+          />
+        )}
 
         {loading && <p className="text-gray-400 text-sm">Loading leads...</p>}
 
@@ -714,6 +731,20 @@ export default function LeadsPage() {
                 </details>
               )}
 
+              {sheetLead.raw_sms && !sheetLead.raw_email && (
+                <details className="mt-3">
+                  <summary className="text-xs font-medium text-gray-500 cursor-pointer">
+                    View original SMS / call details
+                  </summary>
+                  <pre className="mt-2 text-xs text-gray-600 bg-gray-50 rounded-lg p-3 whitespace-pre-wrap overflow-auto max-h-48">
+                    {(() => {
+                      try { return JSON.stringify(JSON.parse(sheetLead.raw_sms!), null, 2) }
+                      catch { return sheetLead.raw_sms }
+                    })()}
+                  </pre>
+                </details>
+              )}
+
               {sheetLead.status === 'completed' ? (
                 <div>
                   <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-center mb-2">
@@ -743,10 +774,7 @@ export default function LeadsPage() {
                 <div className="space-y-3">
                   {sheetLead.address && (
                     <button
-                      onClick={() => {
-                        const encoded = encodeURIComponent(sheetLead!.address as string)
-                        window.open(`https://www.google.com/maps/search/?api=1&query=${encoded}`, '_blank')
-                      }}
+                      onClick={() => openNavigation(sheetLead!.address as string)}
                       className="w-full py-4 rounded-xl bg-gray-800 text-white font-semibold text-base flex items-center justify-center gap-2"
                     >
                       📍 Navigate to Job

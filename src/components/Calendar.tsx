@@ -6,6 +6,13 @@ import { useAuth } from '../context/AuthContext'
 import EventModal from './EventModal'
 import BlackoutModal from './BlackoutModal'
 import { MobileResourceView } from './MobileResourceView'
+// Converts a Date to "YYYY-MM-DDTHH:mm" using LOCAL time components.
+// .toISOString() converts to UTC, which rolls the date back a day for
+// any timezone ahead of UTC (like AEST) during early local hours.
+function toLocalDateTimeInput(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -318,7 +325,7 @@ export default function Calendar() {
     } else {
       target.setHours(9, 0, 0, 0)
     }
-    const iso = target.toISOString().slice(0, 16)
+    const iso = toLocalDateTimeInput(target)
     setDefaultDate(iso)
     setSelectedEvent(null)
     setShowModal(true)
@@ -566,7 +573,7 @@ export default function Calendar() {
             <button
               onClick={() => {
                 setSelectedEvent(null)
-                setDefaultDate(new Date().toISOString().slice(0, 16))
+                setDefaultDate(toLocalDateTimeInput(new Date()))
                 setShowModal(true)
               }}
               className="bg-[#004B93] text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-[#003d7a] transition flex items-center gap-1 whitespace-nowrap flex-shrink-0"
