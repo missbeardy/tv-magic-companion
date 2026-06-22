@@ -1,7 +1,6 @@
 // src/App.tsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
-import { DemoProvider } from './context/DemoContext'
 import { OrgProvider } from './context/OrgContext'
 import { useAuth } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -62,7 +61,6 @@ function App() {
 
   return (
     <AuthProvider>
-      <DemoProvider>
         <OrgProvider>
           <BrowserRouter>
             <Routes>
@@ -157,7 +155,6 @@ function App() {
             </Routes>
           </BrowserRouter>
         </OrgProvider>
-      </DemoProvider>
     </AuthProvider>
   )
 }

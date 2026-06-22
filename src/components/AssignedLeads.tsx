@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import CountdownTimer from './CountdownTimer'
 import EventModal from './EventModal'
+import LeadExtractedSummary from './LeadExtractedSummary'
 import { CalendarPlus, User } from 'lucide-react'
 
 interface Lead {
@@ -134,10 +135,7 @@ export default function AssignedLeads() {
                     )}
                   </div>
                   <p className="text-sm text-[#004B93] font-medium">{lead.service_type || 'No service type'}</p>
-                  <p className="text-xs text-gray-400 mt-1">{lead.phone} · {lead.email}</p>
-                  {lead.details && (
-                    <p className="text-xs text-gray-500 mt-2 leading-relaxed line-clamp-2">{lead.details}</p>
-                  )}
+                  <LeadExtractedSummary lead={lead} size="sm" detailsClamp showAddress={false} />
                 </div>
 
                 {/* Right side: Book button + Timer */}

@@ -1,15 +1,9 @@
 // src/lib/timer.ts
 
 export const PRODUCTION_TIMER_MS = 2 * 60 * 60 * 1000 // 2 hours
-export const DEMO_TIMER_MS = 30 * 1000 // 30 seconds
 
-export function getTimerDuration(demoMode: boolean): number {
-  return demoMode ? DEMO_TIMER_MS : PRODUCTION_TIMER_MS
-}
-
-export function getExpiresAt(demoMode: boolean): string {
-  const duration = getTimerDuration(demoMode)
-  return new Date(Date.now() + duration).toISOString()
+export function getExpiresAt(): string {
+  return new Date(Date.now() + PRODUCTION_TIMER_MS).toISOString()
 }
 
 export function getTimeRemaining(expiresAt: string): {

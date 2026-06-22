@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import { useDemo } from '../context/DemoContext'
 import NotificationBell from './NotificationBell'
 import {
   LayoutDashboard,
@@ -22,7 +21,6 @@ import {
 
 export default function NavBar() {
   const { profile } = useAuth()
-  const { demoMode } = useDemo()
   const location = useLocation()
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -108,9 +106,6 @@ export default function NavBar() {
                 <span className="font-display font-800 text-white text-base tracking-tight leading-none">
                   TV<span className="text-[#00B4C5]">Magic</span>
                 </span>
-                {demoMode && (
-                  <span className="badge badge-amber ml-1">Demo</span>
-                )}
               </Link>
             </div>
 
