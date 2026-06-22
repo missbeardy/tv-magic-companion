@@ -55,6 +55,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Missing leadName or serviceType for tech_assignment mode' })
     }
     message = `TVMagic: You've been assigned a new lead — ${leadName} (${serviceType}). Open the app to view details: https://tv-magic-companion.vercel.app/leads`
+  } else if (mode === 'manager_alert') {
+    // ADD THIS NEW BLOCK
+    if (!leadName || !serviceType) {
+      return res.status(400).json({ error: 'Missing leadName or serviceType for manager alert' })
+    }
+    message = `TVMagic: A new lead has been submitted — ${leadName} (${serviceType}). Please review and assign a technician: https://tv-magic-companion.vercel.app/leads`
   } else {
     // Default: customer ETA message
     if (!customerName || !address) {
