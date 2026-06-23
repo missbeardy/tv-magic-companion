@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { getExpiresAt } from '../lib/timer'
-import { useDemo } from '../context/DemoContext'
 import { useAuth } from '../context/AuthContext'
 import { geocodeAddress, rankTechsByDistance, type TechWithDistance } from '../lib/proximity'
 import { sendNotification } from '../lib/notify'
@@ -24,7 +23,6 @@ interface Props {
 }
 
 export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
-  const { demoMode } = useDemo()
   const { profile } = useAuth()
   const { fetchOrgProfiles } = useOrgProfiles()
   const [employees, setEmployees] = useState<TechWithDistance[]>([])
@@ -87,7 +85,7 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
 
     setSaving(true)
     setError('')
-    const expiresAt = getExpiresAt(demoMode)
+    const expiresAt = getExpiresAt()
 
     const { error: assignError } = await supabase
       .from('leads')
@@ -96,7 +94,6 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
         assigned_to: employeeId,
         assigned_at: new Date().toISOString(),
         timer_expires_at: expiresAt,
-        demo_mode: demoMode,
       })
       .eq('id', lead.id)
 
@@ -164,14 +161,6 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
         </div>
 
         <div className="px-6 py-4">
-          {/* Demo mode banner */}
-          {demoMode && (
-            <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 text-sm p-3 rounded-xl mb-4">
-              <Zap size={14} className="shrink-0" />
-              Demo mode — timer set to 30 seconds
-            </div>
-          )}
-
           {/* Error */}
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-xl mb-4 text-sm">

@@ -4,7 +4,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useOrg } from '../context/OrgContext'
 import { useTheme } from '../context/ThemeContext'
-import { useDemo } from '../context/DemoContext'
 import NotificationBell from './NotificationBell'
 import {
   LayoutDashboard,
@@ -26,7 +25,6 @@ export default function NavBar() {
   const { profile, signOut } = useAuth()
   const { canAccessFeature } = useOrg()
   const theme = useTheme()
-  const { demoMode } = useDemo()
   const location = useLocation()
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -84,9 +82,6 @@ export default function NavBar() {
               <span className="font-display font-800 text-white text-base tracking-tight leading-none max-w-[120px] truncate sm:max-w-none">
                 {theme.displayName}
               </span>
-              {demoMode && (
-                <span className="badge badge-amber ml-1">Demo</span>
-              )}
             </Link>
 
             {/* Nav links — always visible; scroll horizontally on small screens */}

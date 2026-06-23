@@ -1,6 +1,6 @@
 // api/send-sms.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { authenticateRequest } from './_lib/auth.js'
+import { authenticateRequest, type AuthContext } from './_lib/auth.js'
 import { getSupabaseAdmin } from './_lib/supabaseAdmin.js'
 import { buildSmsFromBrand } from './_lib/smsTemplates.js'
 import { getPlatformUrl } from './_lib/platformUrl.js'
@@ -71,6 +71,70 @@ async function technicianInOrg(to: string, orgId: string): Promise<boolean> {
   return Boolean(data)
 }
 
+/** Push notification via OneSignal — only to users inside the caller's org. */
+async function handleNotify(req: VercelRequest, res: VercelResponse, auth: AuthContext) {
+  const { userId, title, message, url } = req.body as {
+    userId?: string
+    title?: string
+    message?: string
+    url?: string
+  }
+
+  if (!userId || !title || !message) {
+    return res.status(400).json({ error: 'Missing required fields' })
+  }
+
+  const supabase = getSupabaseAdmin()
+  if (!supabase) {
+    return res.status(503).json({ error: 'Server not configured' })
+  }
+
+  const { data: target, error: targetError } = await supabase
+    .from('profiles')
+    .select('org_id')
+    .eq('id', userId)
+    .maybeSingle()
+
+  if (targetError || !target || target.org_id !== auth.orgId) {
+    return res.status(403).json({ error: 'Cannot notify a user outside your organisation' })
+  }
+
+  const appId = process.env.ONESIGNAL_APP_ID
+  const apiKey = process.env.ONESIGNAL_API_KEY
+  if (!appId || !apiKey) {
+    return res.status(500).json({ error: 'OneSignal not configured' })
+  }
+
+  try {
+    const response = await fetch('https://onesignal.com/api/v1/notifications', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Basic ${apiKey}`,
+      },
+      body: JSON.stringify({
+        app_id: appId,
+        target_channel: 'push',
+        include_aliases: { external_id: [userId] },
+        headings: { en: title },
+        contents: { en: message },
+        url: url || `${getPlatformUrl()}/leads`,
+      }),
+    })
+
+    const data = (await response.json()) as { id?: string; errors?: unknown }
+    if (!response.ok) {
+      console.error('OneSignal error:', data)
+      return res.status(500).json({ error: 'Failed to send notification', details: data })
+    }
+
+    return res.status(200).json({ success: true, id: data.id })
+  } catch (err) {
+    console.error('send-notification error:', err)
+    return res.status(500).json({ error: 'Internal server error' })
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -84,6 +148,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ip = (req.headers['x-forwarded-for'] as string) ?? auth.userId
   if (!checkRateLimit(ip)) {
     return res.status(429).json({ error: 'Too many requests. Please wait a moment.' })
+  }
+
+  // Consolidated to stay under the Vercel Hobby 12-function limit.
+  // /api/send-notification rewrites here with ?action=notify (see vercel.json).
+  if (req.query.action === 'notify') {
+    return handleNotify(req, res, auth)
   }
 
   const { mode, to, customerName, techName, address, leadName, serviceType } = req.body as {
@@ -101,10 +171,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // Only allow texting numbers that exist on a lead/customer in the caller's org.
-  // For tech_assignment, `to` is a technician — allow org members too.
+  // For tech_assignment / manager_alert, `to` is a team member — allow org members too.
+  const isInternalMode = mode === 'tech_assignment' || mode === 'manager_alert'
   const allowed =
-    (mode === 'tech_assignment' &&
-      (await technicianInOrg(to, auth.orgId))) ||
+    (isInternalMode && (await technicianInOrg(to, auth.orgId))) ||
     (await phoneBelongsToOrg(to, auth.orgId))
 
   if (!allowed) {
@@ -137,6 +207,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         appUrl: `${platformUrl}/leads`,
       },
       `${orgName}: You've been assigned {{leadName}} ({{serviceType}}). Open the app: {{appUrl}}`
+    )
+  } else if (mode === 'manager_alert') {
+    if (!leadName || !serviceType) {
+      return res.status(400).json({ error: 'Missing leadName or serviceType for manager alert' })
+    }
+    message = buildSmsFromBrand(
+      auth.brand?.sms_templates,
+      'manager_alert',
+      {
+        'org.name': orgName,
+        leadName,
+        serviceType,
+        appUrl: `${platformUrl}/leads`,
+      },
+      `${orgName}: A new lead has been submitted — {{leadName}} ({{serviceType}}). Please review and assign a technician: {{appUrl}}`
     )
   } else {
     if (!customerName || !address) {

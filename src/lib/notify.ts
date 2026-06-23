@@ -8,7 +8,7 @@ export async function sendNotification(
 ): Promise<void> {
   try {
     const headers = await getAuthHeaders();
-    const response = await fetch('/api/send-notification', {
+    const response = await fetch('/api/send-sms?action=notify', {
       method: 'POST',
       headers,
       body: JSON.stringify({ userId, title, message, url }),

@@ -1,7 +1,6 @@
 // src/App.tsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
-import { DemoProvider } from './context/DemoContext'
 import { OrgProvider } from './context/OrgContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { useAuth } from './context/AuthContext'
@@ -64,7 +63,6 @@ function App() {
 
   return (
     <AuthProvider>
-      <DemoProvider>
         <OrgProvider>
           <ThemeProvider>
           <BrowserRouter>
@@ -169,7 +167,6 @@ function App() {
           </BrowserRouter>
           </ThemeProvider>
         </OrgProvider>
-      </DemoProvider>
     </AuthProvider>
   )
 }

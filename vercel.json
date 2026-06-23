@@ -5,6 +5,10 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/api/send-notification",
+      "destination": "/api/send-sms?action=notify"
+    },
+    {
       "source": "/api/stripe-checkout",
       "destination": "/api/stripe?action=checkout"
     },

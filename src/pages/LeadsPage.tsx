@@ -19,10 +19,10 @@ import LeadStatusMenu from '../components/LeadStatusMenu'
 import LeadPhotos from '../components/LeadPhotos'
 import AssignLeadModal from '../components/AssignLeadModal'
 import EventModal from '../components/EventModal'
-import DemoToggle from '../components/DemoToggle'
 import BottomSheet from '../components/BottomSheet'
 import CompletionChecklist from '../components/CompletionChecklist'
-import { MapPin, Phone, Mail, UserPlus, Inbox, ChevronRight, Plus } from 'lucide-react'
+import LeadExtractedSummary, { LeadRawSource } from '../components/LeadExtractedSummary'
+import { UserPlus, Inbox, ChevronRight, Plus } from 'lucide-react'
 import AddLeadModal from '../components/AddLeadModal'
 import { openNavigation } from '../lib/navigation'
 
@@ -165,6 +165,9 @@ function LeadCard({
         <div className="flex-1 min-w-0">
           <p className="font-medium text-gray-800 text-sm truncate">{lead.name || 'Unknown'}</p>
           <p className="text-xs text-gray-500 truncate">{lead.service_type}</p>
+          <div className="md:hidden mt-1">
+            <LeadExtractedSummary lead={lead} size="sm" detailsClamp showAddress={false} />
+          </div>
         </div>
         {/* Mobile tap affordance — hidden on desktop */}
         <ChevronRight size={14} className="md:hidden text-gray-300 shrink-0 mt-0.5" />
@@ -230,34 +233,8 @@ function LeadCard({
 
       {isExpanded && (
         <div className="hidden md:block mt-2 space-y-2 border-t border-gray-200 pt-2">
-          <p className="text-xs text-gray-600">{lead.phone}</p>
-          <p className="text-xs text-gray-600">{lead.email}</p>
-          {lead.details && <p className="text-xs text-gray-500">{lead.details}</p>}
-
-          {lead.raw_email && (
-            <details className="mt-3">
-              <summary className="text-xs font-medium text-gray-500 cursor-pointer select-none">
-                📧 View original email
-              </summary>
-              <pre className="mt-2 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3 whitespace-pre-wrap overflow-auto max-h-48">
-                {lead.raw_email}
-              </pre>
-            </details>
-          )}
-
-          {lead.raw_sms && !lead.raw_email && (
-            <details className="mt-3">
-              <summary className="text-xs font-medium text-gray-500 cursor-pointer select-none">
-                💬 View original SMS / call details
-              </summary>
-              <pre className="mt-2 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3 whitespace-pre-wrap overflow-auto max-h-48">
-                {(() => {
-                  try { return JSON.stringify(JSON.parse(lead.raw_sms!), null, 2) }
-                  catch { return lead.raw_sms }
-                })()}
-              </pre>
-            </details>
-          )}
+          <LeadExtractedSummary lead={lead} size="sm" />
+          <LeadRawSource lead={lead} />
 
           <div className="flex flex-wrap gap-1 mt-2">
             {lead.status === 'unassigned' && profile?.role === 'manager' && (
@@ -646,7 +623,6 @@ export default function LeadsPage() {
             >
               <Plus size={14} /> Add Lead
             </button>
-            {profile?.role === 'manager' && <DemoToggle />}
           </div>
         </div>
 
@@ -718,32 +694,8 @@ export default function LeadsPage() {
         <BottomSheet isOpen={sheetOpen} onClose={closeSheet} title={sheetLead?.name ?? 'Lead Actions'}>
           {sheetLead && (
             <div className="space-y-3">
-              <p className="text-sm text-gray-500">{sheetLead.service_type}</p>
-
-              {sheetLead.raw_email && (
-                <details className="mt-3">
-                  <summary className="text-xs font-medium text-gray-500 cursor-pointer">
-                    View original email
-                  </summary>
-                  <pre className="mt-2 text-xs text-gray-600 bg-gray-50 rounded-lg p-3 whitespace-pre-wrap overflow-auto max-h-48">
-                    {sheetLead.raw_email}
-                  </pre>
-                </details>
-              )}
-
-              {sheetLead.raw_sms && !sheetLead.raw_email && (
-                <details className="mt-3">
-                  <summary className="text-xs font-medium text-gray-500 cursor-pointer">
-                    View original SMS / call details
-                  </summary>
-                  <pre className="mt-2 text-xs text-gray-600 bg-gray-50 rounded-lg p-3 whitespace-pre-wrap overflow-auto max-h-48">
-                    {(() => {
-                      try { return JSON.stringify(JSON.parse(sheetLead.raw_sms!), null, 2) }
-                      catch { return sheetLead.raw_sms }
-                    })()}
-                  </pre>
-                </details>
-              )}
+              <p className="text-sm text-[#004B93] font-medium">{sheetLead.service_type || 'No service type'}</p>
+              <LeadExtractedSummary lead={sheetLead} size="md" showAddress={false} />
 
               {sheetLead.status === 'completed' ? (
                 <div>
@@ -836,6 +788,8 @@ export default function LeadsPage() {
                   </button>
                 </div>
               )}
+
+              <LeadRawSource lead={sheetLead} />
 
               <button
                 onClick={closeSheet}
