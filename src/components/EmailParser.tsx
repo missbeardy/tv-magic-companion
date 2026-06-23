@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { getAuthHeaders } from '../lib/apiAuth'
+import { alertManagersOnNewLead } from '../lib/notify'
 import { useAuth } from '../context/AuthContext'
 
 interface ExtractedLead {
@@ -230,6 +231,8 @@ ${rawEmail}`,
         },
         actor_id: user?.id ?? null,
       })
+
+      await alertManagersOnNewLead(lead.id)
 
       setSaved(true)
       setRawEmail('')

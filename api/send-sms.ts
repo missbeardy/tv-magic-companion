@@ -4,6 +4,7 @@ import { authenticateRequest, type AuthContext } from './_lib/auth.js'
 import { getSupabaseAdmin } from './_lib/supabaseAdmin.js'
 import { buildSmsFromBrand } from './_lib/smsTemplates.js'
 import { getPlatformUrl } from './_lib/platformUrl.js'
+import { notifyManagersNewLead } from './_lib/notifyManagersNewLead.js'
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
 function checkRateLimit(key: string, limit = 20, windowMs = 60_000): boolean {
@@ -150,6 +151,43 @@ async function handleNotify(req: VercelRequest, res: VercelResponse, auth: AuthC
   return res.status(200).json({ success: true })
 }
 
+/** Alert managers after a new unassigned lead is created from the app. */
+async function handleNewLeadAlert(req: VercelRequest, res: VercelResponse, auth: AuthContext) {
+  const { leadId } = req.body as { leadId?: string }
+  if (!leadId) {
+    return res.status(400).json({ error: 'Missing leadId' })
+  }
+
+  const supabase = getSupabaseAdmin()
+  if (!supabase) {
+    return res.status(503).json({ error: 'Server not configured' })
+  }
+
+  const { data: lead, error: leadError } = await supabase
+    .from('leads')
+    .select('id, org_id, name, service_type, status')
+    .eq('id', leadId)
+    .maybeSingle()
+
+  if (leadError || !lead) {
+    return res.status(404).json({ error: 'Lead not found' })
+  }
+  if (lead.org_id !== auth.orgId) {
+    return res.status(403).json({ error: 'Lead is outside your organisation' })
+  }
+
+  try {
+    const result = await notifyManagersNewLead(lead)
+    if (result.skipped) {
+      return res.status(200).json({ skipped: true, reason: result.skipped })
+    }
+    return res.status(200).json({ success: true, notified: result.notified })
+  } catch (err) {
+    console.error('New lead alert failed:', err)
+    return res.status(500).json({ error: 'Failed to alert managers' })
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -169,6 +207,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // /api/send-notification rewrites here with ?action=notify (see vercel.json).
   if (req.query.action === 'notify') {
     return handleNotify(req, res, auth)
+  }
+  if (req.query.action === 'new-lead-alert') {
+    return handleNewLeadAlert(req, res, auth)
   }
 
   const { mode, to, customerName, techName, address, leadName, serviceType } = req.body as {

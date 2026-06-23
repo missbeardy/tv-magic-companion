@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import { alertManagersOnNewLead } from '../lib/notify';
 import { X, UserPlus, Phone, Mail, MapPin, Briefcase } from 'lucide-react';
 
 interface Props {
@@ -32,7 +33,7 @@ export default function AddLeadModal({ onClose, onCreated }: Props) {
     setSaving(true);
     setError('');
 
-    const { error: insertError } = await supabase.from('leads').insert({
+    const { data: lead, error: insertError } = await supabase.from('leads').insert({
       org_id: profile?.org_id,
       name: name.trim(),
       phone: phone.trim() || null,
@@ -43,13 +44,15 @@ export default function AddLeadModal({ onClose, onCreated }: Props) {
       status: 'unassigned',
       source: 'manual',
       lead_source: 'Manual Entry',
-    });
+    }).select('id').single();
 
-    if (insertError) {
-      setError(insertError.message);
+    if (insertError || !lead) {
+      setError(insertError?.message ?? 'Failed to create lead');
       setSaving(false);
       return;
     }
+
+    await alertManagersOnNewLead(lead.id);
 
     onCreated();
     onClose();
