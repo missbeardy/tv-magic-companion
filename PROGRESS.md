@@ -29,7 +29,7 @@ Expected pattern: `https://tv-magic-companion-git-feature-platform-saas-missbear
 
 | Phase 2 — Brand template layer | Done | See below |
 
-| Phase 3 — Brand transfer + tier enforcement | UAT partial | Tests 1–7 pass; 8–10 deferred to Vercel preview |
+| Phase 3 — Brand transfer + tier enforcement | UAT done (9 skipped) | Tests 1–8, 10 pass on preview; Stripe billing re-added |
 
 | Production cutover | Not started | explicit approval required |
 
@@ -73,11 +73,13 @@ Expected pattern: `https://tv-magic-companion-git-feature-platform-saas-missbear
 
 8. **`20250624100000_fix_dev_profiles_columns.sql`** ← phone, suburb, avatar, location columns
 
-9. **Storage policies** — Dashboard only (see below)
+9. **`20250624110000_sync_auth_profiles.sql`** ← backfill profiles for auth users (lead assign)
+
+10. **`20250624120000_stripe_billing.sql`** ← Stripe customer/subscription columns on orgs
 
 
 
-### Storage policies (Dashboard — required for logo upload)
+11. **Storage policies** — Dashboard only (see below)
 
 
 
@@ -118,11 +120,39 @@ Repeat for **`lead-photos`** and **`avatars`** when you need those features.
 | 5 | Reset from brand (Franchise Settings) | Pass |
 | 6 | Basic tier hides Tasks/Social | Pass |
 | 7 | Tier on new org | Pass |
-| 8 | AI parsing blocked on Basic (server) | **Deferred** — retest on Vercel preview |
+| 8 | AI parsing blocked on Basic (server) | **Pass** (preview) |
 | 9 | Social post blocked on Basic (server) | **Skipped** — not in use first 3 months |
-| 10 | Brand SMS on lead assign | **Blocked** — missing `profiles.phone` column in dev; run migration below |
+| 10 | Brand SMS on lead assign | **Pass** (preview) |
 
-**When Vercel preview is live:** run tests 8–10 on the preview URL (not localhost). Ensure preview env has `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ENABLE_PLATFORM_FEATURES=true`, plus Anthropic/Twilio/Zernio as needed.
+**When Vercel preview is live:** tests 8 & 10 verified on preview. Ensure preview env has `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ENABLE_PLATFORM_FEATURES=true`, plus Anthropic/Twilio/Zernio as needed.
+
+### Stripe billing (optional on preview)
+
+1. Run migration **`20250624120000_stripe_billing.sql`** in dev Supabase SQL Editor
+2. Create **Pro** and **Enterprise** recurring prices in [Stripe test mode](https://dashboard.stripe.com/test/products)
+3. Add to Vercel **Preview** env (and `.env.local` for `vercel dev`):
+   - `STRIPE_SECRET_KEY` — test secret key
+   - `STRIPE_PRICE_PRO` / `STRIPE_PRICE_ENTERPRISE` — price IDs
+   - `STRIPE_WEBHOOK_SECRET` — signing secret from Stripe (see webhook URL below)
+   - ~~`VITE_PLATFORM_URL`~~ — **not needed on Vercel** (auto from `VERCEL_URL`); only set locally to `http://localhost:5173`
+4. **Stripe webhook** — one-time setup in [Stripe test webhooks](https://dashboard.stripe.com/test/webhooks):
+   - **Endpoint URL:** copy your branch preview URL from Vercel (see below) + `/api/stripe-webhook`
+   - **Events:** `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`
+   - Copy the **Signing secret** (`whsec_…`) → Vercel Preview env as `STRIPE_WEBHOOK_SECRET`
+5. **Org Settings → Subscription & Billing** — managers can upgrade via Stripe Checkout; webhooks sync tier to `orgs.subscription_tier`
+6. Platform Admin manual tier changes still work (orgs with `billing_status = manual` until first checkout)
+
+#### Finding your preview URL (for the Stripe webhook only)
+
+1. Open [Vercel → tv-magic-companion → Deployments](https://vercel.com/missbeardys-projects/tv-magic-companion)
+2. Click the latest **Preview** row for branch `feature/platform-saas`
+3. Under **Domains**, copy the URL that contains `git-feature-platform` (branch alias — stable for this branch)
+4. Your webhook endpoint is that URL + `/api/stripe-webhook`
+
+**Your branch alias (as of last deploy):**
+`https://tv-magic-companion-git-feature-plat-8c5410-missbeardys-projects.vercel.app/api/stripe-webhook`
+
+Use the URL shown in *your* Vercel dashboard if it differs slightly.
 
 ## Phase 3 testing checklist
 
@@ -185,22 +215,24 @@ Repeat for **`lead-photos`** and **`avatars`** when you need those features.
 
 
 
-_Last updated: Phase 3 UAT 1–7 pass; API tests deferred to Vercel preview_
+_Last updated: Phase 3 UAT 1–8 & 10 pass; Stripe billing re-added (uncommitted on branch)_
 
 
 
 ## Phase 3 deliverables
 
 - **Brand transfer** — Platform Admin assigns brand + copies colors/upsells to franchisee orgs
-- **Manual tiers** — set per org in Platform Admin (no payment integration)
+- **Manual tiers** — set per org in Platform Admin (works alongside Stripe)
+- **Stripe billing** — checkout, customer portal, webhook sync (`api/stripe-*`, `BillingPanel` on Org Settings)
 - **Server-side tier gates** — `anthropic` (Pro), `social-post` (Pro)
 - **Brand SMS templates** — `send-sms` uses org brand templates with auth
 - **API auth** — protected routes require Supabase session token
 
 ## What's next
 
-1. **Push `feature/platform-saas`** → Vercel preview deploy → complete UAT **8–10** on preview URL
-2. **Preview env vars** — add server keys to Vercel (Preview): `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ENABLE_PLATFORM_FEATURES=true`, `VITE_ENABLE_PLATFORM_FEATURES=true`
-3. **Optional polish** — roll theme colors beyond nav (many pages still hard-code `#004B93`); hidden test profile UI if needed
-4. **Production cutover** — only after full UAT + your explicit approval (migrations on prod Supabase, merge to main, enable flags gradually)
+1. **Commit & push Stripe changes** on `feature/platform-saas` → redeploy Vercel preview
+2. **Run Stripe migration** + configure test-mode env vars (see above)
+3. **Smoke-test billing** — upgrade a test org to Pro via Org Settings, confirm tier unlocks Tasks/AI
+4. **Optional polish** — roll theme colors beyond nav; hidden test profile UI if needed
+5. **Production cutover** — only after full UAT + your explicit approval
 

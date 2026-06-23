@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { canAccessFeature } from '../api/_lib/tier'
+import { canAccessFeature, tierFromStripePriceId } from '../api/_lib/tier'
 import { buildBrandTransferPayload } from '../src/lib/brandTransfer'
 
 describe('api tier enforcement', () => {
@@ -30,6 +30,13 @@ describe('api tier enforcement', () => {
   it('allows leads on all tiers when platform features enabled', () => {
     expect(canAccessFeature('leads', 'basic')).toBe(true)
     expect(canAccessFeature('leads', 'pro')).toBe(true)
+  })
+
+  it('maps stripe price ids to tiers', () => {
+    process.env.STRIPE_PRICE_PRO = 'price_pro_test'
+    expect(tierFromStripePriceId('price_pro_test')).toBe('pro')
+    expect(tierFromStripePriceId('unknown')).toBeNull()
+    delete process.env.STRIPE_PRICE_PRO
   })
 })
 

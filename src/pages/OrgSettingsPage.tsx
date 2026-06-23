@@ -5,6 +5,7 @@ import { applyThemeToDocument, resolveThemeTokens } from '../lib/theme';
 import { buildBrandTransferPayload } from '../lib/brandTransfer';
 import NavBar from '../components/NavBar';
 import UpsellSettingsPanel from '../components/settings/UpsellSettingsPanel';
+import BillingPanel from '../components/BillingPanel';
 
 export default function OrgSettingsPage() {
   const { org, brand, refreshOrg } = useOrg();
@@ -346,6 +347,8 @@ export default function OrgSettingsPage() {
 
         {/* Upsell Items */}
         {orgId && <UpsellSettingsPanel orgId={orgId} />}
+
+        <BillingPanel />
 
         <button
           onClick={handleSave}

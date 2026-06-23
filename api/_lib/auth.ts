@@ -12,6 +12,7 @@ export interface AuthContext {
     slug: string
     subscription_tier: SubscriptionTier
     support_phone: string | null
+    stripe_customer_id: string | null
     brand_id: string | null
   }
   brand: {
@@ -43,7 +44,7 @@ export async function authenticateRequest(req: VercelRequest): Promise<AuthConte
 
   const { data: org, error: orgError } = await supabase
     .from('orgs')
-    .select('id, name, slug, subscription_tier, support_phone, brand_id')
+    .select('id, name, slug, subscription_tier, support_phone, stripe_customer_id, brand_id')
     .eq('id', profile.org_id)
     .single()
 
@@ -71,6 +72,7 @@ export async function authenticateRequest(req: VercelRequest): Promise<AuthConte
       slug: org.slug,
       subscription_tier: org.subscription_tier as SubscriptionTier,
       support_phone: org.support_phone,
+      stripe_customer_id: org.stripe_customer_id,
       brand_id: org.brand_id,
     },
     brand,
