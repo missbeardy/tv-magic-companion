@@ -151,6 +151,11 @@ export default function Login() {
         <p className="text-center text-xs text-gray-400 mt-6">
           Powered by FieldBourne Digital
         </p>
+        {import.meta.env.VITE_ENABLE_PLATFORM_FEATURES === 'true' && import.meta.env.VITE_SUPABASE_URL && (
+          <p className="text-center text-xs text-gray-300 mt-2 font-mono">
+            Dev DB: {import.meta.env.VITE_SUPABASE_URL.replace('https://', '').split('.')[0]}
+          </p>
+        )}
       </div>
     </div>
   )
