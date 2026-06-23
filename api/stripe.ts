@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import type Stripe from 'stripe'
-import { authenticateRequest } from './_lib/auth.js'
-import { getStripe, getPlatformUrl, getPriceIdForTier } from './_lib/stripe.js'
+import { authenticateRequestDetailed, authErrorMessage } from './_lib/auth.js'
+import { getStripe, getPlatformUrl, getPriceIdForTier, validatePriceId } from './_lib/stripe.js'
 import { getSupabaseAdmin } from './_lib/supabaseAdmin.js'
 import { tierFromStripePriceId, type SubscriptionTier } from './_lib/tier.js'
 
@@ -86,16 +86,23 @@ async function handleCheckout(req: VercelRequest, res: VercelResponse) {
     return res.status(503).json({ error: 'Billing is not configured on this server' })
   }
 
-  const auth = await authenticateRequest(req)
+  let tier: 'pro' | 'enterprise' | undefined
+  try {
+    const body = await readJsonBody<{ tier?: 'pro' | 'enterprise' }>(req)
+    tier = body.tier
+  } catch {
+    return res.status(400).json({ error: 'Invalid request body' })
+  }
+
+  const { auth, reason } = await authenticateRequestDetailed(req)
   if (!auth) {
-    return res.status(401).json({ error: 'Unauthorized' })
+    return res.status(401).json({ error: authErrorMessage(reason) })
   }
 
   if (!['manager', 'platform_admin'].includes(auth.role)) {
     return res.status(403).json({ error: 'Only managers can manage billing' })
   }
 
-  const { tier } = await readJsonBody<{ tier?: 'pro' | 'enterprise' }>(req)
   if (tier !== 'pro' && tier !== 'enterprise') {
     return res.status(400).json({ error: 'Invalid tier. Choose pro or enterprise.' })
   }
@@ -103,6 +110,12 @@ async function handleCheckout(req: VercelRequest, res: VercelResponse) {
   const priceId = getPriceIdForTier(tier)
   if (!priceId) {
     return res.status(503).json({ error: `Stripe price for ${tier} is not configured` })
+  }
+
+  const envName = tier === 'pro' ? 'STRIPE_PRICE_PRO' : 'STRIPE_PRICE_ENTERPRISE'
+  const priceError = validatePriceId(priceId, envName)
+  if (priceError) {
+    return res.status(503).json({ error: priceError })
   }
 
   const platformUrl = getPlatformUrl()
@@ -151,9 +164,9 @@ async function handlePortal(req: VercelRequest, res: VercelResponse) {
     return res.status(503).json({ error: 'Billing is not configured on this server' })
   }
 
-  const auth = await authenticateRequest(req)
+  const { auth, reason } = await authenticateRequestDetailed(req)
   if (!auth) {
-    return res.status(401).json({ error: 'Unauthorized' })
+    return res.status(401).json({ error: authErrorMessage(reason) })
   }
 
   if (!['manager', 'platform_admin'].includes(auth.role)) {

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { CreditCard, ExternalLink, Sparkles } from 'lucide-react'
 import { useOrg } from '../context/OrgContext'
 import { isPlatformFeaturesEnabled } from '../lib/env'
-import { getAuthHeaders } from '../lib/apiAuth'
+import { requireAuthHeaders } from '../lib/apiAuth'
 import { FEATURES, type FeatureKey } from '../lib/features'
 
 const TIER_LABELS = {
@@ -30,15 +30,15 @@ export default function BillingPanel() {
     setLoading(targetTier)
     setError('')
     try {
-      const headers = await getAuthHeaders()
-      const res = await fetch('/api/stripe-checkout', {
+      const headers = await requireAuthHeaders()
+      const res = await fetch('/api/stripe?action=checkout', {
         method: 'POST',
         headers,
         body: JSON.stringify({ tier: targetTier }),
       })
-      const data = await res.json()
+      const data = (await res.json().catch(() => ({}))) as { error?: string; url?: string }
       if (!res.ok) {
-        throw new Error((data as { error?: string }).error ?? 'Checkout failed')
+        throw new Error(data.error ?? `Checkout failed (${res.status})`)
       }
       if (data.url) {
         window.location.href = data.url
@@ -54,14 +54,14 @@ export default function BillingPanel() {
     setLoading('portal')
     setError('')
     try {
-      const headers = await getAuthHeaders()
-      const res = await fetch('/api/stripe-portal', {
+      const headers = await requireAuthHeaders()
+      const res = await fetch('/api/stripe?action=portal', {
         method: 'POST',
         headers,
       })
-      const data = await res.json()
+      const data = (await res.json().catch(() => ({}))) as { error?: string; url?: string }
       if (!res.ok) {
-        throw new Error((data as { error?: string }).error ?? 'Could not open billing portal')
+        throw new Error(data.error ?? `Portal failed (${res.status})`)
       }
       if (data.url) {
         window.location.href = data.url
