@@ -2,6 +2,13 @@
 @import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500&display=swap');
 
+/* Theme defaults — only on :root so JS updates on html inherit to the whole app */
+:root {
+  --color-primary: #004B93;
+  --color-secondary: #00B4C5;
+  --color-primary-dark: #003d7a;
+}
+
 html, body {
   height: 100%;
   overflow-x: hidden;
@@ -101,4 +108,33 @@ html, body {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Brand theme utilities (CSS vars set by ThemeProvider) */
+.btn-primary {
+  background-color: var(--color-primary);
+  color: #fff;
+}
+.btn-primary:hover {
+  background-color: var(--color-primary-dark);
+}
+.btn-secondary {
+  background-color: var(--color-secondary);
+  color: #fff;
+}
+.text-brand-secondary {
+  color: var(--color-secondary);
+}
+.bg-brand {
+  background-color: var(--color-primary);
+}
+.bg-brand-dark {
+  background-color: var(--color-primary-dark);
+}
+.border-brand {
+  border-color: var(--color-primary);
+}
+.focus-brand:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-primary);
 }

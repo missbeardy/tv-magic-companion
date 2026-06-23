@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useOrgProfiles } from '../hooks/useOrgProfiles'
 import EventModal from './EventModal'
 import BlackoutModal from './BlackoutModal'
 import { MobileResourceView } from './MobileResourceView'
@@ -164,6 +165,7 @@ function isLeaveEvent(e: Event): boolean {
 
 export default function Calendar() {
   const { profile } = useAuth()
+  const { fetchOrgProfiles } = useOrgProfiles()
   const [events, setEvents] = useState<Event[]>([])
   const [view, setView] = useState<ViewMode>('week')
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -260,13 +262,11 @@ export default function Calendar() {
     if (!profile) return
     fetchEvents()
     if (profile.role === 'manager') {
-      supabase
-        .from('profiles')
-        .select('id, full_name')
-        .eq('org_id', profile.org_id)
-        .then(({ data }) => { if (data) setEmployees(data) })
+      fetchOrgProfiles({ roles: ['employee', 'manager'] }).then((data) => {
+        setEmployees(data.map((p) => ({ id: p.id, full_name: p.full_name })))
+      })
     }
-  }, [profile, filterEmployee, currentDate, view])
+  }, [profile, filterEmployee, currentDate, view, fetchOrgProfiles])
 
   useEffect(() => {
     if (showAvailability) {

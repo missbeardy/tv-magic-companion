@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useOrgProfiles } from '../hooks/useOrgProfiles'
 import NavBar from '../components/NavBar'
 import AssignedLeads from '../components/AssignedLeads'
 import RevenueWidget from '../components/RevenueWidget'
@@ -59,6 +60,7 @@ function getGreeting() {
 
 export default function ManagerDashboard() {
   const { profile } = useAuth()
+  const { fetchOrgProfiles } = useOrgProfiles()
   const navigate = useNavigate()
   const [stats, setStats] = useState<StatsRow>({ unassigned: 0, assigned: 0, completed: 0, contact_attempted: 0 })
   const [techs, setTechs] = useState<TechRow[]>([])
@@ -92,15 +94,8 @@ export default function ManagerDashboard() {
         if (l.assigned_to) countMap[l.assigned_to] = (countMap[l.assigned_to] ?? 0) + 1
       })
 
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, full_name, avatar_url')
-        .eq('org_id', profile.org_id)
-        .in('role', ['employee', 'manager'])
-
-      if (profiles) {
-        setTechs(profiles.map(p => ({ ...p, activeCount: countMap[p.id] ?? 0 })))
-      }
+      const profiles = await fetchOrgProfiles({ roles: ['employee', 'manager'] })
+      setTechs(profiles.map((p) => ({ ...p, activeCount: countMap[p.id] ?? 0 })))
     }
 
     setLoading(false)

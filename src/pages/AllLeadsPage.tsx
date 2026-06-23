@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 import NavBar from '../components/NavBar'
 import CountdownTimer from '../components/CountdownTimer'
 
@@ -24,14 +25,18 @@ const STATUS_COLOURS: Record<string, string> = {
 }
 
 export default function AllLeadsPage() {
+  const { profile } = useAuth()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string>('all')
 
   async function fetchLeads() {
+    if (!profile?.org_id) return
+
     let query = supabase
       .from('leads')
       .select('*, profiles(full_name)')
+      .eq('org_id', profile.org_id)
       .order('created_at', { ascending: false })
 
     if (filter !== 'all') {
@@ -56,7 +61,7 @@ export default function AllLeadsPage() {
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [filter])
+  }, [filter, profile?.org_id])
 
   return (
     <div className="min-h-screen bg-gray-50">

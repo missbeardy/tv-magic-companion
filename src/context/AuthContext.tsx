@@ -2,11 +2,13 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 
-interface Profile {
+export type UserRole = 'manager' | 'employee' | 'platform_admin'
+
+export interface Profile {
   id: string
   email: string
   full_name: string | null
-  role: 'manager' | 'employee'
+  role: UserRole
   org_id: string
   avatar_url?: string
   phone?: string
@@ -39,14 +41,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   async function fetchProfile(userId: string) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
-      .single()
-    
+      .maybeSingle()
+
+    if (error) {
+      console.error('Failed to fetch profile:', error)
+      // Keep existing profile on transient/RLS errors — avoids login bounce loop
+      return
+    }
+
     if (data) {
-      setProfile(data)
+      setProfile(data as Profile)
+    } else {
+      setProfile(null)
     }
   }
 
@@ -77,6 +87,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut()
+    setUser(null)
+    setProfile(null)
   }
 
   return (
@@ -86,4 +98,5 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 }
 
+export type { Profile, UserRole }
 export const useAuth = () => useContext(AuthContext)

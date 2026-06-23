@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { getAuthHeaders } from '../lib/apiAuth'
+import { useAuth } from '../context/AuthContext'
 
 interface ExtractedLead {
   name: string
@@ -30,13 +32,14 @@ async function hashText(text: string): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-async function upsertCustomer(extracted: ExtractedLead): Promise<string | null> {
+async function upsertCustomer(extracted: ExtractedLead, orgId: string): Promise<string | null> {
   if (!extracted.email && !extracted.phone) return null
 
   if (extracted.email) {
     const { data: existing } = await supabase
       .from('customers')
       .select('id')
+      .eq('org_id', orgId)
       .eq('email', extracted.email)
       .maybeSingle()
 
@@ -46,6 +49,7 @@ async function upsertCustomer(extracted: ExtractedLead): Promise<string | null> 
   const { data: created, error } = await supabase
     .from('customers')
     .insert({
+      org_id: orgId,
       name: extracted.name,
       phone: extracted.phone,
       email: extracted.email,
@@ -64,6 +68,7 @@ async function upsertCustomer(extracted: ExtractedLead): Promise<string | null> 
 
 export default function EmailParser() {
   const navigate = useNavigate()
+  const { profile } = useAuth()
   const [rawEmail, setRawEmail] = useState('')
   const [extracted, setExtracted] = useState<ExtractedLead | null>(null)
   const [parsing, setParsing] = useState(false)
@@ -82,11 +87,10 @@ export default function EmailParser() {
     const model = getClaudeModel()
 
     try {
+      const headers = await getAuthHeaders()
       const response = await fetch('/api/anthropic', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           model,
           max_tokens: 1000,
@@ -158,12 +162,19 @@ ${rawEmail}`,
     setError('')
     setDuplicateWarning(null)
 
+    if (!profile?.org_id) {
+      setError('Organisation not found. Please sign in again.')
+      setSaving(false)
+      return
+    }
+
     try {
       const hash = await hashText(rawEmail)
 
       const { data: existingLead } = await supabase
         .from('leads')
         .select('id')
+        .eq('org_id', profile.org_id)
         .eq('email_hash', hash)
         .maybeSingle()
 
@@ -173,6 +184,7 @@ ${rawEmail}`,
         const { data: { user } } = await supabase.auth.getUser()
         await supabase.from('lead_events').insert({
           lead_id: existingLead.id,
+          org_id: profile.org_id,
           event_type: 'duplicate_blocked',
           payload: { email_hash: hash },
           actor_id: user?.id ?? null,
@@ -182,11 +194,12 @@ ${rawEmail}`,
         return
       }
 
-      const customerId = await upsertCustomer(extracted)
+      const customerId = await upsertCustomer(extracted, profile.org_id)
 
       const { data: lead, error: dbError } = await supabase
         .from('leads')
         .insert({
+          org_id: profile.org_id,
           name: extracted.name,
           phone: extracted.phone,
           email: extracted.email,
@@ -209,6 +222,7 @@ ${rawEmail}`,
       const { data: { user } } = await supabase.auth.getUser()
       await supabase.from('lead_events').insert({
         lead_id: lead.id,
+        org_id: profile.org_id,
         event_type: 'created',
         payload: {
           lead_source: extracted.lead_source,

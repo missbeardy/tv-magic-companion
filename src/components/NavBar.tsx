@@ -1,8 +1,9 @@
 // File: src/components/NavBar.tsx
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { supabase } from '../lib/supabase'
+import { useOrg } from '../context/OrgContext'
+import { useTheme } from '../context/ThemeContext'
 import { useDemo } from '../context/DemoContext'
 import NotificationBell from './NotificationBell'
 import {
@@ -18,56 +19,41 @@ import {
   User,
   ClipboardList,
   HelpCircle,
+  Building2,
 } from 'lucide-react'
 
 export default function NavBar() {
-  const { profile } = useAuth()
+  const { profile, signOut } = useAuth()
+  const { canAccessFeature } = useOrg()
+  const theme = useTheme()
   const { demoMode } = useDemo()
   const location = useLocation()
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
-  
-  // State to hold the dynamically loaded organization brand image
-  const [orgLogo, setOrgLogo] = useState<string | null>(null)
 
-  // Fetch the brand image when profile data becomes available
-  useEffect(() => {
-    async function fetchOrgLogo() {
-      if (!profile?.org_id) return
-      
-      try {
-        const { data, error } = await supabase
-          .from('orgs')
-          .select('logo_url')
-          .eq('id', profile.org_id)
-          .single()
-
-        if (!error && data?.logo_url) {
-          setOrgLogo(data.logo_url)
-        }
-      } catch (err) {
-        console.error('Error fetching org logo for NavBar:', err)
-      }
-    }
-
-    fetchOrgLogo()
-  }, [profile?.org_id])
+  const managerRoles = ['manager', 'platform_admin']
+  const allRoles = ['manager', 'employee', 'platform_admin']
 
   async function handleLogout() {
-    await supabase.auth.signOut()
+    await signOut()
     navigate('/login')
   }
 
   const navLinks = [
-    { to: '/',              label: 'Dashboard',          icon: LayoutDashboard, roles: ['manager', 'employee'] },
-    { to: '/leads',         label: 'Leads',              icon: Kanban,          roles: ['manager', 'employee'] },
-    { to: '/calendar',      label: 'Calendar',           icon: CalendarDays,    roles: ['manager', 'employee'] },
-    { to: '/tasks',         label: 'Tasks',              icon: ClipboardList,   roles: ['manager', 'employee'] },
-    { to: '/social',        label: 'Social',             icon: Share2,          roles: ['manager'] },
-    { to: '/org-settings',  label: 'Franchise Settings', icon: Settings,        roles: ['manager'] },
-    { to: '/support',       label: 'Support',            icon: HelpCircle,      roles: ['manager', 'employee'] },
-    { to: '/profile',       label: 'Profile',            icon: User,            roles: ['manager', 'employee'] },
-  ].filter(link => link.roles.includes(profile?.role ?? ''))
+    { to: '/',              label: 'Dashboard',          icon: LayoutDashboard, roles: allRoles, feature: null as string | null },
+    { to: '/leads',         label: 'Leads',              icon: Kanban,          roles: allRoles, feature: 'leads' },
+    { to: '/calendar',      label: 'Calendar',           icon: CalendarDays,    roles: allRoles, feature: 'calendar' },
+    { to: '/tasks',         label: 'Tasks',              icon: ClipboardList,   roles: allRoles, feature: 'tasks' },
+    { to: '/social',        label: 'Social',             icon: Share2,          roles: managerRoles, feature: 'social' },
+    { to: '/org-settings',  label: 'Franchise Settings', icon: Settings,        roles: managerRoles, feature: null },
+    { to: '/platform',      label: 'Platform',           icon: Building2,       roles: ['platform_admin'], feature: null },
+    { to: '/support',       label: 'Support',            icon: HelpCircle,      roles: allRoles, feature: null },
+    { to: '/profile',       label: 'Profile',            icon: User,            roles: allRoles, feature: null },
+  ].filter(link => {
+    if (!link.roles.includes(profile?.role ?? '')) return false
+    if (link.feature && !canAccessFeature(link.feature)) return false
+    return true
+  })
 
   function isActive(to: string) {
     if (to === '/') return location.pathname === '/'
@@ -76,7 +62,7 @@ export default function NavBar() {
 
   return (
     <>
-      <nav className="sticky top-0 z-40 bg-[#004B93] shadow-lg">
+      <nav className="sticky top-0 z-40 bg-brand shadow-lg">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between h-14">
 
@@ -91,22 +77,20 @@ export default function NavBar() {
               </button>
 
               <Link to="/" className="flex items-center gap-2 shrink-0">
-                {orgLogo ? (
-                  /* Renders uploaded image asset if found */
-                  <img 
-                    src={orgLogo} 
-                    alt="Brand Logo" 
-                    className="w-7 h-7 object-contain rounded bg-white p-0.5" 
+                {theme.logoUrl ? (
+                  <img
+                    src={theme.logoUrl}
+                    alt="Brand Logo"
+                    className="w-7 h-7 object-contain rounded bg-white p-0.5"
                   />
                 ) : (
-                  /* Fallback icon shell if no image upload found */
                   <div className="w-7 h-7 bg-white/15 rounded-lg flex items-center justify-center">
                     <Tv2 size={15} className="text-white" />
                   </div>
                 )}
-                
-                <span className="font-display font-800 text-white text-base tracking-tight leading-none">
-                  TV<span className="text-[#00B4C5]">Magic</span>
+
+                <span className="font-display font-800 text-white text-base tracking-tight leading-none max-w-[140px] truncate sm:max-w-none">
+                  {theme.displayName}
                 </span>
                 {demoMode && (
                   <span className="badge badge-amber ml-1">Demo</span>
@@ -163,7 +147,7 @@ export default function NavBar() {
 
         {/* Mobile menu */}
         {mobileOpen && (
-          <div className="md:hidden border-t border-white/10 bg-[#003d7a] animate-fade-in">
+          <div className="md:hidden border-t border-white/10 bg-brand-dark animate-fade-in">
             <div className="px-4 py-3 space-y-1">
               {navLinks.map(link => {
                 const Icon = link.icon

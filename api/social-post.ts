@@ -1,7 +1,8 @@
 // api/social-post.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { authenticateRequest } from './_lib/auth'
+import { canAccessFeature } from './_lib/tier'
 
-// Inlined rate limiter (no shared imports — ESM/Vercel fix)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
 function checkRateLimit(key: string, limit = 20, windowMs = 60_000): boolean {
   const now = Date.now()
@@ -20,14 +21,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const ip = (req.headers['x-forwarded-for'] as string) ?? 'unknown'
+  const auth = await authenticateRequest(req)
+  if (!auth) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  if (!['manager', 'platform_admin'].includes(auth.role)) {
+    return res.status(403).json({ error: 'Only managers can post to social' })
+  }
+
+  if (!canAccessFeature('social', auth.org.subscription_tier)) {
+    return res.status(403).json({
+      error: 'Social posting requires a Pro subscription',
+      code: 'tier_required',
+      requiredTier: 'pro',
+    })
+  }
+
+  const ip = (req.headers['x-forwarded-for'] as string) ?? auth.userId
   if (!checkRateLimit(ip)) {
     return res.status(429).json({ error: 'Too many requests. Please wait a moment.' })
   }
 
-  // These read the VITE_-prefixed names because that's how they're set in
-  // Vercel. The VITE_ prefix only matters if CLIENT code reads it via
-  // import.meta.env — this file runs server-side only, so it's not exposed.
   const apiKey = process.env.ZERNIO_API_KEY
   const igAccountId = process.env.ZERNIO_IG_ACCOUNT_ID
   const fbAccountId = process.env.ZERNIO_FB_ACCOUNT_ID

@@ -1,9 +1,15 @@
 import { Navigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import { useAuth, type UserRole } from '../context/AuthContext'
 
 interface Props {
   children: React.ReactNode
-  requiredRole?: 'manager' | 'employee'
+  requiredRole?: UserRole
+}
+
+function roleMatches(required: UserRole, actual: UserRole): boolean {
+  if (required === actual) return true
+  if (required === 'manager' && actual === 'platform_admin') return true
+  return false
 }
 
 export default function ProtectedRoute({ children, requiredRole }: Props) {
@@ -21,8 +27,7 @@ export default function ProtectedRoute({ children, requiredRole }: Props) {
     return <Navigate to="/login" replace />
   }
 
-  if (requiredRole && profile && profile.role !== requiredRole) {
-    // Wrong role for this page — send to dashboard
+  if (requiredRole && profile && !roleMatches(requiredRole, profile.role)) {
     return <Navigate to="/dashboard" replace />
   }
 

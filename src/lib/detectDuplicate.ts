@@ -15,13 +15,15 @@ export interface DuplicateCheckResult {
 }
 
 export async function checkForDuplicate(
-  rawEmail: string
+  rawEmail: string,
+  orgId: string
 ): Promise<DuplicateCheckResult> {
   const hash = await hashText(rawEmail);
 
   const { data } = await supabase
     .from('leads')
     .select('id')
+    .eq('org_id', orgId)
     .eq('email_hash', hash)
     .maybeSingle();
 

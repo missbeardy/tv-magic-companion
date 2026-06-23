@@ -1,5 +1,5 @@
 // src/hooks/useSocialPost.ts
-
+import { getAuthHeaders } from '../lib/apiAuth'
 interface ChannelSelection {
   igPost: boolean
   igStory: boolean
@@ -27,11 +27,10 @@ export async function postToSocial({
   channels,
 }: PostInput): Promise<PostResult> {
   try {
+    const headers = await getAuthHeaders()
     const response = await fetch('/api/social-post', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({ caption, mediaUrl, mediaType, channels }),
     })
 

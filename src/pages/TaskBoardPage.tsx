@@ -47,10 +47,12 @@ export default function TaskBoardPage() {
   const [completedOpen, setCompletedOpen] = useState(false)
 
   async function fetchTasks() {
+    if (!profile?.org_id) return
     setLoading(true)
     const { data, error } = await supabase
       .from('tasks')
       .select('*, task_items(*)')
+      .eq('org_id', profile.org_id)
       .order('created_at', { ascending: false })
     if (!error && data) {
       const filtered = (data as Task[]).filter(task => {
@@ -66,7 +68,7 @@ export default function TaskBoardPage() {
     setLoading(false)
   }
 
-  useEffect(() => { fetchTasks() }, [])
+  useEffect(() => { fetchTasks() }, [profile?.org_id])
 
   function resetForm() {
     setEditingTaskId(null)
@@ -97,6 +99,7 @@ export default function TaskBoardPage() {
     if (!newTitle.trim() || !user) return
     const validItems = formItems.filter(i => i.label.trim())
     if (validItems.length === 0) return
+    if (!profile?.org_id) return
     setSaving(true)
 
     if (editingTaskId) {
@@ -135,6 +138,7 @@ export default function TaskBoardPage() {
       const { data: taskData, error: taskError } = await supabase
         .from('tasks')
         .insert({
+          org_id: profile.org_id,
           title: newTitle.trim(),
           visibility: newVisibility,
           created_by: user.id,

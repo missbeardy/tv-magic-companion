@@ -1,9 +1,13 @@
 import { useState, useEffect, ChangeEvent } from 'react';
 import { supabase } from '../lib/supabase';
+import { useOrg } from '../context/OrgContext';
+import { applyThemeToDocument, resolveThemeTokens } from '../lib/theme';
+import { buildBrandTransferPayload } from '../lib/brandTransfer';
 import NavBar from '../components/NavBar';
 import UpsellSettingsPanel from '../components/settings/UpsellSettingsPanel';
 
 export default function OrgSettingsPage() {
+  const { org, brand, refreshOrg } = useOrg();
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
@@ -18,6 +22,7 @@ export default function OrgSettingsPage() {
   // Image upload states
   const [imageUrl, setImageUrl] = useState<string>('');
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [applyingBrand, setApplyingBrand] = useState(false);
 
   useEffect(() => {
     async function loadOrg() {
@@ -95,6 +100,34 @@ export default function OrgSettingsPage() {
     }
   }
 
+  async function handleApplyBrandTemplate() {
+    if (!orgId || !brand) return
+    setApplyingBrand(true)
+    setError('')
+    try {
+      const payload = buildBrandTransferPayload(brand)
+      const { error: updateError } = await supabase
+        .from('orgs')
+        .update(payload)
+        .eq('id', orgId)
+      if (updateError) throw updateError
+
+      setPrimaryColor(payload.primary_color)
+      setSecondaryColor(payload.secondary_color)
+      await refreshOrg()
+      applyThemeToDocument(resolveThemeTokens(
+        { name: orgName, logo_url: imageUrl, primary_color: payload.primary_color, secondary_color: payload.secondary_color },
+        brand
+      ))
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to apply brand template')
+    } finally {
+      setApplyingBrand(false)
+    }
+  }
+
   async function handleSave() {
     if (!orgId) {
       setError('Organisation not loaded. Please refresh and try again.');
@@ -119,6 +152,19 @@ export default function OrgSettingsPage() {
         .eq('id', orgId);
 
       if (updateError) throw updateError;
+
+      await refreshOrg();
+      applyThemeToDocument(
+        resolveThemeTokens(
+          {
+            name: orgName,
+            logo_url: imageUrl,
+            primary_color: primaryColor,
+            secondary_color: secondaryColor,
+          },
+          brand
+        )
+      );
 
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -199,6 +245,21 @@ export default function OrgSettingsPage() {
         {/* Brand Colors */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
           <p className="text-sm font-semibold text-gray-700">🎨 Brand Colors</p>
+          <div className="flex gap-2 rounded-lg overflow-hidden h-10 border border-gray-200">
+            <div className="flex-1" style={{ backgroundColor: primaryColor }} title="Primary (nav bar)" />
+            <div className="flex-1" style={{ backgroundColor: secondaryColor }} title="Secondary" />
+          </div>
+          <p className="text-xs text-gray-400">Bar above shows your picks; nav bar updates after Save</p>
+          {brand && (
+            <button
+              type="button"
+              onClick={handleApplyBrandTemplate}
+              disabled={applyingBrand || loading}
+              className="text-xs text-gray-600 hover:text-gray-900 underline disabled:opacity-50"
+            >
+              {applyingBrand ? 'Applying brand template…' : `Reset colors & upsells from ${brand.name} template`}
+            </button>
+          )}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Primary Color</label>
             <div className="flex items-center gap-2">
@@ -289,7 +350,7 @@ export default function OrgSettingsPage() {
         <button
           onClick={handleSave}
           disabled={loading || uploadingImage}
-          className="w-full bg-[#004B93] text-white py-2 rounded-lg text-sm font-medium hover:bg-[#003d7a] transition disabled:opacity-50"
+          className="w-full btn-primary py-2 rounded-lg text-sm font-medium transition disabled:opacity-50"
         >
           {loading ? 'Saving...' : 'Save Settings'}
         </button>

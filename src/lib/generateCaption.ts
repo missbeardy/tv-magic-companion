@@ -1,12 +1,13 @@
+import { getAuthHeaders } from './apiAuth'
+
 export async function generateCaption(
   userInput: string,
   jobContext: string
 ): Promise<string> {
+  const headers = await getAuthHeaders()
   const response = await fetch('/api/anthropic', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({
       model: 'claude-haiku-4-5',
       max_tokens: 300,

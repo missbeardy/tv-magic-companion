@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useNavigate, Link } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import { useAuth, type Profile } from '../context/AuthContext'
 import { Mail, Lock, LogIn } from 'lucide-react'
 
 export default function Login() {
@@ -16,22 +16,55 @@ export default function Login() {
     setLoading(true)
     setError('')
     try {
-      const { error: e } = await supabase.auth.signInWithPassword({ email, password })
+      const { data: authData, error: e } = await supabase.auth.signInWithPassword({ email, password })
       if (e) {
-        setError('Invalid email or password')
+        const detail = import.meta.env.DEV ? `: ${e.message}` : ''
+        setError(`Sign in failed${detail}`)
         setLoading(false)
-      } else {
-        const { data: sessionData } = await supabase.auth.getSession()
-        if (sessionData?.session?.user) {
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', sessionData.session.user.id)
-            .single()
-          if (profileData) setProfile(profileData)
-        }
-        navigate('/')
+        return
       }
+
+      const userId = authData.user?.id ?? authData.session?.user?.id
+      if (!userId) {
+        setError('Sign in succeeded but no session was returned. Try again.')
+        setLoading(false)
+        return
+      }
+
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle()
+
+      if (profileError) {
+        const detail = import.meta.env.DEV ? ` (${profileError.message})` : ''
+        setError(`Could not load your profile. Check dev database setup.${detail}`)
+        console.error('Profile fetch error:', profileError)
+        await supabase.auth.signOut()
+        setLoading(false)
+        return
+      }
+
+      if (!profileData) {
+        setError(
+          'No profile found for this account. Run supabase/migrations/20250622140000_fix_existing_dev_minimal.sql in dev Supabase.'
+        )
+        await supabase.auth.signOut()
+        setLoading(false)
+        return
+      }
+
+      if (!profileData.org_id) {
+        setError('Your profile is not linked to an organisation. Run the dev seed SQL.')
+        await supabase.auth.signOut()
+        setLoading(false)
+        return
+      }
+
+      setProfile(profileData as Profile)
+      navigate('/')
+      setLoading(false)
     } catch (err) {
       setError('An unexpected error occurred')
       setLoading(false)
@@ -52,9 +85,9 @@ export default function Login() {
             />
           </div>
           <h1 className="font-display font-bold text-gray-900 text-2xl tracking-tight">
-            TV<span className="text-[#00B4C5]">Magic</span>
+            FieldBourne <span className="text-brand-secondary">Companion</span>
           </h1>
-          <p className="text-gray-400 text-sm mt-1">Companion</p>
+          <p className="text-gray-400 text-sm mt-1">Sign in to your franchise</p>
         </div>
 
         {/* Card */}
@@ -80,7 +113,7 @@ export default function Login() {
               onChange={e => setEmail(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleLogin()}
               placeholder="you@company.com"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:border-[#004B93] transition-colors"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:border-brand transition-colors"
             />
           </div>
 
@@ -94,14 +127,14 @@ export default function Login() {
               onChange={e => setPassword(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleLogin()}
               placeholder="••••••••"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:border-[#004B93] transition-colors"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:border-brand transition-colors"
             />
           </div>
 
           <button
             onClick={handleLogin}
             disabled={loading}
-            className="w-full py-2.5 rounded-xl bg-[#004B93] text-white text-sm font-semibold hover:bg-[#003d7a] transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+            className="w-full py-2.5 rounded-xl btn-primary text-sm font-semibold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
           >
             <LogIn size={15} />
             {loading ? 'Signing in…' : 'Sign in'}
@@ -109,7 +142,7 @@ export default function Login() {
 
           {/* Forgot password */}
           <p className="text-center text-xs text-gray-400">
-            <Link to="/forgot-password" className="text-[#004B93] hover:underline">
+            <Link to="/forgot-password" className="text-brand-secondary hover:underline">
               Forgot your password?
             </Link>
           </p>

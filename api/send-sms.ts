@@ -1,7 +1,9 @@
 // api/send-sms.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { authenticateRequest } from './_lib/auth'
+import { buildSmsFromBrand } from './_lib/smsTemplates'
+import { getPlatformUrl } from './_lib/platformUrl'
 
-// Inlined rate limiter (no shared imports — ESM/Vercel fix)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
 function checkRateLimit(key: string, limit = 20, windowMs = 60_000): boolean {
   const now = Date.now()
@@ -20,7 +22,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const ip = (req.headers['x-forwarded-for'] as string) ?? 'unknown'
+  const auth = await authenticateRequest(req)
+  if (!auth) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  const ip = (req.headers['x-forwarded-for'] as string) ?? auth.userId
   if (!checkRateLimit(ip)) {
     return res.status(429).json({ error: 'Too many requests. Please wait a moment.' })
   }
@@ -39,29 +46,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Missing required field: to' })
   }
 
-  const sid   = process.env.TWILIO_ACCOUNT_SID
+  const sid = process.env.TWILIO_ACCOUNT_SID
   const token = process.env.TWILIO_AUTH_TOKEN
-  const from  = process.env.TWILIO_FROM_NUMBER
+  const from = process.env.TWILIO_FROM_NUMBER
 
   if (!sid || !token || !from) {
     return res.status(500).json({ error: 'Twilio env vars not configured' })
   }
 
+  const orgName = auth.org.name
+  const platformUrl = getPlatformUrl()
   let message: string
 
   if (mode === 'tech_assignment') {
-    // SMS to technician when a lead is assigned to them
     if (!leadName || !serviceType) {
       return res.status(400).json({ error: 'Missing leadName or serviceType for tech_assignment mode' })
     }
-    message = `TVMagic: You've been assigned a new lead — ${leadName} (${serviceType}). Open the app to view details: https://tv-magic-companion.vercel.app/leads`
+    message = buildSmsFromBrand(
+      auth.brand?.sms_templates,
+      'tech_assignment',
+      {
+        'org.name': orgName,
+        leadName,
+        serviceType,
+        appUrl: `${platformUrl}/leads`,
+      },
+      `${orgName}: You've been assigned {{leadName}} ({{serviceType}}). Open the app: {{appUrl}}`
+    )
   } else {
-    // Default: customer ETA message
     if (!customerName || !address) {
       return res.status(400).json({ error: 'Missing customerName or address for ETA mode' })
     }
     const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}&travelmode=driving`
-    message = `Hi ${customerName}, your TVMagic engineer ${techName ?? 'your technician'} is on their way. Track the route: ${mapsUrl} — TVMagic Team`
+    message = buildSmsFromBrand(
+      auth.brand?.sms_templates,
+      'customer_ontheway',
+      {
+        'org.name': orgName,
+        customerName,
+        techName: techName ?? 'your technician',
+        serviceType: serviceType ?? 'service',
+        mapsUrl,
+      },
+      `Hi {{customerName}}, {{techName}} from {{org.name}} is on their way. Track the route: {{mapsUrl}}`
+    )
   }
 
   const bodyParams = new URLSearchParams({ To: to, From: from, Body: message })

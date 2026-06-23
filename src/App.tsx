@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { DemoProvider } from './context/DemoContext'
 import { OrgProvider } from './context/OrgContext'
+import { ThemeProvider } from './context/ThemeContext'
 import { useAuth } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Login from './pages/Login'
@@ -19,6 +20,7 @@ import ProfilePage from './pages/ProfilePage'
 import SocialPage from './pages/SocialPage'
 import TaskBoardPage from './pages/TaskBoardPage'
 import OrgSettingsPage from './pages/OrgSettingsPage'
+import PlatformAdminPage from './pages/PlatformAdminPage'
 import { useEffect } from 'react'
 import { useTechLocation } from './hooks/useTechLocation'
 import { initOneSignal, setOneSignalUser, clearOneSignalUser } from './lib/oneSignal'
@@ -40,7 +42,7 @@ function Dashboard() {
 
   if (loading) return <p className="p-4 text-gray-400">Loading...</p>
   if (!profile) return <Navigate to="/login" replace />
-  if (profile.role === 'manager') return <ManagerDashboard />
+  if (profile.role === 'manager' || profile.role === 'platform_admin') return <ManagerDashboard />
   return <EmployeeDashboard />
 }
 
@@ -64,6 +66,7 @@ function App() {
     <AuthProvider>
       <DemoProvider>
         <OrgProvider>
+          <ThemeProvider>
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -152,10 +155,19 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/platform"
+                element={
+                  <ProtectedRoute requiredRole="platform_admin">
+                    <PlatformAdminPage />
+                  </ProtectedRoute>
+                }
+              />
               <Route path="/test" element={<p style={{ padding: 20 }}>Test page works</p>} />
               <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
           </BrowserRouter>
+          </ThemeProvider>
         </OrgProvider>
       </DemoProvider>
     </AuthProvider>

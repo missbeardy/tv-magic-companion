@@ -1,23 +1,12 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
-
-export interface Org {
-  id: string;
-  name: string;
-  slug: string;
-  logo_url: string | null;
-  primary_color: string;
-  secondary_color: string;
-  support_phone: string | null;
-  support_email: string | null;
-  subscription_tier: 'basic' | 'pro' | 'enterprise';
-  subscription_expires_at: string | null;
-  lead_count_this_month: number;
-}
+import { canAccessFeature as checkFeature, type FeatureKey } from '../lib/features';
+import type { Brand, Org } from '../types/org';
 
 interface OrgContextType {
   org: Org | null;
+  brand: Brand | null;
   loading: boolean;
   refreshOrg: () => Promise<void>;
   canAccessFeature: (feature: string) => boolean;
@@ -26,18 +15,12 @@ interface OrgContextType {
 
 const OrgContext = createContext<OrgContextType>({
   org: null,
+  brand: null,
   loading: true,
   refreshOrg: async () => {},
   canAccessFeature: () => false,
   getRemainingLeads: () => 0,
 });
-
-// Feature availability by tier
-const TIER_FEATURES: Record<string, string[]> = {
-  basic: ['leads', 'calendar', 'notifications', 'profile'],
-  pro: ['leads', 'calendar', 'notifications', 'profile', 'ai_parsing', 'social_posting', 'reports', 'task_board'],
-  enterprise: ['leads', 'calendar', 'notifications', 'profile', 'ai_parsing', 'social_posting', 'reports', 'task_board', 'api_access', 'unlimited_leads'],
-};
 
 const TIER_LIMITS: Record<string, { maxEmployees: number; maxLeadsPerMonth: number }> = {
   basic: { maxEmployees: 3, maxLeadsPerMonth: 100 },
@@ -45,14 +28,33 @@ const TIER_LIMITS: Record<string, { maxEmployees: number; maxLeadsPerMonth: numb
   enterprise: { maxEmployees: 9999, maxLeadsPerMonth: 999999 },
 };
 
+function mapBrand(row: Record<string, unknown> | null): Brand | null {
+  if (!row) return null;
+  return {
+    id: row.id as string,
+    name: row.name as string,
+    slug: row.slug as string,
+    vertical: (row.vertical as string) || 'general',
+    logo_url: (row.logo_url as string | null) ?? null,
+    primary_color: (row.primary_color as string) || '#004B93',
+    secondary_color: (row.secondary_color as string) || '#00B4C5',
+    sms_templates: (row.sms_templates as Record<string, string>) || {},
+    ai_config: (row.ai_config as Record<string, unknown>) || {},
+    upsell_items: (row.upsell_items as Brand['upsell_items']) || [],
+    is_active: row.is_active !== false,
+  };
+}
+
 export function OrgProvider({ children }: { children: React.ReactNode }) {
   const { profile } = useAuth();
   const [org, setOrg] = useState<Org | null>(null);
+  const [brand, setBrand] = useState<Brand | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function refreshOrg() {
     if (!profile?.org_id) {
       setOrg(null);
+      setBrand(null);
       setLoading(false);
       return;
     }
@@ -65,8 +67,20 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
 
     if (error) {
       console.error('Failed to fetch org:', error);
+      setOrg(null);
+      setBrand(null);
     } else {
-      setOrg(data);
+      setOrg(data as Org);
+      if (data?.brand_id) {
+        const { data: brandData } = await supabase
+          .from('brands')
+          .select('*')
+          .eq('id', data.brand_id)
+          .maybeSingle();
+        setBrand(mapBrand(brandData));
+      } else {
+        setBrand(null);
+      }
     }
     setLoading(false);
   }
@@ -76,9 +90,7 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
   }, [profile?.org_id]);
 
   function canAccessFeature(feature: string): boolean {
-    if (!org) return false;
-    const features = TIER_FEATURES[org.subscription_tier] || TIER_FEATURES.basic;
-    return features.includes(feature);
+    return checkFeature(feature as FeatureKey, org?.subscription_tier);
   }
 
   function getRemainingLeads(): number {
@@ -88,10 +100,11 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <OrgContext.Provider value={{ org, loading, refreshOrg, canAccessFeature, getRemainingLeads }}>
+    <OrgContext.Provider value={{ org, brand, loading, refreshOrg, canAccessFeature, getRemainingLeads }}>
       {children}
     </OrgContext.Provider>
   );
 }
 
 export const useOrg = () => useContext(OrgContext);
+export type { Org, Brand };

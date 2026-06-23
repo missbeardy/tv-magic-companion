@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import NavBar from '../components/NavBar'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 import { generateCaption } from '../lib/generateCaption'
 import { postToSocial } from '../hooks/useSocialPost'
 import { uploadMedia } from '../lib/uploadMedia'
@@ -25,6 +26,7 @@ function isVideoUrl(url: string): boolean {
 const PHOTOS_PER_PAGE = 20
 
 export default function SocialPage() {
+  const { profile } = useAuth()
   const [step, setStep] = useState<1 | 2 | 3>(1)
 
   // Step 1 state
@@ -67,12 +69,13 @@ export default function SocialPage() {
   // Load completed job photos from Supabase Storage
   useEffect(() => {
     async function loadPhotos() {
+      if (!profile?.org_id) return
       setLoadingPhotos(true)
 
-      // Query lead_photos table directly, filtering to completed leads only
       const { data: photos, error } = await supabase
         .from('lead_photos')
-        .select('id, public_url, storage_path, created_at, leads!inner(status)')
+        .select('id, public_url, storage_path, created_at, leads!inner(status, org_id)')
+        .eq('org_id', profile.org_id)
         .eq('leads.status', 'completed')
         .order('created_at', { ascending: false })
         .limit(PHOTOS_PER_PAGE)
@@ -96,7 +99,7 @@ export default function SocialPage() {
     }
 
     loadPhotos()
-  }, [])
+  }, [profile?.org_id])
 
   function handleSelectJobPhoto(photo: JobPhoto) {
     setSelectedUrl(photo.url)

@@ -5,6 +5,9 @@ import { useDemo } from '../context/DemoContext'
 import { useAuth } from '../context/AuthContext'
 import { geocodeAddress, rankTechsByDistance, type TechWithDistance } from '../lib/proximity'
 import { sendNotification } from '../lib/notify'
+import { getPlatformUrl } from '../lib/env'
+import { getAuthHeaders } from '../lib/apiAuth'
+import { useOrgProfiles } from '../hooks/useOrgProfiles'
 import { X, MapPin, Zap, Navigation, Star } from 'lucide-react'
 
 interface Lead {
@@ -23,6 +26,7 @@ interface Props {
 export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
   const { demoMode } = useDemo()
   const { profile } = useAuth()
+  const { fetchOrgProfiles } = useOrgProfiles()
   const [employees, setEmployees] = useState<TechWithDistance[]>([])
   const [countMap, setCountMap] = useState<Record<string, number>>({})
   const [saving, setSaving] = useState(false)
@@ -31,16 +35,9 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
 
   useEffect(() => {
     async function fetchData() {
-      // 1. Fetch raw personnel data matching the organization
-      const { data: employeeData } = await supabase
-        .from('profiles')
-        .select('id, full_name, avatar_url, phone, suburb, role, lat, lng')
-        .eq('org_id', profile?.org_id)
-        .in('role', ['employee', 'manager'])
+      const employeeData = await fetchOrgProfiles({ roles: ['employee', 'manager'] })
+      if (!employeeData.length && !profile?.org_id) return
 
-      if (!employeeData) return
-
-      // 2. Filter down the roster if the user is an employee
       const visibleEmployees = profile?.role === 'employee'
         ? employeeData.filter(emp => emp.id === profile.id)
         : employeeData
@@ -48,6 +45,7 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
       const { data: activeCounts } = await supabase
         .from('leads')
         .select('assigned_to')
+        .eq('org_id', profile?.org_id)
         .eq('status', 'assigned')
 
       const counts: Record<string, number> = {}
@@ -113,7 +111,7 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
       employeeId,
       'New Lead Assigned',
       `You've been assigned: ${lead.name} — ${lead.service_type}`,
-      'https://tv-magic-companion.vercel.app/leads'
+      `${getPlatformUrl()}/leads`
     )
 
     // SMS notification to technician's phone
@@ -121,9 +119,10 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
     const techPhone = (assignedEmployee as any)?.phone as string | null | undefined
     if (techPhone) {
       try {
+        const headers = await getAuthHeaders()
         await fetch('/api/send-sms', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({
             mode: 'tech_assignment',
             to: techPhone,
