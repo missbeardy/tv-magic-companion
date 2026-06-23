@@ -13,6 +13,11 @@ export async function alertManagersOnNewLead(leadId: string): Promise<void> {
     if (!response.ok) {
       const error = await response.json();
       console.error('Manager alert failed:', error);
+      return;
+    }
+    const data = await response.json();
+    if (data.skipped) {
+      console.warn('Manager alert skipped:', data.reason);
     }
   } catch (err) {
     console.error('Failed to alert managers:', err);

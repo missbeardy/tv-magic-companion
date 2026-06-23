@@ -1,6 +1,7 @@
 // api/inbound-email.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
+import { OPERATIONAL_MANAGER_ROLES } from './_lib/managerRoles.js'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -129,7 +130,7 @@ async function notifyManagers(orgId: string, message: string) {
     .from('profiles')
     .select('id')
     .eq('org_id', orgId)
-    .eq('role', 'manager')
+    .in('role', [...OPERATIONAL_MANAGER_ROLES])
 
   if (!managers?.length) return
 

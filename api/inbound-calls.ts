@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
+import { OPERATIONAL_MANAGER_ROLES } from './_lib/managerRoles.js'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -116,7 +117,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { data: managers } = await supabase
       .from('profiles')
       .select('id')
-      .eq('role', 'manager')
+      .in('role', [...OPERATIONAL_MANAGER_ROLES])
       .eq('org_id', orgId)
 
     if (managers?.length) {

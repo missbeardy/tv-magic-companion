@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from './supabaseAdmin.js'
 import { buildSmsFromBrand } from './smsTemplates.js'
 import { getPlatformUrl } from './platformUrl.js'
+import { OPERATIONAL_MANAGER_ROLES } from './managerRoles.js'
 
 export interface NewLeadRecord {
   id?: string
@@ -27,7 +28,7 @@ export async function notifyManagersNewLead(
     .from('profiles')
     .select('id, phone')
     .eq('org_id', lead.org_id)
-    .eq('role', 'manager')
+    .in('role', [...OPERATIONAL_MANAGER_ROLES])
 
   if (!managers?.length) {
     return { notified: 0, skipped: 'No managers found for org' }
