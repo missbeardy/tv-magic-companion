@@ -1,5 +1,6 @@
 // api/geocode.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { authenticateRequest } from './_lib/auth.js'
 
 // Inlined rate limiter (no shared imports — ESM/Vercel fix)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
@@ -28,7 +29,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const ip = (req.headers['x-forwarded-for'] as string) ?? 'unknown'
+  const auth = await authenticateRequest(req)
+  if (!auth) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  const ip = (req.headers['x-forwarded-for'] as string) ?? auth.userId
   if (!checkRateLimit(ip)) {
     return res.status(429).json({ error: 'Too many requests. Please wait a moment.' })
   }

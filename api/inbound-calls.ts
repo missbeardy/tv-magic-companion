@@ -62,12 +62,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const orgId = didMapping?.org_id || null
 
-    // Check for duplicate (same number in last 24 hours)
+    // Check for duplicate (same number in last 24 hours) WITHIN THE SAME ORG.
+    // Without the org_id filter, two franchises sharing a caller number would
+    // cross-contaminate each other's lead/event data.
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
     const { data: existingLead } = await supabase
       .from('leads')
       .select('id')
       .eq('phone', normalizedPhone)
+      .eq('org_id', orgId)
       .gte('created_at', twentyFourHoursAgo)
       .maybeSingle()
 

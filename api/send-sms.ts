@@ -1,6 +1,7 @@
 // api/send-sms.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { authenticateRequest } from './_lib/auth.js'
+import { getSupabaseAdmin } from './_lib/supabaseAdmin.js'
 import { buildSmsFromBrand } from './_lib/smsTemplates.js'
 import { getPlatformUrl } from './_lib/platformUrl.js'
 
@@ -15,6 +16,59 @@ function checkRateLimit(key: string, limit = 20, windowMs = 60_000): boolean {
   if (entry.count >= limit) return false
   entry.count++
   return true
+}
+
+/** Candidate formats for an AU phone so DB lookups match regardless of stored format. */
+function phoneCandidates(input: string): string[] {
+  const digits = input.replace(/[^0-9+]/g, '')
+  const set = new Set<string>([input.trim(), digits])
+  let national = digits.replace(/^\+?61/, '0').replace(/^\+/, '')
+  if (national && !national.startsWith('0')) national = '0' + national
+  if (national) {
+    set.add(national)
+    set.add('+61' + national.slice(1))
+    set.add('61' + national.slice(1))
+  }
+  return [...set].filter(Boolean)
+}
+
+/** True if `to` belongs to a lead or customer in the caller's org. */
+async function phoneBelongsToOrg(to: string, orgId: string): Promise<boolean> {
+  const supabase = getSupabaseAdmin()
+  if (!supabase) return false
+  const candidates = phoneCandidates(to)
+
+  const { data: lead } = await supabase
+    .from('leads')
+    .select('id')
+    .eq('org_id', orgId)
+    .in('phone', candidates)
+    .limit(1)
+    .maybeSingle()
+  if (lead) return true
+
+  const { data: customer } = await supabase
+    .from('customers')
+    .select('id')
+    .eq('org_id', orgId)
+    .in('phone', candidates)
+    .limit(1)
+    .maybeSingle()
+  return Boolean(customer)
+}
+
+/** True if `to` is the phone of a team member (technician/manager) in the org. */
+async function technicianInOrg(to: string, orgId: string): Promise<boolean> {
+  const supabase = getSupabaseAdmin()
+  if (!supabase) return false
+  const { data } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('org_id', orgId)
+    .in('phone', phoneCandidates(to))
+    .limit(1)
+    .maybeSingle()
+  return Boolean(data)
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -44,6 +98,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!to) {
     return res.status(400).json({ error: 'Missing required field: to' })
+  }
+
+  // Only allow texting numbers that exist on a lead/customer in the caller's org.
+  // For tech_assignment, `to` is a technician — allow org members too.
+  const allowed =
+    (mode === 'tech_assignment' &&
+      (await technicianInOrg(to, auth.orgId))) ||
+    (await phoneBelongsToOrg(to, auth.orgId))
+
+  if (!allowed) {
+    return res.status(400).json({ error: 'Recipient is not a contact in your organisation' })
   }
 
   const sid = process.env.TWILIO_ACCOUNT_SID

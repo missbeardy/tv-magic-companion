@@ -58,6 +58,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(403).json({ error: 'You can only invite team members into your own organisation' });
   }
 
+  // ── Step 3b: Restrict which role can be granted (privilege escalation) ─
+  // Managers can only create 'employee'. Only a platform_admin can mint
+  // 'manager' or 'platform_admin' accounts.
+  const ALLOWED_ROLES = ['employee', 'manager', 'platform_admin'];
+  if (!ALLOWED_ROLES.includes(role)) {
+    return res.status(400).json({ error: 'Invalid role' });
+  }
+
+  const isPlatformAdmin = callerProfile.role === 'platform_admin';
+  if (!isPlatformAdmin && role !== 'employee') {
+    return res.status(403).json({
+      error: 'Managers can only invite employees. Ask a platform admin to create manager or admin accounts.',
+    });
+  }
+
   const redirectUrl = 'https://tv-magic-companion.vercel.app/set-password';
 
   try {

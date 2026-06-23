@@ -1,5 +1,7 @@
 // api/send-notification.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { authenticateRequest } from './_lib/auth.js'
+import { getSupabaseAdmin } from './_lib/supabaseAdmin.js'
 
 // Inlined rate limiter (no shared imports — ESM/Vercel fix)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
@@ -20,7 +22,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const ip = (req.headers['x-forwarded-for'] as string) ?? 'unknown'
+  const auth = await authenticateRequest(req)
+  if (!auth) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  const ip = (req.headers['x-forwarded-for'] as string) ?? auth.userId
   if (!checkRateLimit(ip)) {
     return res.status(429).json({ error: 'Too many requests. Please wait a moment.' })
   }
@@ -29,6 +36,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!userId || !title || !message) {
     return res.status(400).json({ error: 'Missing required fields' })
+  }
+
+  // Only notify users inside the caller's own org (prevents cross-tenant spam/phishing).
+  const supabase = getSupabaseAdmin()
+  if (!supabase) {
+    return res.status(503).json({ error: 'Server not configured' })
+  }
+
+  const { data: target, error: targetError } = await supabase
+    .from('profiles')
+    .select('org_id')
+    .eq('id', userId)
+    .maybeSingle()
+
+  if (targetError || !target || target.org_id !== auth.orgId) {
+    return res.status(403).json({ error: 'Cannot notify a user outside your organisation' })
   }
 
   const appId  = process.env.ONESIGNAL_APP_ID

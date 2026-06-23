@@ -1,3 +1,5 @@
+import { getAuthHeaders } from './apiAuth';
+
 export async function sendNotification(
   userId: string,
   title: string,
@@ -5,9 +7,10 @@ export async function sendNotification(
   url?: string
 ): Promise<void> {
   try {
+    const headers = await getAuthHeaders();
     const response = await fetch('/api/send-notification', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ userId, title, message, url }),
     });
 
