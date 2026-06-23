@@ -4,7 +4,25 @@
 -- Idempotent where possible. Skip any statement that errors "already exists".
 -- =============================================================================
 
--- ── 1. Profile RLS helper (fixes recursion / profile load) ─────────────────
+-- ── 1. Profile columns FIRST (RLS policies below reference these) ────────────
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS first_name text,
+  ADD COLUMN IF NOT EXISTS last_name text,
+  ADD COLUMN IF NOT EXISTS manager_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS avatar_url text,
+  ADD COLUMN IF NOT EXISTS phone text,
+  ADD COLUMN IF NOT EXISTS suburb text,
+  ADD COLUMN IF NOT EXISTS lat double precision,
+  ADD COLUMN IF NOT EXISTS lng double precision,
+  ADD COLUMN IF NOT EXISTS location_enabled boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS location_updated_at timestamptz,
+  ADD COLUMN IF NOT EXISTS push_enabled boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS is_hidden_test_profile boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS test_profile_owner_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+
+-- ── 2. Profile RLS helper (fixes recursion / profile load) ───────────────────
 CREATE OR REPLACE FUNCTION public.current_user_org_id()
 RETURNS uuid
 LANGUAGE sql
@@ -40,7 +58,7 @@ CREATE POLICY orgs_select_own ON public.orgs
   FOR SELECT TO authenticated
   USING (id = public.current_user_org_id());
 
--- ── 2. Brands + org branding columns ───────────────────────────────────────
+-- ── 3. Brands + org branding columns ───────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.brands (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name            text NOT NULL,
@@ -171,24 +189,6 @@ CREATE POLICY orgs_update_manager ON public.orgs
         AND p.org_id = orgs.id
     )
   );
-
--- ── 3. Profile columns (additive) ──────────────────────────────────────────
-ALTER TABLE public.profiles
-  ADD COLUMN IF NOT EXISTS first_name text,
-  ADD COLUMN IF NOT EXISTS last_name text,
-  ADD COLUMN IF NOT EXISTS manager_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS avatar_url text,
-  ADD COLUMN IF NOT EXISTS phone text,
-  ADD COLUMN IF NOT EXISTS suburb text,
-  ADD COLUMN IF NOT EXISTS lat double precision,
-  ADD COLUMN IF NOT EXISTS lng double precision,
-  ADD COLUMN IF NOT EXISTS location_enabled boolean NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS location_updated_at timestamptz,
-  ADD COLUMN IF NOT EXISTS push_enabled boolean NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS is_hidden_test_profile boolean NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS test_profile_owner_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now(),
-  ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
 
 -- ── 4. Stripe billing columns ───────────────────────────────────────────────
 ALTER TABLE public.orgs
