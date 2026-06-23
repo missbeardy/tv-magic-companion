@@ -29,8 +29,8 @@ export function canAccessFeature(
   tier: Org['subscription_tier'] | undefined
 ): boolean {
   if (!isPlatformFeaturesEnabled()) return true
-  if (!tier) return false
+  const effectiveTier = tier ?? 'basic'
   const def = FEATURES[feature]
   if (!def) return false
-  return tierIncludes(tier, def.tier)
+  return tierIncludes(effectiveTier, def.tier)
 }
