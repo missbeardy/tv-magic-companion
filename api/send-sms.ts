@@ -71,13 +71,20 @@ async function technicianInOrg(to: string, orgId: string): Promise<boolean> {
   return Boolean(data)
 }
 
-/** Push notification via OneSignal — only to users inside the caller's org. */
+/**
+ * Notify a user inside the caller's org:
+ *  1. Inserts a row into `notifications` (feeds the in-app bell — service role
+ *     bypasses the user_id=auth.uid() RLS so a manager can notify an employee).
+ *  2. Best-effort OneSignal device push.
+ */
 async function handleNotify(req: VercelRequest, res: VercelResponse, auth: AuthContext) {
-  const { userId, title, message, url } = req.body as {
+  const { userId, title, message, url, type, leadId } = req.body as {
     userId?: string
     title?: string
     message?: string
     url?: string
+    type?: string
+    leadId?: string
   }
 
   if (!userId || !title || !message) {
@@ -99,40 +106,48 @@ async function handleNotify(req: VercelRequest, res: VercelResponse, auth: AuthC
     return res.status(403).json({ error: 'Cannot notify a user outside your organisation' })
   }
 
+  // 1. In-app bell notification (DB row). This is what the bell reads.
+  const { error: insertError } = await supabase.from('notifications').insert({
+    user_id: userId,
+    title,
+    message,
+    type: type ?? 'lead_assigned',
+    read: false,
+    org_id: auth.orgId,
+    ...(leadId ? { lead_id: leadId } : {}),
+    created_at: new Date().toISOString(),
+  })
+  if (insertError) {
+    console.error('Notification insert failed:', insertError)
+    return res.status(500).json({ error: 'Failed to record notification' })
+  }
+
+  // 2. Best-effort device push (don't fail the request if OneSignal is down).
   const appId = process.env.ONESIGNAL_APP_ID
   const apiKey = process.env.ONESIGNAL_API_KEY
-  if (!appId || !apiKey) {
-    return res.status(500).json({ error: 'OneSignal not configured' })
-  }
-
-  try {
-    const response = await fetch('https://onesignal.com/api/v1/notifications', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Basic ${apiKey}`,
-      },
-      body: JSON.stringify({
-        app_id: appId,
-        target_channel: 'push',
-        include_aliases: { external_id: [userId] },
-        headings: { en: title },
-        contents: { en: message },
-        url: url || `${getPlatformUrl()}/leads`,
-      }),
-    })
-
-    const data = (await response.json()) as { id?: string; errors?: unknown }
-    if (!response.ok) {
-      console.error('OneSignal error:', data)
-      return res.status(500).json({ error: 'Failed to send notification', details: data })
+  if (appId && apiKey) {
+    try {
+      await fetch('https://onesignal.com/api/v1/notifications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Basic ${apiKey}`,
+        },
+        body: JSON.stringify({
+          app_id: appId,
+          target_channel: 'push',
+          include_aliases: { external_id: [userId] },
+          headings: { en: title },
+          contents: { en: message },
+          url: url || `${getPlatformUrl()}/leads`,
+        }),
+      })
+    } catch (err) {
+      console.error('OneSignal push failed (non-fatal):', err)
     }
-
-    return res.status(200).json({ success: true, id: data.id })
-  } catch (err) {
-    console.error('send-notification error:', err)
-    return res.status(500).json({ error: 'Internal server error' })
   }
+
+  return res.status(200).json({ success: true })
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
