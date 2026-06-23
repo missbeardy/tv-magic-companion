@@ -42,7 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(403).json({ error: 'Caller profile not found' });
   }
 
-  if (callerProfile.role !== 'manager') {
+  if (!['manager', 'platform_admin'].includes(callerProfile.role)) {
     return res.status(403).json({ error: 'Only managers can invite team members' });
   }
 
@@ -82,6 +82,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!response.ok) {
       const details = data.msg || data.message || data.error_description || data.error || 'Unknown error';
       return res.status(response.status).json({ error: 'Invite failed', details });
+    }
+
+    const invitedUserId = data.id as string | undefined;
+    if (invitedUserId) {
+      const { error: profileError } = await supabaseAdmin.from('profiles').upsert(
+        {
+          id: invitedUserId,
+          email,
+          full_name: fullName,
+          role,
+          org_id: orgId,
+        },
+        { onConflict: 'id' }
+      );
+      if (profileError) {
+        console.error('Profile upsert after invite failed:', profileError);
+        return res.status(500).json({
+          error: 'User invited but profile row failed',
+          details: profileError.message,
+        });
+      }
     }
 
     return res.status(200).json({ success: true, message: `Invitation sent to ${email}!` });

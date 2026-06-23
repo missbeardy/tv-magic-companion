@@ -35,7 +35,7 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
 
   useEffect(() => {
     async function fetchData() {
-      const employeeData = await fetchOrgProfiles({ roles: ['employee', 'manager'] })
+      const employeeData = await fetchOrgProfiles({ roles: ['employee', 'manager', 'platform_admin'] })
       if (!employeeData.length && !profile?.org_id) return
 
       const visibleEmployees = profile?.role === 'employee'
@@ -193,8 +193,13 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
 
           {/* Tech list */}
           <div className="space-y-2 max-h-72 overflow-y-auto pr-1 mb-4">
-            {employees.length === 0 && (
-              <p className="text-sm text-gray-400 text-center py-6">Loading roster configuration…</p>
+            {employees.length === 0 && !loadingProximity && (
+              <p className="text-sm text-gray-500 text-center py-6">
+                No team members found. Add a profile row in Supabase for each auth user, or invite via Profile → Add Employee.
+              </p>
+            )}
+            {employees.length === 0 && loadingProximity && (
+              <p className="text-sm text-gray-400 text-center py-6">Loading team…</p>
             )}
             {employees.map((emp, index) => {
               const activeCount = countMap[emp.id] ?? 0

@@ -6,7 +6,10 @@ Track implementation on any device via GitHub (open this file in the repo on you
 
 
 
-**Branch:** `feature/platform-saas`  
+**Branch:** `feature/platform-saas` (pushed to GitHub — Vercel preview pending)
+
+**Preview URL:** check Vercel dashboard → Deployments → `feature/platform-saas`  
+Expected pattern: `https://tv-magic-companion-git-feature-platform-saas-missbeardys-projects.vercel.app`  
 
 **Production:** untouched (`main` / live TV Magic)
 
@@ -68,7 +71,9 @@ Track implementation on any device via GitHub (open this file in the repo on you
 
 7. **`20250623120000_storage_buckets.sql`** ← creates buckets (SQL Editor)
 
-8. **Storage policies** — Dashboard only (see below)
+8. **`20250624100000_fix_dev_profiles_columns.sql`** ← phone, suburb, avatar, location columns
+
+9. **Storage policies** — Dashboard only (see below)
 
 
 
@@ -88,7 +93,17 @@ Supabase SQL Editor cannot create policies on `storage.objects`. After running m
 
 
 
-Repeat for **`avatars`** (upload: folder = `auth.uid()`) and **`lead-photos`** (upload: folder = org_id) when you need those features.
+Repeat for **`lead-photos`** and **`avatars`** when you need those features.
+
+
+
+#### `lead-photos` policies (Social uploads + job photos)
+
+| Policy name | Operation | Roles | Definition |
+|-------------|-----------|-------|------------|
+| `lead_photos_public_read` | SELECT | public | `bucket_id = 'lead-photos'` |
+| `lead_photos_authenticated_upload` | INSERT | authenticated | `bucket_id = 'lead-photos' AND ((storage.foldername(name))[1] = (SELECT org_id::text FROM profiles WHERE id = auth.uid()) OR (storage.foldername(name))[1] = auth.uid()::text)` |
+| `lead_photos_authenticated_update` | UPDATE | authenticated | same as upload |
 
 
 
@@ -104,8 +119,8 @@ Repeat for **`avatars`** (upload: folder = `auth.uid()`) and **`lead-photos`** (
 | 6 | Basic tier hides Tasks/Social | Pass |
 | 7 | Tier on new org | Pass |
 | 8 | AI parsing blocked on Basic (server) | **Deferred** — retest on Vercel preview |
-| 9 | Social post blocked on Basic (server) | **Deferred** — retest on Vercel preview |
-| 10 | Brand SMS on lead assign | **Deferred** — retest on Vercel preview |
+| 9 | Social post blocked on Basic (server) | **Skipped** — not in use first 3 months |
+| 10 | Brand SMS on lead assign | **Blocked** — missing `profiles.phone` column in dev; run migration below |
 
 **When Vercel preview is live:** run tests 8–10 on the preview URL (not localhost). Ensure preview env has `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ENABLE_PLATFORM_FEATURES=true`, plus Anthropic/Twilio/Zernio as needed.
 

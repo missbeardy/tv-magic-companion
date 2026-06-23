@@ -122,7 +122,7 @@ export default function SocialPage() {
     if (uploadedFile) {
       setUploading(true)
       try {
-        const publicUrl = await uploadMedia(uploadedFile)
+        const publicUrl = await uploadMedia(uploadedFile, profile?.org_id ?? '')
         setSelectedUrl(publicUrl)
       } catch {
         alert('Upload failed. Please try again.')
@@ -144,8 +144,9 @@ export default function SocialPage() {
     try {
       const result = await generateCaption(notes, 'TV aerial and satellite installation job')
       setCaption(result)
-    } catch {
-      setCaptionError('Caption generation failed. Check your Anthropic API key.')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Caption generation failed'
+      setCaptionError(message)
     }
     setGeneratingCaption(false)
   }

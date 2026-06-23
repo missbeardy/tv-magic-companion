@@ -1,7 +1,7 @@
 // api/social-post.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { authenticateRequest } from './_lib/auth'
-import { canAccessFeature } from './_lib/tier'
+import { authenticateRequest } from './_lib/auth.js'
+import { canAccessFeature } from './_lib/tier.js'
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
 function checkRateLimit(key: string, limit = 20, windowMs = 60_000): boolean {

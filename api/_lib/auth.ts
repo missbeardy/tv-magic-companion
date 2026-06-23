@@ -1,6 +1,6 @@
 import type { VercelRequest } from '@vercel/node'
-import { getSupabaseAdmin } from './supabaseAdmin'
-import type { SubscriptionTier } from './tier'
+import { getSupabaseAdmin } from './supabaseAdmin.js'
+import type { SubscriptionTier } from './tier.js'
 
 export interface AuthContext {
   userId: string

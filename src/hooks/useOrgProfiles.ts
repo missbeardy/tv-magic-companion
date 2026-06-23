@@ -9,7 +9,7 @@ export interface OrgProfile extends ProfileVisibilityFields {
   avatar_url?: string | null
   phone?: string | null
   suburb?: string | null
-  role: 'manager' | 'employee'
+  role: 'manager' | 'employee' | 'platform_admin'
   lat?: number | null
   lng?: number | null
   org_id?: string
@@ -19,7 +19,7 @@ export function useOrgProfiles() {
   const { profile } = useAuth()
 
   const fetchOrgProfiles = useCallback(
-    async (options?: { roles?: Array<'manager' | 'employee'> }) => {
+    async (options?: { roles?: Array<'manager' | 'employee' | 'platform_admin'> }) => {
       if (!profile?.org_id) return [] as OrgProfile[]
 
       let query = supabase

@@ -1,8 +1,8 @@
 // api/send-sms.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { authenticateRequest } from './_lib/auth'
-import { buildSmsFromBrand } from './_lib/smsTemplates'
-import { getPlatformUrl } from './_lib/platformUrl'
+import { authenticateRequest } from './_lib/auth.js'
+import { buildSmsFromBrand } from './_lib/smsTemplates.js'
+import { getPlatformUrl } from './_lib/platformUrl.js'
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
 function checkRateLimit(key: string, limit = 20, windowMs = 60_000): boolean {

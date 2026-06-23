@@ -1,9 +1,11 @@
 // src/lib/uploadMedia.ts
 import { supabase } from './supabase.ts'
 
-export async function uploadMedia(file: File): Promise<string> {
+export async function uploadMedia(file: File, orgId: string): Promise<string> {
+  if (!orgId) throw new Error('Organisation context required for upload')
+
   const ext = file.name.split('.').pop() ?? 'bin'
-  const path = `social-uploads/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+  const path = `${orgId}/social-uploads/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
 
   const { error } = await supabase.storage
     .from('lead-photos')
