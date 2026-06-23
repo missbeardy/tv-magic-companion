@@ -6,10 +6,9 @@ Track implementation on any device via GitHub (open this file in the repo on you
 
 
 
-**Branch:** `feature/platform-saas` (pushed to GitHub — Vercel preview pending)
+**Branch:** `feature/platform-saas` (pushed to GitHub)
 
-**Preview URL:** check Vercel dashboard → Deployments → `feature/platform-saas`  
-Expected pattern: `https://tv-magic-companion-git-feature-platform-saas-missbeardys-projects.vercel.app`  
+**Preview URL:** `https://tv-magic-companion-git-feature-plat-8c5410-missbeardys-projects.vercel.app`
 
 **Production:** untouched (`main` / live TV Magic)
 
@@ -29,9 +28,13 @@ Expected pattern: `https://tv-magic-companion-git-feature-platform-saas-missbear
 
 | Phase 2 — Brand template layer | Done | See below |
 
-| Phase 3 — Brand transfer + tier enforcement | UAT done (9 skipped) | Tests 1–8, 10 pass on preview; Stripe billing re-added |
+| Phase 3 — Brand transfer + tier enforcement | UAT done (9 skipped) | Tests 1–8, 10 pass on preview; Stripe billing |
 
-| Production cutover | Not started | explicit approval required |
+| Security hardening | Done (dev) | Migrations `20250625100000`, `20250625110000` run + tested |
+
+| Post-merge smoke test | **Done** | All 6 pass on preview (see below) |
+
+| Production cutover | **In progress** | See `PRODUCTION_CUTOVER.md` |
 
 
 
@@ -77,9 +80,11 @@ Expected pattern: `https://tv-magic-companion-git-feature-platform-saas-missbear
 
 10. **`20250624120000_stripe_billing.sql`** ← Stripe customer/subscription columns on orgs
 
+11. **`20250625100000_lock_profile_role_org.sql`** ← blocks users changing own role/org_id
 
+12. **`20250625110000_storage_policies.sql`** ← storage RLS (Dashboard fallback if SQL fails)
 
-11. **Storage policies** — Dashboard only (see below)
+13. **Storage policies** — Dashboard only if migration 12 fails (see below)
 
 
 
@@ -215,7 +220,7 @@ Use the URL shown in *your* Vercel dashboard if it differs slightly.
 
 
 
-_Last updated: Phase 3 UAT 1–8 & 10 pass; Stripe billing re-added (uncommitted on branch)_
+_Last updated: post-merge smoke test complete (all 6 pass); preview sign-off done_
 
 
 
@@ -228,11 +233,21 @@ _Last updated: Phase 3 UAT 1–8 & 10 pass; Stripe billing re-added (uncommitted
 - **Brand SMS templates** — `send-sms` uses org brand templates with auth
 - **API auth** — protected routes require Supabase session token
 
+## Post-merge smoke test (preview, after `main` → feature merge)
+
+| # | Test | Result |
+|---|------|--------|
+| 1 | Hard refresh / login | Pass |
+| 2 | Login + nav | Pass |
+| 3 | Assign lead → SMS + bell | Pass (`6cab259`) |
+| 4 | Manager alert on new lead (Add Lead) | **Pass** (`55aa778`, `13e9a2a` — app-side alert; includes `platform_admin`) |
+| 5 | Stripe Upgrade to Pro | Pass |
+| 6 | Manual lead entry / mobile summary | Pass |
+
+**Note:** Manager alerts fire from the app after Add Lead / Email Parser. Supabase DB webhook optional on prod (`webhook-new-lead`); dev project lacks `supabase_functions` schema.
+
 ## What's next
 
-1. **Commit & push Stripe changes** on `feature/platform-saas` → redeploy Vercel preview
-2. **Run Stripe migration** + configure test-mode env vars (see above)
-3. **Smoke-test billing** — upgrade a test org to Pro via Org Settings, confirm tier unlocks Tasks/AI
-4. **Optional polish** — roll theme colors beyond nav; hidden test profile UI if needed
-5. **Production cutover** — only after full UAT + your explicit approval
+1. **Production cutover** — only when you approve (checklist below)
+2. **Optional polish** — theme colors beyond nav; Messenger (fold into existing API — 12/12 function cap); inbound email/voicemail org routing before franchise #2
 
