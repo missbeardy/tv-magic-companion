@@ -10,11 +10,9 @@ Do these steps **in order**. Do not run dev-only migrations on production.
 
 ## Step 1 — Database (Production Supabase SQL Editor)
 
-1. Open **Production** project → **SQL Editor** → New query.
-2. Paste and run the entire contents of **`supabase/production_cutover.sql`**.
-3. If any line fails with “already exists”, note it and continue (script is mostly idempotent).
-4. Run **`supabase/migrations/20250625110000_storage_policies.sql`** separately.
-   - If you get *“must be owner of table objects”*, add policies via **Dashboard → Storage → each bucket → Policies** (see `PROGRESS.md` storage table).
+**If cutover failed partway**, use **`supabase/production_cutover_recovery.sql`** instead — run **BLOCK A**, verify, then **BLOCK B**, etc. (one block at a time).
+
+Otherwise run the full **`supabase/production_cutover.sql`** in one go.
 
 **Do NOT run on prod:** `20250622130000_dev_seed.sql`, `20250623100000_fix_dev_login.sql`, `20250624110000_sync_auth_profiles.sql` (hard-coded dev org).
 
