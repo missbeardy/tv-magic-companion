@@ -23,6 +23,7 @@
     "react-dom": "^19.2.6",
     "react-onesignal": "^3.5.5",
     "react-router-dom": "^7.16.0",
+    "recharts": "^3.9.0",
     "resend": "^6.12.4",
     "stripe": "^17.7.0",
     "svix": "^1.95.2",

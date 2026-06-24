@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  BarChart3,
   ChevronLeft,
   ChevronRight,
   Clock3,
@@ -12,41 +11,33 @@ import {
 import NavBar from '../components/NavBar'
 import { useAuth } from '../context/AuthContext'
 import { useOrg } from '../context/OrgContext'
+import { useTheme } from '../context/ThemeContext'
+import FunnelStage from '../components/ui/FunnelStage'
+import MetricCard from '../components/ui/MetricCard'
+import SourceBarChart from '../components/ui/SourceBarChart'
 import { buildMonthOptions, formatMonthLabel, getMonthKey, getMonthStart } from '../lib/reporting/dateRange'
 import { fetchFirstLeadEventMonth, fetchReportingData, type ReportingResult } from '../lib/reporting/fetchReportData'
 import type { ConversionMetric } from '../lib/reporting/types'
 
 function formatConversion(metric: ConversionMetric): string {
-  if (metric.rate == null) return '—'
+  if (metric.rate == null) return 'no data yet'
   return `${Math.round(metric.rate * 100)}%`
 }
 
-function formatSamples(metric: ConversionMetric): string {
-  return `${metric.numerator}/${metric.denominator}`
+function formatConversionFromCounts(numerator: number, denominator: number): string {
+  if (denominator === 0) return 'no data yet'
+  return `${Math.round((numerator / denominator) * 100)}%`
 }
 
 function formatHours(value: number | null): string {
-  if (value == null) return '—'
+  if (value == null) return 'no data yet'
   return `${value.toFixed(1)}h`
-}
-
-function getSummaryCards(report: ReportingResult | null) {
-  const summary = report?.summary
-  return [
-    { label: 'Leads received', value: summary?.leadsReceived ?? 0 },
-    { label: 'Assignments', value: summary?.assignments ?? 0 },
-    { label: 'Contact attempts', value: summary?.contactAttempts ?? 0 },
-    { label: 'Bookings', value: summary?.bookings ?? 0 },
-    { label: 'Completed', value: summary?.completed ?? 0 },
-    { label: 'Lost', value: summary?.lost ?? 0 },
-    { label: 'Expired', value: summary?.expired ?? 0 },
-    { label: 'Review requests', value: summary?.reviewRequests ?? 0 },
-  ]
 }
 
 export default function ReportsPage() {
   const { profile } = useAuth()
   const { canAccessFeature } = useOrg()
+  const { primary, secondary } = useTheme()
   const canSeeReports = canAccessFeature('reports')
 
   const [report, setReport] = useState<ReportingResult | null>(null)
@@ -132,10 +123,48 @@ export default function ReportsPage() {
   const hasOlder = selectedIndex >= 0 && selectedIndex < monthOptions.length - 1
   const hasNewer = selectedIndex > 0
 
-  const summaryCards = getSummaryCards(report)
+  const summary = report?.summary
+  const compactMetrics = useMemo(
+    () => [
+      { label: 'Bookings', value: summary?.bookings ?? 0 },
+      { label: 'Lost', value: summary?.lost ?? 0 },
+      { label: 'Expired', value: summary?.expired ?? 0 },
+      { label: 'Review requests', value: summary?.reviewRequests ?? 0 },
+    ],
+    [summary]
+  )
+
+  const funnelStages = useMemo(() => {
+    const received = summary?.leadsReceived ?? 0
+    const assigned = report?.conversions.assignedToContacted.denominator ?? 0
+    const contacted = report?.conversions.assignedToContacted.numerator ?? 0
+    const booked = report?.conversions.contactedToBooked.numerator ?? 0
+
+    return [
+      { label: 'Received', count: received },
+      { label: 'Assigned', count: assigned },
+      { label: 'Contacted', count: contacted },
+      { label: 'Booked', count: booked },
+    ]
+  }, [report, summary?.leadsReceived])
+
+  const maxFunnelCount = useMemo(
+    () => Math.max(...funnelStages.map((stage) => stage.count), 0),
+    [funnelStages]
+  )
+
+  const funnelConversionLabels = useMemo(
+    () => [
+      formatConversionFromCounts(funnelStages[1].count, funnelStages[0].count),
+      formatConversion(report?.conversions.assignedToContacted ?? { numerator: 0, denominator: 0, rate: null }),
+      formatConversion(report?.conversions.contactedToBooked ?? { numerator: 0, denominator: 0, rate: null }),
+    ],
+    [funnelStages, report]
+  )
+
   const hasAnyActivity = useMemo(
-    () => summaryCards.some((card) => card.value > 0),
-    [summaryCards]
+    () => funnelStages.some((stage) => stage.count > 0),
+    [funnelStages]
   )
 
   return (
@@ -145,7 +174,7 @@ export default function ReportsPage() {
         <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="font-display font-bold text-gray-900 text-xl flex items-center gap-2">
-              <FileBarChart size={20} className="text-[#004B93]" />
+              <FileBarChart size={20} style={{ color: primary }} />
               Monthly Reports
             </h1>
             <p className="text-sm text-gray-500 mt-1">
@@ -227,33 +256,62 @@ export default function ReportsPage() {
 
         {canSeeReports && !loadingReport && !error && report && (
           <>
-            <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {summaryCards.map((card) => (
-                <article key={card.label} className="card p-4">
-                  <p className="font-display font-bold text-2xl text-gray-900 leading-none">{card.value}</p>
-                  <p className="text-xs text-gray-500 mt-1">{card.label}</p>
-                </article>
+            <section className="grid gap-3 lg:grid-cols-3">
+              <div className="lg:col-span-2">
+                <MetricCard
+                  label="Leads received"
+                  value={summary?.leadsReceived ?? 0}
+                  variant="hero"
+                  primaryColor={primary}
+                />
+              </div>
+              <div className="space-y-3">
+                <MetricCard
+                  label="Assignments"
+                  value={summary?.assignments ?? 0}
+                  variant="secondary"
+                  primaryColor={primary}
+                />
+                <MetricCard
+                  label="Completed"
+                  value={summary?.completed ?? 0}
+                  variant="secondary"
+                  primaryColor={primary}
+                />
+              </div>
+            </section>
+
+            <section className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {compactMetrics.map((metric) => (
+                <MetricCard
+                  key={metric.label}
+                  label={metric.label}
+                  value={metric.value}
+                  variant="compact"
+                  primaryColor={primary}
+                />
               ))}
             </section>
 
             <section className="card p-5">
-              <h2 className="font-display font-semibold text-gray-900 text-base mb-4">Conversion rates</h2>
-              <div className="grid md:grid-cols-3 gap-3">
-                <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-gray-500">Assigned to contacted</p>
-                  <p className="font-display font-bold text-2xl text-gray-900 mt-1">{formatConversion(report.conversions.assignedToContacted)}</p>
-                  <p className="text-xs text-gray-500 mt-1">{formatSamples(report.conversions.assignedToContacted)}</p>
-                </div>
-                <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-gray-500">Contacted to booked</p>
-                  <p className="font-display font-bold text-2xl text-gray-900 mt-1">{formatConversion(report.conversions.contactedToBooked)}</p>
-                  <p className="text-xs text-gray-500 mt-1">{formatSamples(report.conversions.contactedToBooked)}</p>
-                </div>
-                <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-gray-500">Booked to completed</p>
-                  <p className="font-display font-bold text-2xl text-gray-900 mt-1">{formatConversion(report.conversions.bookedToCompleted)}</p>
-                  <p className="text-xs text-gray-500 mt-1">{formatSamples(report.conversions.bookedToCompleted)}</p>
-                </div>
+              <h2 className="font-display font-semibold text-gray-900 text-base mb-4">Conversion funnel</h2>
+              <div className="flex flex-col xl:flex-row xl:items-center gap-3">
+                {funnelStages.map((stage, index) => (
+                  <div key={stage.label} className="flex items-center gap-3">
+                    <FunnelStage
+                      label={stage.label}
+                      count={stage.count}
+                      maxCount={maxFunnelCount}
+                      primaryColor={primary}
+                    />
+                    {index < funnelStages.length - 1 && (
+                      <div className="text-xs text-gray-500 min-w-[96px] text-center">
+                        <p className="hidden xl:block">→</p>
+                        <p className="font-medium">{funnelConversionLabels[index]}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </section>
 
@@ -266,11 +324,15 @@ export default function ReportsPage() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-500">Avg time to first contact</span>
-                    <span className="font-semibold text-gray-900">{formatHours(report.timing.avgHoursToFirstContact)}</span>
+                    <span className="font-semibold text-gray-900">
+                      {formatHours(report.timing.avgHoursToFirstContact)}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-500">Avg time to booking</span>
-                    <span className="font-semibold text-gray-900">{formatHours(report.timing.avgHoursToBooking)}</span>
+                    <span className="font-semibold text-gray-900">
+                      {formatHours(report.timing.avgHoursToBooking)}
+                    </span>
                   </div>
                   <p className="text-xs text-gray-400">
                     Samples: {report.timing.firstContactSamples} first contact · {report.timing.bookingSamples} booking
@@ -281,16 +343,9 @@ export default function ReportsPage() {
               <article className="card p-5">
                 <h2 className="font-display font-semibold text-gray-900 text-base mb-4">Leads by source</h2>
                 {report.sourceBreakdown.length === 0 ? (
-                  <p className="text-sm text-gray-500">No leads created in this month.</p>
+                  <p className="text-sm text-gray-500">No data yet.</p>
                 ) : (
-                  <div className="space-y-2">
-                    {report.sourceBreakdown.map((row) => (
-                      <div key={row.source} className="flex items-center justify-between text-sm border-b border-gray-100 pb-2 last:border-b-0 last:pb-0">
-                        <span className="text-gray-600">{row.source}</span>
-                        <span className="font-semibold text-gray-900">{row.count}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <SourceBarChart data={report.sourceBreakdown} accentColor={secondary} />
                 )}
               </article>
             </section>
@@ -343,8 +398,7 @@ export default function ReportsPage() {
             </section>
 
             {!hasAnyActivity && (
-              <section className="card p-5 text-sm text-gray-500 flex items-center gap-2">
-                <BarChart3 size={16} className="text-gray-400" />
+              <section className="card p-5 text-sm text-gray-500">
                 No tracked reporting activity yet for this month.
               </section>
             )}
