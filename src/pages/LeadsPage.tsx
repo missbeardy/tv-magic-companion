@@ -26,6 +26,7 @@ import { UserPlus, Inbox, ChevronRight, Plus } from 'lucide-react'
 import AddLeadModal from '../components/AddLeadModal'
 import { openNavigation } from '../lib/navigation'
 import { isManagerRole } from '../lib/roles'
+import { getColumnsForTab } from '../lib/leadsKanban'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -62,6 +63,7 @@ const COLUMNS = [
   { key: 'assigned',          label: 'Assigned',          color: 'border-blue-300',   badge: 'bg-blue-100 text-blue-700'     },
   { key: 'contact_attempted', label: 'Contact Attempted', color: 'border-amber-300',  badge: 'bg-amber-100 text-amber-700'   },
   { key: 'booked',            label: 'Booked',            color: 'border-indigo-300', badge: 'bg-indigo-100 text-indigo-700' },
+  { key: 'booking_cancelled', label: 'Booking Cancelled', color: 'border-red-400',    badge: 'bg-red-100 text-red-700'       },
   { key: 'lost',              label: 'Lost',              color: 'border-red-300',    badge: 'bg-red-100 text-red-600'        },
   { key: 'completed',         label: 'Completed',         color: 'border-purple-300', badge: 'bg-purple-100 text-purple-700' },
 ]
@@ -73,13 +75,7 @@ const MOBILE_TABS = [
   { key: 'closed',     label: 'Done / Lost'},
 ]
 
-function getColumnsForTab(tab: string): string[] {
-  if (tab === 'unassigned') return ['unassigned']
-  if (tab === 'assigned')   return ['assigned']
-  if (tab === 'contact')    return ['contact_attempted', 'booked']
-  if (tab === 'closed')     return ['lost', 'completed']
-  return []
-}
+// getColumnsForTab imported from ../lib/leadsKanban
 
 // ── Drag-and-drop: Droppable Column Wrapper (desktop only) ───────────────
 
@@ -135,6 +131,7 @@ function LeadCard({
   onRefresh,
 }: LeadCardProps) {
   const isExpanded = expandedLead === lead.id
+  const isBookingCancelled = lead.status === 'booking_cancelled'
   const [events, setEvents] = useState<LeadEvent[]>([])
 
   useEffect(() => {
@@ -154,7 +151,11 @@ function LeadCard({
 
   return (
     <div
-      className="bg-gray-50 rounded-lg p-3 border border-gray-200 cursor-pointer md:cursor-default"
+      className={`rounded-lg p-3 border cursor-pointer md:cursor-default ${
+        isBookingCancelled
+          ? 'bg-red-50 border-red-300 ring-1 ring-red-200'
+          : 'bg-gray-50 border-gray-200'
+      }`}
       onClick={() => {
         // ONLY open the bottom sheet action drawer if the viewport is mobile (under 768px wide)
         if (window.innerWidth < 768) {
@@ -162,10 +163,19 @@ function LeadCard({
         }
       }}
     >
+      {isBookingCancelled && (
+        <p className="text-[10px] font-bold uppercase tracking-wide text-red-700 mb-2">
+          Booking Cancelled
+        </p>
+      )}
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-gray-800 text-sm truncate">{lead.name || 'Unknown'}</p>
-          <p className="text-xs text-gray-500 truncate">{lead.service_type}</p>
+          <p className={`font-medium text-sm truncate ${isBookingCancelled ? 'text-red-900' : 'text-gray-800'}`}>
+            {lead.name || 'Unknown'}
+          </p>
+          <p className={`text-xs truncate ${isBookingCancelled ? 'text-red-700/80' : 'text-gray-500'}`}>
+            {lead.service_type}
+          </p>
           <div className="md:hidden mt-1">
             <LeadExtractedSummary lead={lead} size="sm" detailsClamp showAddress={false} />
           </div>
@@ -695,6 +705,11 @@ export default function LeadsPage() {
         <BottomSheet isOpen={sheetOpen} onClose={closeSheet} title={sheetLead?.name ?? 'Lead Actions'}>
           {sheetLead && (
             <div className="space-y-3">
+              {sheetLead.status === 'booking_cancelled' && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center">
+                  <span className="text-red-700 font-semibold text-sm">Booking Cancelled</span>
+                </div>
+              )}
               <p className="text-sm text-[#004B93] font-medium">{sheetLead.service_type || 'No service type'}</p>
               <LeadExtractedSummary lead={sheetLead} size="md" showAddress={false} />
 

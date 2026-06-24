@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { cancelBooking } from '../lib/cancelBooking'
 import TimePicker from './TimePicker'
 import { X, CalendarDays, Clock, User, FileText, MapPin, Phone, Briefcase, Link, Search, DollarSign } from 'lucide-react'
 
@@ -36,6 +37,7 @@ interface Props {
     end_time: string
     notes?: string
     lead_id?: string
+    category?: string
     client_name?: string
     client_phone?: string
     client_email?: string
@@ -139,7 +141,13 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
   const [showLeadSearch, setShowLeadSearch] = useState(false)
 
   const [saving, setSaving] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const [showCancelPanel, setShowCancelPanel] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
   const [error, setError] = useState('')
+
+  const isLeaveEvent = existingEvent?.category === 'Leave'
+  const canCancelBooking = Boolean(existingEvent?.id && !isLeaveEvent)
 
   useEffect(() => {
     if (existingEvent?.lead_id && !prefillLead) {
@@ -278,17 +286,27 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
       leadIdToUse = newLead.id
       setLinkedLeadId(newLead.id)
     } else if (leadIdToUse) {
-      // NEW: this booking IS linked to an existing lead — push any edits
-      // made here (name/phone/email/address/job) back onto that lead.
+      const { data: currentLead } = await supabase
+        .from('leads')
+        .select('status')
+        .eq('id', leadIdToUse)
+        .single()
+
+      const terminalStatuses = ['lost', 'completed', 'booking_cancelled']
+      const leadUpdate: Record<string, unknown> = {
+        name: clientName.trim(),
+        phone: clientPhone,
+        email: clientEmail,
+        address: clientAddress,
+        details: clientJob,
+      }
+      if (!currentLead?.status || !terminalStatuses.includes(currentLead.status)) {
+        leadUpdate.status = 'booked'
+      }
+
       await supabase
         .from('leads')
-        .update({
-          name: clientName.trim(),
-          phone: clientPhone,
-          email: clientEmail,
-          address: clientAddress,
-          details: clientJob,
-        })
+        .update(leadUpdate)
         .eq('id', leadIdToUse)
     }
 
@@ -321,6 +339,37 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
         .insert(eventData)
       if (e) { setError(e.message); setSaving(false); return }
       await notifyManager('scheduled')
+    }
+
+    onSaved()
+    onClose()
+  }
+
+  async function handleCancelBooking() {
+    if (!existingEvent?.id || !profile?.org_id || !profile?.id) return
+    if (!window.confirm(
+      'Cancel this booking? It will be removed from the calendar. The linked lead will be kept as Booking Cancelled.'
+    )) return
+
+    setCancelling(true)
+    setError('')
+
+    const appointmentDate = localDateStr(existingEvent.start_time)
+    const result = await cancelBooking({
+      eventId: existingEvent.id,
+      leadId: linkedLeadId ?? existingEvent.lead_id ?? null,
+      orgId: profile.org_id,
+      actorId: profile.id,
+      actorRole: profile.role,
+      title: title || existingEvent.title,
+      reason: cancelReason,
+      appointmentDate,
+    })
+
+    if (result.error) {
+      setError(result.error)
+      setCancelling(false)
+      return
     }
 
     onSaved()
@@ -551,21 +600,65 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
         </div>
 
         {/* Footer */}
-        <div className="px-6 pb-5 pt-2 border-t border-gray-100 shrink-0 flex gap-3">
-          <button
-            onClick={onClose}
-            disabled={saving}
-            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-semibold hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex-1 py-2.5 rounded-xl bg-[#004B93] text-white text-sm font-semibold hover:bg-[#003d7a] transition-colors disabled:opacity-60"
-          >
-            {saving ? 'Saving…' : existingEvent ? 'Save Changes' : 'Book Appointment'}
-          </button>
+        <div className="px-6 pb-5 pt-2 border-t border-gray-100 shrink-0 space-y-3">
+          {canCancelBooking && showCancelPanel && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 space-y-2">
+              <p className="text-xs font-semibold text-red-700">Cancellation reason (optional)</p>
+              <textarea
+                value={cancelReason}
+                onChange={e => setCancelReason(e.target.value)}
+                rows={2}
+                placeholder="Why was this booking cancelled?"
+                className="w-full px-3 py-2 rounded-lg border border-red-200 text-sm focus:outline-none focus:border-red-400 resize-none bg-white"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowCancelPanel(false); setCancelReason('') }}
+                  disabled={cancelling}
+                  className="flex-1 py-2 rounded-lg border border-red-200 text-red-600 text-sm font-medium hover:bg-red-100/50 transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelBooking}
+                  disabled={cancelling}
+                  className="flex-1 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-60"
+                >
+                  {cancelling ? 'Cancelling…' : 'Confirm Cancel'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              disabled={saving || cancelling}
+              className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-semibold hover:bg-gray-50 transition-colors"
+            >
+              Close
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving || cancelling}
+              className="flex-1 py-2.5 rounded-xl bg-[#004B93] text-white text-sm font-semibold hover:bg-[#003d7a] transition-colors disabled:opacity-60"
+            >
+              {saving ? 'Saving…' : existingEvent ? 'Save Changes' : 'Book Appointment'}
+            </button>
+          </div>
+
+          {canCancelBooking && !showCancelPanel && (
+            <button
+              type="button"
+              onClick={() => setShowCancelPanel(true)}
+              disabled={saving || cancelling}
+              className="w-full py-2.5 rounded-xl border border-red-300 text-red-600 text-sm font-semibold hover:bg-red-50 transition-colors disabled:opacity-60"
+            >
+              Cancel Booking
+            </button>
+          )}
         </div>
       </div>
     </div>

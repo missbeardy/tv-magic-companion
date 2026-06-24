@@ -17,6 +17,7 @@ const STATUSES = [
   { value: 'assigned',          label: 'Assigned',          color: 'bg-blue-100 text-blue-700' },
   { value: 'contact_attempted', label: 'Contact Attempted', color: 'bg-amber-100 text-amber-700' },
   { value: 'booked',            label: 'Booked',            color: 'bg-green-100 text-green-700' },
+  { value: 'booking_cancelled', label: 'Booking Cancelled', color: 'bg-red-100 text-red-700' },
   { value: 'lost',              label: 'Lost',              color: 'bg-red-100 text-red-600' },
   { value: 'completed',         label: 'Completed',         color: 'bg-purple-100 text-purple-700' },
 ]
