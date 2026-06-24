@@ -24,6 +24,7 @@ import { useEffect } from 'react'
 import { useTechLocation } from './hooks/useTechLocation'
 import { initOneSignal, setOneSignalUser, clearOneSignalUser } from './lib/oneSignal'
 import { isManagerRole } from './lib/roles'
+import PwaUpdateLayer from './components/PwaUpdateLayer'
 
 function Dashboard() {
   const { profile, loading } = useAuth()
@@ -57,18 +58,13 @@ function App() {
     initOneSignal().catch(err =>
       console.error('OneSignal init failed:', err)
     )
-
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js')
-        .then(reg => console.log('SW registered:', reg.scope))
-        .catch(err => console.log('SW failed:', err))
-    }
   }, [])
 
   return (
     <AuthProvider>
         <OrgProvider>
           <ThemeProvider>
+          <PwaUpdateLayer>
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -169,6 +165,7 @@ function App() {
               <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
           </BrowserRouter>
+          </PwaUpdateLayer>
           </ThemeProvider>
         </OrgProvider>
     </AuthProvider>

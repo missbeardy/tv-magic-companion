@@ -9,7 +9,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       // Tell the plugin NOT to generate sw.js — we'll use our own
       // because OneSignal needs to co-exist
       strategies: 'injectManifest',
