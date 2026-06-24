@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import ChangelogOverlay from './ChangelogOverlay'
 import {
-  APP_VERSION,
+  getCurrentReleaseWeekId,
   getUnseenChangelogEntries,
   markChangelogSeen,
   shouldShowChangelog,
@@ -38,7 +38,7 @@ export default function PwaUpdateLayer({ children }: { children: React.ReactNode
 
   const handleClose = () => {
     if (shouldShowChangelog()) {
-      markChangelogSeen(APP_VERSION)
+      markChangelogSeen(getCurrentReleaseWeekId())
     }
     if (updateAvailable) {
       setUpdatePromptDismissed(true)
@@ -47,7 +47,7 @@ export default function PwaUpdateLayer({ children }: { children: React.ReactNode
   }
 
   const handleUpdate = () => {
-    markChangelogSeen(APP_VERSION)
+    markChangelogSeen(getCurrentReleaseWeekId())
     applyUpdate()
   }
 

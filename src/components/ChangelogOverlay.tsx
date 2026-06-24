@@ -1,6 +1,6 @@
 import { Sparkles, RefreshCw, X } from 'lucide-react'
 import type { ChangelogEntry } from '../lib/changelog'
-import { APP_VERSION, formatChangelogDate } from '../lib/changelog'
+import { formatChangelogDate } from '../lib/changelog'
 
 interface Props {
   isOpen: boolean
@@ -24,7 +24,7 @@ export default function ChangelogOverlay({
   const hasChangelog = entries.length > 0
   const title = hasChangelog ? "What's New" : 'Update Available'
   const subtitle = hasChangelog
-    ? `Version ${APP_VERSION}`
+    ? `Week of ${formatChangelogDate(entries[0]?.date ?? '')}`
   : 'A newer version of the app is ready to install.'
 
   return (

@@ -4,8 +4,10 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import {
   APP_VERSION,
-  CHANGELOG,
+  WEEKLY_CHANGELOG,
   formatChangelogDate,
+  getActiveWeeklyChangelog,
+  getCurrentReleaseWeekId,
   getUnseenChangelogEntries,
   markChangelogSeen,
   shouldShowChangelog,
@@ -34,33 +36,39 @@ describe('changelog', () => {
     vi.unstubAllGlobals()
   })
 
-  it('shows changelog when never seen', () => {
+  it('shows changelog once per release week', () => {
+    if (WEEKLY_CHANGELOG.weekStarts !== getCurrentReleaseWeekId()) return
     expect(shouldShowChangelog()).toBe(true)
-    expect(getUnseenChangelogEntries().length).toBeGreaterThan(0)
-  })
-
-  it('hides changelog after marking current version seen', () => {
-    markChangelogSeen(APP_VERSION)
+    markChangelogSeen(getCurrentReleaseWeekId())
     expect(shouldShowChangelog()).toBe(false)
     expect(getUnseenChangelogEntries()).toHaveLength(0)
-  })
-
-  it('exposes a current app version matching latest entry', () => {
-    expect(APP_VERSION).toBe(CHANGELOG[0].version)
   })
 
   it('syncs package.json version with APP_VERSION', () => {
     expect(pkg.version).toBe(APP_VERSION)
   })
 
-  it('uses DD-MM-YYYY dates in changelog entries', () => {
-    for (const entry of CHANGELOG) {
-      expect(entry.date).toMatch(/^\d{2}-\d{2}-\d{4}$/)
-      expect(formatChangelogDate(entry.date)).toBe(entry.date)
-    }
+  it('uses DD-MM-YYYY for weekStarts', () => {
+    expect(WEEKLY_CHANGELOG.weekStarts).toMatch(/^\d{2}-\d{2}-\d{4}$/)
+    expect(formatChangelogDate(WEEKLY_CHANGELOG.weekStarts)).toBe(WEEKLY_CHANGELOG.weekStarts)
   })
 
   it('converts legacy ISO dates to DD-MM-YYYY', () => {
     expect(formatChangelogDate('2026-06-24')).toBe('24-06-2026')
+  })
+
+  it('returns Monday as release week id', () => {
+    const wed = new Date(2026, 5, 24)
+    expect(getCurrentReleaseWeekId(wed)).toBe('22-06-2026')
+  })
+
+  it('active weekly changelog matches current week', () => {
+    const active = getActiveWeeklyChangelog()
+    if (WEEKLY_CHANGELOG.weekStarts === getCurrentReleaseWeekId()) {
+      expect(active).not.toBeNull()
+      expect(active?.items.length).toBeGreaterThan(0)
+    } else {
+      expect(active).toBeNull()
+    }
   })
 })
