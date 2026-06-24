@@ -349,7 +349,6 @@ export default function ReportsPage() {
                           { key: 'lost', label: 'Lost' },
                           { key: 'bookingCancelled', label: 'Cancelled' },
                           { key: 'unassigned', label: 'Unassigned' },
-                          { key: 'reviewRequests', label: 'Review requests' },
                         ].map((column) => (
                           <th
                             key={column.key}
@@ -389,7 +388,6 @@ export default function ReportsPage() {
                           <td className="px-4 py-3 text-right text-gray-700">{row.lost}</td>
                           <td className="px-4 py-3 text-right text-gray-700">{row.bookingCancelled}</td>
                           <td className="px-4 py-3 text-right text-gray-700">{row.unassigned}</td>
-                          <td className="px-4 py-3 text-right text-gray-700">{row.reviewRequests}</td>
                         </tr>
                       ))}
                     </tbody>
