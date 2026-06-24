@@ -31,15 +31,16 @@ export default function NotificationBell() {
   const [loading, setLoading] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
 
-  // Count unread — always running
+  // Count unread — realtime subscription
   useEffect(() => {
-    if (!profile) return
+    const userId = profile?.id
+    if (!userId) return
 
     async function fetchUnread() {
       const { count } = await supabase
         .from('notifications')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', profile!.id)
+        .eq('user_id', userId)
         .eq('read', false)
       setUnread(count ?? 0)
     }
@@ -47,15 +48,15 @@ export default function NotificationBell() {
     fetchUnread()
 
     const channel = supabase
-      .channel('notification-bell')
+      .channel(`notification-bell-${userId}`)
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'notifications',
-        filter: `user_id=eq.${profile.id}`,
+        filter: `user_id=eq.${userId}`,
       }, fetchUnread)
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [profile])
+  }, [profile?.id])
 
   // Close panel when clicking outside
   useEffect(() => {

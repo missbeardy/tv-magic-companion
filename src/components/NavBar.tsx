@@ -1,5 +1,5 @@
 // src/components/NavBar.tsx
-import { useEffect, useCallback, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useOrg } from '../context/OrgContext'
@@ -46,39 +46,19 @@ export default function NavBar() {
 
   return (
     <>
-      {/* ── Mobile top bar ── */}
-      <nav className="md:hidden sticky top-0 z-40 bg-brand shadow-lg">
-        <div className="flex items-center justify-between h-12 px-3">
-          <Link to="/" aria-label="Home" className="shrink-0">
-            <BrandLogo compact />
-          </Link>
-
-          <div className="flex items-center gap-0.5">
-            <NotificationBell />
-            <button
-              type="button"
-              onClick={() => setDrawerOpen(true)}
-              className="relative p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
-              aria-label="Open menu"
-            >
-              <Menu size={20} />
-              {drawerActive && (
-                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-400 ring-2 ring-[var(--color-primary)]" />
-              )}
-            </button>
-          </div>
-        </div>
-      </nav>
-
-      {/* ── Desktop top bar ── */}
-      <nav className="hidden md:block sticky top-0 z-40 bg-brand shadow-lg">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-center justify-between h-14 gap-2">
+      <nav className="sticky top-0 z-40 bg-brand shadow-lg">
+        <div className="max-w-7xl mx-auto px-3 md:px-4">
+          <div className="flex items-center justify-between h-12 md:h-14 gap-2">
             <Link to="/" aria-label="Home" className="shrink-0">
-              <BrandLogo />
+              <span className="md:hidden">
+                <BrandLogo compact />
+              </span>
+              <span className="hidden md:block">
+                <BrandLogo />
+              </span>
             </Link>
 
-            <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="hidden md:flex flex-1 min-w-0 items-center gap-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {navLinks.map((link) => {
                 const Icon = link.icon
                 const active = isNavActive(location.pathname, link.to)
@@ -99,9 +79,22 @@ export default function NavBar() {
               })}
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-0.5 md:gap-2 shrink-0">
               <NotificationBell />
-              <div className="flex items-center gap-2 ml-1 pl-3 border-l border-white/20">
+
+              <button
+                type="button"
+                onClick={() => setDrawerOpen(true)}
+                className="md:hidden relative p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                aria-label="Open menu"
+              >
+                <Menu size={20} />
+                {drawerActive && (
+                  <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-400 ring-2 ring-[var(--color-primary)]" />
+                )}
+              </button>
+
+              <div className="hidden md:flex items-center gap-2 ml-1 pl-3 border-l border-white/20">
                 <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
                   <span className="text-white font-bold text-xs">
                     {profile?.full_name?.charAt(0) ?? '?'}
