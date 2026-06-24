@@ -14,11 +14,13 @@ describe('canAccessFeature', () => {
   it('blocks pro features on basic tier', () => {
     expect(canAccessFeature('social', 'basic')).toBe(false)
     expect(canAccessFeature('tasks', 'basic')).toBe(false)
+    expect(canAccessFeature('reports', 'basic')).toBe(false)
   })
 
   it('allows pro features on pro tier', () => {
     expect(canAccessFeature('social', 'pro')).toBe(true)
     expect(canAccessFeature('tasks', 'pro')).toBe(true)
+    expect(canAccessFeature('reports', 'pro')).toBe(true)
   })
 
   it('shows all features when platform flag is off', async () => {

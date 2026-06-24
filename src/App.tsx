@@ -18,6 +18,7 @@ import SupportPage from './pages/SupportPage';
 import ProfilePage from './pages/ProfilePage'
 import SocialPage from './pages/SocialPage'
 import TaskBoardPage from './pages/TaskBoardPage'
+import ReportsPage from './pages/ReportsPage'
 import OrgSettingsPage from './pages/OrgSettingsPage'
 import PlatformAdminPage from './pages/PlatformAdminPage'
 import { useEffect } from 'react'
@@ -142,6 +143,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <TaskBoardPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/reports"
+                element={
+                  <ProtectedRoute requiredRole="manager">
+                    <ReportsPage />
                   </ProtectedRoute>
                 }
               />

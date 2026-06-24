@@ -8,7 +8,7 @@ export const FEATURES = {
   social: { tier: 'pro', nav: '/social', label: 'Social' },
   ai_parsing: { tier: 'pro', nav: null, label: 'AI Lead Parsing' },
   task_board: { tier: 'pro', nav: '/tasks', label: 'Task Board' },
-  reports: { tier: 'pro', nav: null, label: 'Reports' },
+  reports: { tier: 'pro', nav: '/reports', label: 'Reports' },
   api_access: { tier: 'enterprise', nav: null, label: 'API Access' },
 } as const
 

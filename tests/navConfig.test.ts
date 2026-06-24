@@ -11,6 +11,7 @@ describe('filterNavLinks', () => {
     expect(labels).toContain('Dashboard')
     expect(labels).toContain('Leads')
     expect(labels).toContain('Profile')
+    expect(labels).not.toContain('Reports')
     expect(labels).not.toContain('Franchise Settings')
     expect(labels).not.toContain('Platform')
   })
@@ -18,6 +19,7 @@ describe('filterNavLinks', () => {
   it('manager gets franchise settings when features allowed', () => {
     const links = filterNavLinks('manager', allowAll)
     expect(links.map((l) => l.label)).toContain('Franchise Settings')
+    expect(links.map((l) => l.label)).toContain('Reports')
   })
 
   it('platform_admin gets platform link', () => {
@@ -29,6 +31,7 @@ describe('filterNavLinks', () => {
     const links = filterNavLinks('manager', denyAll)
     expect(links.map((l) => l.label)).not.toContain('Social')
     expect(links.map((l) => l.label)).not.toContain('Tasks')
+    expect(links.map((l) => l.label)).not.toContain('Reports')
   })
 
   it('normalizes role with spaces', () => {
