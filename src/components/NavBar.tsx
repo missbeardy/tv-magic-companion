@@ -1,5 +1,5 @@
 // src/components/NavBar.tsx
-import { useState } from 'react'
+import { useEffect, useCallback, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useOrg } from '../context/OrgContext'
@@ -34,6 +34,7 @@ export default function NavBar() {
   const location = useLocation()
   const navigate = useNavigate()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const closeDrawer = useCallback(() => setDrawerOpen(false), [])
 
   const navLinks = filterNavLinks(profile?.role, canAccessFeature)
   const drawerActive = isDrawerRoute(location.pathname, navLinks)
@@ -127,7 +128,7 @@ export default function NavBar() {
 
       <MobileNavDrawer
         isOpen={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
+        onClose={closeDrawer}
         links={navLinks}
         onSignOut={handleLogout}
         profileName={profile?.full_name}

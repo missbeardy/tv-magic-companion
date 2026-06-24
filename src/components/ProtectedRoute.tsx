@@ -17,14 +17,31 @@ export default function ProtectedRoute({ children, requiredRole }: Props) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <p className="text-gray-400">Loading...</p>
       </div>
     )
   }
 
-  if (!user) {
+  if (!user && !profile) {
     return <Navigate to="/login" replace />
+  }
+
+  if (!profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+        <div className="max-w-sm card p-6 space-y-3 text-center">
+          <p className="font-display font-semibold text-gray-900">Could not load your profile</p>
+          <p className="text-sm text-gray-500">
+            You are signed in but the app cannot read your profile. Check Supabase RLS policies and
+            that <code className="text-xs">VITE_SUPABASE_URL</code> matches your dev project ref.
+          </p>
+          <a href="/login" className="inline-block text-sm text-brand-secondary hover:underline">
+            Back to sign in
+          </a>
+        </div>
+      </div>
+    )
   }
 
   if (requiredRole && profile && !roleMatches(requiredRole, profile.role)) {

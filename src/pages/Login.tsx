@@ -1,33 +1,40 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth, type Profile } from '../context/AuthContext'
+import { normalizeRole } from '../lib/roles'
 import { Mail, Lock, LogIn } from 'lucide-react'
 
 export default function Login() {
   const navigate = useNavigate()
-  const { setProfile } = useAuth()
+  const { establishSession, user, profile, loading } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [loadingForm, setLoadingForm] = useState(false)
   const [error, setError] = useState('')
 
+  useEffect(() => {
+    if (!loading && user && profile) {
+      navigate('/', { replace: true })
+    }
+  }, [loading, user, profile, navigate])
+
   async function handleLogin() {
-    setLoading(true)
+    setLoadingForm(true)
     setError('')
     try {
       const { data: authData, error: e } = await supabase.auth.signInWithPassword({ email, password })
       if (e) {
         const detail = import.meta.env.DEV ? `: ${e.message}` : ''
         setError(`Sign in failed${detail}`)
-        setLoading(false)
+        setLoadingForm(false)
         return
       }
 
       const userId = authData.user?.id ?? authData.session?.user?.id
       if (!userId) {
         setError('Sign in succeeded but no session was returned. Try again.')
-        setLoading(false)
+        setLoadingForm(false)
         return
       }
 
@@ -42,32 +49,40 @@ export default function Login() {
         setError(`Could not load your profile. Check dev database setup.${detail}`)
         console.error('Profile fetch error:', profileError)
         await supabase.auth.signOut()
-        setLoading(false)
+        setLoadingForm(false)
         return
       }
 
       if (!profileData) {
         setError(
-          'No profile found for this account. Run supabase/migrations/20250622140000_fix_existing_dev_minimal.sql in dev Supabase.'
+          'No profile found for this account. Run supabase/migrations/20250624120000_fix_dev_rls_white_screen.sql in dev Supabase.'
         )
         await supabase.auth.signOut()
-        setLoading(false)
+        setLoadingForm(false)
         return
       }
 
       if (!profileData.org_id) {
         setError('Your profile is not linked to an organisation. Run the dev seed SQL.')
         await supabase.auth.signOut()
-        setLoading(false)
+        setLoadingForm(false)
         return
       }
 
-      setProfile(profileData as Profile)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) {
+        setError('Sign in succeeded but no session was returned. Try again.')
+        setLoadingForm(false)
+        return
+      }
+
+      const role = normalizeRole(profileData.role) ?? profileData.role
+      establishSession(session.user, { ...(profileData as Profile), role: role as Profile['role'] })
       navigate('/')
-      setLoading(false)
+      setLoadingForm(false)
     } catch (err) {
       setError('An unexpected error occurred')
-      setLoading(false)
+      setLoadingForm(false)
     }
   }
 
@@ -133,11 +148,11 @@ export default function Login() {
 
           <button
             onClick={handleLogin}
-            disabled={loading}
+            disabled={loadingForm}
             className="w-full py-2.5 rounded-xl btn-primary text-sm font-semibold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
           >
             <LogIn size={15} />
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loadingForm ? 'Signing in…' : 'Sign in'}
           </button>
 
           {/* Forgot password */}

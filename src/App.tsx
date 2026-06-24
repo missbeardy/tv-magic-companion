@@ -23,6 +23,7 @@ import PlatformAdminPage from './pages/PlatformAdminPage'
 import { useEffect } from 'react'
 import { useTechLocation } from './hooks/useTechLocation'
 import { initOneSignal, setOneSignalUser, clearOneSignalUser } from './lib/oneSignal'
+import { isManagerRole } from './lib/roles'
 
 function Dashboard() {
   const { profile, loading } = useAuth()
@@ -39,9 +40,15 @@ function Dashboard() {
     }
   }, [profile?.id, loading])
 
-  if (loading) return <p className="p-4 text-gray-400">Loading...</p>
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <p className="text-gray-400">Loading...</p>
+      </div>
+    )
+  }
   if (!profile) return <Navigate to="/login" replace />
-  if (profile.role === 'manager' || profile.role === 'platform_admin') return <ManagerDashboard />
+  if (isManagerRole(profile.role)) return <ManagerDashboard />
   return <EmployeeDashboard />
 }
 

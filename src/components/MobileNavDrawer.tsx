@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { LogOut, X } from 'lucide-react'
 import type { NavLinkItem } from '../lib/navConfig'
@@ -21,6 +21,7 @@ export default function MobileNavDrawer({
 }: Props) {
   const location = useLocation()
   const drawerLinks = links.filter((l) => !l.primaryMobile)
+  const prevPath = useRef(location.pathname)
 
   useEffect(() => {
     if (!isOpen) return
@@ -37,6 +38,8 @@ export default function MobileNavDrawer({
   }, [isOpen, onClose])
 
   useEffect(() => {
+    if (prevPath.current === location.pathname) return
+    prevPath.current = location.pathname
     onClose()
   }, [location.pathname, onClose])
 
