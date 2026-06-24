@@ -2,14 +2,19 @@
 import { useState, useRef, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { sendPushNotification } from '../lib/sendPush'
+import { useOrg } from '../context/OrgContext'
+import { promptAndSendReviewRequest } from '../lib/reviewRequest'
 
 interface Props {
   leadId: string
   currentStatus: string
   assignedTo: string | null
   leadName: string
+  leadPhone: string | null | undefined
+  reviewRequestSentAt?: string | null
   serviceType: string
   onUpdated: () => void
+  logEvent?: (leadId: string, note: string) => Promise<void>
 }
 
 const STATUSES = [
@@ -22,7 +27,18 @@ const STATUSES = [
   { value: 'completed',         label: 'Completed',         color: 'bg-purple-100 text-purple-700' },
 ]
 
-export default function LeadStatusMenu({ leadId, currentStatus, assignedTo, leadName, serviceType, onUpdated }: Props) {
+export default function LeadStatusMenu({
+  leadId,
+  currentStatus,
+  assignedTo,
+  leadName,
+  leadPhone,
+  reviewRequestSentAt,
+  serviceType,
+  onUpdated,
+  logEvent,
+}: Props) {
+  const { org } = useOrg()
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [dropUp, setDropUp] = useState(false)
@@ -75,6 +91,14 @@ export default function LeadStatusMenu({ leadId, currentStatus, assignedTo, lead
         `Job ${statusLabel}`,
         `${leadName} — ${serviceType}`,
         `/leads?leadId=${leadId}`
+      )
+    }
+
+    if (newStatus === 'completed') {
+      await promptAndSendReviewRequest(
+        org,
+        { id: leadId, name: leadName, phone: leadPhone, review_request_sent_at: reviewRequestSentAt },
+        logEvent
       )
     }
 

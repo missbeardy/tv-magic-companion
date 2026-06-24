@@ -54,11 +54,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Update now button refreshes the PWA cache to the latest version',
     'Changelog dates show as day-month-year',
     'Weekly What\'s New — shown once on the first update after each Monday',
+    'Post-job Google review request SMS — confirm before send, toggle in Franchise Settings',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.3'
+export const APP_VERSION = '1.1.4'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

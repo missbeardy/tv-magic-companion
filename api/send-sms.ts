@@ -237,6 +237,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Recipient is not a contact in your organisation' })
   }
 
+  if (mode === 'review_request' && !auth.org.review_requests_enabled) {
+    return res.status(400).json({ error: 'Review requests are disabled for this organisation' })
+  }
+
+  const reviewUrl = auth.org.google_review_url?.trim()
+  if (mode === 'review_request' && !reviewUrl) {
+    return res.status(400).json({ error: 'Google review URL is not configured' })
+  }
+
   const sid = process.env.TWILIO_ACCOUNT_SID
   const token = process.env.TWILIO_AUTH_TOKEN
   const from = process.env.TWILIO_FROM_NUMBER
@@ -278,6 +287,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         appUrl: `${platformUrl}/leads`,
       },
       `${orgName}: A new lead has been submitted — {{leadName}} ({{serviceType}}). Please review and assign a technician: {{appUrl}}`
+    )
+  } else if (mode === 'review_request') {
+    if (!customerName) {
+      return res.status(400).json({ error: 'Missing customerName for review_request mode' })
+    }
+    message = buildSmsFromBrand(
+      auth.brand?.sms_templates,
+      'customer_review_request',
+      {
+        'org.name': orgName,
+        customerName,
+        reviewUrl: reviewUrl!,
+      },
+      `Hi {{customerName}}, thanks for choosing {{org.name}}! We'd love your feedback: {{reviewUrl}}`
     )
   } else {
     if (!customerName || !address) {

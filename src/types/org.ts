@@ -17,6 +17,8 @@ export interface Org {
   stripe_customer_id?: string | null
   lead_count_this_month: number
   brand_id?: string | null
+  google_review_url?: string | null
+  review_requests_enabled?: boolean
 }
 
 interface OrgContextType {

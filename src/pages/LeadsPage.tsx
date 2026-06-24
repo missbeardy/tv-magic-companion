@@ -13,6 +13,7 @@ import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useOrg } from '../context/OrgContext'
 import NavBar from '../components/NavBar'
 import CountdownTimer from '../components/CountdownTimer'
 import LeadStatusMenu from '../components/LeadStatusMenu'
@@ -27,6 +28,7 @@ import AddLeadModal from '../components/AddLeadModal'
 import { openNavigation } from '../lib/navigation'
 import { isManagerRole } from '../lib/roles'
 import { getColumnsForTab } from '../lib/leadsKanban'
+import { promptAndSendReviewRequest } from '../lib/reviewRequest'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -43,6 +45,7 @@ interface Lead {
   timer_expires_at: string | null
   assigned_to: string | null
   address: string | undefined
+  review_request_sent_at?: string | null
   lead_source?: string | null
   raw_email?: string | null
   raw_sms?: string | null
@@ -118,6 +121,7 @@ interface LeadCardProps {
   onAssign: (lead: Lead) => void
   onBook: (lead: Lead) => void
   onRefresh: () => void
+  onLogEvent: (leadId: string, eventType: string, note?: string) => Promise<void>
 }
 
 function LeadCard({
@@ -129,6 +133,7 @@ function LeadCard({
   onAssign,
   onBook,
   onRefresh,
+  onLogEvent,
 }: LeadCardProps) {
   const isExpanded = expandedLead === lead.id
   const isBookingCancelled = lead.status === 'booking_cancelled'
@@ -188,8 +193,11 @@ function LeadCard({
             currentStatus={lead.status}
             assignedTo={lead.assigned_to}
             leadName={lead.name}
+            leadPhone={lead.phone}
+            reviewRequestSentAt={lead.review_request_sent_at}
             serviceType={lead.service_type}
             onUpdated={onRefresh}
+            logEvent={(id, note) => onLogEvent(id, 'review_request', note)}
           />
         </div>
       </div>
@@ -304,9 +312,10 @@ interface KanbanColumnProps {
   onAssign: (lead: Lead) => void
   onBook: (lead: Lead) => void
   onRefresh: () => void
+  onLogEvent: (leadId: string, eventType: string, note?: string) => Promise<void>
 }
 
-function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onRefresh }: KanbanColumnProps) {
+function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onRefresh, onLogEvent }: KanbanColumnProps) {
   return (
     <div className={`w-full bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200`}>
       <div className="p-3 border-b border-gray-100 flex items-center justify-between">
@@ -333,6 +342,7 @@ function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand,
             onAssign={onAssign}
             onBook={onBook}
             onRefresh={onRefresh}
+            onLogEvent={onLogEvent}
           />
         ))}
       </div>
@@ -342,7 +352,7 @@ function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand,
 
 // ── KanbanColumn — Desktop (drag wrappers active) ────────────────────────
 
-function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onRefresh }: KanbanColumnProps) {
+function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onRefresh, onLogEvent }: KanbanColumnProps) {
   return (
     <DroppableColumn id={col.key}>
       <div className={`flex-shrink-0 w-72 bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200 h-full`}>
@@ -371,6 +381,7 @@ function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand
                 onAssign={onAssign}
                 onBook={onBook}
                 onRefresh={onRefresh}
+                onLogEvent={onLogEvent}
               />
             </DraggableCard>
           ))}
@@ -384,6 +395,7 @@ function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand
 
 export default function LeadsPage() {
   const { profile } = useAuth()
+  const { org } = useOrg()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddLead, setShowAddLead] = useState(false)
@@ -460,6 +472,14 @@ export default function LeadsPage() {
       fetchLeads()
     } else {
       await logLeadEvent(leadId, 'status_change', `Status changed to ${newStatus} via drag`)
+      if (newStatus === 'completed') {
+        await promptAndSendReviewRequest(
+          org,
+          lead,
+          (id, note) => logLeadEvent(id, 'review_request', note)
+        )
+        fetchLeads()
+      }
     }
   }
 
@@ -483,14 +503,20 @@ export default function LeadsPage() {
   const confirmComplete = useCallback(async () => {
     if (!checklistLead) return
     setShowChecklist(false)
+    const lead = checklistLead
     await supabase
       .from('leads')
       .update({ status: 'completed' })
-      .eq('id', checklistLead.id)
-    await logLeadEvent(checklistLead.id, 'completed', 'Job marked complete via checklist')
+      .eq('id', lead.id)
+    await logLeadEvent(lead.id, 'completed', 'Job marked complete via checklist')
+    await promptAndSendReviewRequest(
+      org,
+      lead,
+      (id, note) => logLeadEvent(id, 'review_request', note)
+    )
     setChecklistLead(null)
     fetchLeads()
-  }, [checklistLead, logLeadEvent, fetchLeads])
+  }, [checklistLead, logLeadEvent, fetchLeads, org])
 
   const handleCall = useCallback(async (lead: Lead) => {
     const confirmed = window.confirm(
@@ -587,6 +613,7 @@ export default function LeadsPage() {
     onAssign: setAssigningLead,
     onBook: setBookingLead,
     onRefresh: fetchLeads,
+    onLogEvent: logLeadEvent,
   })
 
   return (
