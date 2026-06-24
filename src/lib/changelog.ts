@@ -8,6 +8,15 @@ export interface ChangelogEntry {
 /** Newest release first — bump APP_VERSION when shipping. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.1.1',
+    date: '2026-06-24',
+    title: 'App Updates',
+    items: [
+      'What\'s New overlay when the app updates',
+      'Update now button refreshes the PWA cache to the latest version',
+    ],
+  },
+  {
     version: '1.1.0',
     date: '2026-06-24',
     title: 'Navigation & Bookings',
