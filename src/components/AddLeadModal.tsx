@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { alertManagersOnNewLead } from '../lib/notify';
+import { logLeadEvent } from '../lib/leadEvents';
 import { X, UserPlus, Phone, Mail, MapPin, Briefcase } from 'lucide-react';
 
 interface Props {
@@ -51,6 +52,18 @@ export default function AddLeadModal({ onClose, onCreated }: Props) {
       setSaving(false);
       return;
     }
+
+    await logLeadEvent({
+      leadId: lead.id,
+      orgId: profile?.org_id ?? null,
+      eventType: 'created',
+      note: 'Lead created manually',
+      actorId: profile?.id ?? null,
+      payload: {
+        source: 'manual',
+        lead_source: 'Manual Entry',
+      },
+    });
 
     await alertManagersOnNewLead(lead.id);
 

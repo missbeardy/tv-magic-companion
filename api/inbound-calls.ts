@@ -82,6 +82,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         event_type: 'missed_call_again',
         note: `Another missed call from ${normalizedPhone} at ${payload.timestamp}`,
         org_id: orgId,
+        payload: {
+          phone: normalizedPhone,
+          call_type: payload.callType,
+          source: '3cx_missed_call',
+        },
       })
 
       return res.status(200).json({ 
@@ -112,6 +117,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.error('Failed to create lead from missed call:', insertError)
       return res.status(500).json({ error: 'Failed to create lead' })
     }
+
+    await supabase.from('lead_events').insert({
+      lead_id: newLead.id,
+      org_id: orgId,
+      event_type: 'created',
+      note: `Lead created from ${payload.callType} call`,
+      payload: {
+        phone: normalizedPhone,
+        call_type: payload.callType,
+        source: '3cx_missed_call',
+      },
+    })
 
     // Notify managers of new missed call lead
     const { data: managers } = await supabase

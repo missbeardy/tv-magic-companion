@@ -251,6 +251,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (error) throw error
 
+    await supabase.from('lead_events').insert({
+      lead_id: newLead.id,
+      org_id: orgId,
+      event_type: 'created',
+      note: 'Lead created from inbound voicemail',
+      payload: {
+        source: 'phone',
+        transcription_failed: transcriptionFailed,
+      },
+    })
+
     await notifyManagers(
       orgId,
       transcriptionFailed

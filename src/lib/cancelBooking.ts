@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { logLeadEvent } from './leadEvents'
 
 export interface CancelBookingParams {
   eventId: string
@@ -68,12 +69,17 @@ export async function cancelBooking(params: CancelBookingParams): Promise<{ erro
       reason?.trim() ? `Reason: ${reason.trim()}` : null,
     ].filter(Boolean)
 
-    await supabase.from('lead_events').insert({
-      lead_id: leadId,
-      org_id: orgId,
-      event_type: 'booking_cancelled',
+    await logLeadEvent({
+      leadId,
+      orgId,
+      eventType: 'booking_cancelled',
       note: noteParts.join(' — '),
-      created_by: actorId,
+      actorId,
+      payload: {
+        event_id: eventId,
+        reason: reason?.trim() || null,
+        appointment_date: appointmentDate ?? null,
+      },
     })
   }
 

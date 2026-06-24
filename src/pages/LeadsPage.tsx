@@ -30,6 +30,8 @@ import { openNavigation } from '../lib/navigation'
 import { isManagerRole } from '../lib/roles'
 import { getColumnsForTab } from '../lib/leadsKanban'
 import { isReviewRequestEligible, sendReviewRequestSms } from '../lib/reviewRequest'
+import { logLeadEvent as recordLeadEvent } from '../lib/leadEvents'
+import type { LeadEventType } from '../lib/leadEventPayload'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -122,7 +124,7 @@ interface LeadCardProps {
   onAssign: (lead: Lead) => void
   onBook: (lead: Lead) => void
   onRefresh: () => void
-  onLogEvent: (leadId: string, eventType: string, note?: string) => Promise<void>
+  onLogEvent: (leadId: string, eventType: LeadEventType, note?: string, payload?: Record<string, unknown>) => Promise<void>
 }
 
 function LeadCard({
@@ -313,7 +315,7 @@ interface KanbanColumnProps {
   onAssign: (lead: Lead) => void
   onBook: (lead: Lead) => void
   onRefresh: () => void
-  onLogEvent: (leadId: string, eventType: string, note?: string) => Promise<void>
+  onLogEvent: (leadId: string, eventType: LeadEventType, note?: string, payload?: Record<string, unknown>) => Promise<void>
 }
 
 function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onRefresh, onLogEvent }: KanbanColumnProps) {
@@ -433,14 +435,23 @@ export default function LeadsPage() {
     setLoading(false)
   }, [profile?.org_id, profile?.role, profile?.id])
 
-  const logLeadEvent = useCallback(async (leadId: string, eventType: string, note?: string) => {
-    await supabase.from('lead_events').insert({
-      lead_id: leadId,
-      event_type: eventType,
-      note: note ?? null,
-      created_by: profile?.id ?? null,
+  const logLeadEvent = useCallback(async (
+    leadId: string,
+    eventType: LeadEventType,
+    note?: string,
+    payload?: Record<string, unknown>
+  ) => {
+    if (!profile?.org_id) return
+
+    await recordLeadEvent({
+      leadId,
+      orgId: profile.org_id,
+      eventType,
+      note,
+      actorId: profile.id,
+      payload,
     })
-  }, [profile?.id])
+  }, [profile?.id, profile?.org_id])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -475,7 +486,18 @@ export default function LeadsPage() {
     if (error) {
       fetchLeads()
     } else {
-      await logLeadEvent(leadId, 'status_change', `Status changed to ${newStatus} via drag`)
+      await logLeadEvent(
+        leadId,
+        newStatus === 'contact_attempted' ||
+          newStatus === 'booked' ||
+          newStatus === 'lost' ||
+          newStatus === 'completed' ||
+          newStatus === 'expired'
+          ? newStatus
+          : 'status_change',
+        `Status changed from ${lead.status} to ${newStatus} via drag`,
+        { from_status: lead.status, to_status: newStatus, source: 'drag' }
+      )
       if (newStatus === 'completed') {
         const eligible = await isReviewRequestEligible(org, lead, profile?.org_id)
         if (eligible) {
@@ -533,7 +555,12 @@ export default function LeadsPage() {
       .from('leads')
       .update({ status: 'completed' })
       .eq('id', lead.id)
-    await logLeadEvent(lead.id, 'completed', 'Job marked complete via checklist')
+    await logLeadEvent(
+      lead.id,
+      'completed',
+      'Job marked complete via checklist',
+      { from_status: lead.status, to_status: 'completed', source: 'completion_checklist' }
+    )
     setChecklistLead(null)
     fetchLeads()
   }, [checklistLead, logLeadEvent, fetchLeads])
@@ -544,13 +571,18 @@ export default function LeadsPage() {
     )
     if (!confirmed) return
     await supabase.from('leads').update({ status: 'contact_attempted' }).eq('id', lead.id)
-    await logLeadEvent(lead.id, 'call_attempted', `Called ${lead.phone}`)
+    await logLeadEvent(
+      lead.id,
+      'call_attempted',
+      `Called ${lead.phone}`,
+      { from_status: lead.status, to_status: 'contact_attempted', channel: 'phone' }
+    )
     window.location.href = `tel:${lead.phone}`
     closeSheet()
     fetchLeads()
   }, [logLeadEvent, closeSheet, fetchLeads])
 
-  const handleSMS = useCallback((lead: Lead) => {
+  const handleSMS = useCallback(async (lead: Lead) => {
     if (!lead.phone?.trim()) { alert('No phone number saved for this lead.'); return }
     const rawPhone = lead.phone.replace(/\s+/g, '')
     const to = rawPhone.startsWith('+') ? rawPhone
@@ -563,9 +595,15 @@ export default function LeadsPage() {
     const message = mapsUrl
       ? `Hi ${lead.name}, ${techName} from TVMagic is on their way to you. Track the route: ${mapsUrl} — TVMagic Team`
       : `Hi ${lead.name}, ${techName} from TVMagic is on their way to you. — TVMagic Team`
+    await logLeadEvent(
+      lead.id,
+      'sms_attempted',
+      `Opened SMS to ${to}`,
+      { channel: 'sms', phone: to }
+    )
     window.open(`sms:${to}?body=${encodeURIComponent(message)}`, '_blank')
     closeSheet()
-  }, [closeSheet, profile?.full_name])
+  }, [closeSheet, logLeadEvent, profile?.full_name])
 
   const handleSharePhoto = useCallback(async (lead: Lead) => {
     if (navigator.share) {
@@ -583,7 +621,12 @@ export default function LeadsPage() {
 
   const handleMarkContactAttempted = useCallback(async (lead: Lead) => {
     await supabase.from('leads').update({ status: 'contact_attempted' }).eq('id', lead.id)
-    await logLeadEvent(lead.id, 'status_change', 'Status updated to Contact Attempted')
+    await logLeadEvent(
+      lead.id,
+      'contact_attempted',
+      'Status updated to Contact Attempted',
+      { from_status: lead.status, to_status: 'contact_attempted', source: 'manual_action' }
+    )
     fetchLeads()
     closeSheet()
   }, [logLeadEvent, fetchLeads, closeSheet])
@@ -602,7 +645,12 @@ export default function LeadsPage() {
         timer_expires_at: null,
       })
       .eq('id', lead.id)
-    await logLeadEvent(lead.id, 'unassigned', `Manually unassigned by manager`)
+    await logLeadEvent(
+      lead.id,
+      'unassigned',
+      `Manually unassigned by manager`,
+      { from_status: lead.status, to_status: 'unassigned', previous_assignee_id: lead.assigned_to }
+    )
     fetchLeads()
     closeSheet()
   }, [logLeadEvent, fetchLeads, closeSheet])

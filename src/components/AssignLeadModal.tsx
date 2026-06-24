@@ -7,6 +7,7 @@ import { sendNotification } from '../lib/notify'
 import { getPlatformUrl } from '../lib/env'
 import { getAuthHeaders } from '../lib/apiAuth'
 import { useOrgProfiles } from '../hooks/useOrgProfiles'
+import { logLeadEvent } from '../lib/leadEvents'
 import { X, MapPin, Zap, Navigation, Star } from 'lucide-react'
 
 interface Lead {
@@ -102,6 +103,19 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
       setSaving(false)
       return
     }
+
+    await logLeadEvent({
+      leadId: lead.id,
+      orgId: profile?.org_id ?? null,
+      eventType: 'assigned',
+      note: `Lead assigned to ${employees.find((e) => e.id === employeeId)?.full_name ?? 'team member'}`,
+      actorId: profile?.id ?? null,
+      payload: {
+        assigned_to: employeeId,
+        timer_expires_at: expiresAt,
+        source: profile?.role === 'employee' ? 'self_assign' : 'manager_assign',
+      },
+    })
 
     // Push notification (in-app)
     await sendNotification(

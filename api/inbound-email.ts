@@ -238,6 +238,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (error) throw error
 
+      await supabase.from('lead_events').insert({
+        lead_id: newLead.id,
+        org_id: orgId,
+        event_type: 'created',
+        note: 'Lead created from inbound voicemail email',
+        payload: {
+          source: 'phone',
+          transcription_failed: transcriptionFailed,
+        },
+      })
+
       await notifyManagers(
         orgId,
         transcriptionFailed
@@ -262,7 +273,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const lead = await extractLeadWithClaude(emailText, subject, from, 'email')
 
-    const { error } = await supabase.from('leads').insert({
+    const { data: newLead, error } = await supabase.from('leads').insert({
       org_id: orgId,
       name: lead.name || from,
       phone: lead.phone || null,
@@ -274,8 +285,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       source: 'email',
       raw_email: emailText,
     })
+      .select('id')
+      .single()
 
     if (error) throw error
+
+    await supabase.from('lead_events').insert({
+      lead_id: newLead.id,
+      org_id: orgId,
+      event_type: 'created',
+      note: 'Lead created from inbound email',
+      payload: {
+        source: 'email',
+        from,
+        subject,
+      },
+    })
 
     console.log('Lead successfully created via CloudMailin:', lead.name || from)
     return res.status(200).json({ success: true })

@@ -210,6 +210,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (error) {
       console.error('Insert error:', error)
     } else {
+      await supabase.from('lead_events').insert({
+        lead_id: newLead.id,
+        org_id: orgId,
+        event_type: 'created',
+        note: 'Lead created from inbound SMS',
+        payload: {
+          source: 'sms',
+          from: fromNumber,
+        },
+      })
       console.log(`Lead saved: ${newLead.id} with org ${orgId}`)
     }
 

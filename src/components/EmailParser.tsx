@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { getAuthHeaders } from '../lib/apiAuth'
 import { alertManagersOnNewLead } from '../lib/notify'
 import { useAuth } from '../context/AuthContext'
+import { logLeadEvent } from '../lib/leadEvents'
 
 interface ExtractedLead {
   name: string
@@ -183,12 +184,12 @@ ${rawEmail}`,
         setDuplicateWarning(existingLead.id)
 
         const { data: { user } } = await supabase.auth.getUser()
-        await supabase.from('lead_events').insert({
-          lead_id: existingLead.id,
-          org_id: profile.org_id,
-          event_type: 'duplicate_blocked',
+        await logLeadEvent({
+          leadId: existingLead.id,
+          orgId: profile.org_id,
+          eventType: 'duplicate_blocked',
           payload: { email_hash: hash },
-          actor_id: user?.id ?? null,
+          actorId: user?.id ?? null,
         })
 
         setSaving(false)
@@ -221,15 +222,15 @@ ${rawEmail}`,
       }
 
       const { data: { user } } = await supabase.auth.getUser()
-      await supabase.from('lead_events').insert({
-        lead_id: lead.id,
-        org_id: profile.org_id,
-        event_type: 'created',
+      await logLeadEvent({
+        leadId: lead.id,
+        orgId: profile.org_id,
+        eventType: 'created',
         payload: {
           lead_source: extracted.lead_source,
           customer_id: customerId,
         },
-        actor_id: user?.id ?? null,
+        actorId: user?.id ?? null,
       })
 
       await alertManagersOnNewLead(lead.id)

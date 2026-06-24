@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { cancelBooking } from '../lib/cancelBooking'
 import { resolveBookingCustomerName } from '../lib/calendarBooking'
+import { logLeadEvent } from '../lib/leadEvents'
 import TimePicker from './TimePicker'
 import { X, CalendarDays, Clock, User, FileText, MapPin, Phone, Briefcase, Link, Search, DollarSign } from 'lucide-react'
 
@@ -290,12 +291,17 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
       leadIdToUse = newLead.id
       setLinkedLeadId(newLead.id)
 
-      await supabase.from('lead_events').insert({
-        lead_id: newLead.id,
-        org_id: profile?.org_id,
-        event_type: 'booked',
+      await logLeadEvent({
+        leadId: newLead.id,
+        orgId: profile?.org_id ?? null,
+        eventType: 'created',
         note: `Lead created from calendar booking: "${title}"`,
-        created_by: profile?.id ?? null,
+        actorId: profile?.id ?? null,
+        payload: {
+          source: 'manual',
+          lead_source: 'Calendar Booking',
+          assigned_to: profile?.id ?? null,
+        },
       })
     } else if (leadIdToUse) {
       const { data: currentLead } = await supabase
@@ -361,6 +367,21 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
         .from('events')
         .insert(eventData)
       if (e) { setError(e.message); setSaving(false); return }
+      if (leadIdToUse) {
+        await logLeadEvent({
+          leadId: leadIdToUse,
+          orgId: profile?.org_id ?? null,
+          eventType: 'booked',
+          note: `Booking scheduled: "${title}"`,
+          actorId: profile?.id ?? null,
+          payload: {
+            start_time: startISO,
+            end_time: endISO,
+            booked_by: profile?.id ?? null,
+            job_quote: jobQuote.trim() === '' ? null : Number(jobQuote),
+          },
+        })
+      }
       await notifyManager('scheduled')
     }
 
