@@ -8,11 +8,10 @@ import { useAuth } from '../context/AuthContext'
 import NavBar from '../components/NavBar'
 import AssignedLeads from '../components/AssignedLeads'
 import { useTechLocation } from '../hooks/useTechLocation'
-import { Inbox, ClipboardCheck, Clock, Zap } from 'lucide-react'
+import { Inbox, CalendarDays, Zap } from 'lucide-react'
 
 interface Stats {
-  assigned: number
-  completed: number
+  booked: number
   unassigned: number
 }
 
@@ -42,7 +41,7 @@ function StatCard({ label, value, icon: Icon, colour, onClick }: {
 export default function EmployeeDashboard() {
   const { profile } = useAuth()
   const navigate = useNavigate()
-  const [stats, setStats] = useState<Stats>({ assigned: 0, completed: 0, unassigned: 0 })
+  const [stats, setStats] = useState<Stats>({ booked: 0, unassigned: 0 })
   useTechLocation(profile?.id ?? null)
 
   const today = new Date().toLocaleDateString('en-AU', {
@@ -61,9 +60,8 @@ export default function EmployeeDashboard() {
 
     if (data) {
       setStats({
-        assigned:   data.filter(l => l.status === 'assigned'  && l.assigned_to === profile.id).length,
-        completed:  data.filter(l => l.status === 'completed' && l.assigned_to === profile.id).length,
         unassigned: data.filter(l => l.status === 'unassigned').length,
+        booked: data.filter(l => l.status === 'booked' && l.assigned_to === profile.id).length,
       })
     }
   }
@@ -91,18 +89,14 @@ export default function EmployeeDashboard() {
         </div>
 
         {/* Stats row - clickable */}
-        <div className="grid grid-cols-3 gap-3">
-          <StatCard
-            label="My Jobs" value={stats.assigned} icon={Clock} colour="bg-[#004B93]"
-            onClick={() => navigate('/leads?status=assigned')}
-          />
-          <StatCard
-            label="Completed" value={stats.completed} icon={ClipboardCheck} colour="bg-green-500"
-            onClick={() => navigate('/leads?status=completed')}
-          />
+        <div className="grid grid-cols-2 gap-3">
           <StatCard
             label="In Pool" value={stats.unassigned} icon={Inbox} colour="bg-amber-400"
             onClick={() => navigate('/leads?status=unassigned')}
+          />
+          <StatCard
+            label="Booked" value={stats.booked} icon={CalendarDays} colour="bg-indigo-500"
+            onClick={() => navigate('/leads?status=booked')}
           />
         </div>
 
