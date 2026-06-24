@@ -1,0 +1,27 @@
+---
+description: Update changelog and app version before every preview or production push
+alwaysApply: true
+---
+
+# Release changelog (required on every deploy)
+
+Before pushing to **any** preview branch or `main`, update the in-app What's New overlay:
+
+1. Edit [`src/lib/changelog.ts`](src/lib/changelog.ts):
+   - Add a **new entry at the top** of `CHANGELOG` with user-facing bullet points.
+   - Set `version` (semver patch/minor as appropriate).
+   - Set `date` in **DD-MM-YYYY** (use `todayChangelogDate()` or e.g. `24-06-2026`).
+2. Bump [`package.json`](package.json) `version` to match `CHANGELOG[0].version`.
+3. Run `npm test` — `changelog` tests verify version sync.
+
+Do not push user-facing features to preview/production without a changelog entry unless the change is internal-only (deps, CI, docs with no user impact).
+
+```ts
+// Example new entry
+{
+  version: '1.1.2',
+  date: '25-06-2026', // DD-MM-YYYY
+  title: 'Short release title',
+  items: ['What changed for the user', 'Another bullet'],
+},
+```

@@ -1,6 +1,6 @@
 import { Sparkles, RefreshCw, X } from 'lucide-react'
 import type { ChangelogEntry } from '../lib/changelog'
-import { APP_VERSION } from '../lib/changelog'
+import { APP_VERSION, formatChangelogDate } from '../lib/changelog'
 
 interface Props {
   isOpen: boolean
@@ -83,7 +83,7 @@ export default function ChangelogOverlay({
                   <h3 className="font-display font-semibold text-gray-900 text-sm">
                     {entry.title}
                   </h3>
-                  <span className="text-xs text-gray-400 shrink-0">{entry.date}</span>
+                  <span className="text-xs text-gray-400 shrink-0">{formatChangelogDate(entry.date)}</span>
                 </div>
                 <ul className="space-y-2">
                   {entry.items.map((item) => (

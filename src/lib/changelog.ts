@@ -1,15 +1,40 @@
 export interface ChangelogEntry {
   version: string
+  /** Display date in DD-MM-YYYY (e.g. 24-06-2026). */
   date: string
   title: string
   items: string[]
 }
 
+/** Format today as DD-MM-YYYY for new changelog entries. */
+export function todayChangelogDate(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`
+}
+
+/** Normalize legacy ISO (YYYY-MM-DD) or validate DD-MM-YYYY for display. */
+export function formatChangelogDate(date: string): string {
+  if (/^\d{2}-\d{2}-\d{4}$/.test(date)) return date
+  const iso = date.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (iso) return `${iso[3]}-${iso[2]}-${iso[1]}`
+  return date
+}
+
 /** Newest release first — bump APP_VERSION when shipping. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.1.2',
+    date: '24-06-2026',
+    title: 'Release notes',
+    items: [
+      'Changelog dates now show as day-month-year',
+      'Every app update includes What\'s New notes automatically',
+    ],
+  },
+  {
     version: '1.1.1',
-    date: '2026-06-24',
+    date: '24-06-2026',
     title: 'App Updates',
     items: [
       'What\'s New overlay when the app updates',
@@ -18,7 +43,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   },
   {
     version: '1.1.0',
-    date: '2026-06-24',
+    date: '24-06-2026',
     title: 'Navigation & Bookings',
     items: [
       'Redesigned mobile bottom navigation with sliding pill indicator and Leads badge',
