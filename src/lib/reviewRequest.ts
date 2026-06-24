@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { getAuthHeaders } from './apiAuth'
+import { formatAuPhoneForSms } from './phone'
 
 export interface ReviewRequestOrg {
   name: string
@@ -14,6 +15,25 @@ export interface ReviewRequestLead {
   review_request_sent_at?: string | null
 }
 
+export function getReviewRequestBlockReason(
+  org: ReviewRequestOrg | null | undefined,
+  lead: ReviewRequestLead
+): string | null {
+  if (org?.review_requests_enabled === false) {
+    return 'Review prompts are turned off in Franchise Settings.'
+  }
+  if (!org?.google_review_url?.trim()) {
+    return 'Add a Google Review Link in Franchise Settings and tap Save.'
+  }
+  if (!lead.phone?.trim()) {
+    return 'This lead has no phone number.'
+  }
+  if (lead.review_request_sent_at) {
+    return 'A review request was already sent for this job.'
+  }
+  return null
+}
+
 export function canOfferReviewRequest(
   org: ReviewRequestOrg | null | undefined,
   lead: ReviewRequestLead
@@ -25,50 +45,72 @@ export function canOfferReviewRequest(
   return true
 }
 
-/** After a job is marked complete — confirm with tech, then send review SMS if accepted. */
-export async function promptAndSendReviewRequest(
+export async function fetchReviewOrg(orgId: string): Promise<ReviewRequestOrg | null> {
+  const { data, error } = await supabase
+    .from('orgs')
+    .select('name, google_review_url, review_requests_enabled')
+    .eq('id', orgId)
+    .single()
+
+  if (error) {
+    console.error('Failed to load review settings:', error)
+    return null
+  }
+  return data as ReviewRequestOrg
+}
+
+export async function isReviewRequestEligible(
   org: ReviewRequestOrg | null | undefined,
   lead: ReviewRequestLead,
+  orgId?: string | null
+): Promise<boolean> {
+  const activeOrg = orgId ? (await fetchReviewOrg(orgId)) ?? org : org
+  return canOfferReviewRequest(activeOrg, lead)
+}
+
+/** Send review-request SMS (no UI — caller handles prompts). */
+export async function sendReviewRequestSms(
+  lead: ReviewRequestLead,
   logEvent?: (leadId: string, note: string) => Promise<void>
-): Promise<'sent' | 'declined' | 'skipped'> {
-  if (!canOfferReviewRequest(org, lead)) return 'skipped'
-
-  const confirmed = window.confirm(
-    `Send a Google review request to ${lead.name} at ${lead.phone}?\n\n` +
-      `Turn off review prompts anytime in Franchise Settings.`
-  )
-  if (!confirmed) return 'declined'
-
+): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const headers = await getAuthHeaders()
+    if (!headers.Authorization) {
+      return { ok: false, error: 'Session expired — log out and sign in again.' }
+    }
+
     const res = await fetch('/api/send-sms', {
       method: 'POST',
       headers,
       body: JSON.stringify({
         mode: 'review_request',
-        to: lead.phone!.trim(),
+        leadId: lead.id,
+        to: formatAuPhoneForSms(lead.phone!.trim()),
         customerName: lead.name,
       }),
     })
 
+    const data = await res.json().catch(() => ({})) as { error?: string; detail?: string }
+
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      alert(`Review request SMS failed: ${(data as { error?: string }).error ?? res.statusText}`)
-      return 'skipped'
+      const detail = data.detail ? ` (${data.detail})` : ''
+      return { ok: false, error: `${data.error ?? res.statusText}${detail}` }
     }
 
     const sentAt = new Date().toISOString()
-    await supabase
+    const { error: updateError } = await supabase
       .from('leads')
       .update({ review_request_sent_at: sentAt })
       .eq('id', lead.id)
 
-    await logEvent?.(lead.id, 'Google review request SMS sent')
+    if (updateError) {
+      console.error('review_request_sent_at update failed:', updateError)
+    }
 
-    return 'sent'
+    await logEvent?.(lead.id, 'Google review request SMS sent')
+    return { ok: true }
   } catch (err) {
     console.error('Review request SMS failed:', err)
-    alert('Could not send review request SMS. Check your connection and try again.')
-    return 'skipped'
+    return { ok: false, error: 'Could not send the text. Check your connection and try again.' }
   }
 }

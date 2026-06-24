@@ -55,11 +55,13 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Changelog dates show as day-month-year',
     'Weekly What\'s New — shown once on the first update after each Monday',
     'Post-job Google review request SMS — confirm before send, toggle in Franchise Settings',
+    'Review SMS fixes — fresh org settings, E.164 phone format, lead-based send',
+    'In-app review request step in job complete flow (no browser confirm)',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.4'
+export const APP_VERSION = '1.1.5'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

@@ -4,6 +4,13 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useConfetti } from '../hooks/useConfetti';
+import ReviewRequestStep from './ReviewRequestStep';
+import {
+  fetchReviewOrg,
+  isReviewRequestEligible,
+  sendReviewRequestSms,
+  type ReviewRequestLead,
+} from '../lib/reviewRequest';
 
 const CHECKLIST = [
   'Equipment tested and working correctly',
@@ -12,7 +19,6 @@ const CHECKLIST = [
   'Receipt / invoice discussed with customer',
 ];
 
-// Fallback shown only if the org hasn't configured custom upsells yet
 const DEFAULT_UPSELLS = [
   '📡 Annual signal health check ($49)',
   '🔧 Surge protector fitting ($35)',
@@ -26,21 +32,24 @@ interface UpsellItem {
 }
 
 interface Props {
-  onConfirm: () => void;
+  lead: ReviewRequestLead;
+  onComplete: () => void | Promise<void>;
   onCancel: () => void;
+  logEvent?: (leadId: string, note: string) => Promise<void>;
 }
 
-export default function CompletionChecklist({ onConfirm, onCancel }: Props) {
+export default function CompletionChecklist({ lead, onComplete, onCancel, logEvent }: Props) {
   const { profile } = useAuth();
   const { fireConfetti } = useConfetti();
   const [checked, setChecked] = useState<boolean[]>(CHECKLIST.map(() => false));
   const [upsellDone, setUpsellDone] = useState(false);
   const [upsellLabels, setUpsellLabels] = useState<string[]>(DEFAULT_UPSELLS);
+  const [step, setStep] = useState<'checklist' | 'review'>('checklist');
+  const [sendingReview, setSendingReview] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   const allChecked = checked.every(Boolean);
 
-  // Load org-specific upsell items from the orgs table.
-  // Falls back to DEFAULT_UPSELLS if the org hasn't set any up yet.
   useEffect(() => {
     async function loadUpsells() {
       if (!profile?.org_id) return;
@@ -62,69 +71,106 @@ export default function CompletionChecklist({ onConfirm, onCancel }: Props) {
     setChecked((prev) => prev.map((v, idx) => (idx === i ? !v : v)));
   };
 
-  const handleConfirm = () => {
+  async function finishJob(sendReviewSms: boolean) {
+    if (sendReviewSms) {
+      setSendingReview(true);
+      setReviewError(null);
+      const result = await sendReviewRequestSms(lead, logEvent);
+      setSendingReview(false);
+      if (!result.ok) {
+        setReviewError(result.error);
+        return;
+      }
+    }
     fireConfetti();
-    onConfirm();
-  };
+    await onComplete();
+  }
+
+  async function handleChecklistConfirm() {
+    const org = profile?.org_id ? await fetchReviewOrg(profile.org_id) : null;
+    const eligible = await isReviewRequestEligible(org, lead, profile?.org_id);
+    if (eligible && lead.phone?.trim()) {
+      setStep('review');
+      return;
+    }
+    await finishJob(false);
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40">
       <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-lg p-6 space-y-4">
-        <h2 className="text-lg font-bold text-[#004B93]">Before You Close This Job</h2>
+        {step === 'checklist' ? (
+          <>
+            <h2 className="text-lg font-bold text-[#004B93]">Before You Close This Job</h2>
 
-        <div className="space-y-3">
-          {CHECKLIST.map((item, i) => (
-            <label key={i} className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={checked[i]}
-                onChange={() => toggle(i)}
-                className="w-5 h-5 accent-[#004B93]"
-              />
-              <span className={`text-sm ${checked[i] ? 'line-through text-gray-400' : 'text-gray-700'}`}>
-                {item}
-              </span>
-            </label>
-          ))}
-        </div>
-
-        {allChecked && (
-          <div className="bg-[#00B4C5]/10 border border-[#00B4C5] rounded-xl p-4">
-            <p className="text-sm font-semibold text-[#004B93] mb-2">
-              💡 Did you offer any add-ons?
-            </p>
-            <ul className="space-y-1">
-              {upsellLabels.map((u, i) => (
-                <li key={i} className="text-sm text-gray-600">• {u}</li>
+            <div className="space-y-3">
+              {CHECKLIST.map((item, i) => (
+                <label key={i} className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={checked[i]}
+                    onChange={() => toggle(i)}
+                    className="w-5 h-5 accent-[#004B93]"
+                  />
+                  <span className={`text-sm ${checked[i] ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                    {item}
+                  </span>
+                </label>
               ))}
-            </ul>
-            <label className="flex items-center gap-2 mt-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={upsellDone}
-                onChange={() => setUpsellDone(!upsellDone)}
-                className="w-5 h-5 accent-[#00B4C5]"
-              />
-              <span className="text-sm text-gray-700">I've discussed add-ons with the customer</span>
-            </label>
-          </div>
-        )}
+            </div>
 
-        <div className="flex gap-3 pt-2">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-600 font-semibold"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleConfirm}
-            disabled={!allChecked || !upsellDone}
-            className="flex-1 py-3 rounded-xl bg-green-500 text-white font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Complete Job ✅
-          </button>
-        </div>
+            {allChecked && (
+              <div className="bg-[#00B4C5]/10 border border-[#00B4C5] rounded-xl p-4">
+                <p className="text-sm font-semibold text-[#004B93] mb-2">
+                  💡 Did you offer any add-ons?
+                </p>
+                <ul className="space-y-1">
+                  {upsellLabels.map((u, i) => (
+                    <li key={i} className="text-sm text-gray-600">• {u}</li>
+                  ))}
+                </ul>
+                <label className="flex items-center gap-2 mt-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={upsellDone}
+                    onChange={() => setUpsellDone(!upsellDone)}
+                    className="w-5 h-5 accent-[#00B4C5]"
+                  />
+                  <span className="text-sm text-gray-700">I've discussed add-ons with the customer</span>
+                </label>
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={onCancel}
+                className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-600 font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleChecklistConfirm}
+                disabled={!allChecked || !upsellDone}
+                className="flex-1 py-3 rounded-xl bg-green-500 text-white font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Complete Job ✅
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <h2 className="text-lg font-bold text-[#004B93]">Before You Close This Job</h2>
+            <ReviewRequestStep
+              embedded
+              customerName={lead.name}
+              customerPhone={lead.phone!.trim()}
+              sending={sendingReview}
+              error={reviewError}
+              onSend={() => finishJob(true)}
+              onSkip={() => finishJob(false)}
+            />
+          </>
+        )}
       </div>
     </div>
   );

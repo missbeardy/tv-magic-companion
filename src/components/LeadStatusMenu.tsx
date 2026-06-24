@@ -2,8 +2,13 @@
 import { useState, useRef, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { sendPushNotification } from '../lib/sendPush'
-import { useOrg } from '../context/OrgContext'
-import { promptAndSendReviewRequest } from '../lib/reviewRequest'
+import { useAuth } from '../context/AuthContext'
+import ReviewRequestModal from './ReviewRequestModal'
+import {
+  isReviewRequestEligible,
+  sendReviewRequestSms,
+  type ReviewRequestLead,
+} from '../lib/reviewRequest'
 
 interface Props {
   leadId: string
@@ -38,13 +43,22 @@ export default function LeadStatusMenu({
   onUpdated,
   logEvent,
 }: Props) {
-  const { org } = useOrg()
+  const { profile } = useAuth()
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [dropUp, setDropUp] = useState(false)
+  const [showReviewModal, setShowReviewModal] = useState(false)
+  const [reviewSending, setReviewSending] = useState(false)
+  const [reviewError, setReviewError] = useState<string | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
 
-  // If currentStatus isn't in our list (e.g. some legacy value), fall back to the first item
+  const lead: ReviewRequestLead = {
+    id: leadId,
+    name: leadName,
+    phone: leadPhone,
+    review_request_sent_at: reviewRequestSentAt,
+  }
+
   const current = STATUSES.find(s => s.value === currentStatus) ?? STATUSES[0]
 
   useEffect(() => {
@@ -65,12 +79,7 @@ export default function LeadStatusMenu({
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
-  async function updateStatus(newStatus: string) {
-    setSaving(true)
-    setOpen(false)
-
-    // When moving back to unassigned, clear all assignment fields
-    // so the lead is truly free for anyone to pick up
+  async function applyStatusUpdate(newStatus: string) {
     const updatePayload: Record<string, unknown> = { status: newStatus }
     if (newStatus === 'unassigned') {
       updatePayload.assigned_to = null
@@ -78,12 +87,8 @@ export default function LeadStatusMenu({
       updatePayload.timer_expires_at = null
     }
 
-    await supabase
-      .from('leads')
-      .update(updatePayload)
-      .eq('id', leadId)
+    await supabase.from('leads').update(updatePayload).eq('id', leadId)
 
-    // Notify the previously-assigned employee when a job is completed or lost
     if ((newStatus === 'completed' || newStatus === 'lost') && assignedTo) {
       const statusLabel = newStatus === 'completed' ? 'Completed' : 'Lost'
       await sendPushNotification(
@@ -93,15 +98,41 @@ export default function LeadStatusMenu({
         `/leads?leadId=${leadId}`
       )
     }
+  }
+
+  async function updateStatus(newStatus: string) {
+    setOpen(false)
 
     if (newStatus === 'completed') {
-      await promptAndSendReviewRequest(
-        org,
-        { id: leadId, name: leadName, phone: leadPhone, review_request_sent_at: reviewRequestSentAt },
-        logEvent
-      )
+      const eligible = await isReviewRequestEligible(null, lead, profile?.org_id)
+      if (eligible && leadPhone?.trim()) {
+        setShowReviewModal(true)
+        return
+      }
     }
 
+    setSaving(true)
+    await applyStatusUpdate(newStatus)
+    setSaving(false)
+    onUpdated()
+  }
+
+  async function finalizeCompleted(sendReview: boolean) {
+    setSaving(true)
+    await applyStatusUpdate('completed')
+    if (sendReview) {
+      setReviewSending(true)
+      setReviewError(null)
+      const result = await sendReviewRequestSms(lead, logEvent)
+      setReviewSending(false)
+      if (!result.ok) {
+        setReviewError(result.error)
+        setSaving(false)
+        onUpdated()
+        return
+      }
+    }
+    setShowReviewModal(false)
     setSaving(false)
     onUpdated()
   }
@@ -146,6 +177,17 @@ export default function LeadStatusMenu({
             </button>
           ))}
         </div>
+      )}
+
+      {showReviewModal && leadPhone?.trim() && (
+        <ReviewRequestModal
+          customerName={leadName}
+          customerPhone={leadPhone.trim()}
+          sending={reviewSending}
+          error={reviewError}
+          onSend={() => finalizeCompleted(true)}
+          onSkip={() => finalizeCompleted(false)}
+        />
       )}
     </div>
   )

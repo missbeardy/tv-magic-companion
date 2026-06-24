@@ -22,13 +22,14 @@ import AssignLeadModal from '../components/AssignLeadModal'
 import EventModal from '../components/EventModal'
 import BottomSheet from '../components/BottomSheet'
 import CompletionChecklist from '../components/CompletionChecklist'
+import ReviewRequestModal from '../components/ReviewRequestModal'
 import LeadExtractedSummary, { LeadRawSource } from '../components/LeadExtractedSummary'
 import { UserPlus, Inbox, ChevronRight, Plus } from 'lucide-react'
 import AddLeadModal from '../components/AddLeadModal'
 import { openNavigation } from '../lib/navigation'
 import { isManagerRole } from '../lib/roles'
 import { getColumnsForTab } from '../lib/leadsKanban'
-import { promptAndSendReviewRequest } from '../lib/reviewRequest'
+import { isReviewRequestEligible, sendReviewRequestSms } from '../lib/reviewRequest'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -408,6 +409,9 @@ export default function LeadsPage() {
   const [showChecklist, setShowChecklist] = useState(false)
   const [checklistLead, setChecklistLead] = useState<Lead | null>(null)
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  const [reviewModalLead, setReviewModalLead] = useState<Lead | null>(null)
+  const [reviewSending, setReviewSending] = useState(false)
+  const [reviewError, setReviewError] = useState<string | null>(null)
 
   const fetchLeads = useCallback(async () => {
     if (!profile?.org_id) return
@@ -473,15 +477,36 @@ export default function LeadsPage() {
     } else {
       await logLeadEvent(leadId, 'status_change', `Status changed to ${newStatus} via drag`)
       if (newStatus === 'completed') {
-        await promptAndSendReviewRequest(
-          org,
-          lead,
-          (id, note) => logLeadEvent(id, 'review_request', note)
-        )
-        fetchLeads()
+        const eligible = await isReviewRequestEligible(org, lead, profile?.org_id)
+        if (eligible) {
+          setReviewModalLead(lead)
+        }
       }
     }
   }
+
+  const closeReviewModal = useCallback(() => {
+    setReviewModalLead(null)
+    setReviewError(null)
+    setReviewSending(false)
+  }, [])
+
+  const handleReviewSend = useCallback(async () => {
+    if (!reviewModalLead) return
+    setReviewSending(true)
+    setReviewError(null)
+    const result = await sendReviewRequestSms(
+      reviewModalLead,
+      (id, note) => logLeadEvent(id, 'review_request', note)
+    )
+    setReviewSending(false)
+    if (!result.ok) {
+      setReviewError(result.error)
+      return
+    }
+    closeReviewModal()
+    fetchLeads()
+  }, [reviewModalLead, logLeadEvent, closeReviewModal, fetchLeads])
 
   const openSheet = useCallback((lead: Lead) => {
     setSheetLead(lead)
@@ -509,14 +534,9 @@ export default function LeadsPage() {
       .update({ status: 'completed' })
       .eq('id', lead.id)
     await logLeadEvent(lead.id, 'completed', 'Job marked complete via checklist')
-    await promptAndSendReviewRequest(
-      org,
-      lead,
-      (id, note) => logLeadEvent(id, 'review_request', note)
-    )
     setChecklistLead(null)
     fetchLeads()
-  }, [checklistLead, logLeadEvent, fetchLeads, org])
+  }, [checklistLead, logLeadEvent, fetchLeads])
 
   const handleCall = useCallback(async (lead: Lead) => {
     const confirmed = window.confirm(
@@ -618,10 +638,22 @@ export default function LeadsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {showChecklist && (
+      {showChecklist && checklistLead && (
         <CompletionChecklist
-          onConfirm={confirmComplete}
+          lead={checklistLead}
+          onComplete={confirmComplete}
           onCancel={() => { setShowChecklist(false); setChecklistLead(null) }}
+          logEvent={(id, note) => logLeadEvent(id, 'review_request', note)}
+        />
+      )}
+      {reviewModalLead && reviewModalLead.phone?.trim() && (
+        <ReviewRequestModal
+          customerName={reviewModalLead.name}
+          customerPhone={reviewModalLead.phone.trim()}
+          sending={reviewSending}
+          error={reviewError}
+          onSend={handleReviewSend}
+          onSkip={closeReviewModal}
         />
       )}
       {assigningLead && (

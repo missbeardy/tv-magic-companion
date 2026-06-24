@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from './_lib/supabaseAdmin.js'
 import { buildSmsFromBrand } from './_lib/smsTemplates.js'
 import { getPlatformUrl } from './_lib/platformUrl.js'
 import { notifyManagersNewLead } from './_lib/notifyManagersNewLead.js'
+import { formatAuPhoneForSms, phoneCandidates } from './_lib/phone.js'
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
 function checkRateLimit(key: string, limit = 20, windowMs = 60_000): boolean {
@@ -17,20 +18,6 @@ function checkRateLimit(key: string, limit = 20, windowMs = 60_000): boolean {
   if (entry.count >= limit) return false
   entry.count++
   return true
-}
-
-/** Candidate formats for an AU phone so DB lookups match regardless of stored format. */
-function phoneCandidates(input: string): string[] {
-  const digits = input.replace(/[^0-9+]/g, '')
-  const set = new Set<string>([input.trim(), digits])
-  let national = digits.replace(/^\+?61/, '0').replace(/^\+/, '')
-  if (national && !national.startsWith('0')) national = '0' + national
-  if (national) {
-    set.add(national)
-    set.add('+61' + national.slice(1))
-    set.add('61' + national.slice(1))
-  }
-  return [...set].filter(Boolean)
 }
 
 /** True if `to` belongs to a lead or customer in the caller's org. */
@@ -212,7 +199,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return handleNewLeadAlert(req, res, auth)
   }
 
-  const { mode, to, customerName, techName, address, leadName, serviceType } = req.body as {
+  const { mode, to, customerName, techName, address, leadName, serviceType, leadId } = req.body as {
     mode?: string
     to: string
     customerName?: string
@@ -220,9 +207,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     address?: string
     leadName?: string
     serviceType?: string
+    leadId?: string
   }
 
-  if (!to) {
+  if (!to && mode !== 'review_request') {
+    return res.status(400).json({ error: 'Missing required field: to' })
+  }
+
+  const supabaseAdmin = getSupabaseAdmin()
+
+  let smsTo = to ? formatAuPhoneForSms(to) : ''
+
+  // Review requests: resolve phone from lead row (avoids format mismatch in phoneBelongsToOrg).
+  if (mode === 'review_request') {
+    if (!leadId) {
+      return res.status(400).json({ error: 'Missing leadId for review_request mode' })
+    }
+    if (!supabaseAdmin) {
+      return res.status(503).json({ error: 'Server not configured' })
+    }
+    const { data: leadRow, error: leadError } = await supabaseAdmin
+      .from('leads')
+      .select('id, org_id, phone, name')
+      .eq('id', leadId)
+      .maybeSingle()
+
+    if (leadError || !leadRow) {
+      return res.status(404).json({ error: 'Lead not found' })
+    }
+    if (leadRow.org_id !== auth.orgId) {
+      return res.status(403).json({ error: 'Lead is outside your organisation' })
+    }
+    if (!leadRow.phone?.trim()) {
+      return res.status(400).json({ error: 'Lead has no phone number' })
+    }
+    smsTo = formatAuPhoneForSms(leadRow.phone)
+  }
+
+  if (!smsTo) {
     return res.status(400).json({ error: 'Missing required field: to' })
   }
 
@@ -230,8 +252,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // For tech_assignment / manager_alert, `to` is a team member — allow org members too.
   const isInternalMode = mode === 'tech_assignment' || mode === 'manager_alert'
   const allowed =
-    (isInternalMode && (await technicianInOrg(to, auth.orgId))) ||
-    (await phoneBelongsToOrg(to, auth.orgId))
+    mode === 'review_request' ||
+    (isInternalMode && (await technicianInOrg(smsTo, auth.orgId))) ||
+    (await phoneBelongsToOrg(smsTo, auth.orgId))
 
   if (!allowed) {
     return res.status(400).json({ error: 'Recipient is not a contact in your organisation' })
@@ -321,7 +344,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     )
   }
 
-  const bodyParams = new URLSearchParams({ To: to, From: from, Body: message })
+  const bodyParams = new URLSearchParams({ To: smsTo, From: from, Body: message })
   const credentials = Buffer.from(`${sid}:${token}`).toString('base64')
 
   try {

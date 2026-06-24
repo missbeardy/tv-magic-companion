@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { canOfferReviewRequest } from '../src/lib/reviewRequest'
+import { canOfferReviewRequest, getReviewRequestBlockReason } from '../src/lib/reviewRequest'
 
 describe('canOfferReviewRequest', () => {
   const org = {
@@ -29,6 +29,7 @@ describe('canOfferReviewRequest', () => {
 
   it('returns false when lead has no phone', () => {
     expect(canOfferReviewRequest(org, { ...lead, phone: '' })).toBe(false)
+    expect(getReviewRequestBlockReason(org, { ...lead, phone: '' })).toContain('no phone')
   })
 
   it('returns false when review was already sent', () => {
