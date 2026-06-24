@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { cancelBooking } from '../lib/cancelBooking'
+import { resolveBookingCustomerName } from '../lib/calendarBooking'
 import TimePicker from './TimePicker'
 import { X, CalendarDays, Clock, User, FileText, MapPin, Phone, Briefcase, Link, Search, DollarSign } from 'lucide-react'
 
@@ -255,23 +256,26 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
     // treated as UTC, showing the time 10 hours wrong in Brisbane (UTC+10).
     const startISO = toLocalISO(date, startTime)
     const endISO   = toLocalISO(date, endTime)
+    const customerName = resolveBookingCustomerName(clientName, title)
+    const nowIso = new Date().toISOString()
 
     let leadIdToUse = linkedLeadId
 
-    // NEW: if no existing lead is linked but a customer name was typed in,
-    // create a lead now so this booking shows up in the Leads Kanban board.
-    if (!leadIdToUse && clientName.trim()) {
+    // Create a lead when booking from calendar without a linked lead.
+    if (!leadIdToUse && customerName) {
       const { data: newLead, error: leadError } = await supabase
         .from('leads')
         .insert({
           org_id: profile?.org_id,
-          name: clientName.trim(),
+          name: customerName,
           phone: clientPhone || null,
           email: clientEmail || null,
           address: clientAddress || null,
-          service_type: clientJob.trim() || title.trim(),
+          service_type: clientJob.trim() || title.trim() || 'General Enquiry',
           details: clientJob || null,
           status: 'booked',
+          assigned_to: profile?.id ?? null,
+          assigned_at: profile?.id ? nowIso : null,
           source: 'manual',
           lead_source: 'Calendar Booking',
         })
@@ -285,6 +289,14 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
       }
       leadIdToUse = newLead.id
       setLinkedLeadId(newLead.id)
+
+      await supabase.from('lead_events').insert({
+        lead_id: newLead.id,
+        org_id: profile?.org_id,
+        event_type: 'booked',
+        note: `Lead created from calendar booking: "${title}"`,
+        created_by: profile?.id ?? null,
+      })
     } else if (leadIdToUse) {
       const { data: currentLead } = await supabase
         .from('leads')
@@ -294,7 +306,7 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
 
       const terminalStatuses = ['lost', 'completed', 'booking_cancelled']
       const leadUpdate: Record<string, unknown> = {
-        name: clientName.trim(),
+        name: customerName || clientName.trim(),
         phone: clientPhone,
         email: clientEmail,
         address: clientAddress,
@@ -303,11 +315,22 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
       if (!currentLead?.status || !terminalStatuses.includes(currentLead.status)) {
         leadUpdate.status = 'booked'
       }
+      // New calendar booking assigns the linked lead to whoever is booking it.
+      if (!existingEvent && profile?.id) {
+        leadUpdate.assigned_to = profile.id
+        leadUpdate.assigned_at = nowIso
+      }
 
-      await supabase
+      const { error: leadUpdateError } = await supabase
         .from('leads')
         .update(leadUpdate)
         .eq('id', leadIdToUse)
+
+      if (leadUpdateError) {
+        setError('Could not update lead: ' + leadUpdateError.message)
+        setSaving(false)
+        return
+      }
     }
 
     const eventData = {
@@ -315,7 +338,7 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
       start_time: startISO,
       end_time: endISO,
       notes,
-      client_name: clientName,
+      client_name: customerName,
       client_phone: clientPhone,
       client_email: clientEmail,
       client_address: clientAddress,
