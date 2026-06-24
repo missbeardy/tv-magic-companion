@@ -1,4 +1,5 @@
 ALTER TABLE public.lead_events
+  ADD COLUMN IF NOT EXISTS payload jsonb,
   ADD COLUMN IF NOT EXISTS actor_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL;
 
 UPDATE public.lead_events

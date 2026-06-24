@@ -61,11 +61,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Reporting groundwork — lead activity now records consistent agent, org and event details',
     'Reporting preview fix — activity logging matches the live lead events schema',
     'Reporting schema migration — add and backfill lead event actor tracking',
+    'Reporting schema migration — add lead event payload metadata storage',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.9'
+export const APP_VERSION = '1.1.10'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
