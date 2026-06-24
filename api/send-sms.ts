@@ -1,6 +1,6 @@
 // api/send-sms.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { authenticateRequest, type AuthContext } from './_lib/auth.js'
+import { authenticateRequestDetailed, authErrorMessage, type AuthContext } from './_lib/auth.js'
 import { getSupabaseAdmin } from './_lib/supabaseAdmin.js'
 import { buildSmsFromBrand } from './_lib/smsTemplates.js'
 import { getPlatformUrl } from './_lib/platformUrl.js'
@@ -57,6 +57,34 @@ async function technicianInOrg(to: string, orgId: string): Promise<boolean> {
     .limit(1)
     .maybeSingle()
   return Boolean(data)
+}
+
+async function loadOrgReviewSettings(orgId: string): Promise<{
+  google_review_url: string | null
+  review_requests_enabled: boolean
+  migrationMissing: boolean
+}> {
+  const supabase = getSupabaseAdmin()
+  if (!supabase) {
+    return { google_review_url: null, review_requests_enabled: true, migrationMissing: false }
+  }
+
+  const { data, error } = await supabase
+    .from('orgs')
+    .select('google_review_url, review_requests_enabled')
+    .eq('id', orgId)
+    .maybeSingle()
+
+  if (error) {
+    console.error('Review settings load failed (run migration 20250627120000?):', error.message)
+    return { google_review_url: null, review_requests_enabled: true, migrationMissing: true }
+  }
+
+  return {
+    google_review_url: (data?.google_review_url as string | null) ?? null,
+    review_requests_enabled: data?.review_requests_enabled !== false,
+    migrationMissing: false,
+  }
 }
 
 /**
@@ -180,9 +208,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const auth = await authenticateRequest(req)
+  const { auth, reason } = await authenticateRequestDetailed(req)
   if (!auth) {
-    return res.status(401).json({ error: 'Unauthorized' })
+    return res.status(401).json({ error: authErrorMessage(reason) })
   }
 
   const ip = (req.headers['x-forwarded-for'] as string) ?? auth.userId
@@ -260,13 +288,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Recipient is not a contact in your organisation' })
   }
 
-  if (mode === 'review_request' && !auth.org.review_requests_enabled) {
-    return res.status(400).json({ error: 'Review requests are disabled for this organisation' })
-  }
+  let reviewUrl = ''
 
-  const reviewUrl = auth.org.google_review_url?.trim()
-  if (mode === 'review_request' && !reviewUrl) {
-    return res.status(400).json({ error: 'Google review URL is not configured' })
+  if (mode === 'review_request') {
+    const reviewSettings = await loadOrgReviewSettings(auth.orgId)
+    if (reviewSettings.migrationMissing) {
+      return res.status(503).json({
+        error: 'Review requests need a database update — run migration 20250627120000_review_requests.sql in Supabase.',
+      })
+    }
+    if (!reviewSettings.review_requests_enabled) {
+      return res.status(400).json({ error: 'Review requests are disabled for this organisation' })
+    }
+    reviewUrl = reviewSettings.google_review_url?.trim() ?? ''
+    if (!reviewUrl) {
+      return res.status(400).json({ error: 'Google review URL is not configured in Franchise Settings' })
+    }
   }
 
   const sid = process.env.TWILIO_ACCOUNT_SID
