@@ -2,7 +2,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -21,23 +20,36 @@ interface SourceBarChartProps {
 
 export default function SourceBarChart({ data, accentColor }: SourceBarChartProps) {
   const sorted = [...data].sort((a, b) => b.count - a.count || a.source.localeCompare(b.source))
-  const chartHeight = Math.max(180, sorted.length * 38)
 
   return (
-    <div className="w-full h-[220px] md:h-[260px]">
-      <ResponsiveContainer width="100%" height={Math.max(chartHeight, 220)}>
+    <div className="w-full h-[220px] md:h-[280px]">
+      <ResponsiveContainer width="100%" height="100%">
         <BarChart
-          layout="vertical"
           data={sorted}
-          margin={{ top: 8, right: 28, left: 12, bottom: 8 }}
+          margin={{ top: 8, right: 12, left: 8, bottom: 8 }}
         >
-          <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-          <XAxis type="number" allowDecimals={false} />
-          <YAxis type="category" dataKey="source" width={120} />
-          <Tooltip cursor={{ fill: 'rgba(0,0,0,0.04)' }} formatter={(value: number) => [`${value}`, 'Leads']} />
-          <Bar dataKey="count" fill={accentColor} radius={[0, 8, 8, 0]}>
-            <LabelList dataKey="count" position="right" />
-          </Bar>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            dataKey="source"
+            interval={0}
+            tick={{ fontSize: 12, fill: 'rgb(55, 65, 81)' }}
+            axisLine={{ stroke: 'rgb(156, 163, 175)' }}
+            tickLine={false}
+          />
+          <YAxis
+            allowDecimals={false}
+            tick={{ fontSize: 12, fill: 'rgb(55, 65, 81)' }}
+            axisLine={{ stroke: 'rgb(156, 163, 175)' }}
+            tickLine={false}
+            width={36}
+          />
+          <Tooltip
+            cursor={{ fill: 'rgba(0,0,0,0.04)' }}
+            formatter={(value: number) => [`${value}`, 'Leads']}
+            labelStyle={{ color: 'rgb(31, 41, 55)', fontSize: 12 }}
+            itemStyle={{ color: 'rgb(31, 41, 55)', fontSize: 12 }}
+          />
+          <Bar dataKey="count" fill={accentColor} radius={[8, 8, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

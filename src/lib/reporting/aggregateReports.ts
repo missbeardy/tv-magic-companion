@@ -28,6 +28,7 @@ function createEmptySummary(): TeamSummary {
   return {
     leadsReceived: 0,
     assignments: 0,
+    unassigned: 0,
     contactAttempts: 0,
     bookings: 0,
     completed: 0,
@@ -140,6 +141,14 @@ export function aggregateReportingData(
       if (assigneeId) {
         const assignee = ensureAgent(assigneeId)
         assignee.assignments += 1
+      }
+    }
+
+    if (event.event_type === 'unassigned') {
+      summary.unassigned += 1
+      if (actorId) {
+        const actor = ensureAgent(actorId)
+        actor.unassigned += 1
       }
     }
 

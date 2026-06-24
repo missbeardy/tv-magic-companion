@@ -34,6 +34,7 @@ export interface AgentProfileRow {
 export interface TeamSummary {
   leadsReceived: number
   assignments: number
+  unassigned: number
   contactAttempts: number
   bookings: number
   completed: number

@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import {
   ChevronLeft,
   ChevronRight,
-  Clock3,
   FileBarChart,
   Lock,
   UserRound,
@@ -17,22 +16,17 @@ import MetricCard from '../components/ui/MetricCard'
 import SourceBarChart from '../components/ui/SourceBarChart'
 import { buildMonthOptions, formatMonthLabel, getMonthKey, getMonthStart } from '../lib/reporting/dateRange'
 import { fetchFirstLeadEventMonth, fetchReportingData, type ReportingResult } from '../lib/reporting/fetchReportData'
-import type { ConversionMetric } from '../lib/reporting/types'
 
-function formatConversion(metric: ConversionMetric): string {
-  if (metric.rate == null) return 'no data yet'
-  return `${Math.round(metric.rate * 100)}%`
-}
-
-function formatConversionFromCounts(numerator: number, denominator: number): string {
-  if (denominator === 0) return 'no data yet'
-  return `${Math.round((numerator / denominator) * 100)}%`
-}
-
-function formatHours(value: number | null): string {
-  if (value == null) return 'no data yet'
-  return `${value.toFixed(1)}h`
-}
+type LeaderboardSortKey =
+  | 'name'
+  | 'assignments'
+  | 'contactAttempts'
+  | 'bookings'
+  | 'completed'
+  | 'lost'
+  | 'bookingCancelled'
+  | 'unassigned'
+  | 'reviewRequests'
 
 export default function ReportsPage() {
   const { profile } = useAuth()
@@ -47,6 +41,8 @@ export default function ReportsPage() {
 
   const [selectedMonth, setSelectedMonth] = useState<Date>(() => getMonthStart(new Date()))
   const [monthOptions, setMonthOptions] = useState<Date[]>(() => [getMonthStart(new Date())])
+  const [sortBy, setSortBy] = useState<LeaderboardSortKey>('completed')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
 
   useEffect(() => {
     let cancelled = false
@@ -136,36 +132,50 @@ export default function ReportsPage() {
 
   const funnelStages = useMemo(() => {
     const received = summary?.leadsReceived ?? 0
-    const assigned = report?.conversions.assignedToContacted.denominator ?? 0
     const contacted = report?.conversions.assignedToContacted.numerator ?? 0
-    const booked = report?.conversions.contactedToBooked.numerator ?? 0
+    const booked = summary?.bookings ?? 0
+    const completed = summary?.completed ?? 0
 
     return [
       { label: 'Received', count: received },
-      { label: 'Assigned', count: assigned },
       { label: 'Contacted', count: contacted },
       { label: 'Booked', count: booked },
+      { label: 'Completed', count: completed },
     ]
-  }, [report, summary?.leadsReceived])
+  }, [report, summary?.bookings, summary?.completed, summary?.leadsReceived])
 
   const maxFunnelCount = useMemo(
     () => Math.max(...funnelStages.map((stage) => stage.count), 0),
     [funnelStages]
   )
 
-  const funnelConversionLabels = useMemo(
-    () => [
-      formatConversionFromCounts(funnelStages[1].count, funnelStages[0].count),
-      formatConversion(report?.conversions.assignedToContacted ?? { numerator: 0, denominator: 0, rate: null }),
-      formatConversion(report?.conversions.contactedToBooked ?? { numerator: 0, denominator: 0, rate: null }),
-    ],
-    [funnelStages, report]
-  )
-
   const hasAnyActivity = useMemo(
     () => funnelStages.some((stage) => stage.count > 0),
     [funnelStages]
   )
+
+  const sortedAgentRows = useMemo(() => {
+    if (!report) return []
+    const rows = [...report.agentRows]
+    rows.sort((a, b) => {
+      if (sortBy === 'name') {
+        const cmp = a.name.localeCompare(b.name)
+        return sortDirection === 'asc' ? cmp : -cmp
+      }
+      const cmp = a[sortBy] - b[sortBy]
+      return sortDirection === 'asc' ? cmp : -cmp
+    })
+    return rows
+  }, [report, sortBy, sortDirection])
+
+  function handleSort(nextSortBy: LeaderboardSortKey) {
+    if (sortBy === nextSortBy) {
+      setSortDirection((previous) => (previous === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+    setSortBy(nextSortBy)
+    setSortDirection(nextSortBy === 'name' ? 'asc' : 'desc')
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -256,29 +266,25 @@ export default function ReportsPage() {
 
         {canSeeReports && !loadingReport && !error && report && (
           <>
-            <section className="grid gap-3 lg:grid-cols-3">
-              <div className="lg:col-span-2">
-                <MetricCard
-                  label="Leads received"
-                  value={summary?.leadsReceived ?? 0}
-                  variant="hero"
-                  primaryColor={primary}
-                />
-              </div>
-              <div className="space-y-3">
-                <MetricCard
-                  label="Assignments"
-                  value={summary?.assignments ?? 0}
-                  variant="secondary"
-                  primaryColor={primary}
-                />
-                <MetricCard
-                  label="Completed"
-                  value={summary?.completed ?? 0}
-                  variant="secondary"
-                  primaryColor={primary}
-                />
-              </div>
+            <section className="grid gap-3 md:grid-cols-3">
+              <MetricCard
+                label="Leads received"
+                value={summary?.leadsReceived ?? 0}
+                variant="hero"
+                primaryColor={primary}
+              />
+              <MetricCard
+                label="Assignments"
+                value={summary?.assignments ?? 0}
+                variant="secondary"
+                primaryColor={primary}
+              />
+              <MetricCard
+                label="Completed"
+                value={summary?.completed ?? 0}
+                variant="secondary"
+                primaryColor={primary}
+              />
             </section>
 
             <section className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -295,51 +301,20 @@ export default function ReportsPage() {
 
             <section className="card p-5">
               <h2 className="font-display font-semibold text-gray-900 text-base mb-4">Conversion funnel</h2>
-              <div className="flex flex-col xl:flex-row xl:items-center gap-3">
-                {funnelStages.map((stage, index) => (
-                  <div key={stage.label} className="flex items-center gap-3">
-                    <FunnelStage
-                      label={stage.label}
-                      count={stage.count}
-                      maxCount={maxFunnelCount}
-                      primaryColor={primary}
-                    />
-                    {index < funnelStages.length - 1 && (
-                      <div className="text-xs text-gray-500 min-w-[96px] text-center">
-                        <p className="hidden xl:block">→</p>
-                        <p className="font-medium">{funnelConversionLabels[index]}</p>
-                      </div>
-                    )}
-                  </div>
+              <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                {funnelStages.map((stage) => (
+                  <FunnelStage
+                    key={stage.label}
+                    label={stage.label}
+                    count={stage.count}
+                    maxCount={maxFunnelCount}
+                    primaryColor={primary}
+                  />
                 ))}
               </div>
             </section>
 
-            <section className="grid md:grid-cols-2 gap-4">
-              <article className="card p-5">
-                <h2 className="font-display font-semibold text-gray-900 text-base mb-4 flex items-center gap-2">
-                  <Clock3 size={16} className="text-gray-400" />
-                  Timing
-                </h2>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">Avg time to first contact</span>
-                    <span className="font-semibold text-gray-900">
-                      {formatHours(report.timing.avgHoursToFirstContact)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">Avg time to booking</span>
-                    <span className="font-semibold text-gray-900">
-                      {formatHours(report.timing.avgHoursToBooking)}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-400">
-                    Samples: {report.timing.firstContactSamples} first contact · {report.timing.bookingSamples} booking
-                  </p>
-                </div>
-              </article>
-
+            <section>
               <article className="card p-5">
                 <h2 className="font-display font-semibold text-gray-900 text-base mb-4">Leads by source</h2>
                 {report.sourceBreakdown.length === 0 ? (
@@ -354,7 +329,7 @@ export default function ReportsPage() {
               <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
                 <h2 className="font-display font-semibold text-gray-900 text-base flex items-center gap-2">
                   <UserRound size={16} className="text-gray-400" />
-                  Per-agent activity
+                  Leaderboard
                 </h2>
                 <span className="text-xs text-gray-500">{report.period.label}</span>
               </div>
@@ -365,16 +340,39 @@ export default function ReportsPage() {
                   <table className="min-w-full text-sm">
                     <thead className="bg-gray-50 text-gray-500">
                       <tr>
-                        <th className="text-left px-4 py-3 font-medium">Agent</th>
-                        <th className="text-right px-4 py-3 font-medium">Assigned</th>
-                        <th className="text-right px-4 py-3 font-medium">Contacts</th>
-                        <th className="text-right px-4 py-3 font-medium">Bookings</th>
-                        <th className="text-right px-4 py-3 font-medium">Completed</th>
-                        <th className="text-right px-4 py-3 font-medium">Review req</th>
+                        {[
+                          { key: 'name', label: 'Agent' },
+                          { key: 'assignments', label: 'Assigned' },
+                          { key: 'contactAttempts', label: 'Contacted' },
+                          { key: 'bookings', label: 'Booked' },
+                          { key: 'completed', label: 'Completed' },
+                          { key: 'lost', label: 'Lost' },
+                          { key: 'bookingCancelled', label: 'Cancelled' },
+                          { key: 'unassigned', label: 'Unassigned' },
+                          { key: 'reviewRequests', label: 'Review requests' },
+                        ].map((column) => (
+                          <th
+                            key={column.key}
+                            className={`px-4 py-3 font-medium ${column.key === 'name' ? 'text-left' : 'text-right'}`}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => handleSort(column.key as LeaderboardSortKey)}
+                              className={`inline-flex items-center gap-1 hover:text-gray-700 ${
+                                column.key === 'name' ? 'justify-start' : 'justify-end w-full'
+                              }`}
+                            >
+                              <span>{column.label}</span>
+                              <span className="text-[10px] text-gray-400">
+                                {sortBy === column.key ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}
+                              </span>
+                            </button>
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {report.agentRows.map((row) => (
+                      {sortedAgentRows.map((row) => (
                         <tr key={row.agentId} className="border-t border-gray-100">
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
@@ -388,6 +386,9 @@ export default function ReportsPage() {
                           <td className="px-4 py-3 text-right text-gray-700">{row.contactAttempts}</td>
                           <td className="px-4 py-3 text-right text-gray-700">{row.bookings}</td>
                           <td className="px-4 py-3 text-right text-gray-700">{row.completed}</td>
+                          <td className="px-4 py-3 text-right text-gray-700">{row.lost}</td>
+                          <td className="px-4 py-3 text-right text-gray-700">{row.bookingCancelled}</td>
+                          <td className="px-4 py-3 text-right text-gray-700">{row.unassigned}</td>
                           <td className="px-4 py-3 text-right text-gray-700">{row.reviewRequests}</td>
                         </tr>
                       ))}
