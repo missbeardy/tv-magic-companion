@@ -63,13 +63,13 @@ export default function MobileBottomNav({ links }: Props) {
 
   return (
     <nav
-      className="md:hidden fixed bottom-0 inset-x-0 z-40 pb-[env(safe-area-inset-bottom,0px)] pointer-events-none"
+      className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-brand pb-[env(safe-area-inset-bottom,0px)] pointer-events-none"
       aria-label="Primary navigation"
     >
-      <div className="pointer-events-auto mx-3 mb-2 relative">
+      <div className="pointer-events-auto relative">
         {showFab && <MobileNavFab />}
         <div
-          className={`mobile-bottom-nav-shell rounded-t-2xl bg-brand shadow-[0_-4px_24px_rgba(0,0,0,0.18)] border border-white/10 border-b-0 overflow-visible ${
+          className={`mobile-bottom-nav-shell rounded-t-2xl bg-brand shadow-[0_-4px_24px_rgba(0,0,0,0.18)] border-t border-white/10 overflow-visible ${
             showFab ? 'mobile-bottom-nav-shell--notched' : ''
           }`}
         >

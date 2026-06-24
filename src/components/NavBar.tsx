@@ -31,6 +31,7 @@ function BrandLogo({ compact = false }: { compact?: boolean }) {
 export default function NavBar() {
   const { profile, signOut } = useAuth()
   const { canAccessFeature } = useOrg()
+  const theme = useTheme()
   const location = useLocation()
   const navigate = useNavigate()
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -49,9 +50,12 @@ export default function NavBar() {
       <nav className="sticky top-0 z-40 bg-brand shadow-lg">
         <div className="max-w-7xl mx-auto px-3 md:px-4">
           <div className="flex items-center justify-between h-12 md:h-14 gap-2">
-            <Link to="/" aria-label="Home" className="shrink-0">
-              <span className="md:hidden">
+            <Link to="/" aria-label="Home" className="flex items-center gap-2 min-w-0 shrink">
+              <span className="md:hidden flex items-center gap-2 min-w-0">
                 <BrandLogo compact />
+                <span className="font-display font-extrabold text-white text-sm tracking-tight leading-none truncate max-w-[36vw]">
+                  {theme.displayName}
+                </span>
               </span>
               <span className="hidden md:block">
                 <BrandLogo />

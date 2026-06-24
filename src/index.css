@@ -214,10 +214,10 @@ html, body {
   transition: transform 0.1s ease;
 }
 
-/* Mobile bottom tab bar — floating bar clearance (h-16 + mb-2) */
+/* Mobile bottom tab bar — flush to bottom (h-16 + safe area) */
 @media (max-width: 767px) {
   .has-mobile-nav {
-    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
   }
 }
 .border-brand {
