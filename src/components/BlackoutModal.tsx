@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { isManagerRole } from '../lib/roles'
 
 interface Profile {
   id: string
@@ -16,7 +17,7 @@ interface BlackoutModalProps {
 
 export default function BlackoutModal({ employees, onClose, onSaved }: BlackoutModalProps) {
   const { profile } = useAuth()
-  const isManager = profile?.role === 'manager'
+  const isManager = isManagerRole(profile?.role)
 
   const now = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')

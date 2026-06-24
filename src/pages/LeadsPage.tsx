@@ -25,6 +25,7 @@ import LeadExtractedSummary, { LeadRawSource } from '../components/LeadExtracted
 import { UserPlus, Inbox, ChevronRight, Plus } from 'lucide-react'
 import AddLeadModal from '../components/AddLeadModal'
 import { openNavigation } from '../lib/navigation'
+import { isManagerRole } from '../lib/roles'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -237,7 +238,7 @@ function LeadCard({
           <LeadRawSource lead={lead} />
 
           <div className="flex flex-wrap gap-1 mt-2">
-            {lead.status === 'unassigned' && profile?.role === 'manager' && (
+            {lead.status === 'unassigned' && isManagerRole(profile?.role) && (
               <button
                 onClick={e => { e.stopPropagation(); onAssign(lead) }}
                 className="text-xs bg-[#004B93] text-white px-2 py-1 rounded-lg hover:bg-[#003d7a] transition"
@@ -744,7 +745,7 @@ export default function LeadsPage() {
                   >
                     💬 Send ETA Text
                   </button>
-                  {sheetLead.status === 'unassigned' && profile?.role === 'manager' && (
+                  {sheetLead.status === 'unassigned' && isManagerRole(profile?.role) && (
                     <button
                       onClick={() => { setAssigningLead(sheetLead); closeSheet() }}
                       className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base"
@@ -760,7 +761,7 @@ export default function LeadsPage() {
                       Self-Assign This Lead
                     </button>
                   )}
-                  {sheetLead.assigned_to && profile?.role === 'manager' && sheetLead.status !== 'unassigned' && (
+                  {sheetLead.assigned_to && isManagerRole(profile?.role) && sheetLead.status !== 'unassigned' && (
                     <button
                       onClick={() => handleUnassign(sheetLead!)}
                       className="w-full py-4 rounded-xl bg-orange-500 text-white font-semibold text-base"

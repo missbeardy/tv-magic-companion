@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { normalizeRole } from '../lib/roles'
 
 export type UserRole = 'manager' | 'employee' | 'platform_admin'
 
@@ -54,7 +55,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (data) {
-      setProfile(data as Profile)
+      const row = data as Profile
+      const role = normalizeRole(row.role) ?? row.role
+      setProfile({ ...row, role: role as UserRole })
     } else {
       setProfile(null)
     }

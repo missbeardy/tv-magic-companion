@@ -131,6 +131,13 @@ html, body {
 .bg-brand-dark {
   background-color: var(--color-primary-dark);
 }
+
+/* Mobile bottom tab bar — content clearance (see MobileBottomNav h-16) */
+@media (max-width: 767px) {
+  .has-mobile-nav {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
+}
 .border-brand {
   border-color: var(--color-primary);
 }

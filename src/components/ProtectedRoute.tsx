@@ -31,5 +31,5 @@ export default function ProtectedRoute({ children, requiredRole }: Props) {
     return <Navigate to="/dashboard" replace />
   }
 
-  return <>{children}</>
+  return <div className="has-mobile-nav md:pb-0">{children}</div>
 }

@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { canAccessFeature as checkFeature, type FeatureKey } from '../lib/features';
+import { isPlatformAdminRole } from '../lib/roles';
 import type { Brand, Org } from '../types/org';
 
 interface OrgContextType {
@@ -90,7 +91,8 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
   }, [profile?.org_id]);
 
   function canAccessFeature(feature: string): boolean {
-    return checkFeature(feature as FeatureKey, org?.subscription_tier);
+    if (isPlatformAdminRole(profile?.role)) return true
+    return checkFeature(feature as FeatureKey, org?.subscription_tier)
   }
 
   function getRemainingLeads(): number {

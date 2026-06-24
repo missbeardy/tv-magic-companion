@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import NavBar from '../components/NavBar'
 import { Pencil } from 'lucide-react'
+import { isManagerRole } from '../lib/roles'
 
 interface TaskItem {
   id: string
@@ -60,7 +61,7 @@ export default function TaskBoardPage() {
         if (task.created_by === user?.id) return true
         // FIX: any manager can see "Me & Manager" tasks, not just one
         // hardcoded user. Works for every org, every manager.
-        if (task.visibility === 'me_and_nick' && profile?.role === 'manager') return true
+        if (task.visibility === 'me_and_nick' && isManagerRole(profile?.role)) return true
         return false
       })
       setTasks(filtered)
@@ -193,7 +194,7 @@ export default function TaskBoardPage() {
   const completedTasks = tasks.filter(t => t.is_completed)
 
   const canManageTask = (task: Task) =>
-    task.created_by === user?.id || profile?.role === 'manager'
+    task.created_by === user?.id || isManagerRole(profile?.role)
 
   const visibilityLabel = (v: string) => {
     if (v === 'me') return 'Only me'

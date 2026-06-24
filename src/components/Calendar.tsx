@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useOrgProfiles } from '../hooks/useOrgProfiles'
+import { isManagerRole } from '../lib/roles'
 import EventModal from './EventModal'
 import BlackoutModal from './BlackoutModal'
 import { MobileResourceView } from './MobileResourceView'
@@ -181,7 +182,7 @@ export default function Calendar() {
   const [availabilityDuration, setAvailabilityDuration] = useState(60)
   const [availabilityEmployee, setAvailabilityEmployee] = useState<string>('all')
 
-  const showResourceView = isMobile && profile?.role === 'manager' && filterEmployee === 'all' && view !== 'month'
+  const showResourceView = isMobile && isManagerRole(profile?.role) && filterEmployee === 'all' && view !== 'month'
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -261,8 +262,8 @@ export default function Calendar() {
   useEffect(() => {
     if (!profile) return
     fetchEvents()
-    if (profile.role === 'manager') {
-      fetchOrgProfiles({ roles: ['employee', 'manager'] }).then((data) => {
+    if (isManagerRole(profile.role)) {
+      fetchOrgProfiles({ roles: ['employee', 'manager', 'platform_admin'] }).then((data) => {
         setEmployees(data.map((p) => ({ id: p.id, full_name: p.full_name })))
       })
     }
@@ -338,7 +339,7 @@ export default function Calendar() {
   }
 
   async function handleDeleteLeave(ev: Event) {
-    const canDelete = profile?.role === 'manager' || ev.user_id === profile?.id
+    const canDelete = isManagerRole(profile?.role) || ev.user_id === profile?.id
     if (!canDelete) return
     if (!window.confirm(`Remove this leave block: "${ev.title}"?`)) return
     await supabase.from('events').delete().eq('id', ev.id)
@@ -423,7 +424,7 @@ export default function Calendar() {
                       {event.client_name && (
                         <p className="text-[9px] sm:text-[10px] opacity-90 truncate">👤 {event.client_name}</p>
                       )}
-                      {profile?.role === 'manager' && event.profiles && (
+                      {isManagerRole(profile?.role) && event.profiles && (
                         <p className="text-[9px] sm:text-[10px] opacity-75 truncate">{event.profiles.full_name}</p>
                       )}
                     </div>
@@ -513,7 +514,7 @@ export default function Calendar() {
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-          {profile?.role === 'manager' && (
+          {isManagerRole(profile?.role) && (
             <select
               value={filterEmployee}
               onChange={e => setFilterEmployee(e.target.value)}
@@ -597,7 +598,7 @@ export default function Calendar() {
                 Availability Lookup
               </h3>
 
-              {profile?.role === 'manager' && (
+              {isManagerRole(profile?.role) && (
                 <select
                   value={availabilityEmployee}
                   onChange={e => setAvailabilityEmployee(e.target.value)}
@@ -864,7 +865,7 @@ export default function Calendar() {
                                 )}
                               </div>
                             )}
-                            {profile?.role === 'manager' && event.profiles && height > 50 && (
+                            {isManagerRole(profile?.role) && event.profiles && height > 50 && (
                               <p className="text-[9px] sm:text-[10px] opacity-75 mt-auto pt-1 truncate">
                                 {event.profiles.full_name}
                               </p>

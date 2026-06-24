@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext'
 import AssignLeadModal from './AssignLeadModal'
 import EventModal from './EventModal'
 import { MapPin, Phone, Mail, UserPlus, Inbox } from 'lucide-react'
+import { isManagerRole } from '../lib/roles'
 
 interface Lead {
   id: string
@@ -176,7 +177,7 @@ export default function LeadsList() {
 
                 {/* Action buttons */}
                 <div className="shrink-0 flex flex-col gap-2">
-                  {profile?.role === 'manager' && (
+                  {isManagerRole(profile?.role) && (
                     <button
                       onClick={(e) => { e.stopPropagation(); setAssigningLead(lead) }}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#004B93] text-white text-xs font-semibold hover:bg-[#003d7a] transition-colors"

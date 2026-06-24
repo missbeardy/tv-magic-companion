@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import NavBar from '../components/NavBar'
 import CreateEmployeeModal from '../components/CreateEmployeeModal'
 import { promptForNotifications } from '../lib/oneSignal'
+import { isManagerRole } from '../lib/roles'
 
 function ChangePassword() {
   const [newPassword, setNewPassword] = useState('')
@@ -351,7 +352,7 @@ export default function ProfilePage() {
           <ChangePassword />
         </div>
 
-        {profile?.role === 'manager' && (
+        {isManagerRole(profile?.role) && (
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <p className="text-sm font-semibold text-gray-700 mb-3">Team Management</p>
             <button

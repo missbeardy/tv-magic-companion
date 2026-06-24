@@ -9,6 +9,7 @@ import CountdownTimer from './CountdownTimer'
 import EventModal from './EventModal'
 import LeadExtractedSummary from './LeadExtractedSummary'
 import { CalendarPlus, User } from 'lucide-react'
+import { isManagerRole } from '../lib/roles'
 
 interface Lead {
   id: string
@@ -130,7 +131,7 @@ export default function AssignedLeads() {
                 >
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <p className="font-display font-semibold text-gray-900 text-sm">{lead.name || 'Unknown'}</p>
-                    {profile?.role === 'manager' && lead.assigned_to === profile?.id && (
+                    {isManagerRole(profile?.role) && lead.assigned_to === profile?.id && (
                       <span className="badge badge-purple">Self-assigned</span>
                     )}
                   </div>
