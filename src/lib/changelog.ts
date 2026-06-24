@@ -59,11 +59,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'In-app review request step in job complete flow (no browser confirm)',
     'Clearer SMS API auth errors when session or Supabase config is wrong',
     'Reporting groundwork — lead activity now records consistent agent, org and event details',
+    'Reporting preview fix — activity logging matches the live lead events schema',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.7'
+export const APP_VERSION = '1.1.8'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

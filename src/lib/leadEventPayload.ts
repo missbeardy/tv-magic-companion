@@ -28,15 +28,12 @@ export interface LeadEventInput {
 }
 
 export function buildLeadEventInsert(input: LeadEventInput) {
-  const actorId = input.actorId ?? null
-
   return {
     lead_id: input.leadId,
     org_id: input.orgId,
     event_type: input.eventType,
     note: input.note ?? null,
     payload: input.payload ?? null,
-    created_by: actorId,
-    actor_id: actorId,
+    created_by: input.actorId ?? null,
   }
 }

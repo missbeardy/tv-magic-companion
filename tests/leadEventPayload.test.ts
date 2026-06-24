@@ -17,7 +17,6 @@ describe('buildLeadEventInsert', () => {
       note: 'Assigned to Alex',
       payload: { assigned_to: 'employee-1' },
       created_by: 'manager-1',
-      actor_id: 'manager-1',
     })
   })
 
@@ -33,7 +32,6 @@ describe('buildLeadEventInsert', () => {
       note: null,
       payload: null,
       created_by: null,
-      actor_id: null,
     })
   })
 })
