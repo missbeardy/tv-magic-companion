@@ -20,6 +20,7 @@ interface Props {
   serviceType: string
   onUpdated: () => void
   logEvent?: (leadId: string, note: string) => Promise<void>
+  onCompleteRequested?: () => void
 }
 
 const STATUSES = [
@@ -42,6 +43,7 @@ export default function LeadStatusMenu({
   serviceType,
   onUpdated,
   logEvent,
+  onCompleteRequested,
 }: Props) {
   const { profile } = useAuth()
   const [open, setOpen] = useState(false)
@@ -104,6 +106,11 @@ export default function LeadStatusMenu({
     setOpen(false)
 
     if (newStatus === 'completed') {
+      if (onCompleteRequested) {
+        onCompleteRequested()
+        return
+      }
+
       const eligible = await isReviewRequestEligible(null, lead, profile?.org_id)
       if (eligible && leadPhone?.trim()) {
         setShowReviewModal(true)

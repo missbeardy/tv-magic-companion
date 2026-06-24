@@ -123,6 +123,7 @@ interface LeadCardProps {
   onOpenSheet: (lead: Lead) => void
   onAssign: (lead: Lead) => void
   onBook: (lead: Lead) => void
+  onComplete: (lead: Lead) => void
   onRefresh: () => void
   onLogEvent: (leadId: string, eventType: LeadEventType, note?: string, payload?: Record<string, unknown>) => Promise<void>
 }
@@ -135,6 +136,7 @@ function LeadCard({
   onOpenSheet,
   onAssign,
   onBook,
+  onComplete,
   onRefresh,
   onLogEvent,
 }: LeadCardProps) {
@@ -201,6 +203,7 @@ function LeadCard({
             serviceType={lead.service_type}
             onUpdated={onRefresh}
             logEvent={(id, note) => onLogEvent(id, 'review_request', note)}
+            onCompleteRequested={() => onComplete(lead)}
           />
         </div>
       </div>
@@ -314,11 +317,12 @@ interface KanbanColumnProps {
   onOpenSheet: (lead: Lead) => void
   onAssign: (lead: Lead) => void
   onBook: (lead: Lead) => void
+  onComplete: (lead: Lead) => void
   onRefresh: () => void
   onLogEvent: (leadId: string, eventType: LeadEventType, note?: string, payload?: Record<string, unknown>) => Promise<void>
 }
 
-function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onRefresh, onLogEvent }: KanbanColumnProps) {
+function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onComplete, onRefresh, onLogEvent }: KanbanColumnProps) {
   return (
     <div className={`w-full bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200`}>
       <div className="p-3 border-b border-gray-100 flex items-center justify-between">
@@ -344,6 +348,7 @@ function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand,
             onOpenSheet={onOpenSheet}
             onAssign={onAssign}
             onBook={onBook}
+            onComplete={onComplete}
             onRefresh={onRefresh}
             onLogEvent={onLogEvent}
           />
@@ -355,7 +360,7 @@ function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand,
 
 // ── KanbanColumn — Desktop (drag wrappers active) ────────────────────────
 
-function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onRefresh, onLogEvent }: KanbanColumnProps) {
+function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onComplete, onRefresh, onLogEvent }: KanbanColumnProps) {
   return (
     <DroppableColumn id={col.key}>
       <div className={`flex-shrink-0 w-72 bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200 h-full`}>
@@ -383,6 +388,7 @@ function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand
                 onOpenSheet={onOpenSheet}
                 onAssign={onAssign}
                 onBook={onBook}
+                onComplete={onComplete}
                 onRefresh={onRefresh}
                 onLogEvent={onLogEvent}
               />
@@ -680,6 +686,7 @@ export default function LeadsPage() {
     onOpenSheet: openSheet,
     onAssign: setAssigningLead,
     onBook: setBookingLead,
+    onComplete: handleMarkComplete,
     onRefresh: fetchLeads,
     onLogEvent: logLeadEvent,
   })
