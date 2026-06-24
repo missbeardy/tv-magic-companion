@@ -620,7 +620,7 @@ export default function LeadsPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowAddLead(true)}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-[#004B93] hover:bg-[#003d7a] transition"
+              className="hidden md:flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-[#004B93] hover:bg-[#003d7a] transition"
             >
               <Plus size={14} /> Add Lead
             </button>

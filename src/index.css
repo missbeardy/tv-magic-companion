@@ -132,10 +132,92 @@ html, body {
   background-color: var(--color-primary-dark);
 }
 
-/* Mobile bottom tab bar — content clearance (see MobileBottomNav h-16) */
+@keyframes nav-icon-pop {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+
+@keyframes badge-pop {
+  0%   { transform: scale(0); opacity: 0; }
+  70%  { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes badge-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.06); opacity: 0.92; }
+}
+
+.nav-pill-indicator {
+  position: absolute;
+  top: 6px;
+  left: 0;
+  height: calc(100% - 12px);
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+  will-change: transform, width;
+  transition:
+    transform 0.28s cubic-bezier(0.34, 1.2, 0.64, 1),
+    width 0.28s cubic-bezier(0.34, 1.2, 0.64, 1),
+    opacity 0.15s ease;
+}
+
+.nav-tab-link {
+  transition: color 0.2s ease, transform 0.1s ease;
+}
+
+@media (hover: none) {
+  .nav-tab-link:active {
+    transform: scale(0.95);
+  }
+
+  .mobile-nav-fab:active {
+    transform: scale(0.95);
+  }
+}
+
+.nav-icon-pop {
+  animation: nav-icon-pop 0.35s cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+
+.nav-tab-badge {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  min-width: 1.125rem;
+  height: 1.125rem;
+  padding: 0 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: var(--color-secondary);
+  color: #fff;
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1;
+  animation: badge-pop 0.3s cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+
+.nav-badge-pulse {
+  animation: badge-pop 0.3s cubic-bezier(0.34, 1.2, 0.64, 1), badge-pulse 2s ease-in-out 0.3s infinite;
+}
+
+.mobile-bottom-nav-shell--notched {
+  -webkit-mask-image: radial-gradient(circle 1.75rem at calc(100% - 2.25rem) 0, transparent 1.75rem, black 1.8rem);
+  mask-image: radial-gradient(circle 1.75rem at calc(100% - 2.25rem) 0, transparent 1.75rem, black 1.8rem);
+}
+
+.mobile-nav-fab {
+  transition: transform 0.1s ease;
+}
+
+/* Mobile bottom tab bar — floating bar clearance (h-16 + mb-2) */
 @media (max-width: 767px) {
   .has-mobile-nav {
-    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
   }
 }
 .border-brand {
