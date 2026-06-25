@@ -183,6 +183,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).send('<Response></Response>')
     }
 
+    const { isFeatureEnabledForOrg } = await import('./_lib/featureSwitches.js')
+    const inboundEnabled = await isFeatureEnabledForOrg(orgId, 'inbound_sms')
+    if (!inboundEnabled) {
+      console.log(`Inbound SMS disabled for org ${orgId}`)
+      res.setHeader('Content-Type', 'text/xml')
+      return res.status(200).send('<Response></Response>')
+    }
+
     // Explicit insert with org_id
     const insertPayload = {
       name: leadName,

@@ -9,6 +9,7 @@ import { Building2, Plus, RefreshCw, ArrowRightLeft } from 'lucide-react'
 import {
   FEATURE_SWITCH_DEFINITIONS,
   FEATURE_SWITCH_KEYS,
+  FEATURE_SWITCH_MIN_TIERS,
   type FeatureSwitchKey,
 } from '../lib/features'
 
@@ -35,6 +36,7 @@ interface FeatureCatalogRow {
   label: string
   description: string | null
   default_enabled: boolean
+  min_tier: string
 }
 
 interface FeatureSwitchRow {
@@ -49,14 +51,12 @@ export default function PlatformAdminPage() {
   const [orgs, setOrgs] = useState<OrgRow[]>([])
   const [featureCatalog, setFeatureCatalog] = useState<FeatureCatalogRow[]>([])
   const [brandSwitchRows, setBrandSwitchRows] = useState<Record<string, boolean>>({})
-  const [orgOverrideRows, setOrgOverrideRows] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [switchesError, setSwitchesError] = useState('')
   const [switchesLoading, setSwitchesLoading] = useState(true)
   const [savingSwitchKey, setSavingSwitchKey] = useState<string | null>(null)
-  const [orgFilter, setOrgFilter] = useState('')
   const [transferringOrgId, setTransferringOrgId] = useState<string | null>(null)
 
   const [newOrgName, setNewOrgName] = useState('')
@@ -90,24 +90,20 @@ export default function PlatformAdminPage() {
     if (orgsRes.error) setError(orgsRes.error.message)
     else setOrgs(orgsRes.data ?? [])
 
-    const [catalogRes, brandSwitchRes, orgSwitchRes] = await Promise.all([
+    const [catalogRes, brandSwitchRes] = await Promise.all([
       supabase
         .from('feature_flag_catalog')
-        .select('feature_key, label, description, default_enabled')
+        .select('feature_key, label, description, default_enabled, min_tier')
         .in('feature_key', [...FEATURE_SWITCH_KEYS]),
       supabase
         .from('brand_feature_switches')
         .select('brand_id, feature_key, enabled')
         .in('feature_key', [...FEATURE_SWITCH_KEYS]),
-      supabase
-        .from('org_feature_switch_overrides')
-        .select('org_id, feature_key, enabled')
-        .in('feature_key', [...FEATURE_SWITCH_KEYS]),
     ])
 
-    if (catalogRes.error || brandSwitchRes.error || orgSwitchRes.error) {
+    if (catalogRes.error || brandSwitchRes.error) {
       setSwitchesError(
-        'Feature switches are unavailable. Run migration 20250701110000_feature_kill_switches.sql and reload.'
+        'Feature switches are unavailable. Run migrations 20250701110000 and 20250701140000_feature_switches_simplify.sql and reload.'
       )
       setFeatureCatalog(
         FEATURE_SWITCH_KEYS.map((key) => ({
@@ -115,20 +111,24 @@ export default function PlatformAdminPage() {
           label: FEATURE_SWITCH_DEFINITIONS[key].label,
           description: FEATURE_SWITCH_DEFINITIONS[key].description,
           default_enabled: false,
+          min_tier: FEATURE_SWITCH_MIN_TIERS[key],
         }))
       )
       setBrandSwitchRows({})
-      setOrgOverrideRows({})
     } else {
       const catalog = (catalogRes.data as FeatureCatalogRow[]) ?? []
       setFeatureCatalog(
         catalog.length > 0
-          ? catalog
+          ? catalog.map((row) => ({
+              ...row,
+              min_tier: row.min_tier || FEATURE_SWITCH_MIN_TIERS[row.feature_key] || 'basic',
+            }))
           : FEATURE_SWITCH_KEYS.map((key) => ({
               feature_key: key,
               label: FEATURE_SWITCH_DEFINITIONS[key].label,
               description: FEATURE_SWITCH_DEFINITIONS[key].description,
               default_enabled: false,
+              min_tier: FEATURE_SWITCH_MIN_TIERS[key],
             }))
       )
 
@@ -137,12 +137,6 @@ export default function PlatformAdminPage() {
         brandMap[`${row.brand_id}:${row.feature_key}`] = row.enabled
       }
       setBrandSwitchRows(brandMap)
-
-      const orgMap: Record<string, boolean> = {}
-      for (const row of (orgSwitchRes.data ?? []) as Array<FeatureSwitchRow & { org_id: string }>) {
-        orgMap[`${row.org_id}:${row.feature_key}`] = row.enabled
-      }
-      setOrgOverrideRows(orgMap)
     }
 
     setLoading(false)
@@ -246,12 +240,6 @@ export default function PlatformAdminPage() {
     return map
   }, [featureCatalog])
 
-  const filteredOrgs = useMemo(() => {
-    const q = orgFilter.trim().toLowerCase()
-    if (!q) return orgs
-    return orgs.filter((o) => `${o.name} ${o.slug}`.toLowerCase().includes(q))
-  }, [orgFilter, orgs])
-
   const missingBrandDefaults = useMemo(() => {
     const missing: Array<{ brandName: string; feature: FeatureSwitchKey }> = []
     for (const b of brands) {
@@ -271,17 +259,9 @@ export default function PlatformAdminPage() {
     return catalogByKey[feature]?.default_enabled ?? false
   }
 
-  function orgOverrideValue(orgId: string, feature: FeatureSwitchKey): boolean | null {
-    const key = `${orgId}:${feature}`
-    if (key in orgOverrideRows) return orgOverrideRows[key]
-    return null
-  }
-
-  function effectiveSwitch(orgRow: OrgRow, feature: FeatureSwitchKey): boolean {
-    const override = orgOverrideValue(orgRow.id, feature)
-    if (override !== null) return override
-    if (!orgRow.brand_id) return catalogByKey[feature]?.default_enabled ?? false
-    return brandSwitchValue(orgRow.brand_id, feature)
+  function minTierLabel(feature: FeatureSwitchKey): string {
+    const tier = catalogByKey[feature]?.min_tier ?? FEATURE_SWITCH_MIN_TIERS[feature] ?? 'basic'
+    return tier.charAt(0).toUpperCase() + tier.slice(1)
   }
 
   async function updateBrandSwitch(brandId: string, feature: FeatureSwitchKey, enabled: boolean) {
@@ -304,51 +284,6 @@ export default function PlatformAdminPage() {
     } else {
       setBrandSwitchRows((prev) => ({ ...prev, [`${brandId}:${feature}`]: enabled }))
       setSuccess('Feature defaults updated.')
-    }
-    setSavingSwitchKey(null)
-  }
-
-  async function updateOrgOverride(orgId: string, feature: FeatureSwitchKey, mode: 'inherit' | 'on' | 'off') {
-    setSavingSwitchKey(`org:${orgId}:${feature}`)
-    setSwitchesError('')
-    if (mode === 'inherit') {
-      const { error: delError } = await supabase
-        .from('org_feature_switch_overrides')
-        .delete()
-        .eq('org_id', orgId)
-        .eq('feature_key', feature)
-      if (delError) {
-        setSwitchesError(delError.message)
-      } else {
-        setOrgOverrideRows((prev) => {
-          const next = { ...prev }
-          delete next[`${orgId}:${feature}`]
-          return next
-        })
-        setSuccess('Org override cleared (inherited from brand).')
-      }
-      setSavingSwitchKey(null)
-      return
-    }
-
-    const enabled = mode === 'on'
-    const { error: saveError } = await supabase
-      .from('org_feature_switch_overrides')
-      .upsert(
-        {
-          org_id: orgId,
-          feature_key: feature,
-          enabled,
-          updated_by: profile?.id ?? null,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'org_id,feature_key' }
-      )
-    if (saveError) {
-      setSwitchesError(saveError.message)
-    } else {
-      setOrgOverrideRows((prev) => ({ ...prev, [`${orgId}:${feature}`]: enabled }))
-      setSuccess('Org override updated.')
     }
     setSavingSwitchKey(null)
   }
@@ -420,9 +355,11 @@ export default function PlatformAdminPage() {
         </section>
 
         <section className="card p-6 space-y-4">
-          <h2 className="font-semibold text-gray-800">Feature switches (kill switches)</h2>
+          <h2 className="font-semibold text-gray-800">Feature switches</h2>
           <p className="text-xs text-gray-500">
-            Release reminder: before every preview/prod push, confirm effective ON/OFF state per franchise for new features.
+            Tier features (Tasks, Social, Reports, AI parsing) turn on automatically when a franchise upgrades.
+            Feature switches below are manual rollout controls per brand — all franchises under a brand share the same
+            setting.
           </p>
           {switchesError && (
             <div className="bg-amber-50 border border-amber-200 text-amber-700 text-xs p-3 rounded-xl">
@@ -441,128 +378,56 @@ export default function PlatformAdminPage() {
           {switchesLoading ? (
             <p className="text-sm text-gray-400">Loading feature switches…</p>
           ) : (
-            <>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-xs">
-                  <thead>
-                    <tr className="text-left text-gray-500 border-b border-gray-100">
-                      <th className="py-2 pr-3 font-semibold">Brand default</th>
-                      {featureKeys.map((feature) => (
-                        <th key={feature} className="py-2 pr-3 font-semibold">
-                          <div>{catalogByKey[feature]?.label ?? FEATURE_SWITCH_DEFINITIONS[feature].label}</div>
-                          <div className="font-normal text-[10px] text-gray-400 mt-0.5">
-                            {catalogByKey[feature]?.description ?? FEATURE_SWITCH_DEFINITIONS[feature].description}
-                          </div>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {brands.map((b) => (
-                      <tr key={b.id} className="border-b border-gray-50">
-                        <td className="py-2 pr-3">
-                          <p className="font-medium text-gray-800">{b.name}</p>
-                          <p className="text-[10px] text-gray-400">{b.slug}</p>
-                        </td>
-                        {featureKeys.map((feature) => {
-                          const current = brandSwitchValue(b.id, feature)
-                          const rowKey = `brand:${b.id}:${feature}`
-                          return (
-                            <td key={feature} className="py-2 pr-3">
-                              <button
-                                type="button"
-                                disabled={savingSwitchKey === rowKey}
-                                onClick={() => updateBrandSwitch(b.id, feature, !current)}
-                                className={`px-2.5 py-1 rounded-full border text-[11px] font-semibold ${
-                                  current
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                    : 'bg-gray-50 text-gray-500 border-gray-200'
-                                } disabled:opacity-50`}
-                              >
-                                {savingSwitchKey === rowKey ? 'Saving…' : current ? 'ON' : 'OFF'}
-                              </button>
-                            </td>
-                          )
-                        })}
-                      </tr>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b border-gray-100">
+                    <th className="py-2 pr-3 font-semibold">Brand</th>
+                    {featureKeys.map((feature) => (
+                      <th key={feature} className="py-2 pr-3 font-semibold min-w-[7rem]">
+                        <div>{catalogByKey[feature]?.label ?? FEATURE_SWITCH_DEFINITIONS[feature].label}</div>
+                        <div className="font-normal text-[10px] text-gray-400 mt-0.5">
+                          {catalogByKey[feature]?.description ?? FEATURE_SWITCH_DEFINITIONS[feature].description}
+                        </div>
+                        <div className="font-normal text-[10px] text-sky-600 mt-0.5">
+                          Min tier: {minTierLabel(feature)}
+                        </div>
+                      </th>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="pt-2 border-t border-gray-100">
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <h3 className="text-sm font-semibold text-gray-700">Franchise overrides</h3>
-                  <input
-                    value={orgFilter}
-                    onChange={(e) => setOrgFilter(e.target.value)}
-                    placeholder="Filter franchise name…"
-                    className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs w-52"
-                  />
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-xs">
-                    <thead>
-                      <tr className="text-left text-gray-500 border-b border-gray-100">
-                        <th className="py-2 pr-3 font-semibold">Franchise</th>
-                        {featureKeys.map((feature) => (
-                          <th key={feature} className="py-2 pr-3 font-semibold">
-                            {catalogByKey[feature]?.label ?? FEATURE_SWITCH_DEFINITIONS[feature].label}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredOrgs.map((o) => (
-                        <tr key={o.id} className="border-b border-gray-50">
-                          <td className="py-2 pr-3">
-                            <p className="font-medium text-gray-800">{o.name}</p>
-                            <p className="text-[10px] text-gray-400">{o.slug} · {brandName(o.brand_id)}</p>
+                  </tr>
+                </thead>
+                <tbody>
+                  {brands.map((b) => (
+                    <tr key={b.id} className="border-b border-gray-50">
+                      <td className="py-2 pr-3">
+                        <p className="font-medium text-gray-800">{b.name}</p>
+                        <p className="text-[10px] text-gray-400">{b.slug}</p>
+                      </td>
+                      {featureKeys.map((feature) => {
+                        const current = brandSwitchValue(b.id, feature)
+                        const rowKey = `brand:${b.id}:${feature}`
+                        return (
+                          <td key={feature} className="py-2 pr-3">
+                            <button
+                              type="button"
+                              disabled={savingSwitchKey === rowKey}
+                              onClick={() => updateBrandSwitch(b.id, feature, !current)}
+                              className={`px-2.5 py-1 rounded-full border text-[11px] font-semibold ${
+                                current
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : 'bg-gray-50 text-gray-500 border-gray-200'
+                              } disabled:opacity-50`}
+                            >
+                              {savingSwitchKey === rowKey ? 'Saving…' : current ? 'ON' : 'OFF'}
+                            </button>
                           </td>
-                          {featureKeys.map((feature) => {
-                            const override = orgOverrideValue(o.id, feature)
-                            const rowKey = `org:${o.id}:${feature}`
-                            const effective = effectiveSwitch(o, feature)
-                            const mode = override === null ? 'inherit' : override ? 'on' : 'off'
-                            return (
-                              <td key={feature} className="py-2 pr-3">
-                                <div className="flex items-center gap-2">
-                                  <select
-                                    value={mode}
-                                    disabled={savingSwitchKey === rowKey}
-                                    onChange={(e) =>
-                                      updateOrgOverride(
-                                        o.id,
-                                        feature,
-                                        e.target.value as 'inherit' | 'on' | 'off'
-                                      )
-                                    }
-                                    className="border border-gray-200 rounded-md px-2 py-1 text-[11px]"
-                                  >
-                                    <option value="inherit">Inherited</option>
-                                    <option value="on">Override ON</option>
-                                    <option value="off">Override OFF</option>
-                                  </select>
-                                  <span
-                                    className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                                      effective
-                                        ? 'bg-emerald-50 text-emerald-700'
-                                        : 'bg-gray-100 text-gray-500'
-                                    }`}
-                                  >
-                                    Effective {effective ? 'ON' : 'OFF'}
-                                  </span>
-                                </div>
-                              </td>
-                            )
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
 

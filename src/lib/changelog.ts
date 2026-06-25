@@ -69,11 +69,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Smart Assign badge + Quote acceptance e-sign flow now behind per-franchise feature switches',
     'Brand-level quote email templates (subject + HTML) with org name, scope, and brand colours',
     'Platform Admin editor for quote email subject and HTML with live preview',
+    'Unified feature switches — 10 brand rollout controls, tier-auto products, franchise overrides removed',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.16'
+export const APP_VERSION = '1.1.17'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

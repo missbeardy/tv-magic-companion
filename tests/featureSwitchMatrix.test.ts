@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { resolveFeatureSwitchValue } from '../src/lib/features'
+import {
+  canAccessFeatureSwitch,
+  getDefaultFeatureSwitchState,
+  resolveFeatureSwitchValue,
+} from '../src/lib/features'
 
 describe('feature switch resolution matrix', () => {
   it('defaults OFF when no values exist', () => {
@@ -7,33 +11,28 @@ describe('feature switch resolution matrix', () => {
     expect(resolveFeatureSwitchValue('quote_esign', {})).toBe(false)
   })
 
-  it('uses brand default when no org override', () => {
+  it('uses brand default when set', () => {
     expect(
       resolveFeatureSwitchValue('quote_esign', {
         catalogDefault: false,
         brandValue: true,
-        orgOverride: null,
       })
     ).toBe(true)
   })
 
-  it('org override OFF wins over brand ON', () => {
+  it('brand OFF wins over catalog ON', () => {
     expect(
       resolveFeatureSwitchValue('quote_esign', {
-        catalogDefault: false,
-        brandValue: true,
-        orgOverride: false,
+        catalogDefault: true,
+        brandValue: false,
       })
     ).toBe(false)
   })
 
-  it('org override ON wins over brand OFF', () => {
-    expect(
-      resolveFeatureSwitchValue('quote_esign', {
-        catalogDefault: false,
-        brandValue: false,
-        orgOverride: true,
-      })
-    ).toBe(true)
+  it('requires tier and switch for effective access', () => {
+    const on = getDefaultFeatureSwitchState()
+    on.quote_esign = true
+    expect(canAccessFeatureSwitch('quote_esign', 'pro', on)).toBe(true)
+    expect(canAccessFeatureSwitch('quote_esign', 'basic', on)).toBe(false)
   })
 })

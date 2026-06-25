@@ -97,19 +97,12 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
           .in('feature_key', [...FEATURE_SWITCH_KEYS])
       : Promise.resolve({ data: [], error: null });
 
-    const orgPromise = supabase
-      .from('org_feature_switch_overrides')
-      .select('feature_key, enabled')
-      .eq('org_id', orgId)
-      .in('feature_key', [...FEATURE_SWITCH_KEYS]);
+    const [catalogRes, brandRes] = await Promise.all([catalogPromise, brandPromise]);
 
-    const [catalogRes, brandRes, orgRes] = await Promise.all([catalogPromise, brandPromise, orgPromise]);
-
-    if (catalogRes.error || brandRes.error || orgRes.error) {
+    if (catalogRes.error || brandRes.error) {
       console.warn('Feature switches unavailable; using defaults.', {
         catalogError: catalogRes.error?.message,
         brandError: brandRes.error?.message,
-        orgError: orgRes.error?.message,
       });
       setFeatureSwitches(getDefaultFeatureSwitchState());
       setFeatureSwitchesLoading(false);
@@ -128,19 +121,12 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
         brandMap[row.feature_key as FeatureSwitchKey] = row.enabled === true
       }
     }
-    const orgMap: Partial<Record<FeatureSwitchKey, boolean>> = {}
-    for (const row of (orgRes.data ?? []) as Array<{ feature_key: string; enabled: boolean }>) {
-      if ((FEATURE_SWITCH_KEYS as readonly string[]).includes(row.feature_key)) {
-        orgMap[row.feature_key as FeatureSwitchKey] = row.enabled === true
-      }
-    }
 
     const next = getDefaultFeatureSwitchState();
     for (const key of FEATURE_SWITCH_KEYS) {
       next[key] = resolveFeatureSwitchValue(key, {
         catalogDefault: catalogMap[key],
         brandValue: brandMap[key],
-        orgOverride: orgMap[key],
       })
     }
 

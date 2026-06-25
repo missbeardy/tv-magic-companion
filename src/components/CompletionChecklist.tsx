@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useOrg } from '../context/OrgContext';
 import { supabase } from '../lib/supabase';
 import { useConfetti } from '../hooks/useConfetti';
 import ReviewRequestStep from './ReviewRequestStep';
@@ -40,15 +41,24 @@ interface Props {
 
 export default function CompletionChecklist({ lead, onComplete, onCancel, logEvent }: Props) {
   const { profile } = useAuth();
+  const { isFeatureEnabled, featureSwitchesLoading } = useOrg();
   const { fireConfetti } = useConfetti();
+  const reviewFeatureEnabled = !featureSwitchesLoading && isFeatureEnabled('review_requests');
+  const upsellsEnabled = !featureSwitchesLoading && isFeatureEnabled('completion_upsells');
   const [checked, setChecked] = useState<boolean[]>(CHECKLIST.map(() => false));
-  const [upsellDone, setUpsellDone] = useState(false);
+  const [upsellDone, setUpsellDone] = useState(!upsellsEnabled);
   const [upsellLabels, setUpsellLabels] = useState<string[]>(DEFAULT_UPSELLS);
   const [step, setStep] = useState<'checklist' | 'review'>('checklist');
   const [sendingReview, setSendingReview] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
 
   const allChecked = checked.every(Boolean);
+
+  useEffect(() => {
+    if (!upsellsEnabled) {
+      setUpsellDone(true);
+    }
+  }, [upsellsEnabled]);
 
   useEffect(() => {
     async function loadUpsells() {
@@ -88,7 +98,7 @@ export default function CompletionChecklist({ lead, onComplete, onCancel, logEve
 
   async function handleChecklistConfirm() {
     const org = profile?.org_id ? await fetchReviewOrg(profile.org_id) : null;
-    const eligible = await isReviewRequestEligible(org, lead, profile?.org_id);
+    const eligible = await isReviewRequestEligible(org, lead, profile?.org_id, reviewFeatureEnabled);
     if (eligible && lead.phone?.trim()) {
       setStep('review');
       return;
@@ -119,7 +129,7 @@ export default function CompletionChecklist({ lead, onComplete, onCancel, logEve
               ))}
             </div>
 
-            {allChecked && (
+            {allChecked && upsellsEnabled && (
               <div className="bg-[#00B4C5]/10 border border-[#00B4C5] rounded-xl p-4">
                 <p className="text-sm font-semibold text-[#004B93] mb-2">
                   💡 Did you offer any add-ons?

@@ -20,7 +20,6 @@ export default function OrgSettingsPage() {
   const [supportEmail, setSupportEmail] = useState('');
   const [avgJobValue, setAvgJobValue] = useState<number>(180);
   const [googleReviewUrl, setGoogleReviewUrl] = useState('');
-  const [reviewRequestsEnabled, setReviewRequestsEnabled] = useState(true);
   // Image upload states
   const [imageUrl, setImageUrl] = useState<string>('');
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -55,7 +54,6 @@ export default function OrgSettingsPage() {
             setSupportEmail(org.support_email || '');
             setAvgJobValue(org.avg_job_value ?? 180);
             setGoogleReviewUrl(org.google_review_url || '');
-            setReviewRequestsEnabled(org.review_requests_enabled !== false);
             setImageUrl(org.logo_url || ''); // Match this key to your database column
           }
         }
@@ -152,7 +150,6 @@ export default function OrgSettingsPage() {
           support_email: supportEmail,
           avg_job_value: avgJobValue,
           google_review_url: googleReviewUrl.trim() || null,
-          review_requests_enabled: reviewRequestsEnabled,
           logo_url: imageUrl, // Saves public asset string path reference to DB
         })
         .eq('id', orgId);
@@ -328,28 +325,17 @@ export default function OrgSettingsPage() {
         {/* Google review requests */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
           <p className="text-sm font-semibold text-gray-700">⭐ Google Review Requests</p>
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={reviewRequestsEnabled}
-              onChange={(e) => setReviewRequestsEnabled(e.target.checked)}
-              className="mt-1 rounded border-gray-300 text-[#004B93] focus:ring-[#004B93]"
-            />
-            <span>
-              <span className="block text-sm font-medium text-gray-800">Prompt to send review SMS after job complete</span>
-              <span className="block text-xs text-gray-400 mt-0.5">
-                When enabled, technicians are asked to confirm before a review link is texted to the customer
-              </span>
-            </span>
-          </label>
+          <p className="text-xs text-gray-500">
+            Enable or disable review SMS for your brand in Platform Admin → Feature switches (
+            <span className="font-medium">Google Review Request SMS</span>). Set your review link below.
+          </p>
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Google Review Link</label>
             <input
               type="url"
               value={googleReviewUrl}
               onChange={(e) => setGoogleReviewUrl(e.target.value)}
-              disabled={!reviewRequestsEnabled}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93] disabled:bg-gray-50 disabled:text-gray-400"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
               placeholder="https://g.page/r/..."
             />
             <p className="text-xs text-gray-400 mt-1">

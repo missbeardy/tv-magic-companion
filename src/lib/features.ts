@@ -12,12 +12,32 @@ export const FEATURES = {
   api_access: { tier: 'enterprise', nav: null, label: 'API Access' },
 } as const
 
-export const FEATURE_SWITCH_KEYS = ['smart_assign_badge', 'quote_esign'] as const
+export const FEATURE_SWITCH_KEYS = [
+  'smart_assign_badge',
+  'quote_esign',
+  'review_requests',
+  'customer_ontheway_sms',
+  'manager_new_lead_alerts',
+  'inbound_sms',
+  'inbound_email',
+  'inbound_calls',
+  'completion_upsells',
+  'tech_location',
+] as const
+
 export type FeatureSwitchKey = (typeof FEATURE_SWITCH_KEYS)[number]
 
 export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   smart_assign_badge: false,
   quote_esign: false,
+  review_requests: false,
+  customer_ontheway_sms: false,
+  manager_new_lead_alerts: false,
+  inbound_sms: false,
+  inbound_email: false,
+  inbound_calls: false,
+  completion_upsells: false,
+  tech_location: false,
 }
 
 export const FEATURE_SWITCH_DEFINITIONS: Record<
@@ -25,18 +45,58 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   { label: string; description: string }
 > = {
   smart_assign_badge: {
-    label: 'Smart Assign Badge',
+    label: 'Smart Assign',
     description: 'Assign modal recommendation badges and highlighting',
   },
   quote_esign: {
     label: 'Quote Acceptance + E-Sign',
     description: 'Send quotes and capture customer acceptance signatures',
   },
+  review_requests: {
+    label: 'Google Review Request SMS',
+    description: 'Post-job review link SMS to customers',
+  },
+  customer_ontheway_sms: {
+    label: 'Customer On The Way SMS',
+    description: 'ETA SMS with maps link when tech is en route',
+  },
+  manager_new_lead_alerts: {
+    label: 'Manager New-Lead Alert SMS',
+    description: 'SMS to managers when a new unassigned lead arrives',
+  },
+  inbound_sms: {
+    label: 'Inbound SMS Leads',
+    description: 'Create leads from inbound Twilio SMS webhooks',
+  },
+  inbound_email: {
+    label: 'Inbound Email Leads',
+    description: 'Create leads from inbound email webhooks',
+  },
+  inbound_calls: {
+    label: 'Inbound Calls / Voicemail',
+    description: 'Create leads from missed calls and voicemail',
+  },
+  completion_upsells: {
+    label: 'Completion Upsell Checklist',
+    description: 'Upsell prompts in the job completion flow',
+  },
+  tech_location: {
+    label: 'Tech Location Tracking',
+    description: 'Periodic GPS updates from employee devices',
+  },
 }
 
-const FEATURE_SWITCH_TIERS: Record<FeatureSwitchKey, Org['subscription_tier']> = {
+export const FEATURE_SWITCH_MIN_TIERS: Record<FeatureSwitchKey, Org['subscription_tier']> = {
   smart_assign_badge: 'basic',
   quote_esign: 'pro',
+  review_requests: 'basic',
+  customer_ontheway_sms: 'basic',
+  manager_new_lead_alerts: 'basic',
+  inbound_sms: 'basic',
+  inbound_email: 'basic',
+  inbound_calls: 'basic',
+  completion_upsells: 'basic',
+  tech_location: 'basic',
 }
 
 export type FeatureKey = keyof typeof FEATURES
@@ -76,9 +136,18 @@ export function canAccessFeatureSwitch(
   switches: Partial<FeatureSwitchState> | undefined
 ): boolean {
   const effectiveTier = tier ?? 'basic'
-  const requiredTier = FEATURE_SWITCH_TIERS[feature]
+  const requiredTier = FEATURE_SWITCH_MIN_TIERS[feature]
   if (!tierIncludes(effectiveTier, requiredTier)) return false
   return Boolean(switches?.[feature] ?? FEATURE_SWITCH_DEFAULTS[feature])
+}
+
+/** Alias for manual rollout switches: tier gate + brand ON. */
+export function canUseFeature(
+  feature: FeatureSwitchKey,
+  tier: Tier | undefined,
+  switches: Partial<FeatureSwitchState> | undefined
+): boolean {
+  return canAccessFeatureSwitch(feature, tier, switches)
 }
 
 export function resolveFeatureSwitchValue(
@@ -86,10 +155,8 @@ export function resolveFeatureSwitchValue(
   values: {
     catalogDefault?: boolean | null
     brandValue?: boolean | null
-    orgOverride?: boolean | null
   }
 ): boolean {
-  if (values.orgOverride === true || values.orgOverride === false) return values.orgOverride
   if (values.brandValue === true || values.brandValue === false) return values.brandValue
   if (values.catalogDefault === true || values.catalogDefault === false) return values.catalogDefault
   return FEATURE_SWITCH_DEFAULTS[feature]

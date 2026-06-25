@@ -2,6 +2,7 @@ import { getSupabaseAdmin } from './supabaseAdmin.js'
 import { buildSmsFromBrand } from './smsTemplates.js'
 import { getPlatformUrl } from './platformUrl.js'
 import { OPERATIONAL_MANAGER_ROLES } from './managerRoles.js'
+import { isFeatureEnabledForOrg } from './featureSwitches.js'
 
 export interface NewLeadRecord {
   id?: string
@@ -74,7 +75,8 @@ export async function notifyManagersNewLead(
   const sid = process.env.TWILIO_ACCOUNT_SID
   const token = process.env.TWILIO_AUTH_TOKEN
   const from = process.env.TWILIO_FROM_NUMBER
-  if (sid && token && from) {
+  const smsEnabled = await isFeatureEnabledForOrg(lead.org_id, 'manager_new_lead_alerts')
+  if (sid && token && from && smsEnabled) {
     const message = buildSmsFromBrand(
       smsTemplates,
       'manager_alert',

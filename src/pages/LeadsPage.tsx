@@ -463,6 +463,7 @@ export default function LeadsPage() {
   const [reviewSending, setReviewSending] = useState(false)
   const [reviewError, setReviewError] = useState<string | null>(null)
   const quoteFeatureEnabled = !featureSwitchesLoading && isFeatureEnabled('quote_esign')
+  const reviewFeatureEnabled = !featureSwitchesLoading && isFeatureEnabled('review_requests')
 
   const fetchLeads = useCallback(async () => {
     if (!profile?.org_id) return
@@ -587,7 +588,7 @@ export default function LeadsPage() {
         { from_status: lead.status, to_status: newStatus, source: 'drag' }
       )
       if (newStatus === 'completed') {
-        const eligible = await isReviewRequestEligible(org, lead, profile?.org_id)
+        const eligible = await isReviewRequestEligible(org, lead, profile?.org_id, reviewFeatureEnabled)
         if (eligible) {
           setReviewModalLead(lead)
         }

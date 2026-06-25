@@ -19,8 +19,9 @@ describe('canOfferReviewRequest', () => {
     expect(canOfferReviewRequest(org, lead)).toBe(true)
   })
 
-  it('returns false when toggle is off', () => {
-    expect(canOfferReviewRequest({ ...org, review_requests_enabled: false }, lead)).toBe(false)
+  it('returns false when feature switch is off', () => {
+    expect(canOfferReviewRequest(org, lead, false)).toBe(false)
+    expect(getReviewRequestBlockReason(org, lead, false)).toContain('platform admin')
   })
 
   it('returns false when google review URL is missing', () => {

@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { canAccessFeature, canAccessFeatureSwitch, getDefaultFeatureSwitchState } from '../src/lib/features'
+import {
+  canAccessFeature,
+  canAccessFeatureSwitch,
+  canUseFeature,
+  getDefaultFeatureSwitchState,
+} from '../src/lib/features'
 
 describe('canAccessFeature', () => {
   beforeEach(() => {
@@ -32,24 +37,22 @@ describe('canAccessFeature', () => {
 })
 
 describe('canAccessFeatureSwitch', () => {
-  it('is off by default', () => {
+  it('is off by default for all switches', () => {
     const defaults = getDefaultFeatureSwitchState()
     expect(canAccessFeatureSwitch('smart_assign_badge', 'basic', defaults)).toBe(false)
     expect(canAccessFeatureSwitch('quote_esign', 'pro', defaults)).toBe(false)
+    expect(canAccessFeatureSwitch('review_requests', 'basic', defaults)).toBe(false)
   })
 
   it('requires switch on and sufficient tier', () => {
-    expect(
-      canAccessFeatureSwitch('quote_esign', 'pro', {
-        smart_assign_badge: false,
-        quote_esign: true,
-      })
-    ).toBe(true)
-    expect(
-      canAccessFeatureSwitch('quote_esign', 'basic', {
-        smart_assign_badge: false,
-        quote_esign: true,
-      })
-    ).toBe(false)
+    const switches = { ...getDefaultFeatureSwitchState(), quote_esign: true }
+    expect(canAccessFeatureSwitch('quote_esign', 'pro', switches)).toBe(true)
+    expect(canAccessFeatureSwitch('quote_esign', 'basic', switches)).toBe(false)
+  })
+
+  it('canUseFeature matches canAccessFeatureSwitch', () => {
+    const switches = { ...getDefaultFeatureSwitchState(), inbound_sms: true }
+    expect(canUseFeature('inbound_sms', 'basic', switches)).toBe(true)
+    expect(canUseFeature('inbound_sms', 'basic', getDefaultFeatureSwitchState())).toBe(false)
   })
 })

@@ -2,6 +2,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { OPERATIONAL_MANAGER_ROLES } from './_lib/managerRoles.js'
+import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -177,6 +178,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const voicemailAttachment = attachments?.find(isVoicemailAttachment)
 
   if (voicemailAttachment) {
+    const callsEnabled = await isFeatureEnabledForOrg(orgId, 'inbound_calls')
+    if (!callsEnabled) {
+      console.log(`Inbound calls/voicemail disabled for org ${orgId}`)
+      return res.status(200).json({ skipped: true, reason: 'inbound_calls_disabled' })
+    }
     try {
       let transcript = ''
       let transcriptionFailed = false
@@ -268,6 +274,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!emailText.trim()) {
     console.error('Empty email body received from CloudMailin')
     return res.status(200).json({ received: true })
+  }
+
+  const emailEnabled = await isFeatureEnabledForOrg(orgId, 'inbound_email')
+  if (!emailEnabled) {
+    console.log(`Inbound email disabled for org ${orgId}`)
+    return res.status(200).json({ skipped: true, reason: 'inbound_email_disabled' })
   }
 
   try {

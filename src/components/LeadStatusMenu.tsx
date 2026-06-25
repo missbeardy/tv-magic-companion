@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { sendPushNotification } from '../lib/sendPush'
 import { useAuth } from '../context/AuthContext'
+import { useOrg } from '../context/OrgContext'
 import ReviewRequestModal from './ReviewRequestModal'
 import {
   isReviewRequestEligible,
@@ -46,6 +47,8 @@ export default function LeadStatusMenu({
   onCompleteRequested,
 }: Props) {
   const { profile } = useAuth()
+  const { isFeatureEnabled, featureSwitchesLoading } = useOrg()
+  const reviewFeatureEnabled = !featureSwitchesLoading && isFeatureEnabled('review_requests')
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [dropUp, setDropUp] = useState(false)
@@ -111,7 +114,7 @@ export default function LeadStatusMenu({
         return
       }
 
-      const eligible = await isReviewRequestEligible(null, lead, profile?.org_id)
+      const eligible = await isReviewRequestEligible(null, lead, profile?.org_id, reviewFeatureEnabled)
       if (eligible && leadPhone?.trim()) {
         setShowReviewModal(true)
         return

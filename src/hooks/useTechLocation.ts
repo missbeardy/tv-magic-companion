@@ -1,12 +1,15 @@
 import { useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useOrg } from '../context/OrgContext'
 
 export function useTechLocation(userId: string | null) {
-  const { profile } = useAuth();
+  const { profile } = useAuth()
+  const { isFeatureEnabled, featureSwitchesLoading } = useOrg()
+  const techLocationEnabled = !featureSwitchesLoading && isFeatureEnabled('tech_location')
 
   useEffect(() => {
-    // Only track if location is enabled AND user is an employee
+    if (!techLocationEnabled) return
     if (!userId || !profile?.location_enabled || profile?.role !== 'employee') return
     if (!navigator.geolocation) return
 
@@ -27,20 +30,18 @@ export function useTechLocation(userId: string | null) {
     const fail = (err: GeolocationPositionError) =>
       console.info('Geolocation not available:', err.message)
 
-    const opts: PositionOptions = { 
-      enableHighAccuracy: false, 
-      timeout: 10000, 
-      maximumAge: 300000 
+    const opts: PositionOptions = {
+      enableHighAccuracy: false,
+      timeout: 10000,
+      maximumAge: 300000,
     }
 
-    // Get initial position
     navigator.geolocation.getCurrentPosition(update, fail, opts)
 
-    // Set up interval
     const interval = setInterval(() => {
       navigator.geolocation.getCurrentPosition(update, fail, opts)
     }, 10 * 60 * 1000)
 
     return () => clearInterval(interval)
-  }, [userId, profile?.location_enabled, profile?.role])
+  }, [userId, profile?.location_enabled, profile?.role, techLocationEnabled])
 }

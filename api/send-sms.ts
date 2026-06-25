@@ -211,6 +211,10 @@ async function handleNewLeadAlert(req: VercelRequest, res: VercelResponse, auth:
   }
 
   try {
+    const alertsEnabled = await isFeatureEnabledForOrg(lead.org_id, 'manager_new_lead_alerts')
+    if (!alertsEnabled) {
+      return res.status(200).json({ skipped: true, reason: 'manager_new_lead_alerts_disabled' })
+    }
     const result = await notifyManagersNewLead(lead)
     if (result.skipped) {
       return res.status(200).json({ skipped: true, reason: result.skipped })
@@ -482,18 +486,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let reviewUrl = ''
 
   if (mode === 'review_request') {
+    const reviewEnabled = await isFeatureEnabledForOrg(auth.orgId, 'review_requests')
+    if (!reviewEnabled) {
+      return res.status(403).json({ error: 'Review requests are disabled for this franchise' })
+    }
     const reviewSettings = await loadOrgReviewSettings(auth.orgId)
     if (reviewSettings.migrationMissing) {
       return res.status(503).json({
         error: 'Review requests need a database update — run migration 20250627120000_review_requests.sql in Supabase.',
       })
     }
-    if (!reviewSettings.review_requests_enabled) {
-      return res.status(400).json({ error: 'Review requests are disabled for this organisation' })
-    }
     reviewUrl = reviewSettings.google_review_url?.trim() ?? ''
     if (!reviewUrl) {
       return res.status(400).json({ error: 'Google review URL is not configured in Franchise Settings' })
+    }
+  } else if (!mode || (mode !== 'tech_assignment' && mode !== 'manager_alert')) {
+    const onTheWayEnabled = await isFeatureEnabledForOrg(auth.orgId, 'customer_ontheway_sms')
+    if (!onTheWayEnabled) {
+      return res.status(403).json({ error: 'Customer on-the-way SMS is disabled for this franchise' })
     }
   }
 

@@ -17,10 +17,11 @@ export interface ReviewRequestLead {
 
 export function getReviewRequestBlockReason(
   org: ReviewRequestOrg | null | undefined,
-  lead: ReviewRequestLead
+  lead: ReviewRequestLead,
+  reviewFeatureEnabled = true
 ): string | null {
-  if (org?.review_requests_enabled === false) {
-    return 'Review prompts are turned off in Franchise Settings.'
+  if (!reviewFeatureEnabled) {
+    return 'Review requests are disabled for this brand. Contact your platform admin.'
   }
   if (!org?.google_review_url?.trim()) {
     return 'Add a Google Review Link in Franchise Settings and tap Save.'
@@ -36,9 +37,10 @@ export function getReviewRequestBlockReason(
 
 export function canOfferReviewRequest(
   org: ReviewRequestOrg | null | undefined,
-  lead: ReviewRequestLead
+  lead: ReviewRequestLead,
+  reviewFeatureEnabled = true
 ): boolean {
-  if (org?.review_requests_enabled === false) return false
+  if (!reviewFeatureEnabled) return false
   if (!org?.google_review_url?.trim()) return false
   if (!lead.phone?.trim()) return false
   if (lead.review_request_sent_at) return false
@@ -62,10 +64,11 @@ export async function fetchReviewOrg(orgId: string): Promise<ReviewRequestOrg | 
 export async function isReviewRequestEligible(
   org: ReviewRequestOrg | null | undefined,
   lead: ReviewRequestLead,
-  orgId?: string | null
+  orgId?: string | null,
+  reviewFeatureEnabled = true
 ): Promise<boolean> {
   const activeOrg = orgId ? (await fetchReviewOrg(orgId)) ?? org : org
-  return canOfferReviewRequest(activeOrg, lead)
+  return canOfferReviewRequest(activeOrg, lead, reviewFeatureEnabled)
 }
 
 /** Send review-request SMS (no UI — caller handles prompts). */

@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { OPERATIONAL_MANAGER_ROLES } from './_lib/managerRoles.js'
+import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -62,6 +63,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .maybeSingle()
 
     const orgId = didMapping?.org_id || null
+
+    if (orgId) {
+      const callsEnabled = await isFeatureEnabledForOrg(orgId, 'inbound_calls')
+      if (!callsEnabled) {
+        console.log(`Inbound calls disabled for org ${orgId}`)
+        return res.status(200).json({ skipped: true, reason: 'inbound_calls_disabled' })
+      }
+    }
 
     // Check for duplicate (same number in last 24 hours) WITHIN THE SAME ORG.
     // Without the org_id filter, two franchises sharing a caller number would
