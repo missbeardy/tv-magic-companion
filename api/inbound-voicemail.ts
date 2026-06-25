@@ -2,8 +2,11 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
-import { OPERATIONAL_MANAGER_ROLES } from './_lib/managerRoles.js'
 import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
+import { resolveOrgIdFromDid } from './_lib/resolveOrgFromDid.js'
+import { findRecentLeadByPhone } from './_lib/inboundLeadDedup.js'
+import { formatAuPhoneForSms } from './_lib/phone.js'
+import { notifyManagersNewLead } from './_lib/notifyManagersNewLead.js'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -23,6 +26,7 @@ function verifyMailgunSignature(timestamp: string, token: string, signature: str
 // ── Voicemail metadata — matches your 3CX email format ─────────────
 interface VoicemailMetadata {
   phone: string
+  calledNumber: string | null
   receivedAt: string | null
   duration: string | null
   extensionName: string | null
@@ -37,6 +41,7 @@ function extractVoicemailMetadata(subject: string, body: string): VoicemailMetad
 
   return {
     phone: (fromMatch?.[1] || subjectMatch?.[1] || 'Unknown').trim(),
+    calledNumber: toMatch?.[1]?.trim() || null,
     receivedAt: receivedMatch?.[1]?.trim() || null,
     duration: durationMatch?.[1]?.trim() || null,
     extensionName: toMatch?.[2]?.trim() || null,
@@ -128,28 +133,6 @@ Voicemail transcript: ${transcript}`
   return JSON.parse(clean)
 }
 
-// ── Notify managers (org-scoped) ──────────────────────────────────
-async function notifyManagers(orgId: string, message: string) {
-  const { data: managers } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('org_id', orgId)
-    .in('role', [...OPERATIONAL_MANAGER_ROLES])
-
-  if (!managers?.length) return
-
-  const notifications = managers.map((m) => ({
-    user_id: m.id,
-    title: 'New Lead',
-    message,
-    type: 'new_lead',
-    read: false,
-    created_at: new Date().toISOString(),
-  }))
-
-  await supabase.from('notifications').insert(notifications)
-}
-
 // ── Main Mailgun store()+notify() Handler ──────────────────────────
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -163,10 +146,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const body = req.body as Record<string, any>
 
-  // TEMP — remove once we've confirmed the real payload shape.
-  console.log('Mailgun voicemail payload:', JSON.stringify(body))
-  console.log('Content-Type received:', req.headers['content-type'])
-
   const { timestamp, token, signature } = body
   if (!timestamp || !token || !signature || !verifyMailgunSignature(timestamp, token, signature)) {
     console.error('Mailgun signature verification failed')
@@ -175,11 +154,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const subject = body.subject || 'No Subject'
   const bodyPlain = body['body-plain'] || ''
+  const metadataPreview = extractVoicemailMetadata(subject, bodyPlain)
 
-  const orgId = process.env.DEFAULT_ORG_ID
+  const orgId = await resolveOrgIdFromDid(supabase, metadataPreview.calledNumber)
   if (!orgId) {
-    console.error('DEFAULT_ORG_ID not set')
-    return res.status(500).json({ error: 'Server misconfigured' })
+    console.error('Voicemail: no org_id resolved')
+    return res.status(200).json({ skipped: true, reason: 'no_org' })
   }
 
   const callsEnabled = await isFeatureEnabledForOrg(orgId, 'inbound_calls')
@@ -237,12 +217,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ? `Voicemail transcript: ${transcript}\n\n${callInfo}`
         : `Missed call voicemail received. ${callInfo}`
 
+    const rawPhone = lead.phone || metadata.phone
+    const normalizedPhone = rawPhone && rawPhone !== 'Unknown'
+      ? formatAuPhoneForSms(rawPhone)
+      : null
+
+    if (normalizedPhone) {
+      const existingLead = await findRecentLeadByPhone(supabase, normalizedPhone, orgId)
+      if (existingLead) {
+        await supabase.from('lead_events').insert({
+          lead_id: existingLead.id,
+          org_id: orgId,
+          event_type: 'missed_call_again',
+          note: `Another voicemail from ${normalizedPhone}`,
+          payload: { source: 'phone', transcription_failed: transcriptionFailed },
+        })
+        return res.status(200).json({
+          success: true,
+          action: 'logged_to_existing',
+          lead_id: existingLead.id,
+        })
+      }
+    }
+
     const { data: newLead, error } = await supabase
       .from('leads')
       .insert({
         org_id: orgId,
         name: lead.name || 'Missed Call',
-        phone: lead.phone || metadata.phone,
+        phone: normalizedPhone || rawPhone,
         email: lead.email || null,
         service_type: lead.service_type || 'General Enquiry',
         details: lead.details
@@ -269,12 +272,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     })
 
-    await notifyManagers(
-      orgId,
-      transcriptionFailed
-        ? 'Missed call voicemail received — transcription failed, please check manually.'
-        : `Missed call voicemail from ${lead.phone || metadata.phone} — check unassigned leads.`
-    )
+    await notifyManagersNewLead({
+      id: newLead.id,
+      org_id: orgId,
+      name: newLead.name,
+      service_type: newLead.service_type,
+      status: 'unassigned',
+    })
 
     console.log('Voicemail lead created:', newLead?.id)
     return res.status(200).json({ success: true, lead_id: newLead?.id })

@@ -21,6 +21,7 @@ export const FEATURE_SWITCH_KEYS = [
   'inbound_sms',
   'inbound_email',
   'inbound_calls',
+  'missed_call_hookback_sms',
   'completion_upsells',
   'tech_location',
 ] as const
@@ -36,6 +37,7 @@ export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   inbound_sms: false,
   inbound_email: false,
   inbound_calls: false,
+  missed_call_hookback_sms: false,
   completion_upsells: false,
   tech_location: false,
 }
@@ -76,6 +78,10 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
     label: 'Inbound Calls / Voicemail',
     description: 'Create leads from missed calls and voicemail',
   },
+  missed_call_hookback_sms: {
+    label: 'Missed Call Auto-Reply SMS',
+    description: 'Instant branded SMS to callers when a call is missed',
+  },
   completion_upsells: {
     label: 'Completion Upsell Checklist',
     description: 'Upsell prompts in the job completion flow',
@@ -95,6 +101,7 @@ export const FEATURE_SWITCH_MIN_TIERS: Record<FeatureSwitchKey, Org['subscriptio
   inbound_sms: 'basic',
   inbound_email: 'basic',
   inbound_calls: 'basic',
+  missed_call_hookback_sms: 'basic',
   completion_upsells: 'basic',
   tech_location: 'basic',
 }

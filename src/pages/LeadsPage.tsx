@@ -31,6 +31,7 @@ import { openNavigation } from '../lib/navigation'
 import { isManagerRole } from '../lib/roles'
 import { getColumnsForTab, isLeadVisibleInActiveKanban } from '../lib/leadsKanban'
 import { isReviewRequestEligible, sendReviewRequestSms } from '../lib/reviewRequest'
+import { getOnTheWayBlockReason, sendOnTheWaySms } from '../lib/onTheWaySms'
 import { logLeadEvent as recordLeadEvent } from '../lib/leadEvents'
 import type { LeadEventType } from '../lib/leadEventPayload'
 
@@ -464,6 +465,7 @@ export default function LeadsPage() {
   const [reviewError, setReviewError] = useState<string | null>(null)
   const quoteFeatureEnabled = !featureSwitchesLoading && isFeatureEnabled('quote_esign')
   const reviewFeatureEnabled = !featureSwitchesLoading && isFeatureEnabled('review_requests')
+  const onTheWayFeatureEnabled = !featureSwitchesLoading && isFeatureEnabled('customer_ontheway_sms')
 
   const fetchLeads = useCallback(async () => {
     if (!profile?.org_id) return
@@ -672,27 +674,34 @@ export default function LeadsPage() {
   }, [logLeadEvent, closeSheet, fetchLeads])
 
   const handleSMS = useCallback(async (lead: Lead) => {
-    if (!lead.phone?.trim()) { alert('No phone number saved for this lead.'); return }
-    const rawPhone = lead.phone.replace(/\s+/g, '')
-    const to = rawPhone.startsWith('+') ? rawPhone
-      : rawPhone.startsWith('0') ? '+61' + rawPhone.slice(1)
-      : rawPhone
+    if (!lead.phone?.trim()) {
+      alert('No phone number saved for this lead.')
+      return
+    }
+
+    const blockReason = getOnTheWayBlockReason(lead, onTheWayFeatureEnabled)
+    if (blockReason) {
+      alert(blockReason)
+      return
+    }
+
     const techName = profile?.full_name ?? 'Your technician'
-    const mapsUrl = lead.address
-      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lead.address)}`
-      : null
-    const message = mapsUrl
-      ? `Hi ${lead.name}, ${techName} from TVMagic is on their way to you. Track the route: ${mapsUrl} — TVMagic Team`
-      : `Hi ${lead.name}, ${techName} from TVMagic is on their way to you. — TVMagic Team`
-    await logLeadEvent(
-      lead.id,
-      'sms_attempted',
-      `Opened SMS to ${to}`,
-      { channel: 'sms', phone: to }
+    const result = await sendOnTheWaySms(
+      lead,
+      techName,
+      async (leadId, note) => {
+        await logLeadEvent(leadId, 'sms_sent', note, { channel: 'sms', template: 'customer_ontheway' })
+      }
     )
-    window.open(`sms:${to}?body=${encodeURIComponent(message)}`, '_blank')
+
+    if (!result.ok) {
+      alert(result.error)
+      return
+    }
+
     closeSheet()
-  }, [closeSheet, logLeadEvent, profile?.full_name])
+    fetchLeads()
+  }, [closeSheet, fetchLeads, logLeadEvent, onTheWayFeatureEnabled, profile?.full_name])
 
   const handleSharePhoto = useCallback(async (lead: Lead) => {
     if (navigator.share) {
@@ -962,12 +971,14 @@ export default function LeadsPage() {
                   >
                     📞 Call {sheetLead.name}
                   </button>
-                  <button
-                    onClick={() => handleSMS(sheetLead!)}
-                    className="w-full py-4 rounded-xl bg-[#00B4C5] text-white font-semibold text-base flex items-center justify-center gap-2"
-                  >
-                    💬 Send ETA Text
-                  </button>
+                  {onTheWayFeatureEnabled && sheetLead.phone?.trim() && (
+                    <button
+                      onClick={() => handleSMS(sheetLead!)}
+                      className="w-full py-4 rounded-xl bg-[#00B4C5] text-white font-semibold text-base flex items-center justify-center gap-2"
+                    >
+                      💬 Send ETA Text
+                    </button>
+                  )}
                   {sheetLead.status === 'unassigned' && isManagerRole(profile?.role) && (
                     <button
                       onClick={() => { setAssigningLead(sheetLead); closeSheet() }}

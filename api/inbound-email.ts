@@ -1,8 +1,11 @@
 // api/inbound-email.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-import { OPERATIONAL_MANAGER_ROLES } from './_lib/managerRoles.js'
 import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
+import { resolveOrgIdFromDid } from './_lib/resolveOrgFromDid.js'
+import { findRecentLeadByPhone } from './_lib/inboundLeadDedup.js'
+import { formatAuPhoneForSms } from './_lib/phone.js'
+import { notifyManagersNewLead } from './_lib/notifyManagersNewLead.js'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -14,6 +17,7 @@ const VOICEMAIL_AUDIO_EXTENSIONS = ['.wav', '.mp3', '.m4a', '.ogg']
 
 interface VoicemailMetadata {
   phone: string
+  calledNumber: string | null
   receivedAt: string | null
   duration: string | null
   extensionName: string | null
@@ -28,6 +32,7 @@ function extractVoicemailMetadata(subject: string, body: string): VoicemailMetad
 
   return {
     phone: (fromMatch?.[1] || subjectMatch?.[1] || 'Unknown').trim(),
+    calledNumber: toMatch?.[1]?.trim() || null,
     receivedAt: receivedMatch?.[1]?.trim() || null,
     duration: durationMatch?.[1]?.trim() || null,
     extensionName: toMatch?.[2]?.trim() || null,
@@ -126,27 +131,6 @@ Body: ${sourceText}`
   return JSON.parse(clean)
 }
 
-async function notifyManagers(orgId: string, message: string) {
-  const { data: managers } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('org_id', orgId)
-    .in('role', [...OPERATIONAL_MANAGER_ROLES])
-
-  if (!managers?.length) return
-
-  const notifications = managers.map((m) => ({
-    user_id: m.id,
-    title: 'New Lead',
-    message,
-    type: 'new_lead',
-    read: false,
-    created_at: new Date().toISOString(),
-  }))
-
-  await supabase.from('notifications').insert(notifications)
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -178,6 +162,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const voicemailAttachment = attachments?.find(isVoicemailAttachment)
 
   if (voicemailAttachment) {
+    const metadataPreview = extractVoicemailMetadata(subject, emailText)
+    const orgId = await resolveOrgIdFromDid(supabase, metadataPreview.calledNumber)
+    if (!orgId) {
+      console.error('Voicemail email: no org_id resolved')
+      return res.status(200).json({ skipped: true, reason: 'no_org' })
+    }
+
     const callsEnabled = await isFeatureEnabledForOrg(orgId, 'inbound_calls')
     if (!callsEnabled) {
       console.log(`Inbound calls/voicemail disabled for org ${orgId}`)
@@ -223,12 +214,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ? `Voicemail transcript: ${transcript}\n\n${callInfo}`
           : `Missed call voicemail received. ${callInfo}`
 
+      const rawPhone = lead.phone || metadata.phone
+      const normalizedPhone = rawPhone && rawPhone !== 'Unknown'
+        ? formatAuPhoneForSms(rawPhone)
+        : null
+
+      if (normalizedPhone) {
+        const existingLead = await findRecentLeadByPhone(supabase, normalizedPhone, orgId)
+        if (existingLead) {
+          await supabase.from('lead_events').insert({
+            lead_id: existingLead.id,
+            org_id: orgId,
+            event_type: 'missed_call_again',
+            note: `Another voicemail from ${normalizedPhone}`,
+            payload: { source: 'phone', transcription_failed: transcriptionFailed },
+          })
+          return res.status(200).json({
+            success: true,
+            action: 'logged_to_existing',
+            lead_id: existingLead.id,
+            type: 'voicemail',
+          })
+        }
+      }
+
       const { data: newLead, error } = await supabase
         .from('leads')
         .insert({
           org_id: orgId,
           name: lead.name || 'Missed Call',
-          phone: lead.phone || metadata.phone,
+          phone: normalizedPhone || rawPhone,
           email: lead.email || null,
           service_type: lead.service_type || 'General Enquiry',
           details: lead.details
@@ -255,12 +270,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         },
       })
 
-      await notifyManagers(
-        orgId,
-        transcriptionFailed
-          ? 'Missed call voicemail received — transcription failed, please check manually.'
-          : `Missed call voicemail from ${lead.phone || metadata.phone} — check unassigned leads.`
-      )
+      await notifyManagersNewLead({
+        id: newLead.id,
+        org_id: orgId,
+        name: newLead.name,
+        service_type: newLead.service_type,
+        status: 'unassigned',
+      })
 
       console.log('Voicemail lead created:', newLead?.id)
       return res.status(200).json({ success: true, lead_id: newLead?.id, type: 'voicemail' })

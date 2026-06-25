@@ -70,11 +70,15 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Brand-level quote email templates (subject + HTML) with org name, scope, and brand colours',
     'Platform Admin editor for quote email subject and HTML with live preview',
     'Unified feature switches — 10 brand rollout controls, tier-auto products, franchise overrides removed',
+    'Team Activity — live feed of what your team is doing plus workload view for managers and employees',
+    'Missed call auto-reply SMS — instant branded text to callers when a call is missed (feature switch)',
+    'Inbound call hardening — DID org routing, voicemail dedup, no duplicate webhook voicemail leads',
+    'Send ETA Text — branded on-the-way SMS via Twilio from the lead sheet (customer_ontheway_sms switch)',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.17'
+export const APP_VERSION = '1.1.19'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

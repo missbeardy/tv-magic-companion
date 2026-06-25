@@ -564,10 +564,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `Hi {{customerName}}, thanks for choosing {{org.name}}! We'd love your feedback: {{reviewUrl}}`
     )
   } else {
-    if (!customerName || !address) {
-      return res.status(400).json({ error: 'Missing customerName or address for ETA mode' })
+    if (!customerName) {
+      return res.status(400).json({ error: 'Missing customerName for ETA mode' })
     }
-    const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}&travelmode=driving`
+    const mapsUrl = address?.trim()
+      ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}&travelmode=driving`
+      : ''
     message = buildSmsFromBrand(
       auth.brand?.sms_templates,
       'customer_ontheway',
@@ -578,7 +580,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         serviceType: serviceType ?? 'service',
         mapsUrl,
       },
-      `Hi {{customerName}}, {{techName}} from {{org.name}} is on their way. Track the route: {{mapsUrl}}`
+      mapsUrl
+        ? `Hi {{customerName}}, {{techName}} from {{org.name}} is on their way. Track the route: {{mapsUrl}}`
+        : `Hi {{customerName}}, {{techName}} from {{org.name}} is on their way to help with your {{serviceType}} enquiry.`
     )
   }
 

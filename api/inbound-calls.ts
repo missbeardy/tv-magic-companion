@@ -1,22 +1,32 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-import { OPERATIONAL_MANAGER_ROLES } from './_lib/managerRoles.js'
 import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
+import { resolveOrgIdFromDid } from './_lib/resolveOrgFromDid.js'
+import { findRecentLeadByPhone } from './_lib/inboundLeadDedup.js'
+import { sendBrandedSms } from './_lib/sendBrandedSms.js'
+import { notifyManagersNewLead } from './_lib/notifyManagersNewLead.js'
+import { MISSED_CALL_HOOKBACK_FALLBACK } from '../src/lib/missedCallHookback.js'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-
-
 interface ThreeCXPayload {
   callerId?: string
   callerNumber?: string
   calledNumber?: string
-  callType?: string  // 'missed', 'answered', 'voicemail'
+  callType?: string
   duration?: number
   timestamp?: string
+}
+
+function normalizeCallerPhone(phoneNumber: string): string {
+  const rawPhone = phoneNumber.replace(/\s+/g, '').replace(/[^0-9+]/g, '')
+  if (rawPhone.startsWith('+')) return rawPhone
+  if (rawPhone.startsWith('0')) return '+61' + rawPhone.slice(1)
+  if (rawPhone.startsWith('61')) return '+' + rawPhone
+  return '+61' + rawPhone
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -24,8 +34,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // SEC-03: Shared secret authentication
-  // 3CX must send this header with every webhook call
   const expectedSecret = process.env.THREECX_WEBHOOK_SECRET
   const incomingSecret = req.headers['x-webhook-secret']
 
@@ -37,9 +45,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const payload = req.body as ThreeCXPayload
 
-    // Only process missed calls and voicemails
-    if (payload.callType !== 'missed' && payload.callType !== 'voicemail') {
-      return res.status(200).json({ skipped: true, reason: 'not_missed_call' })
+    // Voicemail is handled by inbound-voicemail / inbound-email (rich transcript path).
+    if (payload.callType !== 'missed') {
+      return res.status(200).json({
+        skipped: true,
+        reason: payload.callType === 'voicemail' ? 'voicemail_deferred_to_email' : 'not_missed_call',
+      })
     }
 
     const phoneNumber = payload.callerNumber || payload.callerId || ''
@@ -47,45 +58,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Missing caller number' })
     }
 
-    // Normalize to E.164
-    const rawPhone = phoneNumber.replace(/\s+/g, '').replace(/[^0-9+]/g, '')
-    const normalizedPhone = rawPhone.startsWith('+') ? rawPhone
-      : rawPhone.startsWith('0') ? '+61' + rawPhone.slice(1)
-      : rawPhone.startsWith('61') ? '+' + rawPhone
-      : '+61' + rawPhone
+    const normalizedPhone = normalizeCallerPhone(phoneNumber)
+    const orgId = await resolveOrgIdFromDid(supabase, payload.calledNumber)
 
-    // Determine org from called number (DID mapping)
-    const calledNumber = payload.calledNumber || ''
-    const { data: didMapping } = await supabase
-      .from('org_phone_numbers')
-      .select('org_id')
-      .eq('phone_number', calledNumber.replace(/\s+/g, ''))
-      .maybeSingle()
-
-    const orgId = didMapping?.org_id || null
-
-    if (orgId) {
-      const callsEnabled = await isFeatureEnabledForOrg(orgId, 'inbound_calls')
-      if (!callsEnabled) {
-        console.log(`Inbound calls disabled for org ${orgId}`)
-        return res.status(200).json({ skipped: true, reason: 'inbound_calls_disabled' })
-      }
+    if (!orgId) {
+      console.error('Inbound missed call: no org_id resolved')
+      return res.status(200).json({ skipped: true, reason: 'no_org' })
     }
 
-    // Check for duplicate (same number in last 24 hours) WITHIN THE SAME ORG.
-    // Without the org_id filter, two franchises sharing a caller number would
-    // cross-contaminate each other's lead/event data.
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-    const { data: existingLead } = await supabase
-      .from('leads')
-      .select('id')
-      .eq('phone', normalizedPhone)
-      .eq('org_id', orgId)
-      .gte('created_at', twentyFourHoursAgo)
-      .maybeSingle()
+    const callsEnabled = await isFeatureEnabledForOrg(orgId, 'inbound_calls')
+    if (!callsEnabled) {
+      console.log(`Inbound calls disabled for org ${orgId}`)
+      return res.status(200).json({ skipped: true, reason: 'inbound_calls_disabled' })
+    }
+
+    const existingLead = await findRecentLeadByPhone(supabase, normalizedPhone, orgId)
 
     if (existingLead) {
-      // Log the call attempt but don't create duplicate
       await supabase.from('lead_events').insert({
         lead_id: existingLead.id,
         event_type: 'missed_call_again',
@@ -98,14 +87,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         },
       })
 
-      return res.status(200).json({ 
-        success: true, 
+      return res.status(200).json({
+        success: true,
         action: 'logged_to_existing',
-        leadId: existingLead.id 
+        leadId: existingLead.id,
       })
     }
 
-    // Create new lead from missed call
     const { data: newLead, error: insertError } = await supabase
       .from('leads')
       .insert({
@@ -131,7 +119,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       lead_id: newLead.id,
       org_id: orgId,
       event_type: 'created',
-      note: `Lead created from ${payload.callType} call`,
+      note: 'Lead created from missed call',
       payload: {
         phone: normalizedPhone,
         call_type: payload.callType,
@@ -139,34 +127,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     })
 
-    // Notify managers of new missed call lead
-    const { data: managers } = await supabase
-      .from('profiles')
-      .select('id')
-      .in('role', [...OPERATIONAL_MANAGER_ROLES])
-      .eq('org_id', orgId)
-
-    if (managers?.length) {
-      const notifications = managers.map((m) => ({
-        user_id: m.id,
-        title: 'Missed Call Lead',
-        message: `New lead from missed call: ${normalizedPhone}`,
-        type: 'new_lead',
-        read: false,
-        lead_id: newLead.id,
+    try {
+      await notifyManagersNewLead({
+        id: newLead.id,
         org_id: orgId,
-        created_at: new Date().toISOString(),
-      }))
-
-      await supabase.from('notifications').insert(notifications)
+        name: 'Missed Call',
+        service_type: 'Other',
+        status: 'unassigned',
+      })
+    } catch (notifyErr) {
+      console.error('Manager notification failed for missed call lead:', notifyErr)
     }
 
-    return res.status(200).json({ 
-      success: true, 
-      action: 'created_new_lead',
-      leadId: newLead.id 
-    })
+    let hookbackSent = false
+    const hookbackEnabled = await isFeatureEnabledForOrg(orgId, 'missed_call_hookback_sms')
+    if (hookbackEnabled) {
+      const smsResult = await sendBrandedSms({
+        orgId,
+        toPhone: normalizedPhone,
+        templateKey: 'missed_call_hookback',
+        vars: { customerName: 'there' },
+        fallbackMessage: MISSED_CALL_HOOKBACK_FALLBACK,
+        leadId: newLead.id,
+        eventType: 'sms_sent',
+        eventNote: 'Missed call auto-reply SMS sent',
+        eventPayload: { source: '3cx_missed_call' },
+      })
+      hookbackSent = smsResult.sent
+      if (smsResult.error) {
+        console.error('Missed call hookback SMS failed:', smsResult.error)
+      }
+    }
 
+    return res.status(200).json({
+      success: true,
+      action: 'created_new_lead',
+      leadId: newLead.id,
+      hookbackSent,
+    })
   } catch (err) {
     console.error('Inbound call handler error:', err)
     return res.status(200).json({ skipped: true, reason: 'exception' })

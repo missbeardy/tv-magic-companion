@@ -14,6 +14,7 @@ export const LEAD_EVENT_TYPES = [
   'expired',
   'unassigned',
   'review_request',
+  'sms_sent',
 ] as const
 
 export type LeadEventType = (typeof LEAD_EVENT_TYPES)[number]
