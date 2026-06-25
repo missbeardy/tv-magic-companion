@@ -54,6 +54,8 @@ interface Lead {
   raw_email?: string | null
   raw_sms?: string | null
   hidden_from_kanban_at?: string | null
+  latest_quote_status?: string | null
+  latest_quote_accepted_at?: string | null
   profiles: { full_name: string } | null
 }
 
@@ -61,6 +63,13 @@ interface LeadEvent {
   id: string
   event_type: string
   note: string | null
+  created_at: string
+}
+
+interface LeadQuoteSummary {
+  lead_id: string
+  status: string
+  accepted_at: string | null
   created_at: string
 }
 
@@ -148,6 +157,7 @@ function LeadCard({
 }: LeadCardProps) {
   const isExpanded = expandedLead === lead.id
   const isBookingCancelled = lead.status === 'booking_cancelled'
+  const isQuoteAccepted = lead.latest_quote_status === 'accepted'
   const [events, setEvents] = useState<LeadEvent[]>([])
 
   useEffect(() => {
@@ -170,6 +180,8 @@ function LeadCard({
       className={`rounded-lg p-3 border cursor-pointer md:cursor-default ${
         isBookingCancelled
           ? 'bg-red-50 border-red-300 ring-1 ring-red-200'
+          : isQuoteAccepted
+          ? 'bg-emerald-50 border-emerald-300 ring-1 ring-emerald-200'
           : 'bg-gray-50 border-gray-200'
       }`}
       onClick={() => {
@@ -184,12 +196,21 @@ function LeadCard({
           Booking Cancelled
         </p>
       )}
+      {!isBookingCancelled && isQuoteAccepted && (
+        <p className="inline-flex items-center text-[10px] font-bold uppercase tracking-wide text-emerald-700 bg-emerald-100 rounded-full px-2 py-0.5 mb-2">
+          Quote Accepted
+        </p>
+      )}
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <p className={`font-medium text-sm truncate ${isBookingCancelled ? 'text-red-900' : 'text-gray-800'}`}>
+          <p className={`font-medium text-sm truncate ${
+            isBookingCancelled ? 'text-red-900' : isQuoteAccepted ? 'text-emerald-900' : 'text-gray-800'
+          }`}>
             {lead.name || 'Unknown'}
           </p>
-          <p className={`text-xs truncate ${isBookingCancelled ? 'text-red-700/80' : 'text-gray-500'}`}>
+          <p className={`text-xs truncate ${
+            isBookingCancelled ? 'text-red-700/80' : isQuoteAccepted ? 'text-emerald-700/80' : 'text-gray-500'
+          }`}>
             {lead.service_type}
           </p>
           <div className="md:hidden mt-1">
@@ -240,6 +261,11 @@ function LeadCard({
       {lead.status === 'contact_attempted' && (
         <span className="inline-block mt-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
           📞 Contact Attempted
+        </span>
+      )}
+      {!isBookingCancelled && isQuoteAccepted && (
+        <span className="inline-block mt-1 text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">
+          Quote Accepted
         </span>
       )}
       {lead.profiles && (
@@ -458,7 +484,46 @@ export default function LeadsPage() {
 
     const { data } = await query
     if (data) {
-      setLeads(data as Lead[])
+      const baseLeads = data as Lead[]
+      if (baseLeads.length === 0) {
+        setLeads([])
+        setLoading(false)
+        return
+      }
+
+      const leadIds = baseLeads.map((lead) => lead.id)
+      let quoteRows: LeadQuoteSummary[] = []
+      try {
+        const quotesRes = await supabase
+          .from('quotes')
+          .select('lead_id, status, accepted_at, created_at')
+          .in('lead_id', leadIds)
+          .order('created_at', { ascending: false })
+        if (!quotesRes.error && quotesRes.data) {
+          quoteRows = quotesRes.data as LeadQuoteSummary[]
+        } else if (quotesRes.error) {
+          console.warn('Quotes table unavailable or query failed; skipping quote card state.', quotesRes.error.message)
+        }
+      } catch (err) {
+        console.warn('Quotes fetch skipped due to runtime error:', err)
+      }
+
+      const latestQuoteByLead = new Map<string, LeadQuoteSummary>()
+      for (const row of quoteRows) {
+        if (!latestQuoteByLead.has(row.lead_id)) {
+          latestQuoteByLead.set(row.lead_id, row)
+        }
+      }
+
+      const merged = baseLeads.map((lead) => {
+        const latestQuote = latestQuoteByLead.get(lead.id)
+        return {
+          ...lead,
+          latest_quote_status: latestQuote?.status ?? null,
+          latest_quote_accepted_at: latestQuote?.accepted_at ?? null,
+        }
+      })
+      setLeads(merged)
     }
     setLoading(false)
   }, [profile?.org_id, profile?.role, profile?.id])

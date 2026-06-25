@@ -9,7 +9,6 @@ import { getPlatformUrl } from '../lib/env'
 import { getAuthHeaders } from '../lib/apiAuth'
 import { useOrgProfiles } from '../hooks/useOrgProfiles'
 import { logLeadEvent } from '../lib/leadEvents'
-import SmartAssignBadge from './SmartAssignBadge'
 import { getSmartAssignDecision } from '../lib/smartAssign'
 import { X, MapPin, Zap, Navigation, Star } from 'lucide-react'
 
@@ -266,22 +265,12 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
                         <span className="ml-1.5 text-[#00B4C5] font-medium">· {emp.distanceLabel}</span>
                       )}
                     </p>
-                    {smartAssign.showBadge && (
-                      <div className="mt-2">
-                        <SmartAssignBadge
-                          employeeName={emp.full_name}
-                          activeLeadCount={activeCount}
-                          isRecommended={smartAssign.isRecommended}
-                          suburbMatch={isNearest}
-                        />
-                      </div>
-                    )}
                   </div>
 
-                  {/* Best badge */}
+                  {/* Recommended badge */}
                   {smartAssignEnabled && smartAssign.isRecommended && !isNearest && profile?.role !== 'employee' && (
                     <span className="badge badge-green flex items-center gap-1 shrink-0">
-                      <Star size={9} /> Best
+                      <Star size={9} /> Recommended
                     </span>
                   )}
                 </button>
