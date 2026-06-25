@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { canAccessFeature } from '../src/lib/features'
+import { canAccessFeature, canAccessFeatureSwitch, getDefaultFeatureSwitchState } from '../src/lib/features'
 
 describe('canAccessFeature', () => {
   beforeEach(() => {
@@ -28,5 +28,28 @@ describe('canAccessFeature', () => {
     vi.resetModules()
     const { canAccessFeature: check } = await import('../src/lib/features')
     expect(check('social', 'basic')).toBe(true)
+  })
+})
+
+describe('canAccessFeatureSwitch', () => {
+  it('is off by default', () => {
+    const defaults = getDefaultFeatureSwitchState()
+    expect(canAccessFeatureSwitch('smart_assign_badge', 'basic', defaults)).toBe(false)
+    expect(canAccessFeatureSwitch('quote_esign', 'pro', defaults)).toBe(false)
+  })
+
+  it('requires switch on and sufficient tier', () => {
+    expect(
+      canAccessFeatureSwitch('quote_esign', 'pro', {
+        smart_assign_badge: false,
+        quote_esign: true,
+      })
+    ).toBe(true)
+    expect(
+      canAccessFeatureSwitch('quote_esign', 'basic', {
+        smart_assign_badge: false,
+        quote_esign: true,
+      })
+    ).toBe(false)
   })
 })

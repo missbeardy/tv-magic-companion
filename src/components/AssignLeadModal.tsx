@@ -2,12 +2,15 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { getExpiresAt } from '../lib/timer'
 import { useAuth } from '../context/AuthContext'
+import { useOrg } from '../context/OrgContext'
 import { geocodeAddress, rankTechsByDistance, type TechWithDistance } from '../lib/proximity'
 import { sendNotification } from '../lib/notify'
 import { getPlatformUrl } from '../lib/env'
 import { getAuthHeaders } from '../lib/apiAuth'
 import { useOrgProfiles } from '../hooks/useOrgProfiles'
 import { logLeadEvent } from '../lib/leadEvents'
+import SmartAssignBadge from './SmartAssignBadge'
+import { getSmartAssignDecision } from '../lib/smartAssign'
 import { X, MapPin, Zap, Navigation, Star } from 'lucide-react'
 
 interface Lead {
@@ -25,6 +28,7 @@ interface Props {
 
 export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
   const { profile } = useAuth()
+  const { isFeatureEnabled, featureSwitchesLoading } = useOrg()
   const { fetchOrgProfiles } = useOrgProfiles()
   const [employees, setEmployees] = useState<TechWithDistance[]>([])
   const [countMap, setCountMap] = useState<Record<string, number>>({})
@@ -76,6 +80,7 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
   const minCount = employees.length > 0
     ? Math.min(...employees.map((e) => countMap[e.id] ?? 0))
     : 0
+  const smartAssignEnabled = !featureSwitchesLoading && isFeatureEnabled('smart_assign_badge')
 
   async function handleAssign(employeeId: string) {
     // Backend Guard Rule: Employees cannot assign leads to anyone else
@@ -206,10 +211,16 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
             )}
             {employees.map((emp, index) => {
               const activeCount = countMap[emp.id] ?? 0
-              const isRecommended = activeCount === minCount
               const isSelf = emp.id === profile?.id
               const isNearest = index === 0 && emp.distanceKm != null && profile?.role !== 'employee'
               const isManager = (emp as any).role === 'manager'
+              const smartAssign = getSmartAssignDecision({
+                featureEnabled: smartAssignEnabled,
+                role: profile?.role,
+                activeCount,
+                minimumActiveCount: minCount,
+                isNearest,
+              })
 
               return (
                 <button
@@ -219,7 +230,7 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
                   className={`w-full text-left flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all hover:shadow-md disabled:opacity-50 ${
                     isNearest
                       ? 'border-[#00B4C5] bg-[#00B4C5]/5'
-                      : isRecommended && profile?.role !== 'employee'
+                      : smartAssign.isRecommended && profile?.role !== 'employee'
                       ? 'border-green-400 bg-green-50/50'
                       : 'border-gray-100 bg-white hover:border-[#004B93]/30'
                   }`}
@@ -240,7 +251,7 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
                       <p className="font-semibold text-gray-800 text-sm">{emp.full_name}</p>
                       {isSelf && <span className="badge badge-purple">Me</span>}
                       {isManager && !isSelf && <span className="badge badge-purple">Manager</span>}
-                      {isNearest && (
+                      {isNearest && !smartAssignEnabled && (
                         <span className="badge badge-cyan flex items-center gap-1">
                           <Navigation size={9} /> Nearest
                         </span>
@@ -255,10 +266,20 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
                         <span className="ml-1.5 text-[#00B4C5] font-medium">· {emp.distanceLabel}</span>
                       )}
                     </p>
+                    {smartAssign.showBadge && (
+                      <div className="mt-2">
+                        <SmartAssignBadge
+                          employeeName={emp.full_name}
+                          activeLeadCount={activeCount}
+                          isRecommended={smartAssign.isRecommended}
+                          suburbMatch={isNearest}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* Best badge */}
-                  {isRecommended && !isNearest && profile?.role !== 'employee' && (
+                  {smartAssign.isRecommended && !isNearest && profile?.role !== 'employee' && !smartAssignEnabled && (
                     <span className="badge badge-green flex items-center gap-1 shrink-0">
                       <Star size={9} /> Best
                     </span>

@@ -21,6 +21,7 @@ import TaskBoardPage from './pages/TaskBoardPage'
 import ReportsPage from './pages/ReportsPage'
 import OrgSettingsPage from './pages/OrgSettingsPage'
 import PlatformAdminPage from './pages/PlatformAdminPage'
+import QuoteAcceptPage from './pages/QuoteAcceptPage'
 import { useEffect } from 'react'
 import { useTechLocation } from './hooks/useTechLocation'
 import { initOneSignal, setOneSignalUser, clearOneSignalUser } from './lib/oneSignal'
@@ -70,6 +71,7 @@ function App() {
             <Routes>
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/login" element={<Login />} />
+              <Route path="/quote/:token" element={<QuoteAcceptPage />} />
               <Route path="/set-password" element={<SetPasswordPage />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/support" element={<ProtectedRoute> <SupportPage /> </ProtectedRoute> }/>

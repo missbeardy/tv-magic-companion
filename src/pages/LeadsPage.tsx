@@ -23,6 +23,7 @@ import EventModal from '../components/EventModal'
 import BottomSheet from '../components/BottomSheet'
 import CompletionChecklist from '../components/CompletionChecklist'
 import ReviewRequestModal from '../components/ReviewRequestModal'
+import QuoteComposerModal from '../components/QuoteComposerModal'
 import LeadExtractedSummary, { LeadRawSource } from '../components/LeadExtractedSummary'
 import { UserPlus, Inbox, ChevronRight, Plus } from 'lucide-react'
 import AddLeadModal from '../components/AddLeadModal'
@@ -124,6 +125,8 @@ interface LeadCardProps {
   onOpenSheet: (lead: Lead) => void
   onAssign: (lead: Lead) => void
   onBook: (lead: Lead) => void
+  onCreateQuote: (lead: Lead) => void
+  quoteEnabled: boolean
   onComplete: (lead: Lead) => void
   onRefresh: () => void
   onLogEvent: (leadId: string, eventType: LeadEventType, note?: string, payload?: Record<string, unknown>) => Promise<void>
@@ -137,6 +140,8 @@ function LeadCard({
   onOpenSheet,
   onAssign,
   onBook,
+  onCreateQuote,
+  quoteEnabled,
   onComplete,
   onRefresh,
   onLogEvent,
@@ -285,6 +290,14 @@ function LeadCard({
             >
               📅 Book
             </button>
+            {isManagerRole(profile?.role) && quoteEnabled && (
+              <button
+                onClick={e => { e.stopPropagation(); onCreateQuote(lead) }}
+                className="text-xs bg-gray-900 text-white px-2 py-1 rounded-lg hover:bg-black transition"
+              >
+                🧾 Quote
+              </button>
+            )}
           </div>
 
           {lead.status === 'completed' && (
@@ -318,12 +331,14 @@ interface KanbanColumnProps {
   onOpenSheet: (lead: Lead) => void
   onAssign: (lead: Lead) => void
   onBook: (lead: Lead) => void
+  onCreateQuote: (lead: Lead) => void
+  quoteEnabled: boolean
   onComplete: (lead: Lead) => void
   onRefresh: () => void
   onLogEvent: (leadId: string, eventType: LeadEventType, note?: string, payload?: Record<string, unknown>) => Promise<void>
 }
 
-function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onComplete, onRefresh, onLogEvent }: KanbanColumnProps) {
+function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onCreateQuote, quoteEnabled, onComplete, onRefresh, onLogEvent }: KanbanColumnProps) {
   return (
     <div className={`w-full bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200`}>
       <div className="p-3 border-b border-gray-100 flex items-center justify-between">
@@ -349,6 +364,8 @@ function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand,
             onOpenSheet={onOpenSheet}
             onAssign={onAssign}
             onBook={onBook}
+            onCreateQuote={onCreateQuote}
+            quoteEnabled={quoteEnabled}
             onComplete={onComplete}
             onRefresh={onRefresh}
             onLogEvent={onLogEvent}
@@ -361,7 +378,7 @@ function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand,
 
 // ── KanbanColumn — Desktop (drag wrappers active) ────────────────────────
 
-function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onComplete, onRefresh, onLogEvent }: KanbanColumnProps) {
+function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onCreateQuote, quoteEnabled, onComplete, onRefresh, onLogEvent }: KanbanColumnProps) {
   return (
     <DroppableColumn id={col.key}>
       <div className={`flex-shrink-0 w-72 bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200 h-full`}>
@@ -389,6 +406,8 @@ function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand
                 onOpenSheet={onOpenSheet}
                 onAssign={onAssign}
                 onBook={onBook}
+                onCreateQuote={onCreateQuote}
+                quoteEnabled={quoteEnabled}
                 onComplete={onComplete}
                 onRefresh={onRefresh}
                 onLogEvent={onLogEvent}
@@ -405,7 +424,7 @@ function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand
 
 export default function LeadsPage() {
   const { profile } = useAuth()
-  const { org } = useOrg()
+  const { org, isFeatureEnabled, featureSwitchesLoading } = useOrg()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddLead, setShowAddLead] = useState(false)
@@ -419,8 +438,10 @@ export default function LeadsPage() {
   const [checklistLead, setChecklistLead] = useState<Lead | null>(null)
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
   const [reviewModalLead, setReviewModalLead] = useState<Lead | null>(null)
+  const [quoteLead, setQuoteLead] = useState<Lead | null>(null)
   const [reviewSending, setReviewSending] = useState(false)
   const [reviewError, setReviewError] = useState<string | null>(null)
+  const quoteFeatureEnabled = !featureSwitchesLoading && isFeatureEnabled('quote_esign')
 
   const fetchLeads = useCallback(async () => {
     if (!profile?.org_id) return
@@ -689,6 +710,8 @@ export default function LeadsPage() {
     onOpenSheet: openSheet,
     onAssign: setAssigningLead,
     onBook: setBookingLead,
+    onCreateQuote: quoteFeatureEnabled ? setQuoteLead : () => {},
+    quoteEnabled: quoteFeatureEnabled,
     onComplete: handleMarkComplete,
     onRefresh: fetchLeads,
     onLogEvent: logLeadEvent,
@@ -719,6 +742,13 @@ export default function LeadsPage() {
           lead={assigningLead}
           onClose={() => setAssigningLead(null)}
           onAssigned={fetchLeads}
+        />
+      )}
+      {quoteLead && quoteFeatureEnabled && (
+        <QuoteComposerModal
+          lead={quoteLead}
+          onClose={() => setQuoteLead(null)}
+          onSent={fetchLeads}
         />
       )}
       {bookingLead && (
@@ -907,6 +937,14 @@ export default function LeadsPage() {
                   >
                     📅 Book Appointment
                   </button>
+                  {quoteFeatureEnabled && isManagerRole(profile?.role) && (
+                    <button
+                      onClick={() => { setQuoteLead(sheetLead); closeSheet() }}
+                      className="w-full py-4 rounded-xl bg-gray-900 text-white font-semibold text-base"
+                    >
+                      🧾 Send Quote + E-Sign
+                    </button>
+                  )}
                   <button
                     onClick={() => handleMarkContactAttempted(sheetLead!)}
                     className="w-full py-4 rounded-xl bg-amber-500 text-white font-semibold text-base"

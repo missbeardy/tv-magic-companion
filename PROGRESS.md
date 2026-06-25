@@ -251,3 +251,16 @@ _Last updated: post-merge smoke test complete (all 6 pass); preview sign-off don
 1. **Production cutover** — only when you approve (checklist below)
 2. **Optional polish** — theme colors beyond nav; Messenger (fold into existing API — 12/12 function cap); inbound email/voicemail org routing before franchise #2
 
+## Feature switch release checklist (new)
+
+Before each preview or production release that includes modular features:
+
+1. Open **Platform → Feature switches**.
+2. Confirm **brand defaults** for every onboarded brand.
+3. Confirm **org overrides** only where intentionally different.
+4. Spot check effective states for:
+   - TV Magic OFF (unless explicitly enabled)
+   - At least one target brand ON
+   - One org override ON and OFF
+5. Include this verification in release notes / UAT sign-off.
+

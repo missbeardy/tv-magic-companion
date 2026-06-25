@@ -6,6 +6,8 @@ import { buildSmsFromBrand } from './_lib/smsTemplates.js'
 import { getPlatformUrl } from './_lib/platformUrl.js'
 import { notifyManagersNewLead } from './_lib/notifyManagersNewLead.js'
 import { formatAuPhoneForSms, phoneCandidates } from './_lib/phone.js'
+import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
+import { acceptQuoteByToken, createQuote, getQuoteByToken } from './_lib/quotes.js'
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
 function checkRateLimit(key: string, limit = 20, windowMs = 60_000): boolean {
@@ -203,7 +205,172 @@ async function handleNewLeadAlert(req: VercelRequest, res: VercelResponse, auth:
   }
 }
 
+async function handleQuoteCreate(req: VercelRequest, res: VercelResponse, auth: AuthContext) {
+  if (!['manager', 'platform_admin'].includes(auth.role)) {
+    return res.status(403).json({ error: 'Only managers can send quotes' })
+  }
+
+  const featureEnabled = await isFeatureEnabledForOrg(auth.orgId, 'quote_esign')
+  if (!featureEnabled) {
+    return res.status(403).json({ error: 'Quote acceptance is disabled for this franchise' })
+  }
+
+  const {
+    leadId,
+    customerName,
+    customerEmail,
+    customerPhone,
+    serviceType,
+    scope,
+    terms,
+    totalAmount,
+    expiryDays,
+  } = (req.body ?? {}) as {
+    leadId?: string
+    customerName?: string
+    customerEmail?: string
+    customerPhone?: string
+    serviceType?: string
+    scope?: string
+    terms?: string
+    totalAmount?: number
+    expiryDays?: number
+  }
+
+  if (!leadId || !customerName || !scope || typeof totalAmount !== 'number') {
+    return res.status(400).json({ error: 'Missing quote fields (leadId, customerName, scope, totalAmount)' })
+  }
+
+  try {
+    const quote = await createQuote({
+      orgId: auth.orgId,
+      createdBy: auth.userId,
+      leadId,
+      customerName,
+      customerEmail,
+      customerPhone,
+      serviceType,
+      scope,
+      terms,
+      totalAmount,
+      expiryDays,
+    })
+    return res.status(200).json({ success: true, quote })
+  } catch (err) {
+    console.error('Quote create failed:', err)
+    return res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create quote' })
+  }
+}
+
+async function handleQuotePublicGet(req: VercelRequest, res: VercelResponse) {
+  const token = String(req.query.token ?? '').trim()
+  if (!token) {
+    return res.status(400).json({ error: 'Missing quote token' })
+  }
+
+  try {
+    const quote = await getQuoteByToken(token)
+    if (!quote) {
+      return res.status(404).json({ error: 'Quote not found' })
+    }
+
+    const featureEnabled = await isFeatureEnabledForOrg(quote.org_id, 'quote_esign')
+    if (!featureEnabled) {
+      return res.status(403).json({ error: 'Quote acceptance is not available right now' })
+    }
+
+    const isExpired = quote.token_expires_at && new Date(quote.token_expires_at).getTime() < Date.now()
+    return res.status(200).json({
+      quote: {
+        id: quote.id,
+        status: isExpired && quote.status === 'sent' ? 'expired' : quote.status,
+        customer_name: quote.customer_name,
+        customer_email: quote.customer_email,
+        customer_phone: quote.customer_phone,
+        service_type: quote.service_type,
+        scope: quote.scope,
+        terms: quote.terms,
+        total_amount: quote.total_amount,
+        currency: quote.currency,
+        token_expires_at: quote.token_expires_at,
+        accepted_at: quote.accepted_at,
+        sent_at: quote.sent_at,
+      },
+    })
+  } catch (err) {
+    console.error('Quote public get failed:', err)
+    return res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to load quote' })
+  }
+}
+
+async function handleQuotePublicAccept(req: VercelRequest, res: VercelResponse) {
+  const { token, signerName, signerEmail, signatureText } = (req.body ?? {}) as {
+    token?: string
+    signerName?: string
+    signerEmail?: string
+    signatureText?: string
+  }
+
+  if (!token || !signerName || !signatureText) {
+    return res.status(400).json({ error: 'Missing required fields: token, signerName, signatureText' })
+  }
+
+  try {
+    const quote = await getQuoteByToken(token)
+    if (!quote) {
+      return res.status(404).json({ error: 'Quote not found' })
+    }
+
+    const featureEnabled = await isFeatureEnabledForOrg(quote.org_id, 'quote_esign')
+    if (!featureEnabled) {
+      return res.status(403).json({ error: 'Quote acceptance is not available right now' })
+    }
+
+    const forwardedFor = req.headers['x-forwarded-for']
+    const ipAddress = Array.isArray(forwardedFor)
+      ? forwardedFor[0]
+      : typeof forwardedFor === 'string'
+      ? forwardedFor.split(',')[0]?.trim()
+      : null
+    const userAgent = typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : null
+
+    const result = await acceptQuoteByToken({
+      token,
+      signerName,
+      signerEmail,
+      signatureText,
+      ipAddress,
+      userAgent,
+    })
+
+    if (result.status === 'not_found') return res.status(404).json({ error: 'Quote not found' })
+    if (result.status === 'expired') return res.status(410).json({ error: 'Quote has expired' })
+    if (result.status === 'invalid_status') return res.status(409).json({ error: 'Quote cannot be signed in its current status' })
+
+    return res.status(200).json({
+      success: true,
+      status: result.status,
+      quote: result.quote,
+    })
+  } catch (err) {
+    console.error('Quote public accept failed:', err)
+    return res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to accept quote' })
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const action = String(req.query.action ?? '').trim()
+
+  // Public quote actions (no app session required)
+  if (action === 'quote-public-get') {
+    if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
+    return handleQuotePublicGet(req, res)
+  }
+  if (action === 'quote-public-accept') {
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+    return handleQuotePublicAccept(req, res)
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -220,11 +387,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Consolidated to stay under the Vercel Hobby 12-function limit.
   // /api/send-notification rewrites here with ?action=notify (see vercel.json).
-  if (req.query.action === 'notify') {
+  if (action === 'notify') {
     return handleNotify(req, res, auth)
   }
-  if (req.query.action === 'new-lead-alert') {
+  if (action === 'new-lead-alert') {
     return handleNewLeadAlert(req, res, auth)
+  }
+  if (action === 'quote-create') {
+    return handleQuoteCreate(req, res, auth)
   }
 
   const { mode, to, customerName, techName, address, leadName, serviceType, leadId } = req.body as {
