@@ -64,11 +64,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Reporting schema migration — add lead event payload metadata storage',
     'Completion status dropdown now opens the job completion checklist',
     'Manager monthly Reports page with month picker, conversion metrics, timing insights, and per-agent activity',
+    'Phase 3 reporting snapshots + month-start manager brief, with monthly lost/completed kanban cleanup',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.12'
+export const APP_VERSION = '1.1.13'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

@@ -1,7 +1,7 @@
 // src/pages/ManagerDashboard.tsx
 // Last updated: 17 June 2026 - removed duplicate date pill
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -13,6 +13,7 @@ import RevenueWidget from '../components/RevenueWidget'
 import { useTechLocation } from '../hooks/useTechLocation'
 import { getMonthStart } from '../lib/reporting/dateRange'
 import { fetchReportingData } from '../lib/reporting/fetchReportData'
+import { getPreviousMonthStart, markManagerBriefSeen, shouldShowManagerBrief } from '../lib/managerBrief'
 import {
   Users, Inbox, ClipboardCheck, Clock, TrendingUp, AlertCircle, FileBarChart
 } from 'lucide-react'
@@ -37,6 +38,15 @@ interface ReportSnapshot {
   contactAttempts: number
   bookings: number
   completed: number
+}
+
+interface ManagerMonthlyBrief {
+  monthLabel: string
+  leadsReceived: number
+  bookings: number
+  completed: number
+  lost: number
+  bookedToCompletedRate: number | null
 }
 
 function StatCard({ label, value, icon: Icon, colour, onClick }: {
@@ -77,6 +87,8 @@ export default function ManagerDashboard() {
   const [stats, setStats] = useState<StatsRow>({ unassigned: 0, assigned: 0, completed: 0, contact_attempted: 0 })
   const [techs, setTechs] = useState<TechRow[]>([])
   const [reportSnapshot, setReportSnapshot] = useState<ReportSnapshot | null>(null)
+  const [monthlyBrief, setMonthlyBrief] = useState<ManagerMonthlyBrief | null>(null)
+  const [showMonthlyBrief, setShowMonthlyBrief] = useState(false)
   const [reportLoading, setReportLoading] = useState(true)
   const [loading, setLoading] = useState(true)
   useTechLocation(profile?.id ?? null)
@@ -172,6 +184,72 @@ export default function ManagerDashboard() {
     }
   }, [profile?.org_id, reportsEnabled])
 
+  const dismissMonthlyBrief = useCallback(() => {
+    markManagerBriefSeen()
+    setShowMonthlyBrief(false)
+  }, [])
+
+  const openFullReports = useCallback(() => {
+    dismissMonthlyBrief()
+    navigate('/reports')
+  }, [dismissMonthlyBrief, navigate])
+
+  useEffect(() => {
+    if (!profile?.org_id || !reportsEnabled) {
+      setMonthlyBrief(null)
+      setShowMonthlyBrief(false)
+      return
+    }
+
+    if (!shouldShowManagerBrief()) {
+      setShowMonthlyBrief(false)
+      return
+    }
+
+    let cancelled = false
+    const previousMonth = getPreviousMonthStart(new Date())
+
+    async function loadMonthlyBrief() {
+      try {
+        const report = await fetchReportingData(profile.org_id, previousMonth)
+        if (cancelled) return
+
+        const hasMeaningfulActivity =
+          report.summary.leadsReceived > 0 ||
+          report.summary.bookings > 0 ||
+          report.summary.completed > 0 ||
+          report.summary.lost > 0
+
+        if (!hasMeaningfulActivity) {
+          markManagerBriefSeen()
+          setMonthlyBrief(null)
+          setShowMonthlyBrief(false)
+          return
+        }
+
+        setMonthlyBrief({
+          monthLabel: report.period.label,
+          leadsReceived: report.summary.leadsReceived,
+          bookings: report.summary.bookings,
+          completed: report.summary.completed,
+          lost: report.summary.lost,
+          bookedToCompletedRate: report.conversions.bookedToCompleted.rate,
+        })
+        setShowMonthlyBrief(true)
+      } catch (err) {
+        if (cancelled) return
+        console.error('Manager monthly brief failed:', err)
+        setMonthlyBrief(null)
+        setShowMonthlyBrief(false)
+      }
+    }
+
+    loadMonthlyBrief()
+    return () => {
+      cancelled = true
+    }
+  }, [profile?.org_id, reportsEnabled])
+
   return (
     <div className="min-h-screen bg-gray-50">
       <NavBar />
@@ -183,6 +261,62 @@ export default function ManagerDashboard() {
           </h1>
           <p className="text-sm text-gray-400 mt-0.5">{today}</p>
         </div>
+
+        {showMonthlyBrief && monthlyBrief && (
+          <section className="card p-4 border border-[#004B93]/20 bg-[#004B93]/5">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <p className="text-[11px] uppercase tracking-wide font-semibold text-[#004B93]">
+                  Month-start manager brief
+                </p>
+                <p className="text-sm text-gray-700 mt-1">
+                  {monthlyBrief.monthLabel} closed with {monthlyBrief.leadsReceived} leads, {monthlyBrief.bookings} bookings,
+                  and {monthlyBrief.completed} completed jobs.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={dismissMonthlyBrief}
+                className="self-start text-xs font-medium text-gray-500 hover:text-gray-700"
+              >
+                Dismiss
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-3">
+              <div className="rounded-lg bg-white px-3 py-2 border border-gray-100">
+                <p className="text-xs text-gray-500">Leads</p>
+                <p className="font-semibold text-gray-900">{monthlyBrief.leadsReceived}</p>
+              </div>
+              <div className="rounded-lg bg-white px-3 py-2 border border-gray-100">
+                <p className="text-xs text-gray-500">Bookings</p>
+                <p className="font-semibold text-gray-900">{monthlyBrief.bookings}</p>
+              </div>
+              <div className="rounded-lg bg-white px-3 py-2 border border-gray-100">
+                <p className="text-xs text-gray-500">Completed</p>
+                <p className="font-semibold text-gray-900">{monthlyBrief.completed}</p>
+              </div>
+              <div className="rounded-lg bg-white px-3 py-2 border border-gray-100">
+                <p className="text-xs text-gray-500">Lost</p>
+                <p className="font-semibold text-gray-900">{monthlyBrief.lost}</p>
+              </div>
+              <div className="rounded-lg bg-white px-3 py-2 border border-gray-100">
+                <p className="text-xs text-gray-500">Booked→Completed</p>
+                <p className="font-semibold text-gray-900">
+                  {monthlyBrief.bookedToCompletedRate === null ? '—' : `${Math.round(monthlyBrief.bookedToCompletedRate * 100)}%`}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={openFullReports}
+              className="mt-3 text-sm font-medium text-[#004B93] hover:text-[#003d7a]"
+            >
+              Open full monthly report →
+            </button>
+          </section>
+        )}
 
         {/* Unassigned alert */}
         {stats.unassigned > 0 && (

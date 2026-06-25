@@ -28,7 +28,7 @@ import { UserPlus, Inbox, ChevronRight, Plus } from 'lucide-react'
 import AddLeadModal from '../components/AddLeadModal'
 import { openNavigation } from '../lib/navigation'
 import { isManagerRole } from '../lib/roles'
-import { getColumnsForTab } from '../lib/leadsKanban'
+import { getColumnsForTab, isLeadVisibleInActiveKanban } from '../lib/leadsKanban'
 import { isReviewRequestEligible, sendReviewRequestSms } from '../lib/reviewRequest'
 import { logLeadEvent as recordLeadEvent } from '../lib/leadEvents'
 import type { LeadEventType } from '../lib/leadEventPayload'
@@ -52,6 +52,7 @@ interface Lead {
   lead_source?: string | null
   raw_email?: string | null
   raw_sms?: string | null
+  hidden_from_kanban_at?: string | null
   profiles: { full_name: string } | null
 }
 
@@ -672,7 +673,9 @@ export default function LeadsPage() {
   }, [profile, fetchLeads])
 
   function leadsForColumn(status: string) {
-    return leads.filter(l => l.status === status)
+    return leads.filter(
+      (lead) => lead.status === status && isLeadVisibleInActiveKanban(lead.status, lead.hidden_from_kanban_at)
+    )
   }
 
   const activeDragLead = activeDragId ? leads.find(l => l.id === activeDragId) : null
