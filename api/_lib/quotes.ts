@@ -14,6 +14,9 @@ export interface QuoteCreateInput {
   terms?: string | null
   totalAmount: number
   expiryDays?: number
+  baseUrl?: string | null
+  orgName?: string
+  senderName?: string
 }
 
 export interface QuoteAcceptInput {
@@ -32,6 +35,64 @@ function buildQuoteToken(): string {
 function normalizeExpiryDays(days: number | undefined): number {
   if (!days || Number.isNaN(days)) return 7
   return Math.min(30, Math.max(1, Math.round(days)))
+}
+
+function resolveBaseUrl(baseUrl?: string | null): string {
+  if (baseUrl && /^https?:\/\//i.test(baseUrl)) {
+    return baseUrl.replace(/\/$/, '')
+  }
+  return getPlatformUrl()
+}
+
+async function sendQuoteEmail(params: {
+  customerEmail: string
+  customerName: string
+  acceptanceUrl: string
+  totalAmount: number
+  scope: string
+  terms?: string | null
+  orgName?: string
+  senderName?: string
+}): Promise<{ emailSent: boolean; emailMessage: string }> {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) {
+    return { emailSent: false, emailMessage: 'Quote email not sent (RESEND_API_KEY is missing).' }
+  }
+
+  const fromAddress = process.env.QUOTE_EMAIL_FROM || process.env.EMAIL_FROM || 'noreply@tv-magic-companion.com'
+  try {
+    const { Resend } = await import('resend')
+    const resend = new Resend(apiKey)
+    const scopeHtml = params.scope.replace(/\n/g, '<br/>')
+    const termsHtml = (params.terms ?? '').replace(/\n/g, '<br/>')
+    const sender = params.senderName?.trim() ? `<p>Prepared by: ${params.senderName.trim()}</p>` : ''
+    const orgLine = params.orgName?.trim() ? `<p>${params.orgName.trim()}</p>` : ''
+    const html = `
+      <div style="font-family:Inter,Arial,sans-serif;line-height:1.5;color:#1f2937">
+        <h2>Your Quote Is Ready</h2>
+        ${orgLine}
+        <p>Hi ${params.customerName},</p>
+        <p>Please review and sign your quote online:</p>
+        <p><a href="${params.acceptanceUrl}">${params.acceptanceUrl}</a></p>
+        <p><strong>Amount:</strong> AUD ${Number(params.totalAmount).toFixed(2)}</p>
+        <p><strong>Scope:</strong><br/>${scopeHtml}</p>
+        ${termsHtml ? `<p><strong>Terms:</strong><br/>${termsHtml}</p>` : ''}
+        ${sender}
+      </div>
+    `
+
+    const { error } = await resend.emails.send({
+      from: fromAddress,
+      to: params.customerEmail,
+      subject: `Quote ready for signature`,
+      html,
+    })
+    if (error) throw new Error(error.message)
+    return { emailSent: true, emailMessage: `Quote email sent to ${params.customerEmail} from ${fromAddress}.` }
+  } catch (err) {
+    console.error('Quote email failed:', err)
+    return { emailSent: false, emailMessage: 'Quote created, but email delivery failed. Share the link manually.' }
+  }
 }
 
 export async function createQuote(input: QuoteCreateInput) {
@@ -70,9 +131,30 @@ export async function createQuote(input: QuoteCreateInput) {
     throw new Error(error?.message ?? 'Failed to create quote')
   }
 
+  const acceptanceUrl = `${resolveBaseUrl(input.baseUrl)}/quote/${data.public_token}`
+
+  let emailSent = false
+  let emailMessage = 'No customer email on lead; share the link manually.'
+  if (input.customerEmail?.trim()) {
+    const emailResult = await sendQuoteEmail({
+      customerEmail: input.customerEmail.trim(),
+      customerName: input.customerName,
+      acceptanceUrl,
+      totalAmount: input.totalAmount,
+      scope: input.scope,
+      terms: input.terms,
+      orgName: input.orgName,
+      senderName: input.senderName,
+    })
+    emailSent = emailResult.emailSent
+    emailMessage = emailResult.emailMessage
+  }
+
   return {
     ...data,
-    acceptance_url: `${getPlatformUrl()}/quote/${data.public_token}`,
+    acceptance_url: acceptanceUrl,
+    email_sent: emailSent,
+    email_message: emailMessage,
   }
 }
 

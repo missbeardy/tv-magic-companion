@@ -14,6 +14,8 @@ export interface QuoteRecord {
   token_expires_at: string
   sent_at: string | null
   accepted_at?: string | null
+  email_sent?: boolean
+  email_message?: string
 }
 
 export interface CreateQuotePayload {
@@ -28,7 +30,7 @@ export interface CreateQuotePayload {
   expiryDays?: number
 }
 
-export async function createQuote(payload: CreateQuotePayload): Promise<{ quote: QuoteRecord & { acceptance_url: string } }> {
+export async function createQuote(payload: CreateQuotePayload): Promise<{ quote: QuoteRecord & { acceptance_url: string; email_sent?: boolean; email_message?: string } }> {
   const headers = await requireAuthHeaders()
   const res = await fetch('/api/send-sms?action=quote-create', {
     method: 'POST',

@@ -228,9 +228,9 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
                   disabled={saving}
                   onClick={() => handleAssign(emp.id)}
                   className={`w-full text-left flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all hover:shadow-md disabled:opacity-50 ${
-                    isNearest
+                    smartAssignEnabled && isNearest
                       ? 'border-[#00B4C5] bg-[#00B4C5]/5'
-                      : smartAssign.isRecommended && profile?.role !== 'employee'
+                      : smartAssignEnabled && smartAssign.isRecommended && profile?.role !== 'employee'
                       ? 'border-green-400 bg-green-50/50'
                       : 'border-gray-100 bg-white hover:border-[#004B93]/30'
                   }`}
@@ -251,7 +251,7 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
                       <p className="font-semibold text-gray-800 text-sm">{emp.full_name}</p>
                       {isSelf && <span className="badge badge-purple">Me</span>}
                       {isManager && !isSelf && <span className="badge badge-purple">Manager</span>}
-                      {isNearest && !smartAssignEnabled && (
+                      {smartAssignEnabled && isNearest && (
                         <span className="badge badge-cyan flex items-center gap-1">
                           <Navigation size={9} /> Nearest
                         </span>
@@ -279,7 +279,7 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
                   </div>
 
                   {/* Best badge */}
-                  {smartAssign.isRecommended && !isNearest && profile?.role !== 'employee' && !smartAssignEnabled && (
+                  {smartAssignEnabled && smartAssign.isRecommended && !isNearest && profile?.role !== 'employee' && (
                     <span className="badge badge-green flex items-center gap-1 shrink-0">
                       <Star size={9} /> Best
                     </span>

@@ -24,6 +24,9 @@ export default function QuoteComposerModal({ lead, onClose, onSent }: Props) {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [acceptanceUrl, setAcceptanceUrl] = useState('')
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const [deliveryMessage, setDeliveryMessage] = useState('')
+  const [emailSent, setEmailSent] = useState<boolean | null>(null)
 
   async function handleSend() {
     setError('')
@@ -52,11 +55,26 @@ export default function QuoteComposerModal({ lead, onClose, onSent }: Props) {
         expiryDays: Number.isFinite(days) ? days : 7,
       })
       setAcceptanceUrl(quote.acceptance_url)
+      setEmailSent(quote.email_sent === true)
+      setDeliveryMessage(quote.email_message ?? '')
+      setCopyState('idle')
       onSent?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send quote')
     } finally {
       setSending(false)
+    }
+  }
+
+  async function handleCopyLink() {
+    try {
+      if (!acceptanceUrl) return
+      await navigator.clipboard.writeText(acceptanceUrl)
+      setCopyState('copied')
+      setTimeout(() => setCopyState('idle'), 1500)
+    } catch {
+      setCopyState('failed')
+      setTimeout(() => setCopyState('idle'), 2000)
     }
   }
 
@@ -87,14 +105,25 @@ export default function QuoteComposerModal({ lead, onClose, onSent }: Props) {
           {acceptanceUrl && (
             <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-sm">
               <p className="font-semibold text-emerald-700">Quote sent successfully.</p>
+              {deliveryMessage && (
+                <p className={`mt-1 ${emailSent ? 'text-emerald-700/90' : 'text-amber-700'}`}>
+                  {deliveryMessage}
+                </p>
+              )}
               <p className="text-emerald-700/90 mt-1 break-all">{acceptanceUrl}</p>
               <div className="mt-2 flex gap-2">
                 <button
                   type="button"
-                  onClick={() => navigator.clipboard?.writeText(acceptanceUrl)}
-                  className="px-2.5 py-1 rounded-lg border border-emerald-300 text-emerald-700 text-xs font-semibold"
+                  onClick={handleCopyLink}
+                  className={`px-2.5 py-1 rounded-lg border text-xs font-semibold transition-colors ${
+                    copyState === 'copied'
+                      ? 'border-emerald-500 bg-emerald-600 text-white'
+                      : copyState === 'failed'
+                      ? 'border-red-300 bg-red-50 text-red-700'
+                      : 'border-emerald-300 text-emerald-700'
+                  }`}
                 >
-                  Copy link
+                  {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Copy failed' : 'Copy link'}
                 </button>
                 <a
                   href={acceptanceUrl}
