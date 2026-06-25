@@ -4,6 +4,7 @@ import { useOrg } from '../context/OrgContext'
 import { useAuth } from '../context/AuthContext'
 import { buildBrandTransferPayload } from '../lib/brandTransfer'
 import NavBar from '../components/NavBar'
+import BrandQuoteEmailEditor from '../components/BrandQuoteEmailEditor'
 import { Building2, Plus, RefreshCw, ArrowRightLeft } from 'lucide-react'
 import {
   FEATURE_SWITCH_DEFINITIONS,
@@ -17,6 +18,8 @@ interface BrandRow {
   slug: string
   vertical: string
   is_active: boolean
+  primary_color: string
+  email_templates: Record<string, string>
 }
 
 interface OrgRow {
@@ -68,11 +71,22 @@ export default function PlatformAdminPage() {
     setError('')
     setSwitchesError('')
     const [brandsRes, orgsRes] = await Promise.all([
-      supabase.from('brands').select('id, name, slug, vertical, is_active').order('name'),
+      supabase
+        .from('brands')
+        .select('id, name, slug, vertical, is_active, primary_color, email_templates')
+        .order('name'),
       supabase.from('orgs').select('id, name, slug, subscription_tier, brand_id').order('name'),
     ])
     if (brandsRes.error) setError(brandsRes.error.message)
-    else setBrands(brandsRes.data ?? [])
+    else {
+      setBrands(
+        (brandsRes.data ?? []).map((row) => ({
+          ...row,
+          primary_color: (row.primary_color as string) || '#004B93',
+          email_templates: (row.email_templates as Record<string, string>) ?? {},
+        }))
+      )
+    }
     if (orgsRes.error) setError(orgsRes.error.message)
     else setOrgs(orgsRes.data ?? [])
 
@@ -371,17 +385,35 @@ export default function PlatformAdminPage() {
         <section className="card p-6 space-y-4">
           <h2 className="font-semibold text-gray-800">Brand templates</h2>
           <p className="text-xs text-gray-500">
-            SMS templates and AI config live on the brand and are used at runtime. Colors and upsells are copied to each franchisee on transfer.
+            SMS and email templates live on the brand and are used at runtime (quote emails use{' '}
+            <code className="text-[10px]">customer_quote_request_subject</code> /{' '}
+            <code className="text-[10px]">customer_quote_request_html</code>). Colors and upsells are copied to each
+            franchisee on transfer.
           </p>
           {loading ? (
             <p className="text-sm text-gray-400">Loading…</p>
           ) : (
             <ul className="divide-y divide-gray-100">
               {brands.map((b) => (
-                <li key={b.id} className="py-3 flex justify-between text-sm">
-                  <span className="font-medium text-gray-800">{b.name}</span>
-                  <span className="text-gray-400">{b.slug} · {b.vertical}</span>
-                </li>
+                <BrandQuoteEmailEditor
+                  key={b.id}
+                  brandId={b.id}
+                  brandName={b.name}
+                  slug={b.slug}
+                  vertical={b.vertical}
+                  primaryColor={b.primary_color}
+                  emailTemplates={b.email_templates}
+                  onSaved={async (message) => {
+                    setSuccess(message)
+                    setError('')
+                    await loadData()
+                    await refreshOrg()
+                  }}
+                  onError={(message) => {
+                    setError(message)
+                    setSuccess('')
+                  }}
+                />
               ))}
             </ul>
           )}

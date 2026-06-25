@@ -57,6 +57,7 @@ function mapBrand(row: Record<string, unknown> | null): Brand | null {
     primary_color: (row.primary_color as string) || '#004B93',
     secondary_color: (row.secondary_color as string) || '#00B4C5',
     sms_templates: (row.sms_templates as Record<string, string>) || {},
+    email_templates: (row.email_templates as Record<string, string>) || {},
     ai_config: (row.ai_config as Record<string, unknown>) || {},
     upsell_items: (row.upsell_items as Brand['upsell_items']) || [],
     is_active: row.is_active !== false,

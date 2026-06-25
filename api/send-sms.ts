@@ -273,6 +273,8 @@ async function handleQuoteCreate(req: VercelRequest, res: VercelResponse, auth: 
       expiryDays,
       baseUrl: getRequestBaseUrl(req),
       orgName: auth.org.name,
+      emailTemplates: auth.brand?.email_templates ?? null,
+      primaryColor: auth.brand?.primary_color,
     })
     return res.status(200).json({ success: true, quote })
   } catch (err) {

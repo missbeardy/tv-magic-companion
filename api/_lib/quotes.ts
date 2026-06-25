@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto'
+import { buildQuoteEmailFromBrand, nl2brHtml } from './emailTemplates.js'
 import { getSupabaseAdmin } from './supabaseAdmin.js'
 import { getPlatformUrl } from './platformUrl.js'
 
@@ -17,6 +18,8 @@ export interface QuoteCreateInput {
   baseUrl?: string | null
   orgName?: string
   senderName?: string
+  emailTemplates?: Record<string, string> | null
+  primaryColor?: string
 }
 
 export interface QuoteAcceptInput {
@@ -51,8 +54,11 @@ async function sendQuoteEmail(params: {
   totalAmount: number
   scope: string
   terms?: string | null
+  serviceType?: string | null
   orgName?: string
   senderName?: string
+  emailTemplates?: Record<string, string> | null
+  primaryColor?: string
 }): Promise<{ emailSent: boolean; emailMessage: string }> {
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) {
@@ -63,28 +69,28 @@ async function sendQuoteEmail(params: {
   try {
     const { Resend } = await import('resend')
     const resend = new Resend(apiKey)
-    const scopeHtml = params.scope.replace(/\n/g, '<br/>')
-    const termsHtml = (params.terms ?? '').replace(/\n/g, '<br/>')
-    const sender = params.senderName?.trim() ? `<p>Prepared by: ${params.senderName.trim()}</p>` : ''
-    const orgLine = params.orgName?.trim() ? `<p>${params.orgName.trim()}</p>` : ''
-    const html = `
-      <div style="font-family:Inter,Arial,sans-serif;line-height:1.5;color:#1f2937">
-        <h2>Your Quote Is Ready</h2>
-        ${orgLine}
-        <p>Hi ${params.customerName},</p>
-        <p>Please review and sign your quote online:</p>
-        <p><a href="${params.acceptanceUrl}">${params.acceptanceUrl}</a></p>
-        <p><strong>Amount:</strong> AUD ${Number(params.totalAmount).toFixed(2)}</p>
-        <p><strong>Scope:</strong><br/>${scopeHtml}</p>
-        ${termsHtml ? `<p><strong>Terms:</strong><br/>${termsHtml}</p>` : ''}
-        ${sender}
-      </div>
-    `
+    const serviceType = params.serviceType?.trim() ?? ''
+    const { subject, html } = buildQuoteEmailFromBrand(params.emailTemplates, {
+      'org.name': params.orgName?.trim() ?? '',
+      customerName: params.customerName,
+      acceptanceUrl: params.acceptanceUrl,
+      totalAmount: `AUD ${Number(params.totalAmount).toFixed(2)}`,
+      serviceType,
+      serviceTypeLine: serviceType ? ` for ${serviceType}` : '',
+      scopeHtml: nl2brHtml(params.scope),
+      termsBlock: params.terms?.trim()
+        ? `<p><strong>Terms:</strong><br/>${nl2brHtml(params.terms)}</p>`
+        : '',
+      senderBlock: params.senderName?.trim()
+        ? `<p>Prepared by: ${params.senderName.trim()}</p>`
+        : '',
+      primaryColor: params.primaryColor?.trim() || '#004B93',
+    })
 
     const { error } = await resend.emails.send({
       from: fromAddress,
       to: params.customerEmail,
-      subject: `Quote ready for signature`,
+      subject,
       html,
     })
     if (error) throw new Error(error.message)
@@ -143,8 +149,11 @@ export async function createQuote(input: QuoteCreateInput) {
       totalAmount: input.totalAmount,
       scope: input.scope,
       terms: input.terms,
+      serviceType: input.serviceType,
       orgName: input.orgName,
       senderName: input.senderName,
+      emailTemplates: input.emailTemplates,
+      primaryColor: input.primaryColor,
     })
     emailSent = emailResult.emailSent
     emailMessage = emailResult.emailMessage

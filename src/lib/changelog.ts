@@ -67,11 +67,13 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Phase 3 reporting snapshots + month-start manager brief, with monthly lost/completed kanban cleanup',
     'Modular feature kill switches by brand and franchise override in Platform Admin',
     'Smart Assign badge + Quote acceptance e-sign flow now behind per-franchise feature switches',
+    'Brand-level quote email templates (subject + HTML) with org name, scope, and brand colours',
+    'Platform Admin editor for quote email subject and HTML with live preview',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.14'
+export const APP_VERSION = '1.1.16'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

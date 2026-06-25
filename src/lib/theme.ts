@@ -7,6 +7,7 @@ export interface Brand {
   primary_color: string
   secondary_color: string
   sms_templates: Record<string, string>
+  email_templates: Record<string, string>
   ai_config: Record<string, unknown>
   upsell_items: Array<{ id: string; label: string }>
   is_active: boolean

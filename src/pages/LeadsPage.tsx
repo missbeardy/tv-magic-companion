@@ -196,11 +196,6 @@ function LeadCard({
           Booking Cancelled
         </p>
       )}
-      {!isBookingCancelled && isQuoteAccepted && (
-        <p className="inline-flex items-center text-[10px] font-bold uppercase tracking-wide text-emerald-700 bg-emerald-100 rounded-full px-2 py-0.5 mb-2">
-          Quote Accepted
-        </p>
-      )}
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <p className={`font-medium text-sm truncate ${

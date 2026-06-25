@@ -19,6 +19,8 @@ export interface AuthContext {
   }
   brand: {
     sms_templates: Record<string, string>
+    email_templates: Record<string, string>
+    primary_color: string
   } | null
 }
 
@@ -68,11 +70,15 @@ export async function authenticateRequestDetailed(
   if (org.brand_id) {
     const { data: brandRow } = await supabase
       .from('brands')
-      .select('sms_templates')
+      .select('sms_templates, email_templates, primary_color')
       .eq('id', org.brand_id)
       .maybeSingle()
-    if (brandRow?.sms_templates) {
-      brand = { sms_templates: brandRow.sms_templates as Record<string, string> }
+    if (brandRow) {
+      brand = {
+        sms_templates: (brandRow.sms_templates as Record<string, string>) ?? {},
+        email_templates: (brandRow.email_templates as Record<string, string>) ?? {},
+        primary_color: (brandRow.primary_color as string) || '#004B93',
+      }
     }
   }
 
