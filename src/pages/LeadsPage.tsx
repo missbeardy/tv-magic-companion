@@ -31,8 +31,9 @@ import { openNavigation } from '../lib/navigation'
 import { isManagerRole } from '../lib/roles'
 import { getColumnsForTab, isLeadVisibleInActiveKanban } from '../lib/leadsKanban'
 import { isReviewRequestEligible, sendReviewRequestSms } from '../lib/reviewRequest'
-import { getOnTheWayBlockReason, sendOnTheWaySms } from '../lib/onTheWaySms'
+import { getOnTheWayBlockReason, buildOnTheWayMessage, openOnTheWaySms } from '../lib/onTheWaySms'
 import { logLeadEvent as recordLeadEvent } from '../lib/leadEvents'
+import { formatAuPhoneForSms } from '../lib/phone'
 import type { LeadEventType } from '../lib/leadEventPayload'
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -446,7 +447,7 @@ function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand
 
 export default function LeadsPage() {
   const { profile } = useAuth()
-  const { org, isFeatureEnabled, featureSwitchesLoading } = useOrg()
+  const { org, brand, isFeatureEnabled, featureSwitchesLoading } = useOrg()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddLead, setShowAddLead] = useState(false)
@@ -686,22 +687,19 @@ export default function LeadsPage() {
     }
 
     const techName = profile?.full_name ?? 'Your technician'
-    const result = await sendOnTheWaySms(
-      lead,
-      techName,
-      async (leadId, note) => {
-        await logLeadEvent(leadId, 'sms_sent', note, { channel: 'sms', template: 'customer_ontheway' })
-      }
+    const message = buildOnTheWayMessage(lead, techName, org, brand)
+    const to = formatAuPhoneForSms(lead.phone.trim())
+
+    await logLeadEvent(
+      lead.id,
+      'sms_attempted',
+      `Opened SMS to ${to}`,
+      { channel: 'sms', phone: to, template: 'customer_ontheway', from_device: true }
     )
 
-    if (!result.ok) {
-      alert(result.error)
-      return
-    }
-
+    openOnTheWaySms(lead.phone, message)
     closeSheet()
-    fetchLeads()
-  }, [closeSheet, fetchLeads, logLeadEvent, onTheWayFeatureEnabled, profile?.full_name])
+  }, [brand, closeSheet, logLeadEvent, onTheWayFeatureEnabled, org, profile?.full_name])
 
   const handleSharePhoto = useCallback(async (lead: Lead) => {
     if (navigator.share) {

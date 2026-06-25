@@ -60,7 +60,7 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   },
   customer_ontheway_sms: {
     label: 'Customer On The Way SMS',
-    description: 'ETA SMS with maps link when tech is en route',
+    description: 'ETA SMS button opens the technician\'s phone with a branded message',
   },
   manager_new_lead_alerts: {
     label: 'Manager New-Lead Alert SMS',

@@ -1,4 +1,6 @@
-import { getAuthHeaders } from './apiAuth'
+import type { Org } from '../context/OrgContext'
+import type { Brand } from './theme'
+import { getDefaultSmsTemplates, getSmsTemplate } from './brandTemplates'
 import { formatAuPhoneForSms } from './phone'
 
 export interface OnTheWayLead {
@@ -22,42 +24,45 @@ export function getOnTheWayBlockReason(
   return null
 }
 
-/** Send branded on-the-way SMS via Twilio (server-side). */
-export async function sendOnTheWaySms(
+/** Build branded on-the-way message for the technician to send from their own phone. */
+export function buildOnTheWayMessage(
   lead: OnTheWayLead,
   techName: string,
-  logEvent?: (leadId: string, note: string) => Promise<void>
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  try {
-    const headers = await getAuthHeaders()
-    if (!headers.Authorization) {
-      return { ok: false, error: 'Session expired — log out and sign in again.' }
+  org: Org | null,
+  brand: Brand | null
+): string {
+  const mapsUrl = lead.address?.trim()
+    ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(lead.address)}&travelmode=driving`
+    : ''
+
+  const fromBrand = getSmsTemplate(brand, 'customer_ontheway', org, {
+    customerName: lead.name,
+    techName,
+    serviceType: lead.service_type ?? 'service',
+    mapsUrl,
+  })
+
+  if (fromBrand) {
+    if (mapsUrl && !fromBrand.includes(mapsUrl)) {
+      return `${fromBrand} Track the route: ${mapsUrl}`
     }
-
-    const res = await fetch('/api/send-sms', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        leadId: lead.id,
-        to: formatAuPhoneForSms(lead.phone!.trim()),
-        customerName: lead.name,
-        techName,
-        address: lead.address?.trim() || undefined,
-        serviceType: lead.service_type ?? 'service',
-      }),
-    })
-
-    const data = (await res.json().catch(() => ({}))) as { error?: string; detail?: string }
-
-    if (!res.ok) {
-      const detail = data.detail ? ` (${data.detail})` : ''
-      return { ok: false, error: `${data.error ?? res.statusText}${detail}` }
-    }
-
-    await logEvent?.(lead.id, 'On-the-way SMS sent to customer')
-    return { ok: true }
-  } catch (err) {
-    console.error('On-the-way SMS failed:', err)
-    return { ok: false, error: 'Could not send the text. Check your connection and try again.' }
+    return fromBrand
   }
+
+  const fallback = getDefaultSmsTemplates(org?.name ?? 'Your organisation').customer_ontheway
+  const message = fallback
+    .replace(/\{\{techName\}\}/g, techName)
+    .replace(/\{\{serviceType\}\}/g, lead.service_type ?? 'service')
+    .replace(/\{\{org\.name\}\}/g, org?.name ?? 'Your organisation')
+
+  if (mapsUrl) {
+    return `${message} Track the route: ${mapsUrl}`
+  }
+  return message
+}
+
+/** Open the device SMS app pre-filled for the technician to send. */
+export function openOnTheWaySms(toPhone: string, message: string): void {
+  const to = formatAuPhoneForSms(toPhone)
+  window.location.href = `sms:${to}?body=${encodeURIComponent(message)}`
 }

@@ -73,7 +73,7 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Team Activity — live feed of what your team is doing plus workload view for managers and employees',
     'Missed call auto-reply SMS — instant branded text to callers when a call is missed (feature switch)',
     'Inbound call hardening — DID org routing, voicemail dedup, no duplicate webhook voicemail leads',
-    'Send ETA Text — branded on-the-way SMS via Twilio from the lead sheet (customer_ontheway_sms switch)',
+    'Send ETA Text — opens branded on-the-way SMS on the technician\'s phone (customer_ontheway_sms switch)',
   ],
 }
 
