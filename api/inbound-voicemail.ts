@@ -7,6 +7,7 @@ import { resolveOrgIdFromDid } from './_lib/resolveOrgFromDid.js'
 import { findRecentLeadByPhone } from './_lib/inboundLeadDedup.js'
 import { formatAuPhoneForSms } from './_lib/phone.js'
 import { notifyManagersNewLead } from './_lib/notifyManagersNewLead.js'
+import { sendMissedCallHookbackIfEnabled } from './_lib/missedCallHookbackSms.js'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -280,8 +281,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       status: 'unassigned',
     })
 
+    let hookbackSent = false
+    if (normalizedPhone) {
+      hookbackSent = await sendMissedCallHookbackIfEnabled({
+        orgId,
+        leadId: newLead.id,
+        toPhone: normalizedPhone,
+        customerName: newLead.name,
+        source: 'phone',
+      })
+    }
+
     console.log('Voicemail lead created:', newLead?.id)
-    return res.status(200).json({ success: true, lead_id: newLead?.id })
+    return res.status(200).json({ success: true, lead_id: newLead?.id, hookbackSent })
   } catch (err) {
     console.error('Voicemail processing error:', err)
     return res.status(500).json({ error: 'Voicemail processing failed' })

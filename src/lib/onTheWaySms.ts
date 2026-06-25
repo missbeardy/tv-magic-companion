@@ -3,6 +3,8 @@ import type { Brand } from './theme'
 import { getDefaultSmsTemplates, getSmsTemplate } from './brandTemplates'
 import { formatAuPhoneForSms } from './phone'
 
+export const ON_THE_WAY_MAPS_SUFFIX = ' Track the route:'
+
 export interface OnTheWayLead {
   id: string
   name: string
@@ -24,6 +26,11 @@ export function getOnTheWayBlockReason(
   return null
 }
 
+function appendMapsLink(message: string, mapsUrl: string): string {
+  if (!mapsUrl || message.includes(mapsUrl)) return message
+  return `${message}${ON_THE_WAY_MAPS_SUFFIX} ${mapsUrl}`
+}
+
 /** Build branded on-the-way message for the technician to send from their own phone. */
 export function buildOnTheWayMessage(
   lead: OnTheWayLead,
@@ -36,29 +43,20 @@ export function buildOnTheWayMessage(
     : ''
 
   const fromBrand = getSmsTemplate(brand, 'customer_ontheway', org, {
-    customerName: lead.name,
     techName,
-    serviceType: lead.service_type ?? 'service',
     mapsUrl,
   })
 
   if (fromBrand) {
-    if (mapsUrl && !fromBrand.includes(mapsUrl)) {
-      return `${fromBrand} Track the route: ${mapsUrl}`
-    }
-    return fromBrand
+    return appendMapsLink(fromBrand, mapsUrl)
   }
 
   const fallback = getDefaultSmsTemplates(org?.name ?? 'Your organisation').customer_ontheway
   const message = fallback
     .replace(/\{\{techName\}\}/g, techName)
-    .replace(/\{\{serviceType\}\}/g, lead.service_type ?? 'service')
     .replace(/\{\{org\.name\}\}/g, org?.name ?? 'Your organisation')
 
-  if (mapsUrl) {
-    return `${message} Track the route: ${mapsUrl}`
-  }
-  return message
+  return appendMapsLink(message, mapsUrl)
 }
 
 /** Open the device SMS app pre-filled for the technician to send. */

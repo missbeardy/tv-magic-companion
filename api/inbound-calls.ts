@@ -3,9 +3,8 @@ import { createClient } from '@supabase/supabase-js'
 import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
 import { resolveOrgIdFromDid } from './_lib/resolveOrgFromDid.js'
 import { findRecentLeadByPhone } from './_lib/inboundLeadDedup.js'
-import { sendBrandedSms } from './_lib/sendBrandedSms.js'
 import { notifyManagersNewLead } from './_lib/notifyManagersNewLead.js'
-import { MISSED_CALL_HOOKBACK_FALLBACK } from '../src/lib/missedCallHookback.js'
+import { sendMissedCallHookbackIfEnabled } from './_lib/missedCallHookbackSms.js'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -139,25 +138,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.error('Manager notification failed for missed call lead:', notifyErr)
     }
 
-    let hookbackSent = false
-    const hookbackEnabled = await isFeatureEnabledForOrg(orgId, 'missed_call_hookback_sms')
-    if (hookbackEnabled) {
-      const smsResult = await sendBrandedSms({
-        orgId,
-        toPhone: normalizedPhone,
-        templateKey: 'missed_call_hookback',
-        vars: { customerName: 'there' },
-        fallbackMessage: MISSED_CALL_HOOKBACK_FALLBACK,
-        leadId: newLead.id,
-        eventType: 'sms_sent',
-        eventNote: 'Missed call auto-reply SMS sent',
-        eventPayload: { source: '3cx_missed_call' },
-      })
-      hookbackSent = smsResult.sent
-      if (smsResult.error) {
-        console.error('Missed call hookback SMS failed:', smsResult.error)
-      }
-    }
+    const hookbackSent = await sendMissedCallHookbackIfEnabled({
+      orgId,
+      leadId: newLead.id,
+      toPhone: normalizedPhone,
+      customerName: 'there',
+      source: '3cx_missed_call',
+    })
 
     return res.status(200).json({
       success: true,

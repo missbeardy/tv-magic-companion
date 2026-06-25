@@ -26,7 +26,7 @@ describe('buildOnTheWayMessage', () => {
     service_type: 'TV Aerial',
   }
 
-  it('includes org name, tech name, and maps link', () => {
+  it('includes org name, tech name, thank you, and maps link when address set', () => {
     const message = buildOnTheWayMessage(
       lead,
       'Alex Tech',
@@ -35,7 +35,8 @@ describe('buildOnTheWayMessage', () => {
     )
     expect(message).toContain('Alex Tech')
     expect(message).toContain('TVMagic Sydney')
-    expect(message).toContain('TV Aerial')
+    expect(message).toContain('on their way. Thank you.')
+    expect(message).not.toContain('enquiry')
     expect(message).toContain('google.com/maps')
   })
 

@@ -577,12 +577,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'org.name': orgName,
         customerName,
         techName: techName ?? 'your technician',
-        serviceType: serviceType ?? 'service',
         mapsUrl,
       },
       mapsUrl
-        ? `Hi {{customerName}}, {{techName}} from {{org.name}} is on their way. Track the route: {{mapsUrl}}`
-        : `Hi {{customerName}}, {{techName}} from {{org.name}} is on their way to help with your {{serviceType}} enquiry.`
+        ? `{{techName}} from {{org.name}} is on their way. Thank you. Track the route: {{mapsUrl}}`
+        : `{{techName}} from {{org.name}} is on their way. Thank you.`
     )
   }
 
