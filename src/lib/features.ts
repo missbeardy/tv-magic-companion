@@ -1,5 +1,12 @@
 import type { Org } from '../types/org'
 import { isPlatformFeaturesEnabled } from './env'
+import {
+  FEATURE_SWITCH_KEYS,
+  FEATURE_SWITCH_MIN_TIERS,
+  type FeatureSwitchKey,
+} from '../../api/_lib/featureSwitchCatalog'
+
+export { FEATURE_SWITCH_KEYS, FEATURE_SWITCH_MIN_TIERS, type FeatureSwitchKey }
 
 export const FEATURES = {
   leads: { tier: 'basic', nav: '/leads', label: 'Leads' },
@@ -11,22 +18,6 @@ export const FEATURES = {
   reports: { tier: 'pro', nav: '/reports', label: 'Reports' },
   api_access: { tier: 'enterprise', nav: null, label: 'API Access' },
 } as const
-
-export const FEATURE_SWITCH_KEYS = [
-  'smart_assign_badge',
-  'quote_esign',
-  'review_requests',
-  'customer_ontheway_sms',
-  'manager_new_lead_alerts',
-  'inbound_sms',
-  'inbound_email',
-  'inbound_calls',
-  'missed_call_hookback_sms',
-  'completion_upsells',
-  'tech_location',
-] as const
-
-export type FeatureSwitchKey = (typeof FEATURE_SWITCH_KEYS)[number]
 
 export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   smart_assign_badge: false,
@@ -90,20 +81,6 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
     label: 'Tech Location Tracking',
     description: 'Periodic GPS updates from employee devices',
   },
-}
-
-export const FEATURE_SWITCH_MIN_TIERS: Record<FeatureSwitchKey, Org['subscription_tier']> = {
-  smart_assign_badge: 'basic',
-  quote_esign: 'pro',
-  review_requests: 'basic',
-  customer_ontheway_sms: 'basic',
-  manager_new_lead_alerts: 'basic',
-  inbound_sms: 'basic',
-  inbound_email: 'basic',
-  inbound_calls: 'basic',
-  missed_call_hookback_sms: 'basic',
-  completion_upsells: 'basic',
-  tech_location: 'basic',
 }
 
 export type FeatureKey = keyof typeof FEATURES

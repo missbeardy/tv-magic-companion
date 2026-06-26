@@ -1,6 +1,8 @@
 import { isFeatureEnabledForOrg } from './featureSwitches.js'
 import { sendBrandedSms } from './sendBrandedSms.js'
-import { MISSED_CALL_HOOKBACK_FALLBACK } from '../../src/lib/missedCallHookback.js'
+
+const MISSED_CALL_HOOKBACK_FALLBACK =
+  'Hi, {{customerName}} — hands full on-site at {{org.name}}. Your missed call has been assigned to one of our technicians who will call you as soon as possible.'
 
 export interface MissedCallHookbackInput {
   orgId: string
