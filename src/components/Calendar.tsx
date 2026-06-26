@@ -8,7 +8,10 @@ import { useOrgProfiles } from '../hooks/useOrgProfiles'
 import { isManagerRole } from '../lib/roles'
 import {
   buildEmployeeColorMap,
+  dedupeTeamMeetingsForAggregatedView,
   getEventDisplayColor,
+  isTeamMeetingCategory,
+  countTeamMeetingAttendees,
   TEAM_MEETING_COLOR,
 } from '../lib/calendarColors'
 import EventModal from './EventModal'
@@ -197,6 +200,19 @@ export default function Calendar() {
 
   function eventColor(event: Event): string {
     return getEventDisplayColor(event, employeeColorMap)
+  }
+
+  const showAggregatedAllEmployees = isManagerRole(profile?.role) && filterEmployee === 'all'
+
+  function getTimedEventsForDay(date: Date): Event[] {
+    const timed = getEventsForDay(date).filter((e) => !isLeaveEvent(e))
+    return showAggregatedAllEmployees ? dedupeTeamMeetingsForAggregatedView(timed) : timed
+  }
+
+  function teamMeetingAttendeeLabel(event: Event): string | null {
+    if (!isTeamMeetingCategory(event.category) || !event.booking_group_id) return null
+    const count = countTeamMeetingAttendees(events, event.booking_group_id)
+    return count > 1 ? `👥 ${count} people` : '👥 Team meeting'
   }
 
   useEffect(() => {
@@ -424,7 +440,7 @@ export default function Calendar() {
         <div className="grid grid-cols-7 divide-x divide-gray-100">
           {days.map((day, i) => {
             const isToday = day.toDateString() === new Date().toDateString()
-            const dayEvents = getEventsForDay(day).filter(e => !isLeaveEvent(e))
+            const dayEvents = getTimedEventsForDay(day)
             return (
               <div key={i} className="min-h-32 sm:min-h-40">
                 <div
@@ -446,7 +462,11 @@ export default function Calendar() {
                       {event.client_name && (
                         <p className="text-[9px] sm:text-[10px] opacity-90 truncate">👤 {event.client_name}</p>
                       )}
-                      {isManagerRole(profile?.role) && event.profiles && (
+                      {isTeamMeetingCategory(event.category) ? (
+                        <p className="text-[9px] sm:text-[10px] opacity-75 truncate">
+                          {teamMeetingAttendeeLabel(event)}
+                        </p>
+                      ) : isManagerRole(profile?.role) && event.profiles && (
                         <p className="text-[9px] sm:text-[10px] opacity-75 truncate">{event.profiles.full_name}</p>
                       )}
                     </div>
@@ -872,7 +892,7 @@ export default function Calendar() {
                       )
                     })()}
 
-                    {getEventsForDay(currentDate).filter(e => !isLeaveEvent(e)).map(event => {
+                    {getTimedEventsForDay(currentDate).map(event => {
                       const top = getEventTop(event.start_time)
                       const height = getEventHeight(event.start_time, event.end_time)
                       const isBooking = event.category === 'Booking' || event.category === 'Assigned Leads'
@@ -908,7 +928,11 @@ export default function Calendar() {
                                 )}
                               </div>
                             )}
-                            {isManagerRole(profile?.role) && event.profiles && height > 50 && (
+                            {isTeamMeetingCategory(event.category) ? (
+                              <p className="text-[9px] sm:text-[10px] opacity-75 mt-auto pt-1 truncate">
+                                {teamMeetingAttendeeLabel(event)}
+                              </p>
+                            ) : isManagerRole(profile?.role) && event.profiles && height > 50 && (
                               <p className="text-[9px] sm:text-[10px] opacity-75 mt-auto pt-1 truncate">
                                 {event.profiles.full_name}
                               </p>
@@ -945,7 +969,10 @@ export default function Calendar() {
                 {monthDays.map((day, i) => {
                   if (!day) return <div key={i} className="min-h-16 sm:min-h-24 bg-gray-50" />
                   const isToday = day.toDateString() === new Date().toDateString()
-                  const dayEvents = getEventsForDay(day)
+                  const dayEvents = [
+                    ...getEventsForDay(day).filter(isLeaveEvent),
+                    ...getTimedEventsForDay(day),
+                  ]
                   return (
                     <div
                       key={i}

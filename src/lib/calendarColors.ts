@@ -42,3 +42,22 @@ export function getEventDisplayColor(
 export function isTeamMeetingCategory(category?: string | null): boolean {
   return category === TEAM_MEETING_CATEGORY
 }
+
+/** One purple block per team meeting when a manager views all employees at once. */
+export function dedupeTeamMeetingsForAggregatedView<
+  T extends { id: string; category?: string | null; booking_group_id?: string | null },
+>(events: T[]): T[] {
+  const seenGroups = new Set<string>()
+  return events.filter((event) => {
+    if (!isTeamMeetingCategory(event.category) || !event.booking_group_id) return true
+    if (seenGroups.has(event.booking_group_id)) return false
+    seenGroups.add(event.booking_group_id)
+    return true
+  })
+}
+
+export function countTeamMeetingAttendees<
+  T extends { booking_group_id?: string | null },
+>(events: T[], bookingGroupId: string): number {
+  return events.filter((e) => e.booking_group_id === bookingGroupId).length
+}
