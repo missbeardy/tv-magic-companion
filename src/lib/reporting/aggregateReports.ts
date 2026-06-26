@@ -69,6 +69,26 @@ function getOutcomeType(event: LeadEventRow): 'completed' | 'lost' | 'expired' |
   return null
 }
 
+function isContactEvent(event: LeadEventRow): boolean {
+  if (CONTACT_EVENT_TYPES.has(event.event_type)) return true
+  if (event.event_type !== 'status_change') return false
+  return getPayloadValue(event.payload, 'to_status') === 'contact_attempted'
+}
+
+function isBookingEvent(event: LeadEventRow): boolean {
+  if (event.event_type === 'booked') return true
+  if (event.event_type !== 'status_change') return false
+  return getPayloadValue(event.payload, 'to_status') === 'booked'
+}
+
+function resolveCreditAgentId(
+  event: LeadEventRow,
+  monthAssigneeByLead: Map<string, string>,
+  actorId: string | null
+): string | null {
+  return monthAssigneeByLead.get(event.lead_id) ?? actorId
+}
+
 export function aggregateReportingData(
   events: LeadEventRow[],
   leads: LeadRow[],
@@ -118,6 +138,7 @@ export function aggregateReportingData(
   const cancelledByActor = new Set<string>()
 
   const firstAssignedAtByLead = new Map<string, number>()
+  const monthAssigneeByLead = new Map<string, string>()
   const measuredContactLeadIds = new Set<string>()
   const measuredBookingLeadIds = new Set<string>()
   const hoursToFirstContact: number[] = []
@@ -139,6 +160,7 @@ export function aggregateReportingData(
 
       const assigneeId = getPayloadValue(event.payload, 'assigned_to') || actorId
       if (assigneeId) {
+        monthAssigneeByLead.set(event.lead_id, assigneeId)
         const assignee = ensureAgent(assigneeId)
         assignee.assignments += 1
       }
@@ -146,17 +168,20 @@ export function aggregateReportingData(
 
     if (event.event_type === 'unassigned') {
       summary.unassigned += 1
+      monthAssigneeByLead.delete(event.lead_id)
       if (actorId) {
         const actor = ensureAgent(actorId)
         actor.unassigned += 1
       }
     }
 
-    if (CONTACT_EVENT_TYPES.has(event.event_type)) {
+    const creditId = resolveCreditAgentId(event, monthAssigneeByLead, actorId)
+
+    if (isContactEvent(event)) {
       summary.contactAttempts += 1
-      if (actorId) {
-        const actor = ensureAgent(actorId)
-        actor.contactAttempts += 1
+      if (creditId) {
+        const agent = ensureAgent(creditId)
+        agent.contactAttempts += 1
       }
       if (assignedLeadIds.has(event.lead_id)) {
         contactedLeadIds.add(event.lead_id)
@@ -169,12 +194,12 @@ export function aggregateReportingData(
       }
     }
 
-    if (event.event_type === 'booked') {
+    if (isBookingEvent(event)) {
       summary.bookings += 1
       bookedLeadIds.add(event.lead_id)
-      if (actorId) {
-        const actor = ensureAgent(actorId)
-        actor.bookings += 1
+      if (creditId) {
+        const agent = ensureAgent(creditId)
+        agent.bookings += 1
       }
 
       const assignedAt = firstAssignedAtByLead.get(event.lead_id)
@@ -186,32 +211,32 @@ export function aggregateReportingData(
 
     if (event.event_type === 'review_request') {
       summary.reviewRequests += 1
-      if (actorId) {
-        const actor = ensureAgent(actorId)
-        actor.reviewRequests += 1
+      if (creditId) {
+        const agent = ensureAgent(creditId)
+        agent.reviewRequests += 1
       }
     }
 
     const outcome = getOutcomeType(event)
     if (outcome) {
-      if (actorId) {
-        const actor = ensureAgent(actorId)
-        const actorOutcomeKey = `${actorId}:${event.lead_id}`
-        if (outcome === 'completed' && !completedByActor.has(actorOutcomeKey)) {
-          completedByActor.add(actorOutcomeKey)
-          actor.completed += 1
+      if (creditId) {
+        const agent = ensureAgent(creditId)
+        const agentOutcomeKey = `${creditId}:${event.lead_id}`
+        if (outcome === 'completed' && !completedByActor.has(agentOutcomeKey)) {
+          completedByActor.add(agentOutcomeKey)
+          agent.completed += 1
         }
-        if (outcome === 'lost' && !lostByActor.has(actorOutcomeKey)) {
-          lostByActor.add(actorOutcomeKey)
-          actor.lost += 1
+        if (outcome === 'lost' && !lostByActor.has(agentOutcomeKey)) {
+          lostByActor.add(agentOutcomeKey)
+          agent.lost += 1
         }
-        if (outcome === 'expired' && !expiredByActor.has(actorOutcomeKey)) {
-          expiredByActor.add(actorOutcomeKey)
-          actor.expired += 1
+        if (outcome === 'expired' && !expiredByActor.has(agentOutcomeKey)) {
+          expiredByActor.add(agentOutcomeKey)
+          agent.expired += 1
         }
-        if (outcome === 'booking_cancelled' && !cancelledByActor.has(actorOutcomeKey)) {
-          cancelledByActor.add(actorOutcomeKey)
-          actor.bookingCancelled += 1
+        if (outcome === 'booking_cancelled' && !cancelledByActor.has(agentOutcomeKey)) {
+          cancelledByActor.add(agentOutcomeKey)
+          agent.bookingCancelled += 1
         }
       }
 

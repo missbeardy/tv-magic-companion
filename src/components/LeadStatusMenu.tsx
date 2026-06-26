@@ -5,11 +5,14 @@ import { sendPushNotification } from '../lib/sendPush'
 import { useAuth } from '../context/AuthContext'
 import { useOrg } from '../context/OrgContext'
 import ReviewRequestModal from './ReviewRequestModal'
+import { logLeadEvent } from '../lib/leadEvents'
+import type { LeadEventType } from '../lib/leadEventPayload'
 import {
   isReviewRequestEligible,
   sendReviewRequestSms,
   type ReviewRequestLead,
 } from '../lib/reviewRequest'
+import { buildPoolPickupUpdate, shouldPoolPickup } from '../lib/leadPoolPickup'
 
 interface Props {
   leadId: string
@@ -33,6 +36,23 @@ const STATUSES = [
   { value: 'lost',              label: 'Lost',              color: 'bg-red-100 text-red-600' },
   { value: 'completed',         label: 'Completed',         color: 'bg-purple-100 text-purple-700' },
 ]
+
+const REPORTABLE_STATUS_EVENTS = new Set([
+  'contact_attempted',
+  'booked',
+  'lost',
+  'completed',
+  'expired',
+  'booking_cancelled',
+  'unassigned',
+])
+
+function resolveStatusEventType(newStatus: string): LeadEventType {
+  if (REPORTABLE_STATUS_EVENTS.has(newStatus)) {
+    return newStatus as LeadEventType
+  }
+  return 'status_change'
+}
 
 export default function LeadStatusMenu({
   leadId,
@@ -84,7 +104,7 @@ export default function LeadStatusMenu({
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
-  async function applyStatusUpdate(newStatus: string) {
+  async function applyStatusUpdate(fromStatus: string, newStatus: string) {
     const updatePayload: Record<string, unknown> = { status: newStatus }
     if (newStatus === 'unassigned') {
       updatePayload.assigned_to = null
@@ -92,12 +112,42 @@ export default function LeadStatusMenu({
       updatePayload.timer_expires_at = null
     }
 
+    Object.assign(
+      updatePayload,
+      buildPoolPickupUpdate(fromStatus, newStatus, profile?.id)
+    )
+
     await supabase.from('leads').update(updatePayload).eq('id', leadId)
 
-    if ((newStatus === 'completed' || newStatus === 'lost') && assignedTo) {
+    if (shouldPoolPickup(fromStatus, newStatus, profile?.id)) {
+      await logLeadEvent({
+        leadId,
+        orgId: profile?.org_id ?? null,
+        eventType: 'assigned',
+        note: 'Lead picked up from pool via status menu',
+        actorId: profile?.id ?? null,
+        payload: { assigned_to: profile!.id, source: 'status_menu' },
+      })
+    }
+
+    if (fromStatus !== newStatus) {
+      await logLeadEvent({
+        leadId,
+        orgId: profile?.org_id ?? null,
+        eventType: resolveStatusEventType(newStatus),
+        note: `Status changed from ${fromStatus} to ${newStatus} via menu`,
+        actorId: profile?.id ?? null,
+        payload: { from_status: fromStatus, to_status: newStatus, source: 'status_menu' },
+      })
+    }
+
+    const notifyAssignee =
+      (updatePayload.assigned_to as string | undefined) ?? assignedTo
+
+    if ((newStatus === 'completed' || newStatus === 'lost') && notifyAssignee) {
       const statusLabel = newStatus === 'completed' ? 'Completed' : 'Lost'
       await sendPushNotification(
-        assignedTo,
+        notifyAssignee,
         `Job ${statusLabel}`,
         `${leadName} — ${serviceType}`,
         `/leads?leadId=${leadId}`
@@ -122,14 +172,14 @@ export default function LeadStatusMenu({
     }
 
     setSaving(true)
-    await applyStatusUpdate(newStatus)
+    await applyStatusUpdate(currentStatus, newStatus)
     setSaving(false)
     onUpdated()
   }
 
   async function finalizeCompleted(sendReview: boolean) {
     setSaving(true)
-    await applyStatusUpdate('completed')
+    await applyStatusUpdate(currentStatus, 'completed')
     if (sendReview) {
       setReviewSending(true)
       setReviewError(null)

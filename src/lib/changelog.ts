@@ -81,11 +81,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Team meetings no longer auto-create leads from the appointment title alone',
     'All-employees calendar view shows one block per team meeting instead of duplicates',
     'Managers choose Booking or Team meeting when creating calendar events',
+    'Pool leads auto-assign to you when you call, SMS, drag, or change status (pill menu) — technicians always see their picked-up leads',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.25'
+export const APP_VERSION = '1.1.26'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

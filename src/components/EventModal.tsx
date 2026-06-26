@@ -525,6 +525,35 @@ export default function EventModal({
           assigned_to: bookingAssigneeId,
         },
       })
+
+      if (bookingAssigneeId) {
+        await logLeadEvent({
+          leadId: newLead.id,
+          orgId: profile?.org_id ?? null,
+          eventType: 'assigned',
+          note: `Assigned from calendar booking: "${title}"`,
+          actorId: profile?.id ?? null,
+          payload: {
+            assigned_to: bookingAssigneeId,
+            source: 'calendar_booking',
+          },
+        })
+      }
+
+      await logLeadEvent({
+        leadId: newLead.id,
+        orgId: profile?.org_id ?? null,
+        eventType: 'booked',
+        note: `Booking scheduled: "${title}"`,
+        actorId: profile?.id ?? null,
+        payload: {
+          start_time: startISO,
+          end_time: endISO,
+          booked_by: profile?.id ?? null,
+          assigned_to: bookingAssigneeId,
+          job_quote: jobQuote.trim() === '' ? null : Number(jobQuote),
+        },
+      })
     } else if (leadIdToUse) {
       const { data: currentLead } = await supabase
         .from('leads')

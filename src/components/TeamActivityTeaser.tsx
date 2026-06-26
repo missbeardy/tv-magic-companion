@@ -51,12 +51,19 @@ export default function TeamActivityTeaser() {
               actorName: event.actorName,
               leadName: event.leadName,
             })
+            const Icon = formatted.icon
+
             return (
               <Link
                 key={event.id}
                 to="/activity"
-                className="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 transition"
+                className="px-5 py-3 flex items-start gap-3 hover:bg-gray-50 transition"
               >
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${formatted.iconColour}`}
+                >
+                  <Icon size={14} className="text-white" />
+                </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-gray-800 truncate">{formatted.text}</p>
                   <p className="text-xs text-gray-400">{timeAgo(event.created_at)}</p>

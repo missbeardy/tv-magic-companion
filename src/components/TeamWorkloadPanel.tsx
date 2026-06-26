@@ -31,33 +31,31 @@ export default function TeamWorkloadPanel({ techs, loading }: Props) {
         <h2 className="font-display font-semibold text-gray-800 text-base">Team Workload</h2>
       </div>
       <div className="divide-y divide-gray-50">
-        {techs.map((tech) => (
-          <div
-            key={tech.id}
-            onClick={() => navigate(`/calendar?employee=${tech.id}`)}
-            className="px-5 py-3.5 flex items-center gap-3 cursor-pointer hover:bg-gray-50 transition"
-          >
-            <div className="w-8 h-8 rounded-full bg-[#004B93] flex items-center justify-center shrink-0 overflow-hidden">
-              {tech.avatar_url ? (
-                <img src={tech.avatar_url} className="w-full h-full object-cover" alt={tech.full_name} />
-              ) : (
-                <span className="text-white font-bold text-xs">{tech.full_name.charAt(0)}</span>
-              )}
+        {techs.map((tech) => {
+          const pipelineTotal = tech.assignedCount + tech.contactCount + tech.bookedCount
+          return (
+            <div
+              key={tech.id}
+              onClick={() => navigate(`/calendar?employee=${tech.id}`)}
+              className="px-5 py-3.5 flex items-center gap-3 cursor-pointer hover:bg-gray-50 transition"
+            >
+              <div className="w-8 h-8 rounded-full bg-[#004B93] flex items-center justify-center shrink-0 overflow-hidden">
+                {tech.avatar_url ? (
+                  <img src={tech.avatar_url} className="w-full h-full object-cover" alt={tech.full_name} />
+                ) : (
+                  <span className="text-white font-bold text-xs">{tech.full_name.charAt(0)}</span>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-800 truncate">{tech.full_name}</p>
+                <p className="text-xs text-gray-400">
+                  {tech.assignedCount} Assigned · {tech.contactCount} Contact · {tech.bookedCount} Booked
+                </p>
+              </div>
+              {pipelineTotal === 0 && <span className="badge badge-green">Free</span>}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-800 truncate">{tech.full_name}</p>
-              <p className="text-xs text-gray-400">
-                {tech.activeCount} active job{tech.activeCount !== 1 ? 's' : ''}
-              </p>
-            </div>
-            <div className="flex items-center gap-1">
-              {Array.from({ length: Math.min(tech.activeCount, 5) }).map((_, i) => (
-                <div key={i} className="w-2 h-2 rounded-full bg-[#004B93]" />
-              ))}
-              {tech.activeCount === 0 && <span className="badge badge-green">Free</span>}
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

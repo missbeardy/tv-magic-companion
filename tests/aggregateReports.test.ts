@@ -153,14 +153,108 @@ describe('aggregateReportingData', () => {
       contactAttempts: 2,
       bookings: 1,
       completed: 1,
+      lost: 1,
       reviewRequests: 1,
     })
     expect(alice).toMatchObject({
       assignments: 1,
       contactAttempts: 1,
       bookings: 1,
-      lost: 1,
+      lost: 0,
       bookingCancelled: 1,
+    })
+  })
+
+  it('keeps cumulative contact and booking totals when a lead progresses', () => {
+    const profiles: AgentProfileRow[] = [
+      { id: 'employee-1', full_name: 'Bob Tech', role: 'employee' },
+    ]
+
+    const leads: LeadRow[] = [
+      { id: 'lead-1', source: 'manual', lead_source: 'Manual Entry', status: 'booked', created_at: '2026-06-01T00:00:00.000Z', assigned_to: 'employee-1' },
+    ]
+
+    const events: LeadEventRow[] = [
+      {
+        lead_id: 'lead-1',
+        event_type: 'assigned',
+        created_at: '2026-06-02T00:00:00.000Z',
+        created_by: 'employee-1',
+        actor_id: 'employee-1',
+        payload: { assigned_to: 'employee-1' },
+      },
+      {
+        lead_id: 'lead-1',
+        event_type: 'contact_attempted',
+        created_at: '2026-06-02T02:00:00.000Z',
+        created_by: 'employee-1',
+        actor_id: 'employee-1',
+        payload: null,
+      },
+      {
+        lead_id: 'lead-1',
+        event_type: 'booked',
+        created_at: '2026-06-02T05:00:00.000Z',
+        created_by: 'employee-1',
+        actor_id: 'employee-1',
+        payload: null,
+      },
+    ]
+
+    const result = aggregateReportingData(events, leads, profiles)
+
+    expect(result.summary).toMatchObject({
+      assignments: 1,
+      contactAttempts: 1,
+      bookings: 1,
+    })
+
+    const bob = result.agentRows.find((row) => row.agentId === 'employee-1')
+    expect(bob).toMatchObject({
+      assignments: 1,
+      contactAttempts: 1,
+      bookings: 1,
+    })
+  })
+
+  it('counts status_change transitions to contact and booked', () => {
+    const profiles: AgentProfileRow[] = [
+      { id: 'employee-1', full_name: 'Bob Tech', role: 'employee' },
+    ]
+
+    const events: LeadEventRow[] = [
+      {
+        lead_id: 'lead-1',
+        event_type: 'assigned',
+        created_at: '2026-06-02T00:00:00.000Z',
+        created_by: 'employee-1',
+        actor_id: 'employee-1',
+        payload: { assigned_to: 'employee-1' },
+      },
+      {
+        lead_id: 'lead-1',
+        event_type: 'status_change',
+        created_at: '2026-06-02T02:00:00.000Z',
+        created_by: 'employee-1',
+        actor_id: 'employee-1',
+        payload: { from_status: 'assigned', to_status: 'contact_attempted' },
+      },
+      {
+        lead_id: 'lead-1',
+        event_type: 'status_change',
+        created_at: '2026-06-02T05:00:00.000Z',
+        created_by: 'employee-1',
+        actor_id: 'employee-1',
+        payload: { from_status: 'contact_attempted', to_status: 'booked' },
+      },
+    ]
+
+    const result = aggregateReportingData(events, [], profiles)
+
+    expect(result.summary).toMatchObject({
+      assignments: 1,
+      contactAttempts: 1,
+      bookings: 1,
     })
   })
 

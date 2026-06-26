@@ -131,18 +131,13 @@ export default function ReportsPage() {
   )
 
   const funnelStages = useMemo(() => {
-    const received = summary?.leadsReceived ?? 0
-    const contacted = report?.conversions.assignedToContacted.numerator ?? 0
-    const booked = summary?.bookings ?? 0
-    const completed = summary?.completed ?? 0
-
     return [
-      { label: 'Received', count: received },
-      { label: 'Contacted', count: contacted },
-      { label: 'Booked', count: booked },
-      { label: 'Completed', count: completed },
+      { label: 'Assigned', count: summary?.assignments ?? 0 },
+      { label: 'Contacted', count: summary?.contactAttempts ?? 0 },
+      { label: 'Booked', count: summary?.bookings ?? 0 },
+      { label: 'Completed', count: summary?.completed ?? 0 },
     ]
-  }, [report, summary?.bookings, summary?.completed, summary?.leadsReceived])
+  }, [summary?.assignments, summary?.bookings, summary?.completed, summary?.contactAttempts])
 
   const maxFunnelCount = useMemo(
     () => Math.max(...funnelStages.map((stage) => stage.count), 0),

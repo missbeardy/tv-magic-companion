@@ -18,6 +18,7 @@ interface LeadExtractedSummaryProps {
   detailsClamp?: boolean
   showLeadSource?: boolean
   showAddress?: boolean
+  onPhoneClick?: (lead: LeadSummaryFields) => void
 }
 
 function formatRawSms(rawSms: string): string {
@@ -63,6 +64,7 @@ export default function LeadExtractedSummary({
   detailsClamp = false,
   showLeadSource = false,
   showAddress = true,
+  onPhoneClick,
 }: LeadExtractedSummaryProps) {
   const displayDetails = getLeadDisplayDetails(lead)
   const textSize = size === 'md' ? 'text-sm' : 'text-xs'
@@ -77,14 +79,28 @@ export default function LeadExtractedSummary({
       {(lead.phone || lead.email) && (
         <div className={`flex items-center gap-3 flex-wrap ${size === 'md' ? 'mt-1' : ''}`}>
           {lead.phone && (
-            <a
-              href={`tel:${lead.phone}`}
-              onClick={e => e.stopPropagation()}
-              className={`flex items-center gap-1 ${textSize} text-gray-500 hover:text-[#004B93]`}
-            >
-              <Phone size={iconSize} className="shrink-0" />
-              {lead.phone}
-            </a>
+            onPhoneClick ? (
+              <button
+                type="button"
+                onClick={e => {
+                  e.stopPropagation()
+                  onPhoneClick(lead)
+                }}
+                className={`flex items-center gap-1 ${textSize} text-gray-500 hover:text-[#004B93]`}
+              >
+                <Phone size={iconSize} className="shrink-0" />
+                {lead.phone}
+              </button>
+            ) : (
+              <a
+                href={`tel:${lead.phone}`}
+                onClick={e => e.stopPropagation()}
+                className={`flex items-center gap-1 ${textSize} text-gray-500 hover:text-[#004B93]`}
+              >
+                <Phone size={iconSize} className="shrink-0" />
+                {lead.phone}
+              </a>
+            )
           )}
           {lead.email && (
             <a

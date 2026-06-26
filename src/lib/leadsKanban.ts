@@ -20,6 +20,17 @@ export function getColumnsForTab(tab: string): string[] {
   return []
 }
 
+export type MobileLeadsTab = 'unassigned' | 'assigned' | 'contact' | 'closed'
+
+export function mobileTabForStatus(status: string): MobileLeadsTab {
+  if (status === 'unassigned') return 'unassigned'
+  if (status === 'assigned') return 'assigned'
+  if (status === 'contact_attempted' || status === 'booked' || status === BOOKING_CANCELLED_STATUS) {
+    return 'contact'
+  }
+  return 'closed'
+}
+
 export function isLeadVisibleInActiveKanban(status: string, hiddenFromKanbanAt?: string | null): boolean {
   if (!hiddenFromKanbanAt) return true
   return !HIDEABLE_CLOSED_STATUSES.has(status)

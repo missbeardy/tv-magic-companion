@@ -6,8 +6,16 @@ export interface TeamWorkloadRow {
   id: string
   full_name: string
   avatar_url?: string | null
-  activeCount: number
+  assignedCount: number
+  contactCount: number
+  bookedCount: number
 }
+
+const PIPELINE_STATUSES = {
+  assigned: 'assignedCount',
+  contact_attempted: 'contactCount',
+  booked: 'bookedCount',
+} as const
 
 export function useTeamWorkload() {
   const { fetchOrgProfiles, orgId } = useOrgProfiles()
@@ -26,14 +34,18 @@ export function useTeamWorkload() {
       .select('status, assigned_to')
       .eq('org_id', orgId)
 
-    const countMap: Record<string, number> = {}
-    ;(leads ?? [])
-      .filter((l) => l.status === 'assigned')
-      .forEach((l) => {
-        if (l.assigned_to) {
-          countMap[l.assigned_to] = (countMap[l.assigned_to] ?? 0) + 1
-        }
-      })
+    const countMaps: Record<string, Record<'assignedCount' | 'contactCount' | 'bookedCount', number>> = {}
+
+    for (const lead of leads ?? []) {
+      if (!lead.assigned_to) continue
+      const statusKey = PIPELINE_STATUSES[lead.status as keyof typeof PIPELINE_STATUSES]
+      if (!statusKey) continue
+
+      if (!countMaps[lead.assigned_to]) {
+        countMaps[lead.assigned_to] = { assignedCount: 0, contactCount: 0, bookedCount: 0 }
+      }
+      countMaps[lead.assigned_to][statusKey] += 1
+    }
 
     const profiles = await fetchOrgProfiles({ roles: ['employee', 'manager'] })
     const rows = profiles
@@ -41,9 +53,15 @@ export function useTeamWorkload() {
         id: p.id,
         full_name: p.full_name,
         avatar_url: p.avatar_url,
-        activeCount: countMap[p.id] ?? 0,
+        assignedCount: countMaps[p.id]?.assignedCount ?? 0,
+        contactCount: countMaps[p.id]?.contactCount ?? 0,
+        bookedCount: countMaps[p.id]?.bookedCount ?? 0,
       }))
-      .sort((a, b) => b.activeCount - a.activeCount || a.full_name.localeCompare(b.full_name))
+      .sort((a, b) => {
+        const totalA = a.assignedCount + a.contactCount + a.bookedCount
+        const totalB = b.assignedCount + b.contactCount + b.bookedCount
+        return totalB - totalA || a.full_name.localeCompare(b.full_name)
+      })
 
     setTechs(rows)
     setLoading(false)

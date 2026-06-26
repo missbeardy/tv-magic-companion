@@ -1,5 +1,6 @@
 // src/pages/LeadsPage.tsx
 import { useEffect, useState, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   DndContext,
   DragOverlay,
@@ -30,7 +31,8 @@ import { UserPlus, Inbox, ChevronRight, Plus } from 'lucide-react'
 import AddLeadModal from '../components/AddLeadModal'
 import { openNavigation } from '../lib/navigation'
 import { isManagerRole } from '../lib/roles'
-import { getColumnsForTab, isLeadVisibleInActiveKanban } from '../lib/leadsKanban'
+import { getColumnsForTab, isLeadVisibleInActiveKanban, mobileTabForStatus } from '../lib/leadsKanban'
+import { buildPoolPickupUpdate, shouldPoolPickup, type PoolPickupSource } from '../lib/leadPoolPickup'
 import { isReviewRequestEligible, sendReviewRequestSms } from '../lib/reviewRequest'
 import { getOnTheWayBlockReason, buildOnTheWayMessage, openOnTheWaySms } from '../lib/onTheWaySms'
 import { logLeadEvent as recordLeadEvent } from '../lib/leadEvents'
@@ -142,6 +144,7 @@ interface LeadCardProps {
   onComplete: (lead: Lead) => void
   onRefresh: () => void
   onLogEvent: (leadId: string, eventType: LeadEventType, note?: string, payload?: Record<string, unknown>) => Promise<void>
+  onCall: (lead: Lead) => void
 }
 
 function LeadCard({
@@ -157,6 +160,7 @@ function LeadCard({
   onComplete,
   onRefresh,
   onLogEvent,
+  onCall,
 }: LeadCardProps) {
   const isExpanded = expandedLead === lead.id
   const isBookingCancelled = lead.status === 'booking_cancelled'
@@ -180,6 +184,7 @@ function LeadCard({
 
   return (
     <div
+      id={`lead-card-${lead.id}`}
       className={`rounded-lg p-3 border cursor-pointer md:cursor-default ${
         isBookingCancelled
           ? 'bg-red-50 border-red-300 ring-1 ring-red-200'
@@ -212,7 +217,13 @@ function LeadCard({
             {lead.service_type}
           </p>
           <div className="md:hidden mt-1">
-            <LeadExtractedSummary lead={lead} size="sm" detailsClamp showAddress={false} />
+            <LeadExtractedSummary
+              lead={lead}
+              size="sm"
+              detailsClamp
+              showAddress={false}
+              onPhoneClick={onCall}
+            />
           </div>
         </div>
         {/* Mobile tap affordance — hidden on desktop */}
@@ -288,7 +299,7 @@ function LeadCard({
 
       {isExpanded && (
         <div className="hidden md:block mt-2 space-y-2 border-t border-gray-200 pt-2">
-          <LeadExtractedSummary lead={lead} size="sm" />
+          <LeadExtractedSummary lead={lead} size="sm" onPhoneClick={onCall} />
           <LeadRawSource lead={lead} />
 
           <div className="flex flex-wrap gap-1 mt-2">
@@ -360,9 +371,10 @@ interface KanbanColumnProps {
   onComplete: (lead: Lead) => void
   onRefresh: () => void
   onLogEvent: (leadId: string, eventType: LeadEventType, note?: string, payload?: Record<string, unknown>) => Promise<void>
+  onCall: (lead: Lead) => void
 }
 
-function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onCreateQuote, quoteEnabled, onComplete, onRefresh, onLogEvent }: KanbanColumnProps) {
+function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onCreateQuote, quoteEnabled, onComplete, onRefresh, onLogEvent, onCall }: KanbanColumnProps) {
   return (
     <div className={`w-full bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200`}>
       <div className="p-3 border-b border-gray-100 flex items-center justify-between">
@@ -393,6 +405,7 @@ function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand,
             onComplete={onComplete}
             onRefresh={onRefresh}
             onLogEvent={onLogEvent}
+            onCall={onCall}
           />
         ))}
       </div>
@@ -402,7 +415,7 @@ function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand,
 
 // ── KanbanColumn — Desktop (drag wrappers active) ────────────────────────
 
-function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onCreateQuote, quoteEnabled, onComplete, onRefresh, onLogEvent }: KanbanColumnProps) {
+function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onCreateQuote, quoteEnabled, onComplete, onRefresh, onLogEvent, onCall }: KanbanColumnProps) {
   return (
     <DroppableColumn id={col.key}>
       <div className={`flex-shrink-0 w-72 bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200 h-full`}>
@@ -435,6 +448,7 @@ function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand
                 onComplete={onComplete}
                 onRefresh={onRefresh}
                 onLogEvent={onLogEvent}
+                onCall={onCall}
               />
             </DraggableCard>
           ))}
@@ -448,10 +462,12 @@ function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand
 
 export default function LeadsPage() {
   const { profile } = useAuth()
+  const [searchParams] = useSearchParams()
   const { fetchOrgProfiles } = useOrgProfiles()
   const { org, brand, isFeatureEnabled, featureSwitchesLoading } = useOrg()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [showAddLead, setShowAddLead] = useState(false)
   const [assigningLead, setAssigningLead] = useState<Lead | null>(null)
   const [bookingLead, setBookingLead] = useState<Lead | null>(null)
@@ -484,7 +500,14 @@ export default function LeadsPage() {
       query = query.or(`status.eq.unassigned,assigned_to.eq.${profile.id}`)
     }
 
-    const { data } = await query
+    const { data, error } = await query
+    if (error) {
+      console.error('fetchLeads failed:', error.message)
+      setFetchError('Could not load leads. Please refresh the page.')
+      setLoading(false)
+      return
+    }
+    setFetchError(null)
     if (data) {
       const baseLeads = data as Lead[]
       if (baseLeads.length === 0) {
@@ -552,6 +575,18 @@ export default function LeadsPage() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   )
 
+  const logPoolPickup = useCallback(async (leadId: string, source: PoolPickupSource) => {
+    if (!profile?.org_id || !profile?.id) return
+    await logLeadEvent(leadId, 'assigned', 'Lead picked up from pool', {
+      assigned_to: profile.id,
+      source,
+    })
+  }, [logLeadEvent, profile?.id, profile?.org_id])
+
+  const focusMobileTabForStatus = useCallback((status: string) => {
+    setActiveTab(mobileTabForStatus(status))
+  }, [])
+
   function handleDragStart(event: DragStartEvent) {
     setActiveDragId(event.active.id as string)
   }
@@ -573,14 +608,20 @@ export default function LeadsPage() {
       updatePayload.assigned_to = null
       updatePayload.assigned_at = null
       updatePayload.timer_expires_at = null
-    } else if (newStatus === 'assigned' && !lead.assigned_at) {
-      updatePayload.assigned_at = new Date().toISOString()
     }
+
+    Object.assign(
+      updatePayload,
+      buildPoolPickupUpdate(lead.status, newStatus, profile?.id)
+    )
 
     const { error } = await supabase.from('leads').update(updatePayload).eq('id', leadId)
     if (error) {
       fetchLeads()
     } else {
+      if (shouldPoolPickup(lead.status, newStatus, profile?.id)) {
+        await logPoolPickup(leadId, 'drag')
+      }
       await logLeadEvent(
         leadId,
         newStatus === 'contact_attempted' ||
@@ -598,6 +639,9 @@ export default function LeadsPage() {
         if (eligible) {
           setReviewModalLead(lead)
         }
+      }
+      if (shouldPoolPickup(lead.status, newStatus, profile?.id)) {
+        focusMobileTabForStatus(newStatus)
       }
     }
   }
@@ -661,21 +705,35 @@ export default function LeadsPage() {
   }, [checklistLead, logLeadEvent, fetchLeads])
 
   const handleCall = useCallback(async (lead: Lead) => {
+    const toStatus = 'contact_attempted'
+    const poolPickup = shouldPoolPickup(lead.status, toStatus, profile?.id)
     const confirmed = window.confirm(
-      `Call ${lead.name}?\n\nThis will update the lead status to "Contact Attempted".`
+      poolPickup
+        ? `Call ${lead.name}?\n\nThis will assign the lead to you and mark it Contact Attempted.`
+        : `Call ${lead.name}?\n\nThis will update the lead status to "Contact Attempted".`
     )
     if (!confirmed) return
-    await supabase.from('leads').update({ status: 'contact_attempted' }).eq('id', lead.id)
+
+    const updatePayload = {
+      status: toStatus,
+      ...buildPoolPickupUpdate(lead.status, toStatus, profile?.id),
+    }
+    await supabase.from('leads').update(updatePayload).eq('id', lead.id)
+
+    if (poolPickup) {
+      await logPoolPickup(lead.id, 'call_auto_assign')
+    }
     await logLeadEvent(
       lead.id,
       'call_attempted',
       `Called ${lead.phone}`,
-      { from_status: lead.status, to_status: 'contact_attempted', channel: 'phone' }
+      { from_status: lead.status, to_status: toStatus, channel: 'phone' }
     )
     window.location.href = `tel:${lead.phone}`
     closeSheet()
+    focusMobileTabForStatus(toStatus)
     fetchLeads()
-  }, [logLeadEvent, closeSheet, fetchLeads])
+  }, [logLeadEvent, logPoolPickup, closeSheet, fetchLeads, focusMobileTabForStatus, profile?.id])
 
   const handleSMS = useCallback(async (lead: Lead) => {
     if (!lead.phone?.trim()) {
@@ -689,6 +747,18 @@ export default function LeadsPage() {
       return
     }
 
+    const toStatus = 'contact_attempted'
+    const poolPickup = shouldPoolPickup(lead.status, toStatus, profile?.id)
+
+    if (poolPickup) {
+      const updatePayload = {
+        status: toStatus,
+        ...buildPoolPickupUpdate(lead.status, toStatus, profile?.id),
+      }
+      await supabase.from('leads').update(updatePayload).eq('id', lead.id)
+      await logPoolPickup(lead.id, 'sms_auto_assign')
+    }
+
     const techName = profile?.full_name ?? 'Your technician'
     const message = buildOnTheWayMessage(lead, techName, org, brand)
     const to = formatAuPhoneForSms(lead.phone.trim())
@@ -697,12 +767,23 @@ export default function LeadsPage() {
       lead.id,
       'sms_attempted',
       `Opened SMS to ${to}`,
-      { channel: 'sms', phone: to, template: 'customer_ontheway', from_device: true }
+      {
+        channel: 'sms',
+        phone: to,
+        template: 'customer_ontheway',
+        from_device: true,
+        from_status: lead.status,
+        to_status: poolPickup ? toStatus : lead.status,
+      }
     )
 
     openOnTheWaySms(lead.phone, message)
     closeSheet()
-  }, [brand, closeSheet, logLeadEvent, onTheWayFeatureEnabled, org, profile?.full_name])
+    if (poolPickup) {
+      focusMobileTabForStatus(toStatus)
+      fetchLeads()
+    }
+  }, [brand, closeSheet, fetchLeads, focusMobileTabForStatus, logLeadEvent, logPoolPickup, onTheWayFeatureEnabled, org, profile?.full_name, profile?.id])
 
   const handleSharePhoto = useCallback(async (lead: Lead) => {
     if (navigator.share) {
@@ -719,16 +800,27 @@ export default function LeadsPage() {
   }, [])
 
   const handleMarkContactAttempted = useCallback(async (lead: Lead) => {
-    await supabase.from('leads').update({ status: 'contact_attempted' }).eq('id', lead.id)
+    const toStatus = 'contact_attempted'
+    const poolPickup = shouldPoolPickup(lead.status, toStatus, profile?.id)
+    const updatePayload = {
+      status: toStatus,
+      ...buildPoolPickupUpdate(lead.status, toStatus, profile?.id),
+    }
+    await supabase.from('leads').update(updatePayload).eq('id', lead.id)
+
+    if (poolPickup) {
+      await logPoolPickup(lead.id, 'manual_contact')
+    }
     await logLeadEvent(
       lead.id,
       'contact_attempted',
       'Status updated to Contact Attempted',
-      { from_status: lead.status, to_status: 'contact_attempted', source: 'manual_action' }
+      { from_status: lead.status, to_status: toStatus, source: 'manual_action' }
     )
+    focusMobileTabForStatus(toStatus)
     fetchLeads()
     closeSheet()
-  }, [logLeadEvent, fetchLeads, closeSheet])
+  }, [logLeadEvent, logPoolPickup, fetchLeads, closeSheet, focusMobileTabForStatus, profile?.id])
 
   const handleUnassign = useCallback(async (lead: Lead) => {
     const confirmed = window.confirm(
@@ -765,6 +857,39 @@ export default function LeadsPage() {
   }, [profile, fetchLeads])
 
   useEffect(() => {
+    if (loading) return
+
+    const statusParam = searchParams.get('status')
+    const highlightId = searchParams.get('highlight')
+
+    if (statusParam) {
+      if (
+        statusParam === 'unassigned' ||
+        statusParam === 'assigned' ||
+        statusParam === 'contact' ||
+        statusParam === 'closed'
+      ) {
+        setActiveTab(statusParam)
+      } else {
+        setActiveTab(mobileTabForStatus(statusParam))
+      }
+    }
+
+    if (highlightId) {
+      const highlighted = leads.find((l) => l.id === highlightId)
+      if (highlighted) {
+        setActiveTab(mobileTabForStatus(highlighted.status))
+        requestAnimationFrame(() => {
+          document.getElementById(`lead-card-${highlightId}`)?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+          })
+        })
+      }
+    }
+  }, [searchParams, leads, loading])
+
+  useEffect(() => {
     if (!profile?.org_id || !isManagerRole(profile.role)) return
     fetchOrgProfiles({ roles: ['employee', 'manager', 'platform_admin'] }).then((data) => {
       setOrgEmployees(data.map((p) => ({ id: p.id, full_name: p.full_name, phone: p.phone })))
@@ -793,6 +918,7 @@ export default function LeadsPage() {
     onComplete: handleMarkComplete,
     onRefresh: fetchLeads,
     onLogEvent: logLeadEvent,
+    onCall: handleCall,
   })
 
   return (
@@ -873,6 +999,10 @@ export default function LeadsPage() {
         )}
 
         {loading && <p className="text-gray-400 text-sm">Loading leads...</p>}
+
+        {fetchError && !loading && (
+          <p className="text-red-600 text-sm mb-3">{fetchError}</p>
+        )}
 
         {!loading && (
           <>
