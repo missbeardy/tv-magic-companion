@@ -10,6 +10,7 @@ describe('filterNavLinks', () => {
     const labels = links.map((l) => l.label)
     expect(labels).toContain('Dashboard')
     expect(labels).toContain('Leads')
+    expect(labels).toContain('Team Activity')
     expect(labels).toContain('Profile')
     expect(labels).not.toContain('Reports')
     expect(labels).not.toContain('Franchise Settings')
@@ -32,6 +33,7 @@ describe('filterNavLinks', () => {
     expect(links.map((l) => l.label)).not.toContain('Social')
     expect(links.map((l) => l.label)).not.toContain('Tasks')
     expect(links.map((l) => l.label)).not.toContain('Reports')
+    expect(links.map((l) => l.label)).not.toContain('Team Activity')
   })
 
   it('normalizes role with spaces', () => {
@@ -39,7 +41,7 @@ describe('filterNavLinks', () => {
     expect(links.map((l) => l.label)).toContain('Platform')
   })
 
-  it('marks exactly three primary mobile tabs', () => {
-    expect(NAV_LINKS.filter((l) => l.primaryMobile)).toHaveLength(3)
+  it('marks exactly four primary mobile tabs', () => {
+    expect(NAV_LINKS.filter((l) => l.primaryMobile)).toHaveLength(4)
   })
 })

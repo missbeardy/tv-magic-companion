@@ -4,9 +4,25 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { cancelBooking } from '../lib/cancelBooking'
 import { resolveBookingCustomerName } from '../lib/calendarBooking'
+import {
+  BOOKING_CATEGORY,
+  TEAM_MEETING_CATEGORY,
+  TEAM_MEETING_COLOR,
+  getEmployeeColor,
+} from '../lib/calendarColors'
 import { logLeadEvent } from '../lib/leadEvents'
+import { sendNotification } from '../lib/notify'
+import { getPlatformUrl } from '../lib/env'
+import { getAuthHeaders } from '../lib/apiAuth'
+import { isManagerRole } from '../lib/roles'
 import TimePicker from './TimePicker'
-import { X, CalendarDays, Clock, User, FileText, MapPin, Phone, Briefcase, Link, Search, DollarSign } from 'lucide-react'
+import { X, CalendarDays, Clock, User, FileText, MapPin, Phone, Briefcase, Link, Search, DollarSign, Users } from 'lucide-react'
+
+interface OrgMember {
+  id: string
+  full_name: string
+  phone?: string | null
+}
 
 interface Lead {
   id: string
@@ -16,6 +32,7 @@ interface Lead {
   phone?: string
   email?: string
   details?: string
+  assigned_to?: string
 }
 
 interface LeadSearchResult {
@@ -30,6 +47,8 @@ interface LeadSearchResult {
 
 interface Props {
   prefillLead?: Lead | null
+  employees?: OrgMember[]
+  defaultAssigneeId?: string
   onClose: () => void
   onSaved: () => void
   existingEvent?: {
@@ -40,6 +59,7 @@ interface Props {
     notes?: string
     lead_id?: string
     category?: string
+    booking_group_id?: string | null
     client_name?: string
     client_phone?: string
     client_email?: string
@@ -99,8 +119,17 @@ function sanitizeNumericInput(raw: string): string {
   return stripped.slice(0, firstDot + 1) + stripped.slice(firstDot + 1).replace(/\./g, '')
 }
 
-export default function EventModal({ prefillLead, onClose, onSaved, existingEvent, defaultDate }: Props) {
+export default function EventModal({
+  prefillLead,
+  employees = [],
+  defaultAssigneeId,
+  onClose,
+  onSaved,
+  existingEvent,
+  defaultDate,
+}: Props) {
   const { profile } = useAuth()
+  const isManager = isManagerRole(profile?.role)
 
   // FIX: Use localDateStr/localTimeStr so existing events display in local time,
   // not UTC. Previously used .split('T') which ignored the timezone offset.
@@ -148,7 +177,22 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
   const [cancelReason, setCancelReason] = useState('')
   const [error, setError] = useState('')
 
+  const initialAssigneeId = defaultAssigneeId ?? prefillLead?.assigned_to ?? profile?.id ?? ''
+  const [assigneeId, setAssigneeId] = useState(initialAssigneeId)
+  const [teamMemberIds, setTeamMemberIds] = useState<string[]>(() => {
+    const ids = new Set<string>()
+    if (profile?.id) ids.add(profile.id)
+    if (defaultAssigneeId) ids.add(defaultAssigneeId)
+    return [...ids]
+  })
+
   const isLeaveEvent = existingEvent?.category === 'Leave'
+  const isExistingTeamMeeting = existingEvent?.category === TEAM_MEETING_CATEGORY
+  const customerNameForMode = resolveBookingCustomerName(clientName, title)
+  const isJobBooking = Boolean(linkedLeadId || customerNameForMode.trim())
+  const isTeamMeetingMode = isManager && !isJobBooking && !isExistingTeamMeeting && !existingEvent?.lead_id
+  const memberList = employees.length > 0 ? employees : (profile ? [{ id: profile.id, full_name: profile.full_name ?? 'You' }] : [])
+
   const canCancelBooking = Boolean(existingEvent?.id && !isLeaveEvent)
 
   useEffect(() => {
@@ -165,6 +209,12 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
       setLinkedLeadName(`${prefillLead.name} — ${prefillLead.service_type}`)
     }
   }, [existingEvent?.lead_id, prefillLead])
+
+  useEffect(() => {
+    if (prefillLead?.assigned_to) {
+      setAssigneeId(prefillLead.assigned_to)
+    }
+  }, [prefillLead?.assigned_to])
 
   useEffect(() => {
     if (prefillLead && !existingEvent) {
@@ -217,6 +267,52 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
     setLinkedLeadName('')
   }
 
+  function toggleTeamMember(memberId: string) {
+    setTeamMemberIds((prev) =>
+      prev.includes(memberId) ? prev.filter((id) => id !== memberId) : [...prev, memberId],
+    )
+  }
+
+  function formatBookingDateTime(startISO: string, timeLabel: string): string {
+    const formattedDate = new Date(startISO).toLocaleDateString('en-AU', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    })
+    return `${formattedDate} ${timeLabel}`
+  }
+
+  async function notifyAssignees(assigneeIds: string[], startISO: string) {
+    const dateTime = formatBookingDateTime(startISO, startTime)
+    const managerName = profile?.full_name ?? 'Your manager'
+    const message = `${managerName} scheduled "${title}" on your calendar — ${dateTime}`
+    const url = `${getPlatformUrl()}/calendar`
+
+    for (const id of assigneeIds.filter((uid) => uid !== profile?.id)) {
+      await sendNotification(id, 'New Booking Scheduled', message, url, 'calendar')
+
+      const emp = employees.find((e) => e.id === id)
+      if (!emp?.phone) continue
+      try {
+        const headers = await getAuthHeaders()
+        await fetch('/api/send-sms', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            mode: 'booking_scheduled',
+            to: emp.phone,
+            leadName: title,
+            serviceType: clientJob.trim() || title,
+            dateTime,
+            managerName,
+          }),
+        })
+      } catch (smsErr) {
+        console.error('Booking SMS failed:', smsErr)
+      }
+    }
+  }
+
   // Notify the manager when an employee creates or updates a calendar event.
   // Runs in its own try/catch so a notification failure never blocks the save.
   async function notifyManager(action: 'scheduled' | 'updated') {
@@ -252,17 +348,82 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
     setSaving(true)
     setError('')
 
-    // FIX: Use toLocalISO() so the saved timestamp includes the local timezone
-    // offset. Previously saved as bare "2026-06-18T13:00:00" which Supabase
-    // treated as UTC, showing the time 10 hours wrong in Brisbane (UTC+10).
     const startISO = toLocalISO(date, startTime)
-    const endISO   = toLocalISO(date, endTime)
+    const endISO = toLocalISO(date, endTime)
     const customerName = resolveBookingCustomerName(clientName, title)
     const nowIso = new Date().toISOString()
+    const jobBooking = Boolean(linkedLeadId || customerName.trim())
+    const teamMeeting = isManager && !jobBooking && !isExistingTeamMeeting
 
+    if (teamMeeting && teamMemberIds.length === 0) {
+      setError('Select at least one team member for the meeting.')
+      setSaving(false)
+      return
+    }
+
+    const bookingAssigneeId = isManager ? assigneeId : (profile?.id ?? '')
+    if (!bookingAssigneeId && jobBooking) {
+      setError('Please select who this booking is for.')
+      setSaving(false)
+      return
+    }
+
+    // ── Team meeting (manager only, no lead) ──────────────────────────────
+    if (teamMeeting) {
+      const baseEvent = {
+        title,
+        start_time: startISO,
+        end_time: endISO,
+        notes,
+        lead_id: null,
+        client_name: null,
+        client_phone: null,
+        client_email: null,
+        client_address: null,
+        client_job: null,
+        job_quote: null,
+        org_id: profile?.org_id,
+        category: TEAM_MEETING_CATEGORY,
+        color: TEAM_MEETING_COLOR,
+      }
+
+      if (existingEvent?.booking_group_id) {
+        const { error: e } = await supabase
+          .from('events')
+          .update({
+            title: baseEvent.title,
+            start_time: baseEvent.start_time,
+            end_time: baseEvent.end_time,
+            notes: baseEvent.notes,
+          })
+          .eq('booking_group_id', existingEvent.booking_group_id)
+        if (e) { setError(e.message); setSaving(false); return }
+      } else if (existingEvent) {
+        const { error: e } = await supabase
+          .from('events')
+          .update(baseEvent)
+          .eq('id', existingEvent.id)
+        if (e) { setError(e.message); setSaving(false); return }
+      } else {
+        const bookingGroupId = crypto.randomUUID()
+        const rows = teamMemberIds.map((userId) => ({
+          ...baseEvent,
+          user_id: userId,
+          booking_group_id: bookingGroupId,
+        }))
+        const { error: e } = await supabase.from('events').insert(rows)
+        if (e) { setError(e.message); setSaving(false); return }
+        await notifyAssignees(teamMemberIds, startISO)
+      }
+
+      onSaved()
+      onClose()
+      return
+    }
+
+    // ── Job booking (lead linked or customer creates lead) ─────────────────
     let leadIdToUse = linkedLeadId
 
-    // Create a lead when booking from calendar without a linked lead.
     if (!leadIdToUse && customerName) {
       const { data: newLead, error: leadError } = await supabase
         .from('leads')
@@ -275,8 +436,8 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
           service_type: clientJob.trim() || title.trim() || 'General Enquiry',
           details: clientJob || null,
           status: 'booked',
-          assigned_to: profile?.id ?? null,
-          assigned_at: profile?.id ? nowIso : null,
+          assigned_to: bookingAssigneeId || null,
+          assigned_at: bookingAssigneeId ? nowIso : null,
           source: 'manual',
           lead_source: 'Calendar Booking',
         })
@@ -300,7 +461,7 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
         payload: {
           source: 'manual',
           lead_source: 'Calendar Booking',
-          assigned_to: profile?.id ?? null,
+          assigned_to: bookingAssigneeId,
         },
       })
     } else if (leadIdToUse) {
@@ -321,9 +482,8 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
       if (!currentLead?.status || !terminalStatuses.includes(currentLead.status)) {
         leadUpdate.status = 'booked'
       }
-      // New calendar booking assigns the linked lead to whoever is booking it.
-      if (!existingEvent && profile?.id) {
-        leadUpdate.assigned_to = profile.id
+      if (!existingEvent && bookingAssigneeId) {
+        leadUpdate.assigned_to = bookingAssigneeId
         leadUpdate.assigned_at = nowIso
       }
 
@@ -339,20 +499,23 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
       }
     }
 
+    const eventColor = getEmployeeColor(bookingAssigneeId, memberList)
     const eventData = {
       title,
       start_time: startISO,
       end_time: endISO,
       notes,
-      client_name: customerName,
-      client_phone: clientPhone,
-      client_email: clientEmail,
-      client_address: clientAddress,
-      client_job: clientJob,
+      client_name: customerName || null,
+      client_phone: clientPhone || null,
+      client_email: clientEmail || null,
+      client_address: clientAddress || null,
+      client_job: clientJob || null,
       job_quote: jobQuote.trim() === '' ? null : Number(jobQuote),
       lead_id: leadIdToUse ?? null,
-      user_id: profile?.id,
+      user_id: bookingAssigneeId,
       org_id: profile?.org_id,
+      category: leadIdToUse || customerName ? BOOKING_CATEGORY : null,
+      color: eventColor,
     }
 
     if (existingEvent) {
@@ -378,11 +541,15 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
             start_time: startISO,
             end_time: endISO,
             booked_by: profile?.id ?? null,
+            assigned_to: bookingAssigneeId,
             job_quote: jobQuote.trim() === '' ? null : Number(jobQuote),
           },
         })
       }
       await notifyManager('scheduled')
+      if (isManager && bookingAssigneeId !== profile?.id) {
+        await notifyAssignees([bookingAssigneeId], startISO)
+      }
     }
 
     onSaved()
@@ -402,6 +569,7 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
     const result = await cancelBooking({
       eventId: existingEvent.id,
       leadId: linkedLeadId ?? existingEvent.lead_id ?? null,
+      bookingGroupId: existingEvent.booking_group_id ?? null,
       orgId: profile.org_id,
       actorId: profile.id,
       actorRole: profile.role,
@@ -430,7 +598,9 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
               <CalendarDays size={15} className="text-[#004B93]" />
             </div>
             <h3 className="font-display font-semibold text-gray-900 text-base">
-              {existingEvent ? 'Edit Appointment' : 'Book Appointment'}
+              {existingEvent
+                ? (isExistingTeamMeeting ? 'Edit Team Meeting' : 'Edit Appointment')
+                : (isTeamMeetingMode ? 'Schedule Team Meeting' : 'Book Appointment')}
             </h3>
           </div>
           <button
@@ -446,6 +616,58 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-xl text-sm">
               {error}
+            </div>
+          )}
+
+          {/* Assignee / team participants (managers) */}
+          {isManager && memberList.length > 0 && !existingEvent && (
+            <div className="bg-violet-50/50 rounded-xl p-3 border border-violet-100">
+              {isTeamMeetingMode ? (
+                <>
+                  <p className="text-xs font-semibold text-violet-800 flex items-center gap-1 mb-2">
+                    <Users size={11} />
+                    Team meeting — who is attending?
+                  </p>
+                  <p className="text-xs text-violet-600/80 mb-2">
+                    Leave customer fields empty to schedule a planning session. Only managers can create team meetings.
+                  </p>
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                    {memberList.map((emp) => (
+                      <label
+                        key={emp.id}
+                        className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer rounded-lg px-2 py-1.5 hover:bg-violet-100/50"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={teamMemberIds.includes(emp.id)}
+                          onChange={() => toggleTeamMember(emp.id)}
+                          className="rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                        />
+                        <span className="truncate">{emp.full_name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Assign to</label>
+                  <select
+                    value={assigneeId}
+                    onChange={(e) => setAssigneeId(e.target.value)}
+                    className="w-full text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#004B93] bg-white"
+                  >
+                    {memberList.map((emp) => (
+                      <option key={emp.id} value={emp.id}>{emp.full_name}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+            </div>
+          )}
+
+          {isExistingTeamMeeting && (
+            <div className="bg-violet-50 border border-violet-200 rounded-xl px-3 py-2 text-xs text-violet-800">
+              Team meeting — changes apply to all participants&apos; calendars.
             </div>
           )}
 
@@ -510,7 +732,8 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
             )}
           </div>
 
-          {/* Customer Info */}
+          {/* Customer Info — hidden for new team meetings */}
+          {!isTeamMeetingMode && (
           <div className="bg-[#004B93]/5 rounded-xl p-3 space-y-3">
             <p className="text-xs font-semibold text-[#004B93] uppercase tracking-wide">Customer Information</p>
             <div>
@@ -587,6 +810,7 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
               />
             </div>
           </div>
+          )}
 
           {/* Appointment Details */}
           <div className="border-t border-gray-100 pt-3">
@@ -689,7 +913,7 @@ export default function EventModal({ prefillLead, onClose, onSaved, existingEven
               disabled={saving || cancelling}
               className="flex-1 py-2.5 rounded-xl bg-[#004B93] text-white text-sm font-semibold hover:bg-[#003d7a] transition-colors disabled:opacity-60"
             >
-              {saving ? 'Saving…' : existingEvent ? 'Save Changes' : 'Book Appointment'}
+              {saving ? 'Saving…' : existingEvent ? 'Save Changes' : (isTeamMeetingMode ? 'Schedule Meeting' : 'Book Appointment')}
             </button>
           </div>
 

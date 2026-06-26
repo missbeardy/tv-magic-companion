@@ -7,6 +7,9 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import NavBar from '../components/NavBar'
 import AssignedLeads from '../components/AssignedLeads'
+import TeamWorkloadPanel from '../components/TeamWorkloadPanel'
+import TeamActivityTeaser from '../components/TeamActivityTeaser'
+import { useTeamWorkload } from '../hooks/useTeamWorkload'
 import { useTechLocation } from '../hooks/useTechLocation'
 import { Inbox, CalendarDays, Zap } from 'lucide-react'
 
@@ -41,6 +44,7 @@ function StatCard({ label, value, icon: Icon, colour, onClick }: {
 export default function EmployeeDashboard() {
   const { profile } = useAuth()
   const navigate = useNavigate()
+  const { techs, loading: workloadLoading } = useTeamWorkload()
   const [stats, setStats] = useState<Stats>({ booked: 0, unassigned: 0 })
   useTechLocation(profile?.id ?? null)
 
@@ -112,6 +116,9 @@ export default function EmployeeDashboard() {
             </p>
           </div>
         )}
+
+        <TeamActivityTeaser />
+        <TeamWorkloadPanel techs={techs} loading={workloadLoading} />
 
         <AssignedLeads />
       </main>

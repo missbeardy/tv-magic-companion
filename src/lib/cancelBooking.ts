@@ -4,6 +4,7 @@ import { logLeadEvent } from './leadEvents'
 export interface CancelBookingParams {
   eventId: string
   leadId?: string | null
+  bookingGroupId?: string | null
   orgId: string
   actorId: string
   actorRole?: string | null
@@ -45,6 +46,7 @@ export async function cancelBooking(params: CancelBookingParams): Promise<{ erro
   const {
     eventId,
     leadId,
+    bookingGroupId,
     orgId,
     actorId,
     actorRole,
@@ -53,7 +55,11 @@ export async function cancelBooking(params: CancelBookingParams): Promise<{ erro
     appointmentDate,
   } = params
 
-  const { error: deleteError } = await supabase.from('events').delete().eq('id', eventId)
+  const deleteQuery = bookingGroupId
+    ? supabase.from('events').delete().eq('booking_group_id', bookingGroupId)
+    : supabase.from('events').delete().eq('id', eventId)
+
+  const { error: deleteError } = await deleteQuery
   if (deleteError) return { error: deleteError.message }
 
   if (leadId) {

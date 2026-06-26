@@ -1,10 +1,16 @@
 // src/components/Calendar.tsx
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useOrgProfiles } from '../hooks/useOrgProfiles'
 import { isManagerRole } from '../lib/roles'
+import {
+  buildEmployeeColorMap,
+  getEventDisplayColor,
+  TEAM_MEETING_COLOR,
+} from '../lib/calendarColors'
 import EventModal from './EventModal'
 import BlackoutModal from './BlackoutModal'
 import { MobileResourceView } from './MobileResourceView'
@@ -34,12 +40,14 @@ interface Event {
   client_job?: string
   job_quote?: string | number | null
   lead_id?: string
+  booking_group_id?: string | null
   profiles?: { full_name: string }
 }
 
 interface Profile {
   id: string
   full_name: string
+  phone?: string | null
 }
 
 type ViewMode = 'day' | 'week' | 'month'
@@ -167,6 +175,7 @@ function isLeaveEvent(e: Event): boolean {
 export default function Calendar() {
   const { profile } = useAuth()
   const { fetchOrgProfiles } = useOrgProfiles()
+  const [searchParams] = useSearchParams()
   const [events, setEvents] = useState<Event[]>([])
   const [view, setView] = useState<ViewMode>('week')
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -183,6 +192,19 @@ export default function Calendar() {
   const [availabilityEmployee, setAvailabilityEmployee] = useState<string>('all')
 
   const showResourceView = isMobile && isManagerRole(profile?.role) && filterEmployee === 'all' && view !== 'month'
+
+  const employeeColorMap = useMemo(() => buildEmployeeColorMap(employees), [employees])
+
+  function eventColor(event: Event): string {
+    return getEventDisplayColor(event, employeeColorMap)
+  }
+
+  useEffect(() => {
+    const employeeParam = searchParams.get('employee')
+    if (employeeParam && isManagerRole(profile?.role)) {
+      setFilterEmployee(employeeParam)
+    }
+  }, [searchParams, profile?.role])
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -264,7 +286,7 @@ export default function Calendar() {
     fetchEvents()
     if (isManagerRole(profile.role)) {
       fetchOrgProfiles({ roles: ['employee', 'manager', 'platform_admin'] }).then((data) => {
-        setEmployees(data.map((p) => ({ id: p.id, full_name: p.full_name })))
+        setEmployees(data.map((p) => ({ id: p.id, full_name: p.full_name, phone: p.phone })))
       })
     }
   }, [profile, filterEmployee, currentDate, view, fetchOrgProfiles])
@@ -414,7 +436,7 @@ export default function Calendar() {
                       key={event.id}
                       onClick={e => { e.stopPropagation(); openEditEvent(event) }}
                       className="text-[10px] sm:text-xs p-1 sm:p-1.5 rounded cursor-pointer text-white hover:opacity-90 transition shadow-sm"
-                      style={{ backgroundColor: event.color }}
+                      style={{ backgroundColor: eventColor(event) }}
                       title={`${event.title}\n${formatDuration(event.start_time, event.end_time)}`}
                     >
                       <p className="font-medium truncate">{event.title}</p>
@@ -466,6 +488,8 @@ export default function Calendar() {
         <EventModal
           existingEvent={selectedEvent ?? undefined}
           defaultDate={defaultDate}
+          employees={employees}
+          defaultAssigneeId={filterEmployee !== 'all' ? filterEmployee : profile?.id}
           onClose={() => setShowModal(false)}
           onSaved={fetchEvents}
         />
@@ -525,6 +549,24 @@ export default function Calendar() {
                 <option key={emp.id} value={emp.id}>{emp.full_name}</option>
               ))}
             </select>
+          )}
+
+          {isManagerRole(profile?.role) && employees.length > 0 && filterEmployee === 'all' && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 w-full sm:w-auto">
+              {employees.map((emp) => (
+                <span key={emp.id} className="inline-flex items-center gap-1 text-[10px] sm:text-xs text-gray-600">
+                  <span
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: employeeColorMap.get(emp.id) }}
+                  />
+                  {emp.full_name.split(' ')[0]}
+                </span>
+              ))}
+              <span className="inline-flex items-center gap-1 text-[10px] sm:text-xs text-gray-600">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: TEAM_MEETING_COLOR }} />
+                Team meeting
+              </span>
+            </div>
           )}
 
           <div className="flex items-center gap-2 sm:ml-auto">
@@ -749,6 +791,7 @@ export default function Calendar() {
         <MobileResourceView
           events={events}
           employees={employees}
+          employeeColorMap={employeeColorMap}
           selectedDate={currentDate}
           onEventClick={openEditEvent}
           onAddEvent={openNewEvent}
@@ -838,7 +881,7 @@ export default function Calendar() {
                         <div
                           key={event.id}
                           className="absolute left-1 right-1 rounded-lg cursor-pointer hover:brightness-95 transition overflow-hidden shadow-sm"
-                          style={{ top, height, backgroundColor: event.color, minHeight: 28 }}
+                          style={{ top, height, backgroundColor: eventColor(event), minHeight: 28 }}
                           onClick={e => { e.stopPropagation(); openEditEvent(event) }}
                         >
                           <div className="p-1 sm:p-1.5 text-white h-full flex flex-col">
@@ -921,7 +964,7 @@ export default function Calendar() {
                               isLeaveEvent(event) ? handleDeleteLeave(event) : openEditEvent(event)
                             }}
                             className="text-[9px] sm:text-xs p-0.5 px-1 rounded cursor-pointer text-white truncate hover:opacity-80 transition shadow-sm"
-                            style={{ backgroundColor: event.color }}
+                            style={{ backgroundColor: eventColor(event) }}
                             title={`${event.title}\n${formatDuration(event.start_time, event.end_time)}`}
                           >
                             {isLeaveEvent(event) ? (

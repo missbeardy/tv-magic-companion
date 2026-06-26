@@ -22,6 +22,7 @@ import ReportsPage from './pages/ReportsPage'
 import OrgSettingsPage from './pages/OrgSettingsPage'
 import PlatformAdminPage from './pages/PlatformAdminPage'
 import QuoteAcceptPage from './pages/QuoteAcceptPage'
+import TeamActivityPage from './pages/TeamActivityPage'
 import { useEffect } from 'react'
 import { useTechLocation } from './hooks/useTechLocation'
 import { initOneSignal, setOneSignalUser, clearOneSignalUser } from './lib/oneSignal'
@@ -105,6 +106,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <LeadsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/activity"
+                element={
+                  <ProtectedRoute>
+                    <TeamActivityPage />
                   </ProtectedRoute>
                 }
               />

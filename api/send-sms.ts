@@ -422,7 +422,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return handleQuoteCreate(req, res, auth)
   }
 
-  const { mode, to, customerName, techName, address, leadName, serviceType, leadId } = req.body as {
+  const { mode, to, customerName, techName, address, leadName, serviceType, leadId, dateTime, managerName } = req.body as {
     mode?: string
     to: string
     customerName?: string
@@ -431,6 +431,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     leadName?: string
     serviceType?: string
     leadId?: string
+    dateTime?: string
+    managerName?: string
   }
 
   if (!to && mode !== 'review_request') {
@@ -473,7 +475,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Only allow texting numbers that exist on a lead/customer in the caller's org.
   // For tech_assignment / manager_alert, `to` is a team member — allow org members too.
-  const isInternalMode = mode === 'tech_assignment' || mode === 'manager_alert'
+  const isInternalMode = mode === 'tech_assignment' || mode === 'manager_alert' || mode === 'booking_scheduled'
   const allowed =
     mode === 'review_request' ||
     (isInternalMode && (await technicianInOrg(smsTo, auth.orgId))) ||
@@ -500,7 +502,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!reviewUrl) {
       return res.status(400).json({ error: 'Google review URL is not configured in Franchise Settings' })
     }
-  } else if (!mode || (mode !== 'tech_assignment' && mode !== 'manager_alert')) {
+  } else if (!mode || (mode !== 'tech_assignment' && mode !== 'manager_alert' && mode !== 'booking_scheduled')) {
     const onTheWayEnabled = await isFeatureEnabledForOrg(auth.orgId, 'customer_ontheway_sms')
     if (!onTheWayEnabled) {
       return res.status(403).json({ error: 'Customer on-the-way SMS is disabled for this franchise' })
@@ -548,6 +550,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         appUrl: `${platformUrl}/leads`,
       },
       `${orgName}: A new lead has been submitted — {{leadName}} ({{serviceType}}). Please review and assign a technician: {{appUrl}}`
+    )
+  } else if (mode === 'booking_scheduled') {
+    if (!leadName || !dateTime) {
+      return res.status(400).json({ error: 'Missing leadName or dateTime for booking_scheduled mode' })
+    }
+    message = buildSmsFromBrand(
+      auth.brand?.sms_templates,
+      'booking_scheduled',
+      {
+        'org.name': orgName,
+        leadName,
+        serviceType: serviceType ?? leadName,
+        dateTime,
+        managerName: managerName ?? 'Your manager',
+        appUrl: `${platformUrl}/calendar`,
+      },
+      `${orgName}: {{managerName}} scheduled "{{leadName}}" on your calendar — {{dateTime}}. Open: {{appUrl}}`
     )
   } else if (mode === 'review_request') {
     if (!customerName) {

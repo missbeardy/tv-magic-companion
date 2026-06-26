@@ -1,5 +1,7 @@
 // src/components/MobileResourceView.tsx
 
+import { getEventDisplayColor } from '../lib/calendarColors'
+
 interface CalEvent {
   id: string
   title: string
@@ -20,6 +22,7 @@ interface Profile {
 interface MobileResourceViewProps {
   events: CalEvent[]
   employees: Profile[]
+  employeeColorMap: Map<string, string>
   selectedDate: Date
   onEventClick: (event: CalEvent) => void
   onAddEvent: (date: Date, hour: number) => void
@@ -82,6 +85,7 @@ function leaveActiveOnDay(event: CalEvent, date: Date): boolean {
 export function MobileResourceView({
   events,
   employees,
+  employeeColorMap,
   selectedDate,
   onEventClick,
   onAddEvent,
@@ -148,8 +152,14 @@ export function MobileResourceView({
             return (
               <div key={emp.id} className="flex-none w-36 border-r border-gray-100">
                 {/* Tech name header */}
-                <div className="h-10 flex items-center justify-center border-b border-gray-100 bg-white px-1 sticky top-0 z-10">
-                  <span className="text-xs font-semibold text-[#004B93] text-center truncate">
+                <div
+                  className="h-10 flex items-center justify-center border-b border-gray-100 px-1 sticky top-0 z-10"
+                  style={{ backgroundColor: `${employeeColorMap.get(emp.id) ?? '#004B93'}18` }}
+                >
+                  <span
+                    className="text-xs font-semibold text-center truncate"
+                    style={{ color: employeeColorMap.get(emp.id) ?? '#004B93' }}
+                  >
                     {emp.full_name}
                   </span>
                 </div>
@@ -203,7 +213,7 @@ export function MobileResourceView({
                         key={event.id}
                         onClick={e => { e.stopPropagation(); onEventClick(event) }}
                         className="absolute left-0.5 right-0.5 rounded-lg px-1.5 py-1 text-left overflow-hidden shadow-sm hover:brightness-95 transition"
-                        style={{ top, height, backgroundColor: event.color, minHeight: 28 }}
+                        style={{ top, height, backgroundColor: getEventDisplayColor(event, employeeColorMap), minHeight: 28 }}
                       >
                         <p className="text-[10px] font-semibold text-white truncate leading-tight">
                           {event.title}

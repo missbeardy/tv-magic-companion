@@ -38,6 +38,7 @@ export function getDefaultSmsTemplates(orgName: string): Record<string, string> 
     customer_ontheway: `{{techName}} from {{org.name}} is on their way. Thank you.`,
     missed_call_hookback: `Hi, {{customerName}} — hands full on-site at {{org.name}}. Your missed call has been assigned to one of our technicians who will call you as soon as possible.`,
     customer_review_request: `Hi {{customerName}}, thanks for choosing ${orgName}! We'd love your feedback: {{reviewUrl}}`,
+    booking_scheduled: `${orgName}: {{managerName}} scheduled "{{leadName}}" on your calendar — {{dateTime}}. Open: {{appUrl}}`,
     receipt_footer: `— ${orgName} Team`,
   }
 }

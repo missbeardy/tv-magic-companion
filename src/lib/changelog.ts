@@ -76,11 +76,13 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Send ETA Text — opens branded on-the-way SMS on the technician\'s phone (customer_ontheway_sms switch)',
     'On-the-way SMS template simplified — generic message with optional maps link',
     'Missed call auto-reply now triggers from voicemail email (Cloudmailin) after lead creation',
+    'Managers can book jobs on team calendars and schedule purple team meetings with SMS + push notifications',
+    'Calendar colour legend — each employee has a distinct colour; team meetings show in purple',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.21'
+export const APP_VERSION = '1.1.22'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

@@ -10,6 +10,7 @@ import {
   ClipboardList,
   HelpCircle,
   Building2,
+  Radio,
 } from 'lucide-react'
 import { normalizeRole, type AppRole } from './roles'
 
@@ -29,6 +30,7 @@ export const NAV_LINKS: NavLinkItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, roles: allRoles, feature: null, primaryMobile: true },
   { to: '/leads', label: 'Leads', icon: Kanban, roles: allRoles, feature: 'leads', primaryMobile: true },
   { to: '/calendar', label: 'Calendar', icon: CalendarDays, roles: allRoles, feature: 'calendar', primaryMobile: true },
+  { to: '/activity', label: 'Team Activity', icon: Radio, roles: allRoles, feature: 'leads', primaryMobile: true },
   { to: '/tasks', label: 'Tasks', icon: ClipboardList, roles: allRoles, feature: 'tasks', primaryMobile: false },
   { to: '/social', label: 'Social', icon: Share2, roles: managerRoles, feature: 'social', primaryMobile: false },
   { to: '/reports', label: 'Reports', icon: BarChart3, roles: managerRoles, feature: 'reports', primaryMobile: false },

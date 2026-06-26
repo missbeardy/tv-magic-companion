@@ -6,16 +6,18 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useOrg } from '../context/OrgContext'
-import { useOrgProfiles } from '../hooks/useOrgProfiles'
 import NavBar from '../components/NavBar'
 import AssignedLeads from '../components/AssignedLeads'
 import RevenueWidget from '../components/RevenueWidget'
+import TeamWorkloadPanel from '../components/TeamWorkloadPanel'
+import TeamActivityTeaser from '../components/TeamActivityTeaser'
+import { useTeamWorkload } from '../hooks/useTeamWorkload'
 import { useTechLocation } from '../hooks/useTechLocation'
 import { getMonthStart } from '../lib/reporting/dateRange'
 import { fetchReportingData } from '../lib/reporting/fetchReportData'
 import { getPreviousMonthStart, markManagerBriefSeen, shouldShowManagerBrief } from '../lib/managerBrief'
 import {
-  Users, Inbox, ClipboardCheck, Clock, TrendingUp, AlertCircle, FileBarChart
+  Inbox, ClipboardCheck, Clock, TrendingUp, AlertCircle, FileBarChart
 } from 'lucide-react'
 
 interface StatsRow {
@@ -23,13 +25,6 @@ interface StatsRow {
   assigned: number
   completed: number
   contact_attempted: number
-}
-
-interface TechRow {
-  id: string
-  full_name: string
-  avatar_url?: string
-  activeCount: number
 }
 
 interface ReportSnapshot {
@@ -82,15 +77,13 @@ function getGreeting() {
 export default function ManagerDashboard() {
   const { profile } = useAuth()
   const { canAccessFeature } = useOrg()
-  const { fetchOrgProfiles } = useOrgProfiles()
   const navigate = useNavigate()
+  const { techs, loading: workloadLoading } = useTeamWorkload()
   const [stats, setStats] = useState<StatsRow>({ unassigned: 0, assigned: 0, completed: 0, contact_attempted: 0 })
-  const [techs, setTechs] = useState<TechRow[]>([])
   const [reportSnapshot, setReportSnapshot] = useState<ReportSnapshot | null>(null)
   const [monthlyBrief, setMonthlyBrief] = useState<ManagerMonthlyBrief | null>(null)
   const [showMonthlyBrief, setShowMonthlyBrief] = useState(false)
   const [reportLoading, setReportLoading] = useState(true)
-  const [loading, setLoading] = useState(true)
   useTechLocation(profile?.id ?? null)
   const reportsEnabled = canAccessFeature('reports')
 
@@ -106,7 +99,7 @@ export default function ManagerDashboard() {
 
     const { data: leads } = await supabase
       .from('leads')
-      .select('status, assigned_to')
+      .select('status')
       .eq('org_id', profile.org_id)
 
     if (leads) {
@@ -115,17 +108,7 @@ export default function ManagerDashboard() {
         if (l.status in s) s[l.status as keyof StatsRow]++
       })
       setStats(s)
-
-      const countMap: Record<string, number> = {}
-      leads.filter(l => l.status === 'assigned').forEach(l => {
-        if (l.assigned_to) countMap[l.assigned_to] = (countMap[l.assigned_to] ?? 0) + 1
-      })
-
-      const profiles = await fetchOrgProfiles({ roles: ['employee', 'manager'] })
-      setTechs(profiles.map((p) => ({ ...p, activeCount: countMap[p.id] ?? 0 })))
     }
-
-    setLoading(false)
   }
 
   useEffect(() => {
@@ -395,43 +378,9 @@ export default function ManagerDashboard() {
           </div>
         )}
 
-        {/* Team workload - clickable rows */}
-        {!loading && techs.length > 0 && (
-          <div className="card overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-              <Users size={15} className="text-gray-400" />
-              <h2 className="font-display font-semibold text-gray-800 text-base">Team Workload</h2>
-            </div>
-            <div className="divide-y divide-gray-50">
-              {techs.map(tech => (
-                <div
-                  key={tech.id}
-                  onClick={() => navigate(`/calendar?employee=${tech.id}`)}
-                  className="px-5 py-3.5 flex items-center gap-3 cursor-pointer hover:bg-gray-50 transition"
-                >
-                  <div className="w-8 h-8 rounded-full bg-[#004B93] flex items-center justify-center shrink-0 overflow-hidden">
-                    {tech.avatar_url
-                      ? <img src={tech.avatar_url} className="w-full h-full object-cover" alt={tech.full_name} />
-                      : <span className="text-white font-bold text-xs">{tech.full_name.charAt(0)}</span>
-                    }
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-800 truncate">{tech.full_name}</p>
-                    <p className="text-xs text-gray-400">{tech.activeCount} active job{tech.activeCount !== 1 ? 's' : ''}</p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {Array.from({ length: Math.min(tech.activeCount, 5) }).map((_, i) => (
-                      <div key={i} className="w-2 h-2 rounded-full bg-[#004B93]" />
-                    ))}
-                    {tech.activeCount === 0 && (
-                      <span className="badge badge-green">Free</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        <TeamActivityTeaser />
+
+        <TeamWorkloadPanel techs={techs} loading={workloadLoading} />
 
         {/* Assigned leads + revenue */}
         <div className="grid md:grid-cols-2 gap-4">

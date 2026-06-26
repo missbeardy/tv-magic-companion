@@ -28,14 +28,15 @@ export async function sendNotification(
   userId: string,
   title: string,
   message: string,
-  url?: string
+  url?: string,
+  type = 'lead_assigned',
 ): Promise<void> {
   try {
     const headers = await getAuthHeaders();
     const response = await fetch('/api/send-sms?action=notify', {
       method: 'POST',
       headers,
-      body: JSON.stringify({ userId, title, message, url }),
+      body: JSON.stringify({ userId, title, message, url, type }),
     });
 
     if (!response.ok) {

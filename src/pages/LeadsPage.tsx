@@ -18,6 +18,7 @@ import NavBar from '../components/NavBar'
 import CountdownTimer from '../components/CountdownTimer'
 import LeadStatusMenu from '../components/LeadStatusMenu'
 import LeadPhotos from '../components/LeadPhotos'
+import { useOrgProfiles } from '../hooks/useOrgProfiles'
 import AssignLeadModal from '../components/AssignLeadModal'
 import EventModal from '../components/EventModal'
 import BottomSheet from '../components/BottomSheet'
@@ -447,12 +448,14 @@ function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand
 
 export default function LeadsPage() {
   const { profile } = useAuth()
+  const { fetchOrgProfiles } = useOrgProfiles()
   const { org, brand, isFeatureEnabled, featureSwitchesLoading } = useOrg()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddLead, setShowAddLead] = useState(false)
   const [assigningLead, setAssigningLead] = useState<Lead | null>(null)
   const [bookingLead, setBookingLead] = useState<Lead | null>(null)
+  const [orgEmployees, setOrgEmployees] = useState<{ id: string; full_name: string; phone?: string | null }[]>([])
   const [expandedLead, setExpandedLead] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'unassigned' | 'assigned' | 'contact' | 'closed'>('unassigned')
   const [sheetLead, setSheetLead] = useState<Lead | null>(null)
@@ -761,6 +764,13 @@ export default function LeadsPage() {
     return () => { supabase.removeChannel(channel) }
   }, [profile, fetchLeads])
 
+  useEffect(() => {
+    if (!profile?.org_id || !isManagerRole(profile.role)) return
+    fetchOrgProfiles({ roles: ['employee', 'manager', 'platform_admin'] }).then((data) => {
+      setOrgEmployees(data.map((p) => ({ id: p.id, full_name: p.full_name, phone: p.phone })))
+    })
+  }, [profile?.org_id, profile?.role, fetchOrgProfiles])
+
   function leadsForColumn(status: string) {
     return leads.filter(
       (lead) => lead.status === status && isLeadVisibleInActiveKanban(lead.status, lead.hidden_from_kanban_at)
@@ -821,6 +831,8 @@ export default function LeadsPage() {
       )}
       {bookingLead && (
         <EventModal
+          employees={isManagerRole(profile?.role) ? orgEmployees : undefined}
+          defaultAssigneeId={bookingLead.assigned_to ?? profile?.id}
           prefillLead={{
             id: bookingLead.id,
             name: bookingLead.name,
@@ -828,6 +840,7 @@ export default function LeadsPage() {
             email: bookingLead.email,
             details: bookingLead.details,
             service_type: bookingLead.service_type,
+            assigned_to: bookingLead.assigned_to ?? undefined,
           }}
           onClose={() => setBookingLead(null)}
           onSaved={fetchLeads}
