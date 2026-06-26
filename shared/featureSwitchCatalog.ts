@@ -1,4 +1,4 @@
-/** Server-safe feature switch catalog — no Vite/env imports. Shared with src/lib/features.ts. */
+/** Server-safe feature switch catalog — no Vite/env imports. Shared by api/ and src/. */
 
 export type SubscriptionTier = 'basic' | 'pro' | 'enterprise'
 

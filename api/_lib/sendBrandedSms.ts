@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from './supabaseAdmin.js'
 import { buildSmsFromBrand } from './smsTemplates.js'
 import { formatAuPhoneForSms } from './phone.js'
-import type { LeadEventType } from '../../src/lib/leadEventPayload.js'
+import type { LeadEventType } from './leadEventTypes.js'
 
 export interface SendBrandedSmsOptions {
   orgId: string

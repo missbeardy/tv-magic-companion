@@ -1,4 +1,4 @@
-import { FEATURE_SWITCH_MIN_TIERS, type FeatureSwitchKey } from './featureSwitchCatalog.js'
+import { FEATURE_SWITCH_MIN_TIERS, type FeatureSwitchKey } from '../../shared/featureSwitchCatalog.js'
 import { getSupabaseAdmin } from './supabaseAdmin.js'
 
 export type RuntimeFeatureKey = FeatureSwitchKey

@@ -4,7 +4,7 @@ import {
   FEATURE_SWITCH_KEYS,
   FEATURE_SWITCH_MIN_TIERS,
   type FeatureSwitchKey,
-} from '../../api/_lib/featureSwitchCatalog'
+} from '../../shared/featureSwitchCatalog'
 
 export { FEATURE_SWITCH_KEYS, FEATURE_SWITCH_MIN_TIERS, type FeatureSwitchKey }
 
