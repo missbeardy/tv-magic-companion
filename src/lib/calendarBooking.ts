@@ -6,7 +6,8 @@ export function resolveBookingCustomerName(clientName: string, title: string): s
 export function shouldCreateLeadFromBooking(
   linkedLeadId: string | null,
   clientName: string,
-  title: string
+  _title: string
 ): boolean {
-  return !linkedLeadId && Boolean(resolveBookingCustomerName(clientName, title))
+  // Title alone must not create a lead (e.g. manager team meetings).
+  return !linkedLeadId && Boolean(clientName.trim())
 }

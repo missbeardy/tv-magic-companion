@@ -78,11 +78,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Missed call auto-reply now triggers from voicemail email (Cloudmailin) after lead creation',
     'Managers can book jobs on team calendars and schedule purple team meetings with SMS + push notifications',
     'Calendar colour legend — each employee has a distinct colour; team meetings show in purple',
+    'Team meetings no longer auto-create leads from the appointment title alone',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.22'
+export const APP_VERSION = '1.1.23'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

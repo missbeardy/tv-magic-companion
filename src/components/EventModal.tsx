@@ -188,8 +188,8 @@ export default function EventModal({
 
   const isLeaveEvent = existingEvent?.category === 'Leave'
   const isExistingTeamMeeting = existingEvent?.category === TEAM_MEETING_CATEGORY
-  const customerNameForMode = resolveBookingCustomerName(clientName, title)
-  const isJobBooking = Boolean(linkedLeadId || customerNameForMode.trim())
+  const hasCustomerName = Boolean(clientName.trim())
+  const isJobBooking = Boolean(linkedLeadId || hasCustomerName)
   const isTeamMeetingMode = isManager && !isJobBooking && !isExistingTeamMeeting && !existingEvent?.lead_id
   const memberList = employees.length > 0 ? employees : (profile ? [{ id: profile.id, full_name: profile.full_name ?? 'You' }] : [])
 
@@ -350,9 +350,9 @@ export default function EventModal({
 
     const startISO = toLocalISO(date, startTime)
     const endISO = toLocalISO(date, endTime)
-    const customerName = resolveBookingCustomerName(clientName, title)
+    const customerName = clientName.trim()
     const nowIso = new Date().toISOString()
-    const jobBooking = Boolean(linkedLeadId || customerName.trim())
+    const jobBooking = Boolean(linkedLeadId || customerName)
     const teamMeeting = isManager && !jobBooking && !isExistingTeamMeeting
 
     if (teamMeeting && teamMemberIds.length === 0) {
@@ -473,7 +473,7 @@ export default function EventModal({
 
       const terminalStatuses = ['lost', 'completed', 'booking_cancelled']
       const leadUpdate: Record<string, unknown> = {
-        name: customerName || clientName.trim(),
+        name: customerName || resolveBookingCustomerName(clientName, title),
         phone: clientPhone,
         email: clientEmail,
         address: clientAddress,

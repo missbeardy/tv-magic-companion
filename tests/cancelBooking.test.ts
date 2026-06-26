@@ -36,8 +36,12 @@ describe('calendarBooking', () => {
   })
 
   describe('shouldCreateLeadFromBooking', () => {
-    it('creates when no linked lead and title present', () => {
-      expect(shouldCreateLeadFromBooking(null, '', 'TV Install')).toBe(true)
+    it('does not create from title alone (team meetings)', () => {
+      expect(shouldCreateLeadFromBooking(null, '', 'Team standup')).toBe(false)
+    })
+
+    it('creates when customer name is entered', () => {
+      expect(shouldCreateLeadFromBooking(null, 'Jane Doe', 'TV Install')).toBe(true)
     })
 
     it('skips when lead already linked', () => {
