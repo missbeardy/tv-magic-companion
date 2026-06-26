@@ -18,16 +18,7 @@ export interface ActivityFeedRow {
   leadName: string | null
 }
 
-type ProfileJoin = {
-  full_name: string
-  avatar_url: string | null
-  is_hidden_test_profile: boolean | null
-  test_profile_owner_id: string | null
-} | null
-
-type LeadJoin = { name: string } | null
-
-type RawFeedRow = {
+type RawEventRow = {
   id: string
   event_type: string
   note: string | null
@@ -35,38 +26,80 @@ type RawFeedRow = {
   created_at: string
   lead_id: string
   actor_id: string | null
-  profiles: ProfileJoin
-  leads: LeadJoin
 }
 
-const SELECT_QUERY =
-  'id, event_type, note, payload, created_at, lead_id, actor_id, profiles!lead_events_actor_id_fkey(full_name, avatar_url, is_hidden_test_profile, test_profile_owner_id), leads(name)'
+type ProfileRow = {
+  id: string
+  full_name: string
+  avatar_url: string | null
+  is_hidden_test_profile: boolean | null
+  test_profile_owner_id: string | null
+}
 
-function mapRow(row: RawFeedRow, viewerId: string | undefined): ActivityFeedRow {
-  const profile = row.profiles
-  const actorVisible =
-    profile &&
-    isProfileVisibleToViewer(
-      {
-        id: row.actor_id ?? '',
-        is_hidden_test_profile: profile.is_hidden_test_profile,
-        test_profile_owner_id: profile.test_profile_owner_id,
-      },
-      viewerId
-    )
+type LeadNameRow = {
+  id: string
+  name: string
+}
 
-  return {
-    id: row.id,
-    event_type: row.event_type,
-    note: row.note,
-    payload: row.payload,
-    created_at: row.created_at,
-    lead_id: row.lead_id,
-    actor_id: row.actor_id,
-    actorName: actorVisible ? profile!.full_name : row.actor_id ? 'Team member' : null,
-    actorAvatarUrl: actorVisible ? profile!.avatar_url : null,
-    leadName: row.leads?.name ?? null,
+const EVENT_SELECT = 'id, event_type, note, payload, created_at, lead_id, actor_id'
+
+async function enrichFeedRows(
+  rows: RawEventRow[],
+  viewerId: string | undefined
+): Promise<ActivityFeedRow[]> {
+  if (rows.length === 0) return []
+
+  const actorIds = [...new Set(rows.map((row) => row.actor_id).filter(Boolean))] as string[]
+  const leadIds = [...new Set(rows.map((row) => row.lead_id).filter(Boolean))]
+
+  const [profilesRes, leadsRes] = await Promise.all([
+    actorIds.length
+      ? supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url, is_hidden_test_profile, test_profile_owner_id')
+          .in('id', actorIds)
+      : Promise.resolve({ data: [] as ProfileRow[], error: null }),
+    leadIds.length
+      ? supabase.from('leads').select('id, name').in('id', leadIds)
+      : Promise.resolve({ data: [] as LeadNameRow[], error: null }),
+  ])
+
+  if (profilesRes.error) {
+    console.error('useTeamActivityFeed profile enrich:', profilesRes.error)
   }
+  if (leadsRes.error) {
+    console.error('useTeamActivityFeed lead enrich:', leadsRes.error)
+  }
+
+  const profileMap = new Map((profilesRes.data ?? []).map((profile) => [profile.id, profile]))
+  const leadMap = new Map((leadsRes.data ?? []).map((lead) => [lead.id, lead.name]))
+
+  return rows.map((row) => {
+    const profile = row.actor_id ? profileMap.get(row.actor_id) : undefined
+    const actorVisible =
+      profile &&
+      isProfileVisibleToViewer(
+        {
+          id: row.actor_id ?? '',
+          is_hidden_test_profile: profile.is_hidden_test_profile,
+          test_profile_owner_id: profile.test_profile_owner_id,
+        },
+        viewerId
+      )
+
+    return {
+      id: row.id,
+      event_type: row.event_type,
+      note: row.note,
+      payload: row.payload,
+      created_at: row.created_at,
+      lead_id: row.lead_id,
+      actor_id: row.actor_id,
+      actorName: actorVisible ? profile.full_name : row.actor_id ? 'Team member' : null,
+      actorAvatarUrl: actorVisible ? profile.avatar_url : null,
+      leadName: leadMap.get(row.lead_id) ?? null,
+    }
+  })
 }
 
 export function useTeamActivityFeed(orgId: string | undefined, viewerId: string | undefined) {
@@ -83,12 +116,13 @@ export function useTeamActivityFeed(orgId: string | undefined, viewerId: string 
     async (eventId: string): Promise<ActivityFeedRow | null> => {
       const { data, error } = await supabase
         .from('lead_events')
-        .select(SELECT_QUERY)
+        .select(EVENT_SELECT)
         .eq('id', eventId)
         .maybeSingle()
 
       if (error || !data) return null
-      return mapRow(data as RawFeedRow, viewerId)
+      const enriched = await enrichFeedRows([data as RawEventRow], viewerId)
+      return enriched[0] ?? null
     },
     [viewerId]
   )
@@ -102,7 +136,7 @@ export function useTeamActivityFeed(orgId: string | undefined, viewerId: string 
 
     const { data, error } = await supabase
       .from('lead_events')
-      .select(SELECT_QUERY)
+      .select(EVENT_SELECT)
       .eq('org_id', orgId)
       .gte('created_at', sinceIso())
       .order('created_at', { ascending: false })
@@ -112,7 +146,7 @@ export function useTeamActivityFeed(orgId: string | undefined, viewerId: string 
       console.error('useTeamActivityFeed:', error)
       setEvents([])
     } else {
-      setEvents((data as RawFeedRow[]).map((row) => mapRow(row, viewerId)))
+      setEvents(await enrichFeedRows((data ?? []) as RawEventRow[], viewerId))
     }
     setLoading(false)
   }, [orgId, viewerId, sinceIso])
@@ -134,7 +168,10 @@ export function useTeamActivityFeed(orgId: string | undefined, viewerId: string 
             return
           }
           const row = await fetchEventById(newId)
-          if (!row) return
+          if (!row) {
+            fetchFeed()
+            return
+          }
           setEvents((prev) => {
             if (prev.some((e) => e.id === row.id)) return prev
             return [row, ...prev].slice(0, FEED_LIMIT)

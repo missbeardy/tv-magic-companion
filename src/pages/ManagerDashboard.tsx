@@ -157,8 +157,17 @@ export default function ManagerDashboard() {
     loadReportSnapshot()
 
     const channel = supabase
-      .channel('manager-dashboard-report-snapshot')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'lead_events' }, loadReportSnapshot)
+      .channel(`manager-dashboard-report-snapshot-${profile.org_id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'lead_events',
+          filter: `org_id=eq.${profile.org_id}`,
+        },
+        loadReportSnapshot
+      )
       .subscribe()
 
     return () => {
