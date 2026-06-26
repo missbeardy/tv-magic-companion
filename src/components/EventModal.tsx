@@ -119,6 +119,21 @@ function sanitizeNumericInput(raw: string): string {
   return stripped.slice(0, firstDot + 1) + stripped.slice(firstDot + 1).replace(/\./g, '')
 }
 
+type ManagerEventKind = 'picker' | 'booking' | 'meeting'
+
+function initialEventKind(
+  isManager: boolean,
+  existingEvent: Props['existingEvent'],
+  prefillLead: Lead | null | undefined,
+): ManagerEventKind | 'employee' {
+  if (prefillLead) return 'booking'
+  if (existingEvent) {
+    return existingEvent.category === TEAM_MEETING_CATEGORY ? 'meeting' : 'booking'
+  }
+  if (isManager) return 'picker'
+  return 'employee'
+}
+
 export default function EventModal({
   prefillLead,
   employees = [],
@@ -130,8 +145,18 @@ export default function EventModal({
 }: Props) {
   const { profile } = useAuth()
   const isManager = isManagerRole(profile?.role)
+  const resolvedKind = initialEventKind(isManager, existingEvent, prefillLead)
+  const [eventKind, setEventKind] = useState<ManagerEventKind | 'employee'>(resolvedKind)
+  const [meetingAttendees, setMeetingAttendees] = useState<OrgMember[]>([])
+  const [loadingAttendees, setLoadingAttendees] = useState(false)
 
-  // FIX: Use localDateStr/localTimeStr so existing events display in local time,
+  const isLeaveEvent = existingEvent?.category === 'Leave'
+  const isExistingTeamMeeting = existingEvent?.category === TEAM_MEETING_CATEGORY
+  const isTeamMeetingMode = eventKind === 'meeting'
+  const isBookingMode = eventKind === 'booking' || eventKind === 'employee'
+  const showTypePicker = eventKind === 'picker'
+  const memberList = employees.length > 0 ? employees : (profile ? [{ id: profile.id, full_name: profile.full_name ?? 'You' }] : [])
+  const canCancelBooking = Boolean(existingEvent?.id && !isLeaveEvent)
   // not UTC. Previously used .split('T') which ignored the timezone offset.
   const initialDate = existingEvent
     ? localDateStr(existingEvent.start_time)
@@ -186,15 +211,6 @@ export default function EventModal({
     return [...ids]
   })
 
-  const isLeaveEvent = existingEvent?.category === 'Leave'
-  const isExistingTeamMeeting = existingEvent?.category === TEAM_MEETING_CATEGORY
-  const hasCustomerName = Boolean(clientName.trim())
-  const isJobBooking = Boolean(linkedLeadId || hasCustomerName)
-  const isTeamMeetingMode = isManager && !isJobBooking && !isExistingTeamMeeting && !existingEvent?.lead_id
-  const memberList = employees.length > 0 ? employees : (profile ? [{ id: profile.id, full_name: profile.full_name ?? 'You' }] : [])
-
-  const canCancelBooking = Boolean(existingEvent?.id && !isLeaveEvent)
-
   useEffect(() => {
     if (existingEvent?.lead_id && !prefillLead) {
       supabase
@@ -228,6 +244,46 @@ export default function EventModal({
       setLinkedLeadName(`${prefillLead.name} — ${prefillLead.service_type}`)
     }
   }, [prefillLead, existingEvent])
+
+  useEffect(() => {
+    if (!isExistingTeamMeeting || !existingEvent?.booking_group_id || !profile?.org_id) return
+    setLoadingAttendees(true)
+    supabase
+      .from('events')
+      .select('user_id, profiles(full_name)')
+      .eq('booking_group_id', existingEvent.booking_group_id)
+      .eq('org_id', profile.org_id)
+      .then(({ data }) => {
+        if (data) {
+          setMeetingAttendees(
+            data.map((row) => ({
+              id: row.user_id as string,
+              full_name: (row.profiles as { full_name?: string } | null)?.full_name ?? 'Team member',
+            })),
+          )
+        }
+        setLoadingAttendees(false)
+      })
+  }, [isExistingTeamMeeting, existingEvent?.booking_group_id, profile?.org_id])
+
+  function chooseBooking() {
+    setEventKind('booking')
+    setShowLeadSearch(true)
+    setError('')
+  }
+
+  function chooseMeeting() {
+    setEventKind('meeting')
+    setLinkedLeadId(null)
+    setLinkedLeadName('')
+    setClientName('')
+    setClientPhone('')
+    setClientEmail('')
+    setClientAddress('')
+    setClientJob('')
+    setJobQuote('')
+    setError('')
+  }
 
   useEffect(() => {
     if (!leadSearch.trim() || leadSearch.length < 2) {
@@ -352,8 +408,13 @@ export default function EventModal({
     const endISO = toLocalISO(date, endTime)
     const customerName = clientName.trim()
     const nowIso = new Date().toISOString()
-    const jobBooking = Boolean(linkedLeadId || customerName)
-    const teamMeeting = isManager && !jobBooking && !isExistingTeamMeeting
+    const teamMeeting = isTeamMeetingMode
+
+    if (isBookingMode && !linkedLeadId && !customerName) {
+      setError('Link a lead or enter the customer full name to book.')
+      setSaving(false)
+      return
+    }
 
     if (teamMeeting && teamMemberIds.length === 0) {
       setError('Select at least one team member for the meeting.')
@@ -361,8 +422,8 @@ export default function EventModal({
       return
     }
 
-    const bookingAssigneeId = isManager ? assigneeId : (profile?.id ?? '')
-    if (!bookingAssigneeId && jobBooking) {
+    const bookingAssigneeId = isManager && isBookingMode ? assigneeId : (profile?.id ?? '')
+    if (!bookingAssigneeId && isBookingMode) {
       setError('Please select who this booking is for.')
       setSaving(false)
       return
@@ -598,9 +659,11 @@ export default function EventModal({
               <CalendarDays size={15} className="text-[#004B93]" />
             </div>
             <h3 className="font-display font-semibold text-gray-900 text-base">
-              {existingEvent
-                ? (isExistingTeamMeeting ? 'Edit Team Meeting' : 'Edit Appointment')
-                : (isTeamMeetingMode ? 'Schedule Team Meeting' : 'Book Appointment')}
+              {showTypePicker
+                ? 'Create on calendar'
+                : existingEvent
+                  ? (isExistingTeamMeeting ? 'Edit Team Meeting' : 'Edit Appointment')
+                  : (isTeamMeetingMode ? 'Schedule Team Meeting' : 'Book Appointment')}
             </h3>
           </div>
           <button
@@ -619,59 +682,123 @@ export default function EventModal({
             </div>
           )}
 
-          {/* Assignee / team participants (managers) */}
-          {isManager && memberList.length > 0 && !existingEvent && (
+          {showTypePicker && (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-600">What would you like to schedule?</p>
+              <button
+                type="button"
+                onClick={chooseBooking}
+                className="w-full flex items-start gap-3 p-4 rounded-xl border-2 border-[#004B93]/20 bg-[#004B93]/5 hover:border-[#004B93]/50 hover:bg-[#004B93]/10 transition text-left"
+              >
+                <div className="w-10 h-10 rounded-lg bg-[#004B93] text-white flex items-center justify-center shrink-0">
+                  <Briefcase size={18} />
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900">Booking</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Customer job — link a lead, assign to one technician, updates kanban.
+                  </p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={chooseMeeting}
+                className="w-full flex items-start gap-3 p-4 rounded-xl border-2 border-violet-200 bg-violet-50 hover:border-violet-400 hover:bg-violet-100/60 transition text-left"
+              >
+                <div className="w-10 h-10 rounded-lg bg-violet-600 text-white flex items-center justify-center shrink-0">
+                  <Users size={18} />
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900">Team meeting</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Internal planning — pick attendees, purple on calendars, no lead created.
+                  </p>
+                </div>
+              </button>
+            </div>
+          )}
+
+          {!showTypePicker && isManager && !existingEvent && (
+            <button
+              type="button"
+              onClick={() => setEventKind('picker')}
+              className="text-xs text-gray-400 hover:text-[#004B93] font-medium"
+            >
+              ← Change type
+            </button>
+          )}
+
+          {/* Team meeting — pick attendees (new) */}
+          {!showTypePicker && isManager && memberList.length > 0 && isTeamMeetingMode && !existingEvent && (
             <div className="bg-violet-50/50 rounded-xl p-3 border border-violet-100">
-              {isTeamMeetingMode ? (
-                <>
-                  <p className="text-xs font-semibold text-violet-800 flex items-center gap-1 mb-2">
-                    <Users size={11} />
-                    Team meeting — who is attending?
-                  </p>
-                  <p className="text-xs text-violet-600/80 mb-2">
-                    Leave customer fields empty to schedule a planning session. Only managers can create team meetings.
-                  </p>
-                  <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                    {memberList.map((emp) => (
-                      <label
-                        key={emp.id}
-                        className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer rounded-lg px-2 py-1.5 hover:bg-violet-100/50"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={teamMemberIds.includes(emp.id)}
-                          onChange={() => toggleTeamMember(emp.id)}
-                          className="rounded border-gray-300 text-violet-600 focus:ring-violet-500"
-                        />
-                        <span className="truncate">{emp.full_name}</span>
-                      </label>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Assign to</label>
-                  <select
-                    value={assigneeId}
-                    onChange={(e) => setAssigneeId(e.target.value)}
-                    className="w-full text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#004B93] bg-white"
+              <p className="text-xs font-semibold text-violet-800 flex items-center gap-1 mb-2">
+                <Users size={11} />
+                Who is attending?
+              </p>
+              <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                {memberList.map((emp) => (
+                  <label
+                    key={emp.id}
+                    className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer rounded-lg px-2 py-1.5 hover:bg-violet-100/50"
                   >
-                    {memberList.map((emp) => (
-                      <option key={emp.id} value={emp.id}>{emp.full_name}</option>
-                    ))}
-                  </select>
-                </>
-              )}
+                    <input
+                      type="checkbox"
+                      checked={teamMemberIds.includes(emp.id)}
+                      onChange={() => toggleTeamMember(emp.id)}
+                      className="rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                    />
+                    <span className="truncate">{emp.full_name}</span>
+                  </label>
+                ))}
+              </div>
             </div>
           )}
 
+          {/* Booking — assign to one technician */}
+          {!showTypePicker && isManager && memberList.length > 0 && isBookingMode && !existingEvent && (
+            <div className="bg-gray-50 rounded-xl p-3 border border-gray-200">
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Assign to</label>
+              <select
+                value={assigneeId}
+                onChange={(e) => setAssigneeId(e.target.value)}
+                className="w-full text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#004B93] bg-white"
+              >
+                {memberList.map((emp) => (
+                  <option key={emp.id} value={emp.id}>{emp.full_name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Team meeting — attendees (existing) */}
           {isExistingTeamMeeting && (
-            <div className="bg-violet-50 border border-violet-200 rounded-xl px-3 py-2 text-xs text-violet-800">
-              Team meeting — changes apply to all participants&apos; calendars.
+            <div className="bg-violet-50 border border-violet-200 rounded-xl p-3">
+              <p className="text-xs font-semibold text-violet-800 flex items-center gap-1 mb-2">
+                <Users size={11} />
+                Attendees
+              </p>
+              {loadingAttendees ? (
+                <p className="text-xs text-violet-600">Loading…</p>
+              ) : meetingAttendees.length > 0 ? (
+                <ul className="space-y-1">
+                  {meetingAttendees.map((emp) => (
+                    <li key={emp.id} className="text-sm text-violet-900 flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0" />
+                      {emp.full_name}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-violet-600">No attendees found.</p>
+              )}
+              <p className="text-[10px] text-violet-600/80 mt-2">
+                Edits to time and title apply to everyone&apos;s calendar.
+              </p>
             </div>
           )}
 
-          {/* Lead Link */}
+          {/* Lead Link — booking only */}
+          {!showTypePicker && isBookingMode && (
           <div className="bg-gray-50 rounded-xl p-3 border border-gray-200">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-semibold text-gray-600 flex items-center gap-1">
@@ -731,9 +858,10 @@ export default function EventModal({
               <p className="text-xs text-gray-400">No lead linked. Customer details entered manually.</p>
             )}
           </div>
+          )}
 
-          {/* Customer Info — hidden for new team meetings */}
-          {!isTeamMeetingMode && (
+          {/* Customer Info — booking only */}
+          {!showTypePicker && isBookingMode && (
           <div className="bg-[#004B93]/5 rounded-xl p-3 space-y-3">
             <p className="text-xs font-semibold text-[#004B93] uppercase tracking-wide">Customer Information</p>
             <div>
@@ -813,6 +941,7 @@ export default function EventModal({
           )}
 
           {/* Appointment Details */}
+          {!showTypePicker && (
           <div className="border-t border-gray-100 pt-3">
             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Appointment Details</p>
             <div className="mb-3">
@@ -865,6 +994,7 @@ export default function EventModal({
               />
             </div>
           </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -910,7 +1040,7 @@ export default function EventModal({
             </button>
             <button
               onClick={handleSave}
-              disabled={saving || cancelling}
+              disabled={saving || cancelling || showTypePicker}
               className="flex-1 py-2.5 rounded-xl bg-[#004B93] text-white text-sm font-semibold hover:bg-[#003d7a] transition-colors disabled:opacity-60"
             >
               {saving ? 'Saving…' : existingEvent ? 'Save Changes' : (isTeamMeetingMode ? 'Schedule Meeting' : 'Book Appointment')}

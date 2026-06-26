@@ -80,11 +80,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Calendar colour legend — each employee has a distinct colour; team meetings show in purple',
     'Team meetings no longer auto-create leads from the appointment title alone',
     'All-employees calendar view shows one block per team meeting instead of duplicates',
+    'Managers choose Booking or Team meeting when creating calendar events',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.24'
+export const APP_VERSION = '1.1.25'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
