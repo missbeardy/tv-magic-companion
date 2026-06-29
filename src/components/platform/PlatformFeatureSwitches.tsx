@@ -59,11 +59,30 @@ function enabledCountInCategory(
   ).length
 }
 
-/** Light tint of a brand hex for accordion headers (falls back to TV Magic blue). */
-function brandHeaderTint(hex: string | undefined, mixPercent: number): string {
-  const match = hex?.trim().match(/^#?([0-9a-f]{6})$/i)
-  const color = match ? `#${match[1]}` : '#004B93'
-  return `color-mix(in srgb, ${color} ${mixPercent}%, white)`
+/** Normalise brand hex (#RGB or #RRGGBB). */
+function normalizeBrandHex(hex: string | undefined): string {
+  const six = hex?.trim().match(/^#?([0-9a-f]{6})$/i)?.[1]
+  if (six) return `#${six}`
+  const three = hex?.trim().match(/^#?([0-9a-f]{3})$/i)?.[1]
+  if (three) {
+    return `#${three[0]}${three[0]}${three[1]}${three[1]}${three[2]}${three[2]}`
+  }
+  return '#004B93'
+}
+
+function brandRgb(hex: string | undefined): [number, number, number] {
+  const normalized = normalizeBrandHex(hex).slice(1)
+  return [
+    parseInt(normalized.slice(0, 2), 16),
+    parseInt(normalized.slice(2, 4), 16),
+    parseInt(normalized.slice(4, 6), 16),
+  ]
+}
+
+/** Tinted background — rgba reads more clearly than a very light color-mix. */
+function brandTintRgba(hex: string | undefined, alpha: number): string {
+  const [r, g, b] = brandRgb(hex)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
 export default function PlatformFeatureSwitches({
@@ -83,9 +102,10 @@ export default function PlatformFeatureSwitches({
   )
 
   const selectedBrand = brands.find((b) => b.id === selectedBrandId)
-  const headerBg = brandHeaderTint(selectedBrand?.primary_color, 12)
-  const headerHoverBg = brandHeaderTint(selectedBrand?.primary_color, 18)
-  const headerBorder = brandHeaderTint(selectedBrand?.primary_color, 22)
+  const brandHex = normalizeBrandHex(selectedBrand?.primary_color)
+  const headerBg = brandTintRgba(brandHex, 0.2)
+  const headerHoverBg = brandTintRgba(brandHex, 0.3)
+  const headerBorder = brandTintRgba(brandHex, 0.45)
 
   function toggleCategory(category: FeatureSwitchCategory) {
     setOpenCategories((prev) => ({ ...prev, [category]: !prev[category] }))
@@ -137,6 +157,7 @@ export default function PlatformFeatureSwitches({
             '--brand-header-bg': headerBg,
             '--brand-header-hover': headerHoverBg,
             '--brand-header-border': headerBorder,
+            '--brand-accent': brandHex,
           } as CSSProperties
         }
       >
@@ -154,20 +175,25 @@ export default function PlatformFeatureSwitches({
               <button
                 type="button"
                 onClick={() => toggleCategory(category)}
-                className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left transition bg-[var(--brand-header-bg)] hover:bg-[var(--brand-header-hover)]"
+                className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left transition bg-[var(--brand-header-bg)] hover:bg-[var(--brand-header-hover)] border-l-4 border-[var(--brand-accent)]"
                 aria-expanded={isOpen}
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <ChevronDown
                     size={16}
-                    className={`shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-                    style={{ color: selectedBrand?.primary_color ?? '#004B93' }}
+                    className={`shrink-0 text-[var(--brand-accent)] transition-transform ${isOpen ? 'rotate-180' : ''}`}
                   />
-                  <span className="text-sm font-semibold text-gray-800">
+                  <span className="text-sm font-semibold text-[var(--brand-accent)]">
                     {FEATURE_SWITCH_CATEGORY_LABELS[category]}
                   </span>
                 </div>
-                <span className="text-[11px] font-medium text-gray-500 shrink-0">
+                <span
+                  className="text-[11px] font-semibold shrink-0 px-2 py-0.5 rounded-full"
+                  style={{
+                    color: brandHex,
+                    backgroundColor: brandTintRgba(brandHex, 0.15),
+                  }}
+                >
                   {enabledCount}/{features.length} on
                 </span>
               </button>
