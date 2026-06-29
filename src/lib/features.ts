@@ -43,6 +43,7 @@ export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   inbound_email: false,
   inbound_calls: false,
   missed_call_hookback_sms: false,
+  lead_ack_sms: false,
   completion_upsells: false,
   one_tap_invoice: false,
   tech_location: false,
@@ -87,6 +88,10 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   missed_call_hookback_sms: {
     label: 'Missed Call Auto-Reply SMS',
     description: 'Instant branded SMS to callers when a voicemail lead is created (Cloudmailin / Mailgun path)',
+  },
+  lead_ack_sms: {
+    label: 'Lead Acknowledgement SMS',
+    description: 'Instant branded thank-you SMS to customers when a new inbound lead is created',
   },
   completion_upsells: {
     label: 'Completion Upsell Checklist',

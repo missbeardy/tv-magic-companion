@@ -9,6 +9,7 @@ import { findRecentLeadByPhone } from './_lib/inboundLeadDedup.js'
 import { formatAuPhoneForSms } from './_lib/phone.js'
 import { notifyManagersNewLead } from './_lib/notifyManagersNewLead.js'
 import { sendMissedCallHookbackIfEnabled } from './_lib/missedCallHookbackSms.js'
+import { sendLeadAckSmsIfEnabled } from './_lib/leadAckSms.js'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -355,6 +356,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
 
     console.log('Lead successfully created via CloudMailin:', lead.name || from)
+
+    if (newLead.id && lead.phone?.trim()) {
+      await sendLeadAckSmsIfEnabled({
+        orgId,
+        leadId: newLead.id,
+        toPhone: lead.phone,
+        customerName: lead.name || from,
+        source: 'email',
+      })
+    }
+
     return res.status(200).json({ success: true })
   } catch (err) {
     console.error('Inbound email processing error:', err)

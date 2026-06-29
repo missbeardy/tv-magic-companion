@@ -12,6 +12,7 @@ export const FEATURE_SWITCH_KEYS = [
   'inbound_email',
   'inbound_calls',
   'missed_call_hookback_sms',
+  'lead_ack_sms',
   'completion_upsells',
   'one_tap_invoice',
   'tech_location',
@@ -37,7 +38,7 @@ export const FEATURE_SWITCH_CATEGORY_LABELS: Record<FeatureSwitchCategory, strin
 
 export const FEATURE_SWITCHES_BY_CATEGORY: Record<FeatureSwitchCategory, readonly FeatureSwitchKey[]> = {
   lead_intake: ['inbound_sms', 'inbound_email', 'inbound_calls'],
-  customer_communication: ['missed_call_hookback_sms', 'customer_ontheway_sms', 'review_requests'],
+  customer_communication: ['missed_call_hookback_sms', 'lead_ack_sms', 'customer_ontheway_sms', 'review_requests'],
   team_operations: ['manager_new_lead_alerts', 'smart_assign_badge', 'tech_location'],
   sales_job_completion: ['quote_esign', 'completion_upsells', 'one_tap_invoice'],
 }
@@ -47,6 +48,7 @@ export const FEATURE_SWITCH_CATEGORY_BY_KEY: Record<FeatureSwitchKey, FeatureSwi
   inbound_email: 'lead_intake',
   inbound_calls: 'lead_intake',
   missed_call_hookback_sms: 'customer_communication',
+  lead_ack_sms: 'customer_communication',
   customer_ontheway_sms: 'customer_communication',
   review_requests: 'customer_communication',
   manager_new_lead_alerts: 'team_operations',
@@ -67,6 +69,7 @@ export const FEATURE_SWITCH_MIN_TIERS: Record<FeatureSwitchKey, SubscriptionTier
   inbound_email: 'basic',
   inbound_calls: 'basic',
   missed_call_hookback_sms: 'basic',
+  lead_ack_sms: 'basic',
   completion_upsells: 'basic',
   one_tap_invoice: 'pro',
   tech_location: 'basic',
