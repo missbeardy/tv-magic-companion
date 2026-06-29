@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { ChevronDown } from 'lucide-react'
 import {
   FEATURE_SWITCH_CATEGORIES,
@@ -14,6 +14,7 @@ interface BrandOption {
   id: string
   name: string
   slug: string
+  primary_color?: string
 }
 
 interface CatalogRow {
@@ -58,6 +59,13 @@ function enabledCountInCategory(
   ).length
 }
 
+/** Light tint of a brand hex for accordion headers (falls back to TV Magic blue). */
+function brandHeaderTint(hex: string | undefined, mixPercent: number): string {
+  const match = hex?.trim().match(/^#?([0-9a-f]{6})$/i)
+  const color = match ? `#${match[1]}` : '#004B93'
+  return `color-mix(in srgb, ${color} ${mixPercent}%, white)`
+}
+
 export default function PlatformFeatureSwitches({
   brands,
   selectedBrandId,
@@ -75,6 +83,9 @@ export default function PlatformFeatureSwitches({
   )
 
   const selectedBrand = brands.find((b) => b.id === selectedBrandId)
+  const headerBg = brandHeaderTint(selectedBrand?.primary_color, 12)
+  const headerHoverBg = brandHeaderTint(selectedBrand?.primary_color, 18)
+  const headerBorder = brandHeaderTint(selectedBrand?.primary_color, 22)
 
   function toggleCategory(category: FeatureSwitchCategory) {
     setOpenCategories((prev) => ({ ...prev, [category]: !prev[category] }))
@@ -119,7 +130,16 @@ export default function PlatformFeatureSwitches({
         </div>
       )}
 
-      <div className="space-y-2">
+      <div
+        className="space-y-2"
+        style={
+          {
+            '--brand-header-bg': headerBg,
+            '--brand-header-hover': headerHoverBg,
+            '--brand-header-border': headerBorder,
+          } as CSSProperties
+        }
+      >
         {FEATURE_SWITCH_CATEGORIES.map((category) => {
           const features = FEATURE_SWITCHES_BY_CATEGORY[category]
           const enabledCount = enabledCountInCategory(category, selectedBrandId, brandSwitchValue)
@@ -128,18 +148,20 @@ export default function PlatformFeatureSwitches({
           return (
             <div
               key={category}
-              className="border border-gray-200 rounded-xl overflow-hidden bg-white"
+              className="rounded-xl overflow-hidden bg-white"
+              style={{ border: '1px solid var(--brand-header-border)' }}
             >
               <button
                 type="button"
                 onClick={() => toggleCategory(category)}
-                className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-gray-50 transition"
+                className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left transition bg-[var(--brand-header-bg)] hover:bg-[var(--brand-header-hover)]"
                 aria-expanded={isOpen}
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <ChevronDown
                     size={16}
-                    className={`shrink-0 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                    className={`shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                    style={{ color: selectedBrand?.primary_color ?? '#004B93' }}
                   />
                   <span className="text-sm font-semibold text-gray-800">
                     {FEATURE_SWITCH_CATEGORY_LABELS[category]}
@@ -151,7 +173,7 @@ export default function PlatformFeatureSwitches({
               </button>
 
               {isOpen && (
-                <ul className="divide-y divide-gray-100 border-t border-gray-100">
+                <ul className="divide-y divide-gray-100 border-t border-[var(--brand-header-border)]">
                   {features.map((feature) => {
                     const enabled = brandSwitchValue(selectedBrandId, feature)
                     const rowKey = `brand:${selectedBrandId}:${feature}`
