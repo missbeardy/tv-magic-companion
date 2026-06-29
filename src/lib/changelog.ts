@@ -47,11 +47,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
   title: 'Platform admin & feature rollout',
   items: [
     'Platform admin feature switches redesigned — brand selector and categorized toggles',
+    'Platform feature switch categories collapse into accordions with on/off counts',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.28'
+export const APP_VERSION = '1.1.29'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

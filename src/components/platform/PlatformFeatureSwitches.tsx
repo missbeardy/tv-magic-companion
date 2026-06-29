@@ -1,9 +1,12 @@
+import { useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import {
   FEATURE_SWITCH_CATEGORIES,
   FEATURE_SWITCH_CATEGORY_LABELS,
   FEATURE_SWITCH_DEFINITIONS,
   FEATURE_SWITCH_MIN_TIERS,
   FEATURE_SWITCHES_BY_CATEGORY,
+  type FeatureSwitchCategory,
   type FeatureSwitchKey,
 } from '../../lib/features'
 
@@ -45,6 +48,16 @@ function featureDescription(feature: FeatureSwitchKey, catalogByKey: Props['cata
   return catalogByKey[feature]?.description ?? FEATURE_SWITCH_DEFINITIONS[feature].description
 }
 
+function enabledCountInCategory(
+  category: FeatureSwitchCategory,
+  brandId: string,
+  brandSwitchValue: Props['brandSwitchValue']
+): number {
+  return FEATURE_SWITCHES_BY_CATEGORY[category].filter((feature) =>
+    brandSwitchValue(brandId, feature)
+  ).length
+}
+
 export default function PlatformFeatureSwitches({
   brands,
   selectedBrandId,
@@ -55,7 +68,17 @@ export default function PlatformFeatureSwitches({
   savingSwitchKey,
   missingFeaturesForBrand,
 }: Props) {
+  const [openCategories, setOpenCategories] = useState<Record<FeatureSwitchCategory, boolean>>(() =>
+    Object.fromEntries(
+      FEATURE_SWITCH_CATEGORIES.map((category, index) => [category, index === 0])
+    ) as Record<FeatureSwitchCategory, boolean>
+  )
+
   const selectedBrand = brands.find((b) => b.id === selectedBrandId)
+
+  function toggleCategory(category: FeatureSwitchCategory) {
+    setOpenCategories((prev) => ({ ...prev, [category]: !prev[category] }))
+  }
 
   if (brands.length === 0) {
     return <p className="text-sm text-gray-400">No brands configured.</p>
@@ -96,56 +119,86 @@ export default function PlatformFeatureSwitches({
         </div>
       )}
 
-      {FEATURE_SWITCH_CATEGORIES.map((category) => (
-        <div key={category} className="space-y-2">
-          <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-100 pb-1.5">
-            {FEATURE_SWITCH_CATEGORY_LABELS[category]}
-          </h3>
-          <ul className="divide-y divide-gray-50">
-            {FEATURE_SWITCHES_BY_CATEGORY[category].map((feature) => {
-              const enabled = brandSwitchValue(selectedBrandId, feature)
-              const rowKey = `brand:${selectedBrandId}:${feature}`
-              const isSaving = savingSwitchKey === rowKey
+      <div className="space-y-2">
+        {FEATURE_SWITCH_CATEGORIES.map((category) => {
+          const features = FEATURE_SWITCHES_BY_CATEGORY[category]
+          const enabledCount = enabledCountInCategory(category, selectedBrandId, brandSwitchValue)
+          const isOpen = openCategories[category]
 
-              return (
-                <li
-                  key={feature}
-                  className="flex items-start justify-between gap-4 py-3 first:pt-2 last:pb-1"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-medium text-gray-800">
-                        {featureLabel(feature, catalogByKey)}
-                      </p>
-                      <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-100">
-                        {minTierLabel(feature, catalogByKey)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                      {featureDescription(feature, catalogByKey)}
-                    </p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-0.5">
-                    <input
-                      type="checkbox"
-                      className="sr-only peer"
-                      checked={enabled}
-                      disabled={isSaving}
-                      onChange={() => onToggle(selectedBrandId, feature, !enabled)}
-                    />
-                    <div
-                      className={`relative w-11 h-6 rounded-full bg-gray-200 peer-checked:bg-emerald-500 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[var(--color-primary)]/30 peer-disabled:opacity-50 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5`}
-                    />
-                    <span className="sr-only">
-                      {isSaving ? 'Saving…' : enabled ? 'On' : 'Off'}
-                    </span>
-                  </label>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      ))}
+          return (
+            <div
+              key={category}
+              className="border border-gray-200 rounded-xl overflow-hidden bg-white"
+            >
+              <button
+                type="button"
+                onClick={() => toggleCategory(category)}
+                className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-gray-50 transition"
+                aria-expanded={isOpen}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <ChevronDown
+                    size={16}
+                    className={`shrink-0 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                  />
+                  <span className="text-sm font-semibold text-gray-800">
+                    {FEATURE_SWITCH_CATEGORY_LABELS[category]}
+                  </span>
+                </div>
+                <span className="text-[11px] font-medium text-gray-500 shrink-0">
+                  {enabledCount}/{features.length} on
+                </span>
+              </button>
+
+              {isOpen && (
+                <ul className="divide-y divide-gray-100 border-t border-gray-100">
+                  {features.map((feature) => {
+                    const enabled = brandSwitchValue(selectedBrandId, feature)
+                    const rowKey = `brand:${selectedBrandId}:${feature}`
+                    const isSaving = savingSwitchKey === rowKey
+
+                    return (
+                      <li
+                        key={feature}
+                        className="flex items-start justify-between gap-4 px-4 py-3"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-medium text-gray-800">
+                              {featureLabel(feature, catalogByKey)}
+                            </p>
+                            <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-100">
+                              {minTierLabel(feature, catalogByKey)}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                            {featureDescription(feature, catalogByKey)}
+                          </p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-0.5">
+                          <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={enabled}
+                            disabled={isSaving}
+                            onChange={() => onToggle(selectedBrandId, feature, !enabled)}
+                          />
+                          <div
+                            className="relative w-11 h-6 rounded-full bg-gray-200 peer-checked:bg-emerald-500 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[var(--color-primary)]/30 peer-disabled:opacity-50 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"
+                          />
+                          <span className="sr-only">
+                            {isSaving ? 'Saving…' : enabled ? 'On' : 'Off'}
+                          </span>
+                        </label>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
