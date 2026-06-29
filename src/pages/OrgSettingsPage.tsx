@@ -5,6 +5,7 @@ import { applyThemeToDocument, resolveThemeTokens } from '../lib/theme';
 import { buildBrandTransferPayload } from '../lib/brandTransfer';
 import NavBar from '../components/NavBar';
 import UpsellSettingsPanel from '../components/settings/UpsellSettingsPanel';
+import InvoiceTemplateEditor from '../components/settings/InvoiceTemplateEditor';
 import BillingPanel from '../components/BillingPanel';
 
 export default function OrgSettingsPage() {
@@ -371,6 +372,8 @@ export default function OrgSettingsPage() {
 
         {/* Upsell Items */}
         {orgId && <UpsellSettingsPanel orgId={orgId} />}
+
+        {orgId && <InvoiceTemplateEditor orgId={orgId} primaryColor={primaryColor} />}
 
         <BillingPanel />
 

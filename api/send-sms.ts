@@ -8,6 +8,7 @@ import { notifyManagersNewLead } from './_lib/notifyManagersNewLead.js'
 import { formatAuPhoneForSms, phoneCandidates } from './_lib/phone.js'
 import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
 import { acceptQuoteByToken, createQuote, getQuoteByToken } from './_lib/quotes.js'
+import { createAndSendInvoice, markInvoicePaid } from './_lib/invoices.js'
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
 function checkRateLimit(key: string, limit = 20, windowMs = 60_000): boolean {
@@ -383,6 +384,111 @@ async function handleQuotePublicAccept(req: VercelRequest, res: VercelResponse) 
   }
 }
 
+async function loadOrgInvoiceSettings(orgId: string) {
+  const supabase = getSupabaseAdmin()
+  if (!supabase) return null
+  const { data, error } = await supabase
+    .from('orgs')
+    .select('email_templates, invoice_payment_instructions, invoice_pdf_template_path, primary_color')
+    .eq('id', orgId)
+    .maybeSingle()
+  if (error || !data) return null
+  return {
+    email_templates: (data.email_templates as Record<string, string>) ?? {},
+    invoice_payment_instructions: (data.invoice_payment_instructions as string) ?? null,
+    invoice_pdf_template_path: (data.invoice_pdf_template_path as string) ?? null,
+    primary_color: (data.primary_color as string) || '#004B93',
+  }
+}
+
+async function handleInvoiceSendEmail(req: VercelRequest, res: VercelResponse, auth: AuthContext) {
+  if (!['manager', 'platform_admin'].includes(auth.role)) {
+    return res.status(403).json({ error: 'Only managers can send invoices' })
+  }
+
+  const featureEnabled = await isFeatureEnabledForOrg(auth.orgId, 'one_tap_invoice')
+  if (!featureEnabled) {
+    return res.status(403).json({ error: 'Invoice email is disabled for this franchise' })
+  }
+
+  const {
+    leadId,
+    quoteId,
+    customerName,
+    customerEmail,
+    serviceType,
+    totalAmount,
+    lineItems,
+    pdfStoragePath,
+    senderName,
+  } = (req.body ?? {}) as {
+    leadId?: string
+    customerName?: string
+    customerEmail?: string
+    serviceType?: string
+    totalAmount?: number
+    quoteId?: string
+    lineItems?: Array<{ label: string; amount: number }>
+    pdfStoragePath?: string
+    senderName?: string
+  }
+
+  if (!leadId || !customerName || !customerEmail || typeof totalAmount !== 'number') {
+    return res.status(400).json({
+      error: 'Missing invoice fields (leadId, customerName, customerEmail, totalAmount)',
+    })
+  }
+
+  const orgSettings = await loadOrgInvoiceSettings(auth.orgId)
+  if (!orgSettings) {
+    return res.status(500).json({ error: 'Could not load org invoice settings' })
+  }
+
+  try {
+    const invoice = await createAndSendInvoice({
+      orgId: auth.orgId,
+      createdBy: auth.userId,
+      leadId,
+      quoteId,
+      customerName,
+      customerEmail,
+      serviceType,
+      totalAmount,
+      lineItems,
+      pdfStoragePath,
+      orgName: auth.org.name,
+      senderName,
+      emailTemplates: orgSettings.email_templates,
+      paymentInstructions: orgSettings.invoice_payment_instructions,
+      orgPdfTemplatePath: orgSettings.invoice_pdf_template_path,
+      primaryColor: orgSettings.primary_color || auth.brand?.primary_color,
+    })
+    return res.status(200).json({ success: true, invoice })
+  } catch (err) {
+    console.error('Invoice send failed:', err)
+    return res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to send invoice' })
+  }
+}
+
+async function handleInvoiceMarkPaid(req: VercelRequest, res: VercelResponse, auth: AuthContext) {
+  if (!['manager', 'platform_admin'].includes(auth.role)) {
+    return res.status(403).json({ error: 'Only managers can mark invoices paid' })
+  }
+
+  const { invoiceId } = (req.body ?? {}) as { invoiceId?: string }
+  if (!invoiceId) {
+    return res.status(400).json({ error: 'Missing invoiceId' })
+  }
+
+  try {
+    const invoice = await markInvoicePaid(invoiceId, auth.orgId)
+    return res.status(200).json({ success: true, invoice })
+  } catch (err) {
+    console.error('Invoice mark paid failed:', err)
+    return res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to mark invoice paid' })
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const action = String(req.query.action ?? '').trim()
 
@@ -420,6 +526,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   if (action === 'quote-create') {
     return handleQuoteCreate(req, res, auth)
+  }
+  if (action === 'invoice-send-email') {
+    return handleInvoiceSendEmail(req, res, auth)
+  }
+  if (action === 'invoice-mark-paid') {
+    return handleInvoiceMarkPaid(req, res, auth)
   }
 
   const { mode, to, customerName, techName, address, leadName, serviceType, leadId, dateTime, managerName } = req.body as {

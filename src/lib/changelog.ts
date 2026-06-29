@@ -52,11 +52,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Stronger brand tint on feature switch accordion headers (left accent + coloured title)',
     'Feature switch headers use inline brand tint; swatch shows brand template colour vs nav',
     'Platform admin: edit brand template colours on Feature switches (separate from Franchise Settings org colours)',
+    'One-tap invoice email at job completion — custom HTML/PDF templates and payment instructions in Org Settings',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.33'
+export const APP_VERSION = '1.2.0'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

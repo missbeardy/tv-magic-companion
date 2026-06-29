@@ -54,3 +54,40 @@ export function buildQuoteEmailFromBrand(
     html: interpolateTemplate(htmlTemplate, vars),
   }
 }
+
+export const INVOICE_EMAIL_TEMPLATE_KEYS = {
+  subject: 'customer_invoice_subject',
+  html: 'customer_invoice_html',
+} as const
+
+export function getDefaultInvoiceEmailTemplates(): Record<string, string> {
+  return {
+    [INVOICE_EMAIL_TEMPLATE_KEYS.subject]: 'Invoice {{invoiceNumber}} from {{org.name}}',
+    [INVOICE_EMAIL_TEMPLATE_KEYS.html]: `<div style="font-family:Inter,Arial,sans-serif;line-height:1.5;color:#1f2937;max-width:560px">
+  <h2 style="color:{{primaryColor}}">Invoice {{invoiceNumber}}</h2>
+  <p>Hi {{customerName}},</p>
+  <p>Thank you for choosing {{org.name}}. Please find your invoice details below.</p>
+  <p><strong>Amount due:</strong> {{totalAmount}}</p>
+  <p><strong>Due date:</strong> {{dueDate}}</p>
+  {{lineItemsHtml}}
+  <p><strong>How to pay:</strong><br/>{{paymentInstructions}}</p>
+  {{senderBlock}}
+</div>`,
+  }
+}
+
+export function buildInvoiceEmailFromOrg(
+  templates: Record<string, string> | null | undefined,
+  vars: TemplateVars,
+  fallbackTemplates: Record<string, string> = getDefaultInvoiceEmailTemplates()
+): QuoteEmailContent {
+  const subjectTemplate =
+    templates?.[INVOICE_EMAIL_TEMPLATE_KEYS.subject] ?? fallbackTemplates[INVOICE_EMAIL_TEMPLATE_KEYS.subject]
+  const htmlTemplate =
+    templates?.[INVOICE_EMAIL_TEMPLATE_KEYS.html] ?? fallbackTemplates[INVOICE_EMAIL_TEMPLATE_KEYS.html]
+
+  return {
+    subject: interpolateTemplate(subjectTemplate, vars),
+    html: interpolateTemplate(htmlTemplate, vars),
+  }
+}

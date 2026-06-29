@@ -44,6 +44,7 @@ export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   inbound_calls: false,
   missed_call_hookback_sms: false,
   completion_upsells: false,
+  one_tap_invoice: false,
   tech_location: false,
 }
 
@@ -90,6 +91,10 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   completion_upsells: {
     label: 'Completion Upsell Checklist',
     description: 'Upsell prompts in the job completion flow',
+  },
+  one_tap_invoice: {
+    label: 'One-Tap Invoice Email',
+    description: 'Send branded invoice emails at job completion with optional PDF attachment',
   },
   tech_location: {
     label: 'Tech Location Tracking',

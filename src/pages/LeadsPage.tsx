@@ -37,6 +37,7 @@ import { isReviewRequestEligible, sendReviewRequestSms } from '../lib/reviewRequ
 import { getOnTheWayBlockReason, buildOnTheWayMessage, openOnTheWaySms } from '../lib/onTheWaySms'
 import { logLeadEvent as recordLeadEvent } from '../lib/leadEvents'
 import { formatAuPhoneForSms } from '../lib/phone'
+import { markInvoicePaid } from '../lib/invoices'
 import type { LeadEventType } from '../lib/leadEventPayload'
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -61,7 +62,18 @@ interface Lead {
   hidden_from_kanban_at?: string | null
   latest_quote_status?: string | null
   latest_quote_accepted_at?: string | null
+  latest_invoice_status?: string | null
+  latest_invoice_id?: string | null
+  latest_invoice_number?: string | null
   profiles: { full_name: string } | null
+}
+
+interface LeadInvoiceSummary {
+  lead_id: string
+  id: string
+  status: string
+  invoice_number: string
+  created_at: string
 }
 
 interface LeadEvent {
@@ -165,7 +177,28 @@ function LeadCard({
   const isExpanded = expandedLead === lead.id
   const isBookingCancelled = lead.status === 'booking_cancelled'
   const isQuoteAccepted = lead.latest_quote_status === 'accepted'
+  const invoiceStatus = lead.latest_invoice_status
+  const [markingPaid, setMarkingPaid] = useState(false)
   const [events, setEvents] = useState<LeadEvent[]>([])
+
+  async function handleMarkInvoicePaid() {
+    if (!lead.latest_invoice_id) return
+    setMarkingPaid(true)
+    try {
+      await markInvoicePaid(lead.latest_invoice_id)
+      await onLogEvent(
+        lead.id,
+        `Invoice ${lead.latest_invoice_number ?? ''} marked paid`.trim(),
+        'invoice_paid_manual'
+      )
+      onRefresh()
+    } catch (err) {
+      console.error(err)
+      alert(err instanceof Error ? err.message : 'Failed to mark paid')
+    } finally {
+      setMarkingPaid(false)
+    }
+  }
 
   useEffect(() => {
     if (!isExpanded) return
@@ -202,6 +235,16 @@ function LeadCard({
       {isBookingCancelled && (
         <p className="text-[10px] font-bold uppercase tracking-wide text-red-700 mb-2">
           Booking Cancelled
+        </p>
+      )}
+      {invoiceStatus === 'sent' && (
+        <p className="text-[10px] font-bold uppercase tracking-wide text-violet-700 mb-2">
+          Invoice sent
+        </p>
+      )}
+      {invoiceStatus === 'paid' && (
+        <p className="text-[10px] font-bold uppercase tracking-wide text-green-700 mb-2">
+          Invoice paid
         </p>
       )}
       <div className="flex items-start justify-between gap-2">
@@ -337,6 +380,17 @@ function LeadCard({
 
           {lead.status === 'completed' && (
             <LeadPhotos leadId={lead.id} canUpload={true} />
+          )}
+
+          {invoiceStatus === 'sent' && lead.latest_invoice_id && isManagerRole(profile?.role) && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); handleMarkInvoicePaid() }}
+              disabled={markingPaid}
+              className="mt-2 text-xs px-2 py-1 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+            >
+              {markingPaid ? 'Saving…' : 'Mark invoice paid'}
+            </button>
           )}
 
           {events.length > 0 && (
@@ -540,12 +594,39 @@ export default function LeadsPage() {
         }
       }
 
+      let invoiceRows: LeadInvoiceSummary[] = []
+      try {
+        const invoicesRes = await supabase
+          .from('invoices')
+          .select('lead_id, id, status, invoice_number, created_at')
+          .in('lead_id', leadIds)
+          .order('created_at', { ascending: false })
+        if (!invoicesRes.error && invoicesRes.data) {
+          invoiceRows = invoicesRes.data as LeadInvoiceSummary[]
+        } else if (invoicesRes.error) {
+          console.warn('Invoices table unavailable; skipping invoice card state.', invoicesRes.error.message)
+        }
+      } catch (err) {
+        console.warn('Invoices fetch skipped:', err)
+      }
+
+      const latestInvoiceByLead = new Map<string, LeadInvoiceSummary>()
+      for (const row of invoiceRows) {
+        if (!latestInvoiceByLead.has(row.lead_id)) {
+          latestInvoiceByLead.set(row.lead_id, row)
+        }
+      }
+
       const merged = baseLeads.map((lead) => {
         const latestQuote = latestQuoteByLead.get(lead.id)
+        const latestInvoice = latestInvoiceByLead.get(lead.id)
         return {
           ...lead,
           latest_quote_status: latestQuote?.status ?? null,
           latest_quote_accepted_at: latestQuote?.accepted_at ?? null,
+          latest_invoice_status: latestInvoice?.status ?? null,
+          latest_invoice_id: latestInvoice?.id ?? null,
+          latest_invoice_number: latestInvoice?.invoice_number ?? null,
         }
       })
       setLeads(merged)
@@ -928,7 +1009,9 @@ export default function LeadsPage() {
           lead={checklistLead}
           onComplete={confirmComplete}
           onCancel={() => { setShowChecklist(false); setChecklistLead(null) }}
-          logEvent={(id, note) => logLeadEvent(id, 'review_request', note)}
+          logEvent={async (id, note, eventType) => {
+            await logLeadEvent(id, (eventType ?? 'review_request') as LeadEventType, note)
+          }}
         />
       )}
       {reviewModalLead && reviewModalLead.phone?.trim() && (

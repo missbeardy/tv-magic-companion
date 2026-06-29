@@ -6,6 +6,7 @@ import { useOrg } from '../context/OrgContext';
 import { supabase } from '../lib/supabase';
 import { useConfetti } from '../hooks/useConfetti';
 import ReviewRequestStep from './ReviewRequestStep';
+import InvoiceStep from './InvoiceStep';
 import {
   fetchReviewOrg,
   isReviewRequestEligible,
@@ -33,10 +34,10 @@ interface UpsellItem {
 }
 
 interface Props {
-  lead: ReviewRequestLead;
+  lead: ReviewRequestLead & { email?: string | null; service_type?: string | null };
   onComplete: () => void | Promise<void>;
   onCancel: () => void;
-  logEvent?: (leadId: string, note: string) => Promise<void>;
+  logEvent?: (leadId: string, note: string, eventType?: 'invoice_sent' | 'completed') => Promise<void>;
 }
 
 export default function CompletionChecklist({ lead, onComplete, onCancel, logEvent }: Props) {
@@ -45,10 +46,11 @@ export default function CompletionChecklist({ lead, onComplete, onCancel, logEve
   const { fireConfetti } = useConfetti();
   const reviewFeatureEnabled = !featureSwitchesLoading && isFeatureEnabled('review_requests');
   const upsellsEnabled = !featureSwitchesLoading && isFeatureEnabled('completion_upsells');
+  const invoiceFeatureEnabled = !featureSwitchesLoading && isFeatureEnabled('one_tap_invoice');
   const [checked, setChecked] = useState<boolean[]>(CHECKLIST.map(() => false));
   const [upsellDone, setUpsellDone] = useState(!upsellsEnabled);
   const [upsellLabels, setUpsellLabels] = useState<string[]>(DEFAULT_UPSELLS);
-  const [step, setStep] = useState<'checklist' | 'review'>('checklist');
+  const [step, setStep] = useState<'checklist' | 'invoice' | 'review'>('checklist');
   const [sendingReview, setSendingReview] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
 
@@ -81,6 +83,19 @@ export default function CompletionChecklist({ lead, onComplete, onCancel, logEve
     setChecked((prev) => prev.map((v, idx) => (idx === i ? !v : v)));
   };
 
+  async function proceedAfterInvoice(invoiceSent: boolean) {
+    if (invoiceSent && logEvent) {
+      await logEvent(lead.id, 'Invoice emailed to customer', 'invoice_sent');
+    }
+    const org = profile?.org_id ? await fetchReviewOrg(profile.org_id) : null;
+    const eligible = await isReviewRequestEligible(org, lead, profile?.org_id, reviewFeatureEnabled);
+    if (eligible && lead.phone?.trim()) {
+      setStep('review');
+      return;
+    }
+    await finishJob(false);
+  }
+
   async function finishJob(sendReviewSms: boolean) {
     if (sendReviewSms) {
       setSendingReview(true);
@@ -97,13 +112,11 @@ export default function CompletionChecklist({ lead, onComplete, onCancel, logEve
   }
 
   async function handleChecklistConfirm() {
-    const org = profile?.org_id ? await fetchReviewOrg(profile.org_id) : null;
-    const eligible = await isReviewRequestEligible(org, lead, profile?.org_id, reviewFeatureEnabled);
-    if (eligible && lead.phone?.trim()) {
-      setStep('review');
+    if (invoiceFeatureEnabled) {
+      setStep('invoice');
       return;
     }
-    await finishJob(false);
+    await proceedAfterInvoice(false);
   }
 
   return (
@@ -163,10 +176,16 @@ export default function CompletionChecklist({ lead, onComplete, onCancel, logEve
                 disabled={!allChecked || !upsellDone}
                 className="flex-1 py-3 rounded-xl bg-green-500 text-white font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Complete Job ✅
+                {invoiceFeatureEnabled ? 'Next — Invoice' : 'Complete Job ✅'}
               </button>
             </div>
           </>
+        ) : step === 'invoice' ? (
+          <InvoiceStep
+            lead={lead}
+            onDone={async ({ sent }) => proceedAfterInvoice(sent)}
+            onCancel={onCancel}
+          />
         ) : (
           <>
             <h2 className="text-lg font-bold text-[#004B93]">Before You Close This Job</h2>

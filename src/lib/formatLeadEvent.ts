@@ -15,6 +15,7 @@ import {
   Ban,
   PhoneMissed,
   CircleDot,
+  Receipt,
 } from 'lucide-react'
 import type { LeadEventType } from './leadEventPayload'
 
@@ -115,6 +116,16 @@ const EVENT_META: Record<
     icon: MessageSquare,
     iconColour: 'bg-cyan-500',
     template: (_who, lead) => `SMS sent to ${lead}`,
+  },
+  invoice_sent: {
+    icon: Receipt,
+    iconColour: 'bg-violet-500',
+    template: (who, lead) => `${who} emailed invoice to ${lead}`,
+  },
+  invoice_paid_manual: {
+    icon: Receipt,
+    iconColour: 'bg-green-600',
+    template: (who, lead) => `${who} marked invoice paid for ${lead}`,
   },
 }
 

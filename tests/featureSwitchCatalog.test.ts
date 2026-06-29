@@ -47,6 +47,7 @@ describe('featureSwitchCatalog categories', () => {
     expect(FEATURE_SWITCHES_BY_CATEGORY.sales_job_completion).toEqual([
       'quote_esign',
       'completion_upsells',
+      'one_tap_invoice',
     ])
   })
 })

@@ -15,6 +15,8 @@ export const LEAD_EVENT_TYPES = [
   'unassigned',
   'review_request',
   'sms_sent',
+  'invoice_sent',
+  'invoice_paid_manual',
 ] as const
 
 export type LeadEventType = (typeof LEAD_EVENT_TYPES)[number]

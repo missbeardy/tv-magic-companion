@@ -17,3 +17,5 @@ export type LeadEventType =
   | 'unassigned'
   | 'review_request'
   | 'sms_sent'
+  | 'invoice_sent'
+  | 'invoice_paid_manual'
