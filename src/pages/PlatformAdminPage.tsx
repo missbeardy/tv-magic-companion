@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { buildBrandTransferPayload } from '../lib/brandTransfer'
 import NavBar from '../components/NavBar'
 import BrandQuoteEmailEditor from '../components/BrandQuoteEmailEditor'
+import PlatformFeatureSwitches from '../components/platform/PlatformFeatureSwitches'
 import { Building2, Plus, RefreshCw, ArrowRightLeft } from 'lucide-react'
 import {
   FEATURE_SWITCH_DEFINITIONS,
@@ -37,6 +38,7 @@ interface FeatureCatalogRow {
   description: string | null
   default_enabled: boolean
   min_tier: string
+  category?: string | null
 }
 
 interface FeatureSwitchRow {
@@ -57,6 +59,7 @@ export default function PlatformAdminPage() {
   const [switchesError, setSwitchesError] = useState('')
   const [switchesLoading, setSwitchesLoading] = useState(true)
   const [savingSwitchKey, setSavingSwitchKey] = useState<string | null>(null)
+  const [selectedBrandId, setSelectedBrandId] = useState('')
   const [transferringOrgId, setTransferringOrgId] = useState<string | null>(null)
 
   const [newOrgName, setNewOrgName] = useState('')
@@ -93,7 +96,7 @@ export default function PlatformAdminPage() {
     const [catalogRes, brandSwitchRes] = await Promise.all([
       supabase
         .from('feature_flag_catalog')
-        .select('feature_key, label, description, default_enabled, min_tier')
+        .select('feature_key, label, description, default_enabled, min_tier, category')
         .in('feature_key', [...FEATURE_SWITCH_KEYS]),
       supabase
         .from('brand_feature_switches')
@@ -152,6 +155,12 @@ export default function PlatformAdminPage() {
       setNewOrgBrandId(brands[0].id)
     }
   }, [brands, newOrgBrandId])
+
+  useEffect(() => {
+    if (brands.length && !selectedBrandId) {
+      setSelectedBrandId(brands[0].id)
+    }
+  }, [brands, selectedBrandId])
 
   async function fetchBrandTemplate(brandId: string) {
     const { data, error: fetchError } = await supabase
@@ -240,28 +249,15 @@ export default function PlatformAdminPage() {
     return map
   }, [featureCatalog])
 
-  const missingBrandDefaults = useMemo(() => {
-    const missing: Array<{ brandName: string; feature: FeatureSwitchKey }> = []
-    for (const b of brands) {
-      for (const feature of featureKeys) {
-        const key = `${b.id}:${feature}`
-        if (!(key in brandSwitchRows)) {
-          missing.push({ brandName: b.name, feature })
-        }
-      }
-    }
-    return missing
-  }, [brands, featureKeys, brandSwitchRows])
+  const missingFeaturesForSelectedBrand = useMemo(() => {
+    if (!selectedBrandId) return [] as FeatureSwitchKey[]
+    return featureKeys.filter((feature) => !(`${selectedBrandId}:${feature}` in brandSwitchRows))
+  }, [selectedBrandId, featureKeys, brandSwitchRows])
 
   function brandSwitchValue(brandId: string, feature: FeatureSwitchKey): boolean {
     const key = `${brandId}:${feature}`
     if (key in brandSwitchRows) return brandSwitchRows[key]
     return catalogByKey[feature]?.default_enabled ?? false
-  }
-
-  function minTierLabel(feature: FeatureSwitchKey): string {
-    const tier = catalogByKey[feature]?.min_tier ?? FEATURE_SWITCH_MIN_TIERS[feature] ?? 'basic'
-    return tier.charAt(0).toUpperCase() + tier.slice(1)
   }
 
   async function updateBrandSwitch(brandId: string, feature: FeatureSwitchKey, enabled: boolean) {
@@ -366,68 +362,19 @@ export default function PlatformAdminPage() {
               {switchesError}
             </div>
           )}
-          {!switchesError && missingBrandDefaults.length > 0 && (
-            <div className="bg-amber-50 border border-amber-200 text-amber-700 text-xs p-3 rounded-xl">
-              Missing explicit brand defaults: {missingBrandDefaults
-                .slice(0, 6)
-                .map((entry) => `${entry.brandName} → ${FEATURE_SWITCH_DEFINITIONS[entry.feature].label}`)
-                .join(', ')}
-              {missingBrandDefaults.length > 6 ? ` (+${missingBrandDefaults.length - 6} more)` : ''}
-            </div>
-          )}
           {switchesLoading ? (
             <p className="text-sm text-gray-400">Loading feature switches…</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-xs">
-                <thead>
-                  <tr className="text-left text-gray-500 border-b border-gray-100">
-                    <th className="py-2 pr-3 font-semibold">Brand</th>
-                    {featureKeys.map((feature) => (
-                      <th key={feature} className="py-2 pr-3 font-semibold min-w-[7rem]">
-                        <div>{catalogByKey[feature]?.label ?? FEATURE_SWITCH_DEFINITIONS[feature].label}</div>
-                        <div className="font-normal text-[10px] text-gray-400 mt-0.5">
-                          {catalogByKey[feature]?.description ?? FEATURE_SWITCH_DEFINITIONS[feature].description}
-                        </div>
-                        <div className="font-normal text-[10px] text-sky-600 mt-0.5">
-                          Min tier: {minTierLabel(feature)}
-                        </div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {brands.map((b) => (
-                    <tr key={b.id} className="border-b border-gray-50">
-                      <td className="py-2 pr-3">
-                        <p className="font-medium text-gray-800">{b.name}</p>
-                        <p className="text-[10px] text-gray-400">{b.slug}</p>
-                      </td>
-                      {featureKeys.map((feature) => {
-                        const current = brandSwitchValue(b.id, feature)
-                        const rowKey = `brand:${b.id}:${feature}`
-                        return (
-                          <td key={feature} className="py-2 pr-3">
-                            <button
-                              type="button"
-                              disabled={savingSwitchKey === rowKey}
-                              onClick={() => updateBrandSwitch(b.id, feature, !current)}
-                              className={`px-2.5 py-1 rounded-full border text-[11px] font-semibold ${
-                                current
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                  : 'bg-gray-50 text-gray-500 border-gray-200'
-                              } disabled:opacity-50`}
-                            >
-                              {savingSwitchKey === rowKey ? 'Saving…' : current ? 'ON' : 'OFF'}
-                            </button>
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <PlatformFeatureSwitches
+              brands={brands}
+              selectedBrandId={selectedBrandId}
+              onBrandChange={setSelectedBrandId}
+              catalogByKey={catalogByKey}
+              brandSwitchValue={brandSwitchValue}
+              onToggle={updateBrandSwitch}
+              savingSwitchKey={savingSwitchKey}
+              missingFeaturesForBrand={missingFeaturesForSelectedBrand}
+            />
           )}
         </section>
 

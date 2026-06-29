@@ -1,12 +1,26 @@
 import type { Org } from '../types/org'
 import { isPlatformFeaturesEnabled } from './env'
 import {
+  FEATURE_SWITCH_CATEGORIES,
+  FEATURE_SWITCH_CATEGORY_BY_KEY,
+  FEATURE_SWITCH_CATEGORY_LABELS,
   FEATURE_SWITCH_KEYS,
   FEATURE_SWITCH_MIN_TIERS,
+  FEATURE_SWITCHES_BY_CATEGORY,
+  type FeatureSwitchCategory,
   type FeatureSwitchKey,
 } from '../../shared/featureSwitchCatalog'
 
-export { FEATURE_SWITCH_KEYS, FEATURE_SWITCH_MIN_TIERS, type FeatureSwitchKey }
+export {
+  FEATURE_SWITCH_CATEGORIES,
+  FEATURE_SWITCH_CATEGORY_BY_KEY,
+  FEATURE_SWITCH_CATEGORY_LABELS,
+  FEATURE_SWITCH_KEYS,
+  FEATURE_SWITCH_MIN_TIERS,
+  FEATURE_SWITCHES_BY_CATEGORY,
+  type FeatureSwitchCategory,
+  type FeatureSwitchKey,
+}
 
 export const FEATURES = {
   leads: { tier: 'basic', nav: '/leads', label: 'Leads' },
@@ -38,7 +52,7 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   { label: string; description: string }
 > = {
   smart_assign_badge: {
-    label: 'Smart Assign',
+    label: 'Smart Assign Badge',
     description: 'Assign modal recommendation badges and highlighting',
   },
   quote_esign: {
