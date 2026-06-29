@@ -1,8 +1,10 @@
-// api/inbound-email.ts
+// FieldBourne ops forwards admin@fieldbourne → CloudMailin plus-address; tag resolves org.
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
 import { resolveOrgIdFromDid } from './_lib/resolveOrgFromDid.js'
+import { resolveOrgIdFromInboundEmail } from './_lib/resolveOrgFromInboundEmail.js'
+import { applySoloInboundAssignment } from './_lib/soloInboundLead.js'
 import { findRecentLeadByPhone } from './_lib/inboundLeadDedup.js'
 import { formatAuPhoneForSms } from './_lib/phone.js'
 import { notifyManagersNewLead } from './_lib/notifyManagersNewLead.js'
@@ -153,12 +155,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const subject = req.body.subject || headers?.subject || 'No Subject'
   const from = req.body.from || headers?.from || 'Unknown Sender'
 
-  const orgId = process.env.DEFAULT_ORG_ID
-  if (!orgId) {
-    console.error('DEFAULT_ORG_ID not set')
-    return res.status(500).json({ error: 'Server misconfigured' })
-  }
-
   // ── Voicemail branch ──────────────────────────────────────────
   const voicemailAttachment = attachments?.find(isVoicemailAttachment)
 
@@ -303,11 +299,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  // ── Normal email-lead branch (unchanged behaviour) ──────────────
+  // ── Normal email-lead branch — org from CloudMailin plus-tag ───
   if (!emailText.trim()) {
     console.error('Empty email body received from CloudMailin')
     return res.status(200).json({ received: true })
   }
+
+  const orgResolution = await resolveOrgIdFromInboundEmail(supabase, req.body)
+  if (!orgResolution.orgId) {
+    console.error(`Inbound email: org not resolved (${orgResolution.reason})`)
+    return res.status(200).json({ skipped: true, reason: orgResolution.reason, tag: orgResolution.tag })
+  }
+  const orgId = orgResolution.orgId
 
   const emailEnabled = await isFeatureEnabledForOrg(orgId, 'inbound_email')
   if (!emailEnabled) {
@@ -318,7 +321,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const lead = await extractLeadWithClaude(emailText, subject, from, 'email')
 
-    const { data: newLead, error } = await supabase.from('leads').insert({
+    const insertPayload = await applySoloInboundAssignment(supabase, orgId, {
       org_id: orgId,
       name: lead.name || from,
       phone: lead.phone || null,
@@ -330,6 +333,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       source: 'email',
       raw_email: emailText,
     })
+
+    const { data: newLead, error } = await supabase.from('leads').insert(insertPayload)
       .select('id')
       .single()
 
@@ -344,6 +349,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         source: 'email',
         from,
         subject,
+        inbound_tag: orgResolution.tag,
+        routing: orgResolution.source,
       },
     })
 

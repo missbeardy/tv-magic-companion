@@ -5,6 +5,10 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/api/meta-webhook",
+      "destination": "/api/inbound-sms?action=meta-webhook"
+    },
+    {
       "source": "/api/send-notification",
       "destination": "/api/send-sms?action=notify"
     },

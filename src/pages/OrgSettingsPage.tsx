@@ -9,7 +9,7 @@ import InvoiceTemplateEditor from '../components/settings/InvoiceTemplateEditor'
 import BillingPanel from '../components/BillingPanel';
 
 export default function OrgSettingsPage() {
-  const { org, brand, refreshOrg } = useOrg();
+  const { org, brand, refreshOrg, isFeatureEnabled, featureSwitchesLoading } = useOrg();
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
@@ -373,7 +373,9 @@ export default function OrgSettingsPage() {
         {/* Upsell Items */}
         {orgId && <UpsellSettingsPanel orgId={orgId} />}
 
-        {orgId && <InvoiceTemplateEditor orgId={orgId} primaryColor={primaryColor} />}
+        {orgId && !featureSwitchesLoading && isFeatureEnabled('one_tap_invoice') && (
+          <InvoiceTemplateEditor orgId={orgId} primaryColor={primaryColor} />
+        )}
 
         <BillingPanel />
 

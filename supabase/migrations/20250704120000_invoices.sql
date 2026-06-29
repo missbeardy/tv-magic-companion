@@ -101,6 +101,7 @@ ON CONFLICT (feature_key) DO UPDATE
 SET
   label = EXCLUDED.label,
   description = EXCLUDED.description,
+  default_enabled = EXCLUDED.default_enabled,
   min_tier = EXCLUDED.min_tier,
   category = EXCLUDED.category;
 

@@ -1,9 +1,11 @@
 // src/components/AddLeadModal.tsx
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useOrg } from '../context/OrgContext';
 import { supabase } from '../lib/supabase';
 import { alertManagersOnNewLead } from '../lib/notify';
 import { logLeadEvent } from '../lib/leadEvents';
+import { buildSoloManualLeadFields } from '../lib/soloLeadAssignment';
 import { X, UserPlus, Phone, Mail, MapPin, Briefcase } from 'lucide-react';
 
 interface Props {
@@ -13,6 +15,7 @@ interface Props {
 
 export default function AddLeadModal({ onClose, onCreated }: Props) {
   const { profile } = useAuth();
+  const { org } = useOrg();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -34,6 +37,8 @@ export default function AddLeadModal({ onClose, onCreated }: Props) {
     setSaving(true);
     setError('');
 
+    const soloFields = buildSoloManualLeadFields(org?.operation_mode, profile?.id)
+
     const { data: lead, error: insertError } = await supabase.from('leads').insert({
       org_id: profile?.org_id,
       name: name.trim(),
@@ -42,7 +47,7 @@ export default function AddLeadModal({ onClose, onCreated }: Props) {
       address: address.trim() || null,
       service_type: serviceType.trim() || 'General Enquiry',
       details: details.trim() || null,
-      status: 'unassigned',
+      ...soloFields,
       source: 'manual',
       lead_source: 'Manual Entry',
     }).select('id').single();

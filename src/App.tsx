@@ -12,7 +12,6 @@ import ResetPassword from './pages/ResetPassword'
 import ManagerDashboard from './pages/ManagerDashboard'
 import EmployeeDashboard from './pages/EmployeeDashboard'
 import CalendarPage from './pages/CalendarPage'
-import AllLeadsPage from './pages/AllLeadsPage'
 import LeadsPage from './pages/LeadsPage'
 import SupportPage from './pages/SupportPage';
 import ProfilePage from './pages/ProfilePage'
@@ -126,14 +125,6 @@ function App() {
                 }
               />
               <Route
-                path="/all-leads"
-                element={
-                  <ProtectedRoute requiredRole="manager">
-                    <AllLeadsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
                 path="/profile"
                 element={
                   <ProtectedRoute>
@@ -181,7 +172,6 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-              <Route path="/test" element={<p style={{ padding: 20 }}>Test page works</p>} />
               <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
           </BrowserRouter>

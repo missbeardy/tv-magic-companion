@@ -402,8 +402,8 @@ async function loadOrgInvoiceSettings(orgId: string) {
 }
 
 async function handleInvoiceSendEmail(req: VercelRequest, res: VercelResponse, auth: AuthContext) {
-  if (!['manager', 'platform_admin'].includes(auth.role)) {
-    return res.status(403).json({ error: 'Only managers can send invoices' })
+  if (!['manager', 'platform_admin', 'technician'].includes(auth.role)) {
+    return res.status(403).json({ error: 'Only team members can send invoices' })
   }
 
   const featureEnabled = await isFeatureEnabledForOrg(auth.orgId, 'one_tap_invoice')

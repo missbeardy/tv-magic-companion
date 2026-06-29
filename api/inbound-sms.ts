@@ -113,6 +113,13 @@ function fallbackParse(smsText: string, fromNumber: string): any {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const action = typeof req.query.action === 'string' ? req.query.action : undefined
+
+  if (action === 'meta-webhook') {
+    const { handleMetaWebhook } = await import('./_lib/metaWebhook.js')
+    return handleMetaWebhook(req, res, supabase)
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -191,21 +198,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).send('<Response></Response>')
     }
 
-    // Explicit insert with org_id
-    const insertPayload = {
+    const { applySoloInboundAssignment } = await import('./_lib/soloInboundLead.js')
+
+    const insertPayload = await applySoloInboundAssignment(supabase, orgId, {
       name: leadName,
       phone: parsed.phone,
       email: parsed.email || null,
       service_type: parsed.service_type,
       details: parsed.job_details,
       address: parsed.address,
-      status: 'unassigned',
       source: 'sms',
       lead_source: 'SMS',
-      org_id: orgId,   // <-- critical
+      org_id: orgId,
       raw_sms: JSON.stringify(body),
       created_at: new Date().toISOString(),
-    }
+    })
 
     console.log(`Inserting lead with org_id: ${orgId}`)
 

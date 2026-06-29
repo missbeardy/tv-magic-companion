@@ -4,7 +4,9 @@ import { supabase } from '../lib/supabase'
 import { getAuthHeaders } from '../lib/apiAuth'
 import { alertManagersOnNewLead } from '../lib/notify'
 import { useAuth } from '../context/AuthContext'
+import { useOrg } from '../context/OrgContext'
 import { logLeadEvent } from '../lib/leadEvents'
+import { buildSoloManualLeadFields } from '../lib/soloLeadAssignment'
 
 interface ExtractedLead {
   name: string
@@ -68,9 +70,18 @@ async function upsertCustomer(extracted: ExtractedLead, orgId: string): Promise<
   return created.id
 }
 
-export default function EmailParser() {
+export default function EmailParser({
+  onLeadSaved,
+  onClose,
+  embedded = false,
+}: {
+  onLeadSaved?: (leadId: string) => void
+  onClose?: () => void
+  embedded?: boolean
+} = {}) {
   const navigate = useNavigate()
   const { profile } = useAuth()
+  const { org } = useOrg()
   const [rawEmail, setRawEmail] = useState('')
   const [extracted, setExtracted] = useState<ExtractedLead | null>(null)
   const [parsing, setParsing] = useState(false)
@@ -197,6 +208,7 @@ ${rawEmail}`,
       }
 
       const customerId = await upsertCustomer(extracted, profile.org_id)
+      const soloFields = buildSoloManualLeadFields(org?.operation_mode, profile.id)
 
       const { data: lead, error: dbError } = await supabase
         .from('leads')
@@ -212,7 +224,8 @@ ${rawEmail}`,
           raw_email: rawEmail,
           email_hash: hash,
           customer_id: customerId,
-          status: 'unassigned',
+          source: 'email_paste',
+          ...soloFields,
         })
         .select('id')
         .single()
@@ -238,7 +251,10 @@ ${rawEmail}`,
       setSaved(true)
       setRawEmail('')
       setExtracted(null)
-      setTimeout(() => setSaved(false), 4000)
+      onLeadSaved?.(lead.id)
+      if (!embedded) {
+        setTimeout(() => setSaved(false), 4000)
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save lead'
       setError(message)
@@ -254,10 +270,17 @@ ${rawEmail}`,
   const nearLimit = charCount > MAX_EMAIL_LENGTH * 0.8
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-      <h3 className="text-lg font-semibold text-gray-800 mb-1">
-        Email Lead Parser
-      </h3>
+    <div className={embedded ? '' : 'bg-white rounded-xl shadow-sm border border-gray-200 p-6'}>
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <h3 className="text-lg font-semibold text-gray-800">
+          {embedded ? 'Paste enquiry' : 'Email Lead Parser'}
+        </h3>
+        {embedded && onClose && (
+          <button type="button" onClick={onClose} className="text-sm text-gray-500 hover:text-gray-800 shrink-0">
+            Close
+          </button>
+        )}
+      </div>
       <p className="text-sm text-gray-500 mb-4">
         Paste a raw customer email below and AI will extract the lead details.
       </p>
@@ -270,7 +293,7 @@ ${rawEmail}`,
 
       {saved && (
         <div className="bg-green-50 text-green-600 p-3 rounded-lg mb-4 text-sm">
-          ✅ Lead saved to unassigned pool!
+          ✅ Lead saved{org?.operation_mode === 'solo' ? ' to your jobs' : ' to unassigned pool'}!
         </div>
       )}
 
@@ -346,7 +369,7 @@ ${rawEmail}`,
             disabled={!canSave}
             className="mt-4 bg-[#00B4C5] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#009aaa] transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {saving ? 'Saving...' : 'Save to Unassigned Pool'}
+            {saving ? 'Saving...' : org?.operation_mode === 'solo' ? 'Save to my jobs' : 'Save to Unassigned Pool'}
           </button>
         </div>
       )}

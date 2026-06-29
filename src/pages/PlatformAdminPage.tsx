@@ -6,6 +6,7 @@ import { buildBrandTransferPayload } from '../lib/brandTransfer'
 import NavBar from '../components/NavBar'
 import BrandQuoteEmailEditor from '../components/BrandQuoteEmailEditor'
 import PlatformFeatureSwitches from '../components/platform/PlatformFeatureSwitches'
+import InboundEmailRoutingPanel from '../components/platform/InboundEmailRoutingPanel'
 import { Building2, Plus, RefreshCw, ArrowRightLeft } from 'lucide-react'
 import {
   FEATURE_SWITCH_DEFINITIONS,
@@ -31,6 +32,8 @@ interface OrgRow {
   slug: string
   subscription_tier: string
   brand_id: string | null
+  operation_mode: 'solo' | 'team'
+  inbound_email_tag: string
 }
 
 interface FeatureCatalogRow {
@@ -62,11 +65,13 @@ export default function PlatformAdminPage() {
   const [savingSwitchKey, setSavingSwitchKey] = useState<string | null>(null)
   const [selectedBrandId, setSelectedBrandId] = useState('')
   const [transferringOrgId, setTransferringOrgId] = useState<string | null>(null)
+  const [savingOperationModeOrgId, setSavingOperationModeOrgId] = useState<string | null>(null)
 
   const [newOrgName, setNewOrgName] = useState('')
   const [newOrgSlug, setNewOrgSlug] = useState('')
   const [newOrgBrandId, setNewOrgBrandId] = useState('')
   const [newOrgTier, setNewOrgTier] = useState<'basic' | 'pro' | 'enterprise'>('basic')
+  const [newOrgOperationMode, setNewOrgOperationMode] = useState<'solo' | 'team'>('team')
   const [creating, setCreating] = useState(false)
 
   async function loadData() {
@@ -79,7 +84,7 @@ export default function PlatformAdminPage() {
         .from('brands')
         .select('id, name, slug, vertical, is_active, primary_color, secondary_color, email_templates')
         .order('name'),
-      supabase.from('orgs').select('id, name, slug, subscription_tier, brand_id').order('name'),
+      supabase.from('orgs').select('id, name, slug, subscription_tier, brand_id, operation_mode, inbound_email_tag').order('name'),
     ])
     if (brandsRes.error) setError(brandsRes.error.message)
     else {
@@ -93,7 +98,15 @@ export default function PlatformAdminPage() {
       )
     }
     if (orgsRes.error) setError(orgsRes.error.message)
-    else setOrgs(orgsRes.data ?? [])
+    else {
+      setOrgs(
+        (orgsRes.data ?? []).map((row) => ({
+          ...row,
+          operation_mode: row.operation_mode === 'solo' ? 'solo' : 'team',
+          inbound_email_tag: (row.inbound_email_tag as string) || row.slug,
+        }))
+      )
+    }
 
     const [catalogRes, brandSwitchRes] = await Promise.all([
       supabase
@@ -200,6 +213,24 @@ export default function PlatformAdminPage() {
     await applyBrandToOrg(orgId, brandId, orgName)
   }
 
+  async function handleUpdateOperationMode(orgId: string, mode: 'solo' | 'team', orgName: string) {
+    setSavingOperationModeOrgId(orgId)
+    setError('')
+    setSuccess('')
+    const { error: updateError } = await supabase
+      .from('orgs')
+      .update({ operation_mode: mode })
+      .eq('id', orgId)
+    if (updateError) {
+      setError(updateError.message)
+    } else {
+      setOrgs((prev) => prev.map((o) => (o.id === orgId ? { ...o, operation_mode: mode } : o)))
+      setSuccess(`"${orgName}" is now ${mode === 'solo' ? 'solo (owner-operator)' : 'team'} mode. Users must refresh to see the new Leads layout.`)
+      await refreshOrg()
+    }
+    setSavingOperationModeOrgId(null)
+  }
+
   async function handleCreateOrg(e: React.FormEvent) {
     e.preventDefault()
     if (!newOrgName.trim() || !newOrgSlug.trim() || !newOrgBrandId) return
@@ -212,10 +243,13 @@ export default function PlatformAdminPage() {
       const brandFull = await fetchBrandTemplate(newOrgBrandId)
       const payload = buildBrandTransferPayload(brandFull)
 
+      const orgSlug = newOrgSlug.trim().toLowerCase().replace(/\s+/g, '-')
       const { error: insertError } = await supabase.from('orgs').insert({
         name: newOrgName.trim(),
-        slug: newOrgSlug.trim().toLowerCase().replace(/\s+/g, '-'),
+        slug: orgSlug,
+        inbound_email_tag: orgSlug,
         subscription_tier: newOrgTier,
+        operation_mode: newOrgOperationMode,
         ...payload,
       })
 
@@ -427,6 +461,18 @@ export default function PlatformAdminPage() {
               </select>
             </div>
             <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Operation mode</label>
+              <select
+                value={newOrgOperationMode}
+                onChange={(e) => setNewOrgOperationMode(e.target.value as 'solo' | 'team')}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="team">Team (manager assigns)</option>
+                <option value="solo">Solo (owner-operator)</option>
+              </select>
+              <p className="text-[10px] text-gray-400 mt-1">Controls Leads layout — not the URL slug.</p>
+            </div>
+            <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Tier</label>
               <select
                 value={newOrgTier}
@@ -463,9 +509,22 @@ export default function PlatformAdminPage() {
                 <div>
                   <span className="font-medium">{o.name}</span>
                   <span className="text-gray-400 ml-2">{o.slug} · {o.subscription_tier}</span>
+                  <span className={`ml-2 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${o.operation_mode === 'solo' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>
+                    {o.operation_mode}
+                  </span>
                   <p className="text-xs text-gray-400 mt-0.5">Brand: {brandName(o.brand_id)}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={o.operation_mode}
+                    onChange={(e) => handleUpdateOperationMode(o.id, e.target.value as 'solo' | 'team', o.name)}
+                    disabled={savingOperationModeOrgId === o.id}
+                    className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs"
+                    title="Solo = simplified Leads inbox; team = assignment pool"
+                  >
+                    <option value="team">Team</option>
+                    <option value="solo">Solo</option>
+                  </select>
                   <select
                     value={o.brand_id ?? ''}
                     onChange={(e) => {

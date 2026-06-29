@@ -52,12 +52,17 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Stronger brand tint on feature switch accordion headers (left accent + coloured title)',
     'Feature switch headers use inline brand tint; swatch shows brand template colour vs nav',
     'Platform admin: edit brand template colours on Feature switches (separate from Franchise Settings org colours)',
-    'One-tap invoice email at job completion — custom HTML/PDF templates and payment instructions in Org Settings',
+    'Solo operation mode — simplified leads inbox for owner-operators with paste enquiry and auto-claim inbound SMS',
+    'Facebook Messenger webhook scaffold (meta-webhook via inbound-sms)',
+    'Platform admin: change operation mode (solo vs team) on existing franchisees',
+    'Solo Leads on desktop: Inbox / Active / Done tabs instead of six columns at once',
+    'Solo Leads desktop layout: stacked columns aligned with mobile; removed subtitle',
+    'One-tap invoice email at job completion — custom HTML/PDF templates and payment instructions in Org Settings (off by default)',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.2.0'
+export const APP_VERSION = '1.1.38'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

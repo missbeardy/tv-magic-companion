@@ -30,14 +30,14 @@ function BrandLogo({ compact = false }: { compact?: boolean }) {
 
 export default function NavBar() {
   const { profile, signOut } = useAuth()
-  const { canAccessFeature } = useOrg()
+  const { canAccessFeature, isSoloMode } = useOrg()
   const theme = useTheme()
   const location = useLocation()
   const navigate = useNavigate()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const closeDrawer = useCallback(() => setDrawerOpen(false), [])
 
-  const navLinks = filterNavLinks(profile?.role, canAccessFeature)
+  const navLinks = filterNavLinks(profile?.role, canAccessFeature, isSoloMode)
   const drawerActive = isDrawerRoute(location.pathname, navLinks)
 
   async function handleLogout() {
