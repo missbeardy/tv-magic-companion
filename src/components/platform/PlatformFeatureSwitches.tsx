@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
+import PlatformBrandColorEditor from './PlatformBrandColorEditor'
 import {
   FEATURE_SWITCH_CATEGORIES,
   FEATURE_SWITCH_CATEGORY_LABELS,
@@ -15,6 +16,7 @@ interface BrandOption {
   name: string
   slug: string
   primary_color?: string
+  secondary_color?: string
 }
 
 interface CatalogRow {
@@ -34,6 +36,7 @@ interface Props {
   onToggle: (brandId: string, feature: FeatureSwitchKey, enabled: boolean) => void
   savingSwitchKey: string | null
   missingFeaturesForBrand: FeatureSwitchKey[]
+  onBrandColorsUpdated: (brandId: string, primaryColor: string, secondaryColor: string) => void
 }
 
 function minTierLabel(feature: FeatureSwitchKey, catalogByKey: Props['catalogByKey']): string {
@@ -94,6 +97,7 @@ export default function PlatformFeatureSwitches({
   onToggle,
   savingSwitchKey,
   missingFeaturesForBrand,
+  onBrandColorsUpdated,
 }: Props) {
   const [openCategories, setOpenCategories] = useState<Record<FeatureSwitchCategory, boolean>>(() =>
     Object.fromEntries(
@@ -134,19 +138,16 @@ export default function PlatformFeatureSwitches({
           ))}
         </select>
         {selectedBrand && (
-          <div className="flex items-center gap-2 mt-2">
-            <span
-              className="inline-block w-5 h-5 rounded-md border border-black/10 shrink-0"
-              style={{ backgroundColor: brandHex }}
-              title={brandHex}
-            />
-            <p className="text-[11px] text-gray-500">
-              Brand colour <span className="font-mono text-gray-600">{brandHex}</span> — toggles apply to all
-              franchisees under {selectedBrand.name}.{' '}
-              <span className="text-gray-400">
-                (Nav bar uses your org colour; accordions use the brand template colour above.)
-              </span>
-            </p>
+          <div className="mt-3">
+            <PlatformBrandColorEditor
+            brandId={selectedBrand.id}
+            brandName={selectedBrand.name}
+            primaryColor={normalizeBrandHex(selectedBrand.primary_color)}
+            secondaryColor={normalizeBrandHex(selectedBrand.secondary_color ?? '#00B4C5')}
+            onSaved={(primaryColor, secondaryColor) =>
+              onBrandColorsUpdated(selectedBrand.id, primaryColor, secondaryColor)
+            }
+          />
           </div>
         )}
       </div>

@@ -21,6 +21,7 @@ interface BrandRow {
   vertical: string
   is_active: boolean
   primary_color: string
+  secondary_color: string
   email_templates: Record<string, string>
 }
 
@@ -76,7 +77,7 @@ export default function PlatformAdminPage() {
     const [brandsRes, orgsRes] = await Promise.all([
       supabase
         .from('brands')
-        .select('id, name, slug, vertical, is_active, primary_color, email_templates')
+        .select('id, name, slug, vertical, is_active, primary_color, secondary_color, email_templates')
         .order('name'),
       supabase.from('orgs').select('id, name, slug, subscription_tier, brand_id').order('name'),
     ])
@@ -86,6 +87,7 @@ export default function PlatformAdminPage() {
         (brandsRes.data ?? []).map((row) => ({
           ...row,
           primary_color: (row.primary_color as string) || '#004B93',
+          secondary_color: (row.secondary_color as string) || '#00B4C5',
           email_templates: (row.email_templates as Record<string, string>) ?? {},
         }))
       )
@@ -284,6 +286,14 @@ export default function PlatformAdminPage() {
     setSavingSwitchKey(null)
   }
 
+  function handleBrandColorsUpdated(brandId: string, primaryColor: string, secondaryColor: string) {
+    setBrands((prev) =>
+      prev.map((b) =>
+        b.id === brandId ? { ...b, primary_color: primaryColor, secondary_color: secondaryColor } : b
+      )
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <NavBar />
@@ -374,6 +384,7 @@ export default function PlatformAdminPage() {
               onToggle={updateBrandSwitch}
               savingSwitchKey={savingSwitchKey}
               missingFeaturesForBrand={missingFeaturesForSelectedBrand}
+              onBrandColorsUpdated={handleBrandColorsUpdated}
             />
           )}
         </section>
