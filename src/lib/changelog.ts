@@ -56,11 +56,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Facebook Messenger webhook scaffold (meta-webhook via inbound-sms)',
     'Platform admin: change operation mode (solo vs team) on existing franchisees',
     'Solo Leads on desktop: Inbox / Active / Done tabs instead of six columns at once',
+    'Solo Leads desktop layout: stacked columns aligned with mobile; removed subtitle',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.36'
+export const APP_VERSION = '1.1.37'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

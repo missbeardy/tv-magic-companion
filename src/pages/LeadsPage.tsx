@@ -98,7 +98,7 @@ function DroppableColumn({ id, children }: { id: string; children: React.ReactNo
   return (
     <div
       ref={setNodeRef}
-      className={`flex-1 transition-colors duration-150 ${isOver ? 'bg-blue-50 rounded-xl' : ''}`}
+      className={`flex-shrink-0 transition-colors duration-150 ${isOver ? 'bg-blue-50 rounded-xl' : ''}`}
     >
       {children}
     </div>
@@ -992,12 +992,12 @@ export default function LeadsPage() {
       <main className="p-4 md:p-6">
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-1">Leads</h2>
-            <p className="text-gray-500 text-sm">
-              {isSoloMode
-                ? 'Your enquiries from inbox to done — no assignment pool.'
-                : 'Manage and track all leads across every stage.'}
-            </p>
+            <h2 className="text-2xl font-bold text-gray-800">Leads</h2>
+            {!isSoloMode && (
+              <p className="text-gray-500 text-sm mt-1">
+                Manage and track all leads across every stage.
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -1073,7 +1073,7 @@ export default function LeadsPage() {
             {/* ── Desktop View ── */}
             <div className="hidden md:block">
               {isSoloMode && (
-                <div className="flex border-b border-gray-200 mb-4 max-w-md">
+                <div className="flex border-b border-gray-200 mb-4 max-w-2xl">
                   {mobileTabs.map(tab => (
                     <button
                       key={tab.key}
@@ -1089,13 +1089,20 @@ export default function LeadsPage() {
                   ))}
                 </div>
               )}
+              {isSoloMode ? (
+                <div className="max-w-2xl space-y-4">
+                  {visibleKanbanColumns.map(col => (
+                    <MobileKanbanColumn key={col.key} {...columnProps(col)} />
+                  ))}
+                </div>
+              ) : (
               <DndContext
                 sensors={sensors}
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
               >
                 <div className="flex gap-4 overflow-x-auto pb-4">
-                  {(isSoloMode ? visibleKanbanColumns : kanbanColumns).map(col => (
+                  {kanbanColumns.map(col => (
                     <DesktopKanbanColumn key={col.key} {...columnProps(col)} />
                   ))}
                 </div>
@@ -1109,6 +1116,7 @@ export default function LeadsPage() {
                   )}
                 </DragOverlay>
               </DndContext>
+              )}
             </div>
           </>
         )}
