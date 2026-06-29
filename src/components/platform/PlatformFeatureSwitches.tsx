@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react'
+import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import {
   FEATURE_SWITCH_CATEGORIES,
@@ -103,9 +103,9 @@ export default function PlatformFeatureSwitches({
 
   const selectedBrand = brands.find((b) => b.id === selectedBrandId)
   const brandHex = normalizeBrandHex(selectedBrand?.primary_color)
-  const headerBg = brandTintRgba(brandHex, 0.2)
-  const headerHoverBg = brandTintRgba(brandHex, 0.3)
-  const headerBorder = brandTintRgba(brandHex, 0.45)
+  const headerBg = brandTintRgba(brandHex, 0.35)
+  const headerHoverBg = brandTintRgba(brandHex, 0.48)
+  const headerBorder = brandTintRgba(brandHex, 0.65)
 
   function toggleCategory(category: FeatureSwitchCategory) {
     setOpenCategories((prev) => ({ ...prev, [category]: !prev[category] }))
@@ -134,9 +134,20 @@ export default function PlatformFeatureSwitches({
           ))}
         </select>
         {selectedBrand && (
-          <p className="text-[11px] text-gray-400 mt-1">
-            Toggles below apply to all franchisees under {selectedBrand.name}.
-          </p>
+          <div className="flex items-center gap-2 mt-2">
+            <span
+              className="inline-block w-5 h-5 rounded-md border border-black/10 shrink-0"
+              style={{ backgroundColor: brandHex }}
+              title={brandHex}
+            />
+            <p className="text-[11px] text-gray-500">
+              Brand colour <span className="font-mono text-gray-600">{brandHex}</span> — toggles apply to all
+              franchisees under {selectedBrand.name}.{' '}
+              <span className="text-gray-400">
+                (Nav bar uses your org colour; accordions use the brand template colour above.)
+              </span>
+            </p>
+          </div>
         )}
       </div>
 
@@ -150,17 +161,7 @@ export default function PlatformFeatureSwitches({
         </div>
       )}
 
-      <div
-        className="space-y-2"
-        style={
-          {
-            '--brand-header-bg': headerBg,
-            '--brand-header-hover': headerHoverBg,
-            '--brand-header-border': headerBorder,
-            '--brand-accent': brandHex,
-          } as CSSProperties
-        }
-      >
+      <div className="space-y-2">
         {FEATURE_SWITCH_CATEGORIES.map((category) => {
           const features = FEATURE_SWITCHES_BY_CATEGORY[category]
           const enabledCount = enabledCountInCategory(category, selectedBrandId, brandSwitchValue)
@@ -170,20 +171,31 @@ export default function PlatformFeatureSwitches({
             <div
               key={category}
               className="rounded-xl overflow-hidden bg-white"
-              style={{ border: '1px solid var(--brand-header-border)' }}
+              style={{ border: `1px solid ${headerBorder}` }}
             >
               <button
                 type="button"
                 onClick={() => toggleCategory(category)}
-                className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left transition bg-[var(--brand-header-bg)] hover:bg-[var(--brand-header-hover)] border-l-4 border-[var(--brand-accent)]"
+                className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left transition"
+                style={{
+                  backgroundColor: headerBg,
+                  borderLeft: `4px solid ${brandHex}`,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = headerHoverBg
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = headerBg
+                }}
                 aria-expanded={isOpen}
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <ChevronDown
                     size={16}
-                    className={`shrink-0 text-[var(--brand-accent)] transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                    className={`shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                    style={{ color: brandHex }}
                   />
-                  <span className="text-sm font-semibold text-[var(--brand-accent)]">
+                  <span className="text-sm font-semibold" style={{ color: brandHex }}>
                     {FEATURE_SWITCH_CATEGORY_LABELS[category]}
                   </span>
                 </div>
@@ -191,7 +203,8 @@ export default function PlatformFeatureSwitches({
                   className="text-[11px] font-semibold shrink-0 px-2 py-0.5 rounded-full"
                   style={{
                     color: brandHex,
-                    backgroundColor: brandTintRgba(brandHex, 0.15),
+                    backgroundColor: brandTintRgba(brandHex, 0.25),
+                    border: `1px solid ${headerBorder}`,
                   }}
                 >
                   {enabledCount}/{features.length} on
@@ -199,7 +212,10 @@ export default function PlatformFeatureSwitches({
               </button>
 
               {isOpen && (
-                <ul className="divide-y divide-gray-100 border-t border-[var(--brand-header-border)]">
+                <ul
+                  className="divide-y divide-gray-100 border-t"
+                  style={{ borderColor: headerBorder }}
+                >
                   {features.map((feature) => {
                     const enabled = brandSwitchValue(selectedBrandId, feature)
                     const rowKey = `brand:${selectedBrandId}:${feature}`
