@@ -67,6 +67,7 @@ export default function PlatformAdminPage() {
   const [newOrgSlug, setNewOrgSlug] = useState('')
   const [newOrgBrandId, setNewOrgBrandId] = useState('')
   const [newOrgTier, setNewOrgTier] = useState<'basic' | 'pro' | 'enterprise'>('basic')
+  const [newOrgOperationMode, setNewOrgOperationMode] = useState<'solo' | 'team'>('team')
   const [creating, setCreating] = useState(false)
 
   async function loadData() {
@@ -216,6 +217,7 @@ export default function PlatformAdminPage() {
         name: newOrgName.trim(),
         slug: newOrgSlug.trim().toLowerCase().replace(/\s+/g, '-'),
         subscription_tier: newOrgTier,
+        operation_mode: newOrgOperationMode,
         ...payload,
       })
 
@@ -424,6 +426,17 @@ export default function PlatformAdminPage() {
                 {brands.map((b) => (
                   <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Operation mode</label>
+              <select
+                value={newOrgOperationMode}
+                onChange={(e) => setNewOrgOperationMode(e.target.value as 'solo' | 'team')}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="team">Team (manager assigns)</option>
+                <option value="solo">Solo (owner-operator)</option>
               </select>
             </div>
             <div>

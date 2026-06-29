@@ -13,6 +13,7 @@ export interface Org {
   support_email: string | null
   subscription_tier: 'basic' | 'pro' | 'enterprise'
   subscription_expires_at: string | null
+  operation_mode?: 'solo' | 'team'
   billing_status?: 'manual' | 'trialing' | 'active' | 'past_due' | 'canceled'
   stripe_customer_id?: string | null
   lead_count_this_month: number

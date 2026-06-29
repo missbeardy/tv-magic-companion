@@ -12,6 +12,7 @@ import {
   type FeatureSwitchState,
 } from '../lib/features';
 import { isPlatformAdminRole } from '../lib/roles';
+import { isSoloOperationMode } from '../lib/operationMode';
 import type { Brand, Org } from '../types/org';
 
 interface OrgContextType {
@@ -20,6 +21,7 @@ interface OrgContextType {
   loading: boolean;
   featureSwitchesLoading: boolean;
   featureSwitches: FeatureSwitchState;
+  isSoloMode: boolean;
   refreshOrg: () => Promise<void>;
   refreshFeatureSwitches: () => Promise<void>;
   canAccessFeature: (feature: string) => boolean;
@@ -33,6 +35,7 @@ const OrgContext = createContext<OrgContextType>({
   loading: true,
   featureSwitchesLoading: true,
   featureSwitches: getDefaultFeatureSwitchState(),
+  isSoloMode: false,
   refreshOrg: async () => {},
   refreshFeatureSwitches: async () => {},
   canAccessFeature: () => false,
@@ -192,6 +195,8 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
     return Math.max(0, limit - (org.lead_count_this_month || 0));
   }
 
+  const isSoloMode = isSoloOperationMode(org);
+
   return (
     <OrgContext.Provider
       value={{
@@ -200,6 +205,7 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
         loading,
         featureSwitchesLoading,
         featureSwitches,
+        isSoloMode,
         refreshOrg,
         refreshFeatureSwitches,
         canAccessFeature,

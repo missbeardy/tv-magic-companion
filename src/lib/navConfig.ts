@@ -42,12 +42,14 @@ export const NAV_LINKS: NavLinkItem[] = [
 
 export function filterNavLinks(
   profileRole: string | undefined,
-  canAccessFeature: (feature: string) => boolean
+  canAccessFeature: (feature: string) => boolean,
+  isSoloMode = false
 ): NavLinkItem[] {
   const role = normalizeRole(profileRole)
   if (!role) return []
 
   return NAV_LINKS.filter((link) => {
+    if (isSoloMode && link.to === '/activity') return false
     if (!link.roles.includes(role)) return false
     if (link.feature && !canAccessFeature(link.feature)) return false
     return true

@@ -29,9 +29,19 @@ import QuoteComposerModal from '../components/QuoteComposerModal'
 import LeadExtractedSummary, { LeadRawSource } from '../components/LeadExtractedSummary'
 import { UserPlus, Inbox, ChevronRight, Plus } from 'lucide-react'
 import AddLeadModal from '../components/AddLeadModal'
+import EmailParser from '../components/EmailParser'
 import { openNavigation } from '../lib/navigation'
 import { isManagerRole } from '../lib/roles'
-import { getColumnsForTab, isLeadVisibleInActiveKanban, mobileTabForStatus } from '../lib/leadsKanban'
+import {
+  getColumnsForTab,
+  getDefaultMobileTab,
+  getKanbanColumns,
+  getMobileTabs,
+  isLeadVisibleInActiveKanban,
+  mobileTabForStatus,
+  type KanbanColumnDef,
+  type LeadsMobileTab,
+} from '../lib/leadsKanban'
 import { buildPoolPickupUpdate, shouldPoolPickup, type PoolPickupSource } from '../lib/leadPoolPickup'
 import { isReviewRequestEligible, sendReviewRequestSms } from '../lib/reviewRequest'
 import { getOnTheWayBlockReason, buildOnTheWayMessage, openOnTheWaySms } from '../lib/onTheWaySms'
@@ -79,25 +89,7 @@ interface LeadQuoteSummary {
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────
-
-const COLUMNS = [
-  { key: 'unassigned',        label: 'Unassigned',        color: 'border-gray-300',   badge: 'bg-gray-100 text-gray-600'     },
-  { key: 'assigned',          label: 'Assigned',          color: 'border-blue-300',   badge: 'bg-blue-100 text-blue-700'     },
-  { key: 'contact_attempted', label: 'Contact Attempted', color: 'border-amber-300',  badge: 'bg-amber-100 text-amber-700'   },
-  { key: 'booked',            label: 'Booked',            color: 'border-indigo-300', badge: 'bg-indigo-100 text-indigo-700' },
-  { key: 'booking_cancelled', label: 'Booking Cancelled', color: 'border-red-400',    badge: 'bg-red-100 text-red-700'       },
-  { key: 'lost',              label: 'Lost',              color: 'border-red-300',    badge: 'bg-red-100 text-red-600'        },
-  { key: 'completed',         label: 'Completed',         color: 'border-purple-300', badge: 'bg-purple-100 text-purple-700' },
-]
-
-const MOBILE_TABS = [
-  { key: 'unassigned', label: 'Unassigned' },
-  { key: 'assigned',   label: 'Assigned'   },
-  { key: 'contact',    label: 'Contacted'  },
-  { key: 'closed',     label: 'Done / Lost'},
-]
-
-// getColumnsForTab imported from ../lib/leadsKanban
+// Kanban columns/tabs come from ../lib/leadsKanban (team vs solo)
 
 // ── Drag-and-drop: Droppable Column Wrapper (desktop only) ───────────────
 
@@ -145,6 +137,7 @@ interface LeadCardProps {
   onRefresh: () => void
   onLogEvent: (leadId: string, eventType: LeadEventType, note?: string, payload?: Record<string, unknown>) => Promise<void>
   onCall: (lead: Lead) => void
+  hideAssignPool?: boolean
 }
 
 function LeadCard({
@@ -161,6 +154,7 @@ function LeadCard({
   onRefresh,
   onLogEvent,
   onCall,
+  hideAssignPool = false,
 }: LeadCardProps) {
   const isExpanded = expandedLead === lead.id
   const isBookingCancelled = lead.status === 'booking_cancelled'
@@ -281,7 +275,7 @@ function LeadCard({
         <p className="text-xs text-[#004B93] mt-1 font-medium">→ {lead.profiles.full_name}</p>
       )}
 
-      {lead.status === 'unassigned' && (
+      {lead.status === 'unassigned' && !hideAssignPool && (
         <button
           onClick={e => { e.stopPropagation(); onAssign(lead) }}
           className="mt-2 inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-[#004B93] text-white hover:bg-[#003d7a] transition"
@@ -303,7 +297,7 @@ function LeadCard({
           <LeadRawSource lead={lead} />
 
           <div className="flex flex-wrap gap-1 mt-2">
-            {lead.status === 'unassigned' && isManagerRole(profile?.role) && (
+            {lead.status === 'unassigned' && !hideAssignPool && isManagerRole(profile?.role) && (
               <button
                 onClick={e => { e.stopPropagation(); onAssign(lead) }}
                 className="text-xs bg-[#004B93] text-white px-2 py-1 rounded-lg hover:bg-[#003d7a] transition"
@@ -311,7 +305,7 @@ function LeadCard({
                 Assign
               </button>
             )}
-            {lead.status === 'unassigned' && profile?.role === 'employee' && (
+            {lead.status === 'unassigned' && !hideAssignPool && profile?.role === 'employee' && (
               <button
                 onClick={e => { e.stopPropagation(); onAssign(lead) }}
                 className="text-xs bg-[#00B4C5] text-white px-2 py-1 rounded-lg hover:bg-[#009aaa] transition"
@@ -358,7 +352,7 @@ function LeadCard({
 // ── KanbanColumn — Mobile (no drag wrappers) ─────────────────────────────
 
 interface KanbanColumnProps {
-  col: typeof COLUMNS[0]
+  col: KanbanColumnDef
   leads: Lead[]
   profile: { role: string; id: string } | null
   expandedLead: string | null
@@ -372,9 +366,10 @@ interface KanbanColumnProps {
   onRefresh: () => void
   onLogEvent: (leadId: string, eventType: LeadEventType, note?: string, payload?: Record<string, unknown>) => Promise<void>
   onCall: (lead: Lead) => void
+  hideAssignPool?: boolean
 }
 
-function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onCreateQuote, quoteEnabled, onComplete, onRefresh, onLogEvent, onCall }: KanbanColumnProps) {
+function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onCreateQuote, quoteEnabled, onComplete, onRefresh, onLogEvent, onCall, hideAssignPool }: KanbanColumnProps) {
   return (
     <div className={`w-full bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200`}>
       <div className="p-3 border-b border-gray-100 flex items-center justify-between">
@@ -406,6 +401,7 @@ function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand,
             onRefresh={onRefresh}
             onLogEvent={onLogEvent}
             onCall={onCall}
+            hideAssignPool={hideAssignPool}
           />
         ))}
       </div>
@@ -415,7 +411,7 @@ function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand,
 
 // ── KanbanColumn — Desktop (drag wrappers active) ────────────────────────
 
-function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onCreateQuote, quoteEnabled, onComplete, onRefresh, onLogEvent, onCall }: KanbanColumnProps) {
+function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onCreateQuote, quoteEnabled, onComplete, onRefresh, onLogEvent, onCall, hideAssignPool }: KanbanColumnProps) {
   return (
     <DroppableColumn id={col.key}>
       <div className={`flex-shrink-0 w-72 bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200 h-full`}>
@@ -449,6 +445,7 @@ function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand
                 onRefresh={onRefresh}
                 onLogEvent={onLogEvent}
                 onCall={onCall}
+                hideAssignPool={hideAssignPool}
               />
             </DraggableCard>
           ))}
@@ -464,16 +461,19 @@ export default function LeadsPage() {
   const { profile } = useAuth()
   const [searchParams] = useSearchParams()
   const { fetchOrgProfiles } = useOrgProfiles()
-  const { org, brand, isFeatureEnabled, featureSwitchesLoading } = useOrg()
+  const { org, brand, isFeatureEnabled, featureSwitchesLoading, isSoloMode } = useOrg()
+  const kanbanColumns = getKanbanColumns(isSoloMode)
+  const mobileTabs = getMobileTabs(isSoloMode)
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [showAddLead, setShowAddLead] = useState(false)
+  const [showPasteEnquiry, setShowPasteEnquiry] = useState(false)
   const [assigningLead, setAssigningLead] = useState<Lead | null>(null)
   const [bookingLead, setBookingLead] = useState<Lead | null>(null)
   const [orgEmployees, setOrgEmployees] = useState<{ id: string; full_name: string; phone?: string | null }[]>([])
   const [expandedLead, setExpandedLead] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'unassigned' | 'assigned' | 'contact' | 'closed'>('unassigned')
+  const [activeTab, setActiveTab] = useState<LeadsMobileTab>(() => getDefaultMobileTab(false))
   const [sheetLead, setSheetLead] = useState<Lead | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [showChecklist, setShowChecklist] = useState(false)
@@ -584,8 +584,8 @@ export default function LeadsPage() {
   }, [logLeadEvent, profile?.id, profile?.org_id])
 
   const focusMobileTabForStatus = useCallback((status: string) => {
-    setActiveTab(mobileTabForStatus(status))
-  }, [])
+    setActiveTab(mobileTabForStatus(status, isSoloMode))
+  }, [isSoloMode])
 
   function handleDragStart(event: DragStartEvent) {
     setActiveDragId(event.active.id as string)
@@ -857,13 +857,23 @@ export default function LeadsPage() {
   }, [profile, fetchLeads])
 
   useEffect(() => {
+    setActiveTab(getDefaultMobileTab(isSoloMode))
+  }, [isSoloMode, org?.id])
+
+  useEffect(() => {
     if (loading) return
 
     const statusParam = searchParams.get('status')
     const highlightId = searchParams.get('highlight')
 
     if (statusParam) {
-      if (
+      if (isSoloMode) {
+        if (statusParam === 'inbox' || statusParam === 'active' || statusParam === 'done') {
+          setActiveTab(statusParam)
+        } else {
+          setActiveTab(mobileTabForStatus(statusParam, true))
+        }
+      } else if (
         statusParam === 'unassigned' ||
         statusParam === 'assigned' ||
         statusParam === 'contact' ||
@@ -871,14 +881,14 @@ export default function LeadsPage() {
       ) {
         setActiveTab(statusParam)
       } else {
-        setActiveTab(mobileTabForStatus(statusParam))
+        setActiveTab(mobileTabForStatus(statusParam, false))
       }
     }
 
     if (highlightId) {
       const highlighted = leads.find((l) => l.id === highlightId)
       if (highlighted) {
-        setActiveTab(mobileTabForStatus(highlighted.status))
+        setActiveTab(mobileTabForStatus(highlighted.status, isSoloMode))
         requestAnimationFrame(() => {
           document.getElementById(`lead-card-${highlightId}`)?.scrollIntoView({
             behavior: 'smooth',
@@ -887,7 +897,7 @@ export default function LeadsPage() {
         })
       }
     }
-  }, [searchParams, leads, loading])
+  }, [searchParams, leads, loading, isSoloMode])
 
   useEffect(() => {
     if (!profile?.org_id || !isManagerRole(profile.role)) return
@@ -904,7 +914,7 @@ export default function LeadsPage() {
 
   const activeDragLead = activeDragId ? leads.find(l => l.id === activeDragId) : null
 
-  const columnProps = (col: typeof COLUMNS[0]) => ({
+  const columnProps = (col: KanbanColumnDef) => ({
     col,
     leads: leadsForColumn(col.key),
     profile,
@@ -919,6 +929,7 @@ export default function LeadsPage() {
     onRefresh: fetchLeads,
     onLogEvent: logLeadEvent,
     onCall: handleCall,
+    hideAssignPool: isSoloMode,
   })
 
   return (
@@ -941,7 +952,7 @@ export default function LeadsPage() {
           onSkip={closeReviewModal}
         />
       )}
-      {assigningLead && (
+      {assigningLead && !isSoloMode && (
         <AssignLeadModal
           lead={assigningLead}
           onClose={() => setAssigningLead(null)}
@@ -979,9 +990,19 @@ export default function LeadsPage() {
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <div>
             <h2 className="text-2xl font-bold text-gray-800 mb-1">Leads</h2>
-            <p className="text-gray-500 text-sm">Manage and track all leads across every stage.</p>
+            <p className="text-gray-500 text-sm">
+              {isSoloMode
+                ? 'Your enquiries from inbox to done — no assignment pool.'
+                : 'Manage and track all leads across every stage.'}
+            </p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowPasteEnquiry(true)}
+              className="hidden md:flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-[#004B93] border border-[#004B93]/30 hover:bg-[#004B93]/5 transition"
+            >
+              Paste enquiry
+            </button>
             <button
               onClick={() => setShowAddLead(true)}
               className="hidden md:flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-[#004B93] hover:bg-[#003d7a] transition"
@@ -998,6 +1019,21 @@ export default function LeadsPage() {
           />
         )}
 
+        {showPasteEnquiry && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-4">
+              <EmailParser
+                embedded
+                onClose={() => setShowPasteEnquiry(false)}
+                onLeadSaved={() => {
+                  setShowPasteEnquiry(false)
+                  fetchLeads()
+                }}
+              />
+            </div>
+          </div>
+        )}
+
         {loading && <p className="text-gray-400 text-sm">Loading leads...</p>}
 
         {fetchError && !loading && (
@@ -1009,10 +1045,10 @@ export default function LeadsPage() {
             {/* ── Mobile View ── */}
             <div className="md:hidden">
               <div className="sticky top-0 z-10 bg-white border-b border-gray-200 flex mb-3 -mx-4 px-0">
-                {MOBILE_TABS.map(tab => (
+                {mobileTabs.map(tab => (
                   <button
                     key={tab.key}
-                    onClick={() => setActiveTab(tab.key as typeof activeTab)}
+                    onClick={() => setActiveTab(tab.key as LeadsMobileTab)}
                     className={`flex-1 py-3 text-sm font-semibold transition-colors ${
                       activeTab === tab.key
                         ? 'text-[#004B93] border-b-2 border-[#004B93]'
@@ -1024,8 +1060,8 @@ export default function LeadsPage() {
                 ))}
               </div>
               <div className="space-y-3">
-                {COLUMNS
-                  .filter(col => getColumnsForTab(activeTab).includes(col.key))
+                {kanbanColumns
+                  .filter(col => getColumnsForTab(activeTab, isSoloMode).includes(col.key))
                   .map(col => (
                     <MobileKanbanColumn key={col.key} {...columnProps(col)} />
                   ))}
@@ -1040,7 +1076,7 @@ export default function LeadsPage() {
                 onDragEnd={handleDragEnd}
               >
                 <div className="flex gap-4 overflow-x-auto pb-4">
-                  {COLUMNS.map(col => (
+                  {kanbanColumns.map(col => (
                     <DesktopKanbanColumn key={col.key} {...columnProps(col)} />
                   ))}
                 </div>
