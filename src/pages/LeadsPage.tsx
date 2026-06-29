@@ -913,6 +913,9 @@ export default function LeadsPage() {
   }
 
   const activeDragLead = activeDragId ? leads.find(l => l.id === activeDragId) : null
+  const visibleKanbanColumns = isSoloMode
+    ? kanbanColumns.filter((col) => getColumnsForTab(activeTab, isSoloMode).includes(col.key))
+    : kanbanColumns
 
   const columnProps = (col: KanbanColumnDef) => ({
     col,
@@ -1060,8 +1063,7 @@ export default function LeadsPage() {
                 ))}
               </div>
               <div className="space-y-3">
-                {kanbanColumns
-                  .filter(col => getColumnsForTab(activeTab, isSoloMode).includes(col.key))
+                {(isSoloMode ? visibleKanbanColumns : kanbanColumns.filter(col => getColumnsForTab(activeTab, isSoloMode).includes(col.key)))
                   .map(col => (
                     <MobileKanbanColumn key={col.key} {...columnProps(col)} />
                   ))}
@@ -1070,13 +1072,30 @@ export default function LeadsPage() {
 
             {/* ── Desktop View ── */}
             <div className="hidden md:block">
+              {isSoloMode && (
+                <div className="flex border-b border-gray-200 mb-4 max-w-md">
+                  {mobileTabs.map(tab => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setActiveTab(tab.key as LeadsMobileTab)}
+                      className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${
+                        activeTab === tab.key
+                          ? 'text-[#004B93] border-b-2 border-[#004B93]'
+                          : 'text-gray-400 hover:text-gray-600'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              )}
               <DndContext
                 sensors={sensors}
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
               >
                 <div className="flex gap-4 overflow-x-auto pb-4">
-                  {kanbanColumns.map(col => (
+                  {(isSoloMode ? visibleKanbanColumns : kanbanColumns).map(col => (
                     <DesktopKanbanColumn key={col.key} {...columnProps(col)} />
                   ))}
                 </div>
