@@ -36,6 +36,7 @@ describe('featureSwitchCatalog categories', () => {
     ])
     expect(FEATURE_SWITCHES_BY_CATEGORY.customer_communication).toEqual([
       'missed_call_hookback_sms',
+      'lead_ack_sms',
       'customer_ontheway_sms',
       'review_requests',
     ])

@@ -236,6 +236,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         },
       })
       console.log(`Lead saved: ${newLead.id} with org ${orgId}`)
+
+      const ackPhone = parsed.phone?.trim() || fromNumber
+      if (ackPhone) {
+        const { sendLeadAckSmsIfEnabled } = await import('./_lib/leadAckSms.js')
+        await sendLeadAckSmsIfEnabled({
+          orgId,
+          leadId: newLead.id,
+          toPhone: ackPhone,
+          customerName: parsed.customer_name,
+          source: 'sms',
+        })
+      }
     }
 
     res.setHeader('Content-Type', 'text/xml')

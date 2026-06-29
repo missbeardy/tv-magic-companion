@@ -57,11 +57,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Platform admin: change operation mode (solo vs team) on existing franchisees',
     'Solo Leads on desktop: Inbox / Active / Done tabs instead of six columns at once',
     'Solo Leads desktop layout: stacked columns aligned with mobile; removed subtitle',
+    'Lead acknowledgement SMS — instant branded thank-you text to customers on new inbound leads (off by default)',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.37'
+export const APP_VERSION = '1.1.39'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
