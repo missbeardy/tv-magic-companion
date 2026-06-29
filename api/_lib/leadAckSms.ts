@@ -3,7 +3,7 @@ import { sendBrandedSms } from './sendBrandedSms.js'
 import { formatAuPhoneForSms } from './phone.js'
 
 const LEAD_ACK_FALLBACK =
-  "Hi {{customerName}}, thanks for contacting {{org.name}}. We've received your enquiry and will be in touch soon."
+  "Hi {{customerName}}, thanks for contacting {{org.name}}. We've received your enquiry and will be in touch soon.{{orgPhoneLine}}"
 
 export interface LeadAckSmsInput {
   orgId: string

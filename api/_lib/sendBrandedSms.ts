@@ -41,9 +41,12 @@ export async function sendBrandedSms(
 
   const { data: org } = await supabase
     .from('orgs')
-    .select('name, brand_id')
+    .select('name, brand_id, support_phone')
     .eq('id', options.orgId)
     .single()
+
+  const supportPhone = org?.support_phone?.trim() ?? ''
+  const orgPhoneLine = supportPhone ? ` Need us urgently? Call ${supportPhone}.` : ''
 
   let smsTemplates: Record<string, string> | undefined
   if (org?.brand_id) {
@@ -60,6 +63,8 @@ export async function sendBrandedSms(
     options.templateKey,
     {
       'org.name': org?.name ?? 'Your organisation',
+      'org.support_phone': supportPhone,
+      orgPhoneLine,
       ...options.vars,
     },
     options.fallbackMessage

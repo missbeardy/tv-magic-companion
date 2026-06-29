@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import {
   buildLeadAckMessage,
+  buildOrgPhoneLine,
   LEAD_ACK_FALLBACK,
 } from '../src/lib/leadAckSms'
 import {
@@ -45,6 +46,28 @@ describe('buildLeadAckMessage', () => {
   it('matches approved fallback copy', () => {
     expect(LEAD_ACK_FALLBACK).toContain('thanks for contacting')
     expect(LEAD_ACK_FALLBACK).toContain('will be in touch soon')
+    expect(LEAD_ACK_FALLBACK).toContain('{{orgPhoneLine}}')
+  })
+
+  it('includes urgent call line when support phone is set', () => {
+    const message = buildLeadAckMessage('TVMagic Sydney', 'Jane', null, '0412 345 678')
+    expect(message).toContain('Need us urgently? Call 0412 345 678.')
+    expect(message).toMatch(/will be in touch soon\. Need us urgently/)
+  })
+
+  it('omits urgent call line when support phone is missing', () => {
+    const message = buildLeadAckMessage('TVMagic Sydney', 'Jane')
+    expect(message).not.toContain('Need us urgently')
+    expect(message).toMatch(/will be in touch soon\.$/)
+  })
+
+  it('buildOrgPhoneLine returns empty string for blank phone', () => {
+    expect(buildOrgPhoneLine(null)).toBe('')
+    expect(buildOrgPhoneLine('   ')).toBe('')
+  })
+
+  it('buildOrgPhoneLine formats call line with phone', () => {
+    expect(buildOrgPhoneLine('0412 345 678')).toBe(' Need us urgently? Call 0412 345 678.')
   })
 })
 

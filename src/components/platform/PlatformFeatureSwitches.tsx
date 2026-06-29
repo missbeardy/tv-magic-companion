@@ -19,6 +19,14 @@ interface BrandOption {
   secondary_color?: string
 }
 
+interface OrgOption {
+  id: string
+  name: string
+  slug: string
+  brand_id: string | null
+  operation_mode: 'solo' | 'team'
+}
+
 interface CatalogRow {
   feature_key: FeatureSwitchKey
   label: string
@@ -29,6 +37,7 @@ interface CatalogRow {
 
 interface Props {
   brands: BrandOption[]
+  orgs: OrgOption[]
   selectedBrandId: string
   onBrandChange: (brandId: string) => void
   catalogByKey: Partial<Record<FeatureSwitchKey, CatalogRow>>
@@ -90,6 +99,7 @@ function brandTintRgba(hex: string | undefined, alpha: number): string {
 
 export default function PlatformFeatureSwitches({
   brands,
+  orgs,
   selectedBrandId,
   onBrandChange,
   catalogByKey,
@@ -104,8 +114,10 @@ export default function PlatformFeatureSwitches({
       FEATURE_SWITCH_CATEGORIES.map((category, index) => [category, index === 0])
     ) as Record<FeatureSwitchCategory, boolean>
   )
+  const [selectedOrgId, setSelectedOrgId] = useState('')
 
   const selectedBrand = brands.find((b) => b.id === selectedBrandId)
+  const franchiseesOnBrand = orgs.filter((o) => o.brand_id === selectedBrandId)
   const brandHex = normalizeBrandHex(selectedBrand?.primary_color)
   const headerBg = brandTintRgba(brandHex, 0.35)
   const headerHoverBg = brandTintRgba(brandHex, 0.48)
@@ -115,12 +127,48 @@ export default function PlatformFeatureSwitches({
     setOpenCategories((prev) => ({ ...prev, [category]: !prev[category] }))
   }
 
+  function handleOrgChange(orgId: string) {
+    setSelectedOrgId(orgId)
+    if (!orgId) return
+    const org = orgs.find((o) => o.id === orgId)
+    if (org?.brand_id) onBrandChange(org.brand_id)
+  }
+
+  function handleBrandChange(brandId: string) {
+    setSelectedOrgId('')
+    onBrandChange(brandId)
+  }
+
   if (brands.length === 0) {
     return <p className="text-sm text-gray-400">No brands configured.</p>
   }
 
   return (
     <div className="space-y-6">
+      {orgs.length > 0 && (
+        <div>
+          <label htmlFor="feature-switch-org" className="block text-xs font-semibold text-gray-600 mb-1.5">
+            Franchisee (optional)
+          </label>
+          <select
+            id="feature-switch-org"
+            value={selectedOrgId}
+            onChange={(e) => handleOrgChange(e.target.value)}
+            className="w-full sm:w-auto min-w-[16rem] border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+          >
+            <option value="">— Select franchisee —</option>
+            {orgs.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name} ({o.operation_mode})
+              </option>
+            ))}
+          </select>
+          <p className="text-[10px] text-gray-400 mt-1">
+            Pick a franchisee to jump to its brand — switches apply to the whole brand, not individual orgs.
+          </p>
+        </div>
+      )}
+
       <div>
         <label htmlFor="feature-switch-brand" className="block text-xs font-semibold text-gray-600 mb-1.5">
           Brand
@@ -128,7 +176,7 @@ export default function PlatformFeatureSwitches({
         <select
           id="feature-switch-brand"
           value={selectedBrandId}
-          onChange={(e) => onBrandChange(e.target.value)}
+          onChange={(e) => handleBrandChange(e.target.value)}
           className="w-full sm:w-auto min-w-[16rem] border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
         >
           {brands.map((b) => (
@@ -137,6 +185,11 @@ export default function PlatformFeatureSwitches({
             </option>
           ))}
         </select>
+        <p className="text-xs text-gray-500 mt-1.5">
+          {franchiseesOnBrand.length > 0
+            ? `Franchisees on this brand: ${franchiseesOnBrand.map((o) => `${o.name} (${o.operation_mode})`).join(', ')}`
+            : 'No franchisees on this brand.'}
+        </p>
         {selectedBrand && (
           <div className="mt-3">
             <PlatformBrandColorEditor

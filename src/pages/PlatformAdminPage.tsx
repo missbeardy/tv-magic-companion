@@ -411,6 +411,7 @@ export default function PlatformAdminPage() {
           ) : (
             <PlatformFeatureSwitches
               brands={brands}
+              orgs={orgs}
               selectedBrandId={selectedBrandId}
               onBrandChange={setSelectedBrandId}
               catalogByKey={catalogByKey}
