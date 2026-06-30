@@ -77,11 +77,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Inbound email now alerts managers on new lead; inbound SMS manager alerts fixed',
     'Three-attempt contact follow-up: 4h rollover to Second/Third attempt, then Lost (Unable to contact)',
     'Contact follow-up extended to six attempts — 4h rollover through Sixth attempt before Lost',
+    'Fix production inbound SMS 500 — add missing api/_lib/rawFirstLead module to deploy bundle',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.52'
+export const APP_VERSION = '1.1.53'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
