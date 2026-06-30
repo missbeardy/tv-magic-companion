@@ -66,11 +66,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Assignment contact timer extended from 2 hours to 4 hours before auto-unassign',
     'Fix preview deploy type errors for Places API and inbound email handlers',
     'Merge Places autocomplete into geocode API to stay within Vercel Hobby function limit',
+    'Fix address autocomplete dropdown not showing after API returned mapped suggestions',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.45'
+export const APP_VERSION = '1.1.46'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

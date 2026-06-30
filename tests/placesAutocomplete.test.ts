@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { mapPlacesAutocompleteResponse } from '../shared/placesAutocomplete'
+import {
+  mapPlacesAutocompleteResponse,
+  parseAutocompleteApiResponse,
+} from '../src/lib/placesAutocomplete'
 
 describe('mapPlacesAutocompleteResponse', () => {
   it('returns empty array for invalid payloads', () => {
@@ -52,5 +55,29 @@ describe('mapPlacesAutocompleteResponse', () => {
     })
 
     expect(result).toEqual([])
+  })
+})
+
+describe('parseAutocompleteApiResponse', () => {
+  it('returns server-mapped suggestions from API envelope', () => {
+    const mapped = [
+      { placeId: 'ChIJ123', label: '123 Pitt Street, Sydney NSW, Australia' },
+    ]
+    expect(parseAutocompleteApiResponse({ suggestions: mapped })).toEqual(mapped)
+  })
+
+  it('falls back to Google raw shape when needed', () => {
+    expect(
+      parseAutocompleteApiResponse({
+        suggestions: [
+          {
+            placePrediction: {
+              placeId: 'ChIJ123',
+              text: { text: '123 Pitt Street, Sydney NSW, Australia' },
+            },
+          },
+        ],
+      })
+    ).toEqual([{ placeId: 'ChIJ123', label: '123 Pitt Street, Sydney NSW, Australia' }])
   })
 })
