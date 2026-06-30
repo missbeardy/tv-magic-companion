@@ -1,6 +1,6 @@
 // src/lib/timer.ts
 
-export const PRODUCTION_TIMER_MS = 2 * 60 * 60 * 1000 // 2 hours
+export const PRODUCTION_TIMER_MS = 4 * 60 * 60 * 1000 // 4 hours
 
 export function getExpiresAt(): string {
   return new Date(Date.now() + PRODUCTION_TIMER_MS).toISOString()
@@ -37,5 +37,5 @@ export function formatTimeRemaining(expiresAt: string): string {
 export function isRunningLow(expiresAt: string): boolean {
   const { total, expired } = getTimeRemaining(expiresAt)
   if (expired) return false
-  return total < 1 * 60 * 60 * 1000 // under 1 hour (half of the 2-hour timer)
+  return total < 2 * 60 * 60 * 1000 // under 2 hours (half of the 4-hour timer)
 }

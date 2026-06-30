@@ -16,6 +16,7 @@ import { getPlatformUrl } from '../lib/env'
 import { getAuthHeaders } from '../lib/apiAuth'
 import { isManagerRole } from '../lib/roles'
 import TimePicker from './TimePicker'
+import AddressAutocomplete from './AddressAutocomplete'
 import { X, CalendarDays, Clock, User, FileText, MapPin, Phone, Briefcase, Link, Search, DollarSign, Users } from 'lucide-react'
 
 interface OrgMember {
@@ -933,12 +934,9 @@ export default function EventModal({
               <label className="block text-xs font-medium text-gray-600 mb-1">
                 <MapPin size={11} className="inline mr-1" />Address
               </label>
-              <input
-                type="text"
+              <AddressAutocomplete
                 value={clientAddress}
-                onChange={e => setClientAddress(e.target.value)}
-                placeholder="Street address, suburb"
-                className="w-full px-3.5 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#004B93]"
+                onChange={setClientAddress}
               />
             </div>
             <div>

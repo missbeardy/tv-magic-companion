@@ -30,7 +30,7 @@ import LeadExtractedSummary, { LeadRawSource } from '../components/LeadExtracted
 import { UserPlus, Inbox, ChevronRight, Plus } from 'lucide-react'
 import AddLeadModal from '../components/AddLeadModal'
 import EmailParser from '../components/EmailParser'
-import { openNavigation } from '../lib/navigation'
+import LeadAddressEditor from '../components/LeadAddressEditor'
 import { isManagerRole } from '../lib/roles'
 import {
   getColumnsForTab,
@@ -137,7 +137,7 @@ function DraggableCard({ id, children }: { id: string; children: React.ReactNode
 
 interface LeadCardProps {
   lead: Lead
-  profile: { role: string; id: string } | null
+  profile: { role: string; id: string; org_id?: string } | null
   expandedLead: string | null
   onToggleExpand: (leadId: string | null) => void
   onOpenSheet: (lead: Lead) => void
@@ -287,17 +287,18 @@ function LeadCard({
         </div>
       )}
 
-      {lead.address && (
-        <button
-          onClick={e => {
-            e.stopPropagation()
-            openNavigation(lead.address as string)
-          }}
-          className="text-xs text-[#00B4C5] underline flex items-center gap-1 mt-1"
-        >
-          📍 {lead.address}
-        </button>
-      )}
+      <div onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
+        {profile?.org_id && (
+          <LeadAddressEditor
+            leadId={lead.id}
+            address={lead.address}
+            orgId={profile.org_id}
+            actorId={profile.id}
+            onSaved={onRefresh}
+            variant="card"
+          />
+        )}
+      </div>
 
       {lead.lead_source && (
         <span className="inline-block text-xs bg-blue-50 text-blue-700 rounded-full px-2 py-0.5 mt-1">
@@ -408,7 +409,7 @@ function LeadCard({
 interface KanbanColumnProps {
   col: KanbanColumnDef
   leads: Lead[]
-  profile: { role: string; id: string } | null
+  profile: { role: string; id: string; org_id?: string } | null
   expandedLead: string | null
   onToggleExpand: (leadId: string | null) => void
   onOpenSheet: (lead: Lead) => void
@@ -1061,6 +1062,7 @@ export default function LeadsPage() {
             name: bookingLead.name,
             phone: bookingLead.phone,
             email: bookingLead.email,
+            address: bookingLead.address,
             details: bookingLead.details,
             service_type: bookingLead.service_type,
             assigned_to: bookingLead.assigned_to ?? undefined,
@@ -1244,13 +1246,15 @@ export default function LeadsPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {sheetLead.address && (
-                    <button
-                      onClick={() => openNavigation(sheetLead!.address as string)}
-                      className="w-full py-4 rounded-xl bg-gray-800 text-white font-semibold text-base flex items-center justify-center gap-2"
-                    >
-                      📍 Navigate to Job
-                    </button>
+                  {profile?.org_id && (
+                    <LeadAddressEditor
+                      leadId={sheetLead.id}
+                      address={sheetLead.address}
+                      orgId={profile.org_id}
+                      actorId={profile.id}
+                      onSaved={fetchLeads}
+                      variant="sheet"
+                    />
                   )}
                   <button
                     onClick={() => handleCall(sheetLead!)}

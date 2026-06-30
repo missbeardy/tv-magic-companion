@@ -41,9 +41,9 @@ export default function CountdownTimer({ expiresAt, onExpire }: Props) {
     )
   }
 
-  // Colour states: 2h-1h green, 59m-30m amber, 29m-0 red
-  const isUrgent   = time.totalSeconds < 30 * 60   // under 30 minutes
-  const isWarning  = time.totalSeconds < 60 * 60   // under 1 hour
+  // Colour states: ≥2h green, 1h–2h amber, <1h red
+  const isUrgent   = time.totalSeconds < 3600        // under 1 hour
+  const isWarning  = time.totalSeconds < 2 * 3600    // under 2 hours
   const colourSet  = isUrgent
     ? { bg: 'bg-red-50',    border: 'border-red-200',    text: 'text-red-600',    icon: 'text-red-400'    }
     : isWarning

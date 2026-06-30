@@ -61,11 +61,14 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Lead acknowledgement SMS — instant branded thank-you text to customers on new inbound leads (off by default)',
     'Lead ack SMS includes franchise contact number from Franchise Settings when set',
     'Platform admin feature switches: franchisee picker and per-brand org list for clearer rollout',
+    'Google address autocomplete on calendar bookings, lead cards, and new-lead forms (AU Places)',
+    'Lead card address updates sync to upcoming linked calendar bookings',
+    'Assignment contact timer extended from 2 hours to 4 hours before auto-unassign',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.42'
+export const APP_VERSION = '1.1.43'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

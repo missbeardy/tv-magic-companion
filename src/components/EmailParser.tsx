@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext'
 import { useOrg } from '../context/OrgContext'
 import { logLeadEvent } from '../lib/leadEvents'
 import { buildSoloManualLeadFields } from '../lib/soloLeadAssignment'
+import AddressAutocomplete from './AddressAutocomplete'
 
 interface ExtractedLead {
   name: string
@@ -352,14 +353,22 @@ ${rawEmail}`,
                 <label className="block text-xs font-medium text-gray-500 mb-1">
                   {label}
                 </label>
-                <input
-                  type="text"
-                  value={extracted[key] ?? ''}
-                  onChange={(e) =>
-                    setExtracted({ ...extracted, [key]: e.target.value })
-                  }
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
-                />
+                {key === 'address' ? (
+                  <AddressAutocomplete
+                    value={extracted.address ?? ''}
+                    onChange={(next) => setExtracted({ ...extracted, address: next })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    value={extracted[key] ?? ''}
+                    onChange={(e) =>
+                      setExtracted({ ...extracted, [key]: e.target.value })
+                    }
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
+                  />
+                )}
               </div>
             ))}
           </div>

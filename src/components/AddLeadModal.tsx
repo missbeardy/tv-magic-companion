@@ -7,6 +7,7 @@ import { alertManagersOnNewLead } from '../lib/notify';
 import { logLeadEvent } from '../lib/leadEvents';
 import { buildSoloManualLeadFields } from '../lib/soloLeadAssignment';
 import { X, UserPlus, Phone, Mail, MapPin, Briefcase } from 'lucide-react';
+import AddressAutocomplete from './AddressAutocomplete';
 
 interface Props {
   onClose: () => void;
@@ -138,11 +139,9 @@ export default function AddLeadModal({ onClose, onCreated }: Props) {
             <label className="block text-xs font-semibold text-gray-600 mb-1.5">
               <MapPin size={11} className="inline mr-1" />Address
             </label>
-            <input
-              type="text"
+            <AddressAutocomplete
               value={address}
-              onChange={e => setAddress(e.target.value)}
-              placeholder="Street address, suburb"
+              onChange={setAddress}
               className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#004B93]"
             />
           </div>
