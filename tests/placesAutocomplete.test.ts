@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mapPlacesAutocompleteResponse } from '../src/lib/placesAutocomplete'
+import { mapPlacesAutocompleteResponse } from '../shared/placesAutocomplete'
 
 describe('mapPlacesAutocompleteResponse', () => {
   it('returns empty array for invalid payloads', () => {

@@ -80,7 +80,7 @@ async function fetchAttachment(url: string): Promise<Buffer> {
 // ── Whisper transcription ────────────────────────────────────────
 async function transcribeAudio(buffer: Buffer, fileName: string): Promise<string> {
   const form = new FormData()
-  form.append('file', new Blob([buffer]), fileName || 'voicemail.wav')
+  form.append('file', new Blob([new Uint8Array(buffer)]), fileName || 'voicemail.wav')
   form.append('model', 'whisper-1')
 
   const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {

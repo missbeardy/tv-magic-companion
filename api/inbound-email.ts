@@ -62,7 +62,7 @@ function isVoicemailAttachment(att: CloudmailinAttachment): boolean {
 
 async function transcribeAudio(buffer: Buffer, fileName: string): Promise<string> {
   const form = new FormData()
-  form.append('file', new Blob([buffer]), fileName || 'voicemail.wav')
+  form.append('file', new Blob([new Uint8Array(buffer)]), fileName || 'voicemail.wav')
   form.append('model', 'whisper-1')
 
   const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
@@ -307,9 +307,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const orgResolution = await resolveOrgIdFromInboundEmail(supabase, req.body)
-  if (!orgResolution.orgId) {
+  if (orgResolution.source === 'unresolved') {
     console.error(`Inbound email: org not resolved (${orgResolution.reason})`)
     return res.status(200).json({ skipped: true, reason: orgResolution.reason, tag: orgResolution.tag })
+  }
+  if (!orgResolution.orgId) {
+    return res.status(200).json({ skipped: true, reason: 'no_org', tag: orgResolution.tag })
   }
   const orgId = orgResolution.orgId
 

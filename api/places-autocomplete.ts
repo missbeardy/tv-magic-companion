@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { authenticateRequest } from './_lib/auth.js'
-import { mapPlacesAutocompleteResponse } from '../src/lib/placesAutocomplete.js'
+import { mapPlacesAutocompleteResponse } from '../shared/placesAutocomplete.js'
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
 function checkRateLimit(key: string, limit = 30, windowMs = 60_000): boolean {
@@ -53,7 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }),
     })
 
-    const data = await response.json()
+    const data = (await response.json()) as { error?: { message?: string } }
 
     if (!response.ok) {
       const message =
