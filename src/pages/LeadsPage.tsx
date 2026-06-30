@@ -1,5 +1,5 @@
 // src/pages/LeadsPage.tsx
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   DndContext,
@@ -221,6 +221,7 @@ export default function LeadsPage() {
   const [activeTab, setActiveTab] = useState<LeadsMobileTab>(() => getDefaultMobileTab(false))
   const [sheetLead, setSheetLead] = useState<Lead | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const sheetHistoryPushed = useRef(false)
   const [showChecklist, setShowChecklist] = useState(false)
   const [checklistLead, setChecklistLead] = useState<Lead | null>(null)
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
@@ -444,12 +445,37 @@ export default function LeadsPage() {
   const openSheet = useCallback((lead: Lead) => {
     setSheetLead(lead)
     setSheetOpen(true)
+    if (typeof window !== 'undefined' && window.innerWidth < 768 && !sheetHistoryPushed.current) {
+      window.history.pushState({ leadDetailSheet: true }, '')
+      sheetHistoryPushed.current = true
+    }
   }, [])
 
-  const closeSheet = useCallback(() => {
+  const closeSheet = useCallback((fromHistory = false) => {
     setSheetOpen(false)
     setTimeout(() => setSheetLead(null), 300)
+    if (fromHistory) {
+      sheetHistoryPushed.current = false
+      return
+    }
+    if (sheetHistoryPushed.current) {
+      sheetHistoryPushed.current = false
+      window.history.back()
+    }
   }, [])
+
+  useEffect(() => {
+    if (!sheetOpen) return
+
+    function onPopState() {
+      if (sheetHistoryPushed.current) {
+        closeSheet(true)
+      }
+    }
+
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [sheetOpen, closeSheet])
 
   const handleMarkComplete = useCallback((lead: Lead) => {
     setChecklistLead(lead)
@@ -907,7 +933,7 @@ export default function LeadsPage() {
         <LeadDetailSheet
           lead={sheetLead}
           isOpen={sheetOpen}
-          onClose={closeSheet}
+          onClose={() => closeSheet()}
           profile={profile}
           onCall={handleCall}
           onSms={handleSMS}

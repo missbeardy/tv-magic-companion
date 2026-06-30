@@ -108,7 +108,7 @@ export default function LeadDetailSheet({
   const primary = primaryAction()
 
   return (
-    <BottomSheet isOpen={isOpen} onClose={onClose} hideHeader footer={primary ? (
+    <BottomSheet isOpen={isOpen} onClose={onClose} hideHeader showCloseButton footer={primary ? (
       <button
         type="button"
         onClick={primary.onClick}
