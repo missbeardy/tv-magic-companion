@@ -16,22 +16,16 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useOrg } from '../context/OrgContext'
 import NavBar from '../components/NavBar'
-import CountdownTimer from '../components/CountdownTimer'
-import LeadStatusMenu from '../components/LeadStatusMenu'
-import LeadPhotos from '../components/LeadPhotos'
-import { useOrgProfiles } from '../hooks/useOrgProfiles'
 import AssignLeadModal from '../components/AssignLeadModal'
 import EventModal from '../components/EventModal'
-import BottomSheet from '../components/BottomSheet'
 import CompletionChecklist from '../components/CompletionChecklist'
 import ReviewRequestModal from '../components/ReviewRequestModal'
 import QuoteComposerModal from '../components/QuoteComposerModal'
-import LeadExtractedSummary, { LeadRawSource } from '../components/LeadExtractedSummary'
-import { UserPlus, Inbox, ChevronRight, Plus } from 'lucide-react'
+import { UserPlus, Inbox, Plus } from 'lucide-react'
 import AddLeadModal from '../components/AddLeadModal'
 import EmailParser from '../components/EmailParser'
-import LeadAddressEditor from '../components/LeadAddressEditor'
-import { isManagerRole } from '../lib/roles'
+import LeadCard, { type KanbanLead } from '../components/LeadCard'
+import LeadDetailSheet from '../components/LeadDetailSheet'
 import {
   getColumnsForTab,
   getDefaultMobileTab,
@@ -47,36 +41,13 @@ import { isReviewRequestEligible, sendReviewRequestSms } from '../lib/reviewRequ
 import { getOnTheWayBlockReason, buildOnTheWayMessage, openOnTheWaySms } from '../lib/onTheWaySms'
 import { logLeadEvent as recordLeadEvent } from '../lib/leadEvents'
 import { formatAuPhoneForSms } from '../lib/phone'
-import { markInvoicePaid } from '../lib/invoices'
 import type { LeadEventType } from '../lib/leadEventPayload'
+import { useOrgProfiles } from '../hooks/useOrgProfiles'
+import { isManagerRole } from '../lib/roles'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-interface Lead {
-  id: string
-  name: string
-  phone: string
-  email: string
-  service_type: string
-  details: string
-  status: string
-  created_at: string
-  assigned_at: string | null
-  timer_expires_at: string | null
-  assigned_to: string | null
-  address: string | undefined
-  review_request_sent_at?: string | null
-  lead_source?: string | null
-  raw_email?: string | null
-  raw_sms?: string | null
-  hidden_from_kanban_at?: string | null
-  latest_quote_status?: string | null
-  latest_quote_accepted_at?: string | null
-  latest_invoice_status?: string | null
-  latest_invoice_id?: string | null
-  latest_invoice_number?: string | null
-  profiles: { full_name: string } | null
-}
+type Lead = KanbanLead
 
 interface LeadInvoiceSummary {
   lead_id: string
@@ -86,22 +57,12 @@ interface LeadInvoiceSummary {
   created_at: string
 }
 
-interface LeadEvent {
-  id: string
-  event_type: string
-  note: string | null
-  created_at: string
-}
-
 interface LeadQuoteSummary {
   lead_id: string
   status: string
   accepted_at: string | null
   created_at: string
 }
-
-// ── Constants ─────────────────────────────────────────────────────────────
-// Kanban columns/tabs come from ../lib/leadsKanban (team vs solo)
 
 // ── Drag-and-drop: Droppable Column Wrapper (desktop only) ───────────────
 
@@ -129,277 +90,6 @@ function DraggableCard({ id, children }: { id: string; children: React.ReactNode
   return (
     <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
       {children}
-    </div>
-  )
-}
-
-// ── LeadCard Component ──────────────────────────────────────────────────────
-
-interface LeadCardProps {
-  lead: Lead
-  profile: { role: string; id: string; org_id?: string } | null
-  expandedLead: string | null
-  onToggleExpand: (leadId: string | null) => void
-  onOpenSheet: (lead: Lead) => void
-  onAssign: (lead: Lead) => void
-  onBook: (lead: Lead) => void
-  onCreateQuote: (lead: Lead) => void
-  quoteEnabled: boolean
-  onComplete: (lead: Lead) => void
-  onRefresh: () => void
-  onLogEvent: (leadId: string, eventType: LeadEventType, note?: string, payload?: Record<string, unknown>) => Promise<void>
-  onCall: (lead: Lead) => void
-  hideAssignPool?: boolean
-}
-
-function LeadCard({
-  lead,
-  profile,
-  expandedLead,
-  onToggleExpand,
-  onOpenSheet,
-  onAssign,
-  onBook,
-  onCreateQuote,
-  quoteEnabled,
-  onComplete,
-  onRefresh,
-  onLogEvent,
-  onCall,
-  hideAssignPool = false,
-}: LeadCardProps) {
-  const isExpanded = expandedLead === lead.id
-  const isBookingCancelled = lead.status === 'booking_cancelled'
-  const isQuoteAccepted = lead.latest_quote_status === 'accepted'
-  const invoiceStatus = lead.latest_invoice_status
-  const [markingPaid, setMarkingPaid] = useState(false)
-  const [events, setEvents] = useState<LeadEvent[]>([])
-
-  async function handleMarkInvoicePaid() {
-    if (!lead.latest_invoice_id) return
-    setMarkingPaid(true)
-    try {
-      await markInvoicePaid(lead.latest_invoice_id)
-      await onLogEvent(
-        lead.id,
-        `Invoice ${lead.latest_invoice_number ?? ''} marked paid`.trim(),
-        'invoice_paid_manual'
-      )
-      onRefresh()
-    } catch (err) {
-      console.error(err)
-      alert(err instanceof Error ? err.message : 'Failed to mark paid')
-    } finally {
-      setMarkingPaid(false)
-    }
-  }
-
-  useEffect(() => {
-    if (!isExpanded) return
-    let cancelled = false
-    supabase
-      .from('lead_events')
-      .select('*')
-      .eq('lead_id', lead.id)
-      .order('created_at', { ascending: false })
-      .limit(5)
-      .then(({ data }) => {
-        if (!cancelled) setEvents((data as LeadEvent[]) ?? [])
-      })
-    return () => { cancelled = true }
-  }, [isExpanded, lead.id])
-
-  return (
-    <div
-      id={`lead-card-${lead.id}`}
-      className={`rounded-lg p-3 border cursor-pointer md:cursor-default ${
-        isBookingCancelled
-          ? 'bg-red-50 border-red-300 ring-1 ring-red-200'
-          : isQuoteAccepted
-          ? 'bg-emerald-50 border-emerald-300 ring-1 ring-emerald-200'
-          : 'bg-gray-50 border-gray-200'
-      }`}
-      onClick={() => {
-        // ONLY open the bottom sheet action drawer if the viewport is mobile (under 768px wide)
-        if (window.innerWidth < 768) {
-          onOpenSheet(lead)
-        }
-      }}
-    >
-      {isBookingCancelled && (
-        <p className="text-[10px] font-bold uppercase tracking-wide text-red-700 mb-2">
-          Booking Cancelled
-        </p>
-      )}
-      {invoiceStatus === 'sent' && (
-        <p className="text-[10px] font-bold uppercase tracking-wide text-violet-700 mb-2">
-          Invoice sent
-        </p>
-      )}
-      {invoiceStatus === 'paid' && (
-        <p className="text-[10px] font-bold uppercase tracking-wide text-green-700 mb-2">
-          Invoice paid
-        </p>
-      )}
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <p className={`font-medium text-sm truncate ${
-            isBookingCancelled ? 'text-red-900' : isQuoteAccepted ? 'text-emerald-900' : 'text-gray-800'
-          }`}>
-            {lead.name || 'Unknown'}
-          </p>
-          <p className={`text-xs truncate ${
-            isBookingCancelled ? 'text-red-700/80' : isQuoteAccepted ? 'text-emerald-700/80' : 'text-gray-500'
-          }`}>
-            {lead.service_type}
-          </p>
-          <div className="md:hidden mt-1">
-            <LeadExtractedSummary
-              lead={lead}
-              size="sm"
-              detailsClamp
-              showAddress={false}
-              onPhoneClick={onCall}
-            />
-          </div>
-        </div>
-        {/* Mobile tap affordance — hidden on desktop */}
-        <ChevronRight size={14} className="md:hidden text-gray-300 shrink-0 mt-0.5" />
-        <div onClick={e => e.stopPropagation()}>
-          <LeadStatusMenu
-            leadId={lead.id}
-            currentStatus={lead.status}
-            assignedTo={lead.assigned_to}
-            leadName={lead.name}
-            leadPhone={lead.phone}
-            reviewRequestSentAt={lead.review_request_sent_at}
-            serviceType={lead.service_type}
-            onUpdated={onRefresh}
-            logEvent={(id, note) => onLogEvent(id, 'review_request', note)}
-            onCompleteRequested={() => onComplete(lead)}
-          />
-        </div>
-      </div>
-
-      {lead.timer_expires_at && lead.status === 'assigned' && (
-        <div className="mt-2">
-          <CountdownTimer expiresAt={lead.timer_expires_at} />
-        </div>
-      )}
-
-      <div onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
-        {profile?.org_id && (
-          <LeadAddressEditor
-            leadId={lead.id}
-            address={lead.address}
-            orgId={profile.org_id}
-            actorId={profile.id}
-            onSaved={onRefresh}
-            variant="card"
-          />
-        )}
-      </div>
-
-      {lead.lead_source && (
-        <span className="inline-block text-xs bg-blue-50 text-blue-700 rounded-full px-2 py-0.5 mt-1">
-          {lead.lead_source}
-        </span>
-      )}
-      {lead.status === 'contact_attempted' && (
-        <span className="inline-block mt-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
-          📞 Contact Attempted
-        </span>
-      )}
-      {!isBookingCancelled && isQuoteAccepted && (
-        <span className="inline-block mt-1 text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">
-          Quote Accepted
-        </span>
-      )}
-      {lead.profiles && (
-        <p className="text-xs text-[#004B93] mt-1 font-medium">→ {lead.profiles.full_name}</p>
-      )}
-
-      {lead.status === 'unassigned' && !hideAssignPool && (
-        <button
-          onClick={e => { e.stopPropagation(); onAssign(lead) }}
-          className="mt-2 inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-[#004B93] text-white hover:bg-[#003d7a] transition"
-        >
-          + Assign
-        </button>
-      )}
-
-      <button
-        onClick={e => { e.stopPropagation(); onToggleExpand(isExpanded ? null : lead.id) }}
-        className="hidden md:block text-xs text-gray-400 hover:text-gray-600 mt-2 transition"
-      >
-        {isExpanded ? '▲ Less' : '▼ More'}
-      </button>
-
-      {isExpanded && (
-        <div className="hidden md:block mt-2 space-y-2 border-t border-gray-200 pt-2">
-          <LeadExtractedSummary lead={lead} size="sm" onPhoneClick={onCall} />
-          <LeadRawSource lead={lead} />
-
-          <div className="flex flex-wrap gap-1 mt-2">
-            {lead.status === 'unassigned' && !hideAssignPool && isManagerRole(profile?.role) && (
-              <button
-                onClick={e => { e.stopPropagation(); onAssign(lead) }}
-                className="text-xs bg-[#004B93] text-white px-2 py-1 rounded-lg hover:bg-[#003d7a] transition"
-              >
-                Assign
-              </button>
-            )}
-            {lead.status === 'unassigned' && !hideAssignPool && profile?.role === 'employee' && (
-              <button
-                onClick={e => { e.stopPropagation(); onAssign(lead) }}
-                className="text-xs bg-[#00B4C5] text-white px-2 py-1 rounded-lg hover:bg-[#009aaa] transition"
-              >
-                Self-Assign
-              </button>
-            )}
-            <button
-              onClick={e => { e.stopPropagation(); onBook(lead) }}
-              className="text-xs bg-[#00B4C5] text-white px-2 py-1 rounded-lg hover:bg-[#009aaa] transition"
-            >
-              📅 Book
-            </button>
-            {isManagerRole(profile?.role) && quoteEnabled && (
-              <button
-                onClick={e => { e.stopPropagation(); onCreateQuote(lead) }}
-                className="text-xs bg-gray-900 text-white px-2 py-1 rounded-lg hover:bg-black transition"
-              >
-                🧾 Quote
-              </button>
-            )}
-          </div>
-
-          {lead.status === 'completed' && (
-            <LeadPhotos leadId={lead.id} canUpload={true} />
-          )}
-
-          {invoiceStatus === 'sent' && lead.latest_invoice_id && isManagerRole(profile?.role) && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); handleMarkInvoicePaid() }}
-              disabled={markingPaid}
-              className="mt-2 text-xs px-2 py-1 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
-            >
-              {markingPaid ? 'Saving…' : 'Mark invoice paid'}
-            </button>
-          )}
-
-          {events.length > 0 && (
-            <div className="mt-3 border-t border-gray-200 pt-3 space-y-1">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Activity</p>
-              {events.map(ev => (
-                <p key={ev.id} className="text-xs text-gray-500">
-                  {new Date(ev.created_at).toLocaleString()} — {ev.note ?? ev.event_type}
-                </p>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   )
 }
@@ -547,7 +237,7 @@ export default function LeadsPage() {
 
     let query = supabase
       .from('leads')
-      .select('*, profiles(full_name)')
+      .select('*, profiles(full_name, avatar_url)')
       .eq('org_id', profile.org_id)
       .order('created_at', { ascending: false })
 
@@ -939,6 +629,12 @@ export default function LeadsPage() {
   }, [profile, fetchLeads])
 
   useEffect(() => {
+    if (!sheetLead) return
+    const fresh = leads.find((l) => l.id === sheetLead.id)
+    if (fresh) setSheetLead(fresh)
+  }, [leads, sheetLead?.id])
+
+  useEffect(() => {
     setActiveTab(getDefaultMobileTab(isSoloMode))
   }, [isSoloMode, org?.id])
 
@@ -1207,133 +903,26 @@ export default function LeadsPage() {
         )}
       </main>
 
-      {sheetOpen && window.innerWidth < 768 && (
-        <BottomSheet isOpen={sheetOpen} onClose={closeSheet} title={sheetLead?.name ?? 'Lead Actions'}>
-          {sheetLead && (
-            <div className="space-y-3">
-              {sheetLead.status === 'booking_cancelled' && (
-                <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center">
-                  <span className="text-red-700 font-semibold text-sm">Booking Cancelled</span>
-                </div>
-              )}
-              <p className="text-sm text-[#004B93] font-medium">{sheetLead.service_type || 'No service type'}</p>
-              <LeadExtractedSummary lead={sheetLead} size="md" showAddress={false} />
-
-              {sheetLead.status === 'completed' ? (
-                <div>
-                  <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-center mb-2">
-                    <span className="text-purple-700 font-semibold text-sm">✨ Job Completed Successfully</span>
-                  </div>
-                  <div className="space-y-3">
-                    <button
-                      onClick={() => handleSharePhoto(sheetLead!)}
-                      className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base flex items-center justify-center gap-2"
-                    >
-                      📸 Share Photo
-                    </button>
-                    
-                    <a
-                      href="tel:04123456789"
-                      className="w-full py-4 rounded-xl bg-gray-800 text-white font-semibold text-base flex items-center justify-center gap-2 block text-center"
-                    >
-                      📞 Call Manager (Nick)
-                    </a>
-                    
-                    <div className="pt-2 border-t border-gray-100">
-                      <LeadPhotos leadId={sheetLead.id} canUpload={true} />
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {profile?.org_id && (
-                    <LeadAddressEditor
-                      leadId={sheetLead.id}
-                      address={sheetLead.address}
-                      orgId={profile.org_id}
-                      actorId={profile.id}
-                      onSaved={fetchLeads}
-                      variant="sheet"
-                    />
-                  )}
-                  <button
-                    onClick={() => handleCall(sheetLead!)}
-                    className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base flex items-center justify-center gap-2"
-                  >
-                    📞 Call {sheetLead.name}
-                  </button>
-                  {onTheWayFeatureEnabled && sheetLead.phone?.trim() && (
-                    <button
-                      onClick={() => handleSMS(sheetLead!)}
-                      className="w-full py-4 rounded-xl bg-[#00B4C5] text-white font-semibold text-base flex items-center justify-center gap-2"
-                    >
-                      💬 Send ETA Text
-                    </button>
-                  )}
-                  {sheetLead.status === 'unassigned' && isManagerRole(profile?.role) && (
-                    <button
-                      onClick={() => { setAssigningLead(sheetLead); closeSheet() }}
-                      className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base"
-                    >
-                      Assign to Technician
-                    </button>
-                  )}
-                  {sheetLead.status === 'unassigned' && profile?.role === 'employee' && (
-                    <button
-                      onClick={() => { setAssigningLead(sheetLead); closeSheet() }}
-                      className="w-full py-4 rounded-xl bg-[#004B93] text-white font-semibold text-base"
-                    >
-                      Self-Assign This Lead
-                    </button>
-                  )}
-                  {sheetLead.assigned_to && isManagerRole(profile?.role) && sheetLead.status !== 'unassigned' && (
-                    <button
-                      onClick={() => handleUnassign(sheetLead!)}
-                      className="w-full py-4 rounded-xl bg-orange-500 text-white font-semibold text-base"
-                    >
-                      ↩ Unassign Lead
-                    </button>
-                  )}
-                  <button
-                    onClick={() => { setBookingLead(sheetLead); closeSheet() }}
-                    className="w-full py-4 rounded-xl bg-gray-100 text-gray-700 font-semibold text-base"
-                  >
-                    📅 Book Appointment
-                  </button>
-                  {quoteFeatureEnabled && isManagerRole(profile?.role) && (
-                    <button
-                      onClick={() => { setQuoteLead(sheetLead); closeSheet() }}
-                      className="w-full py-4 rounded-xl bg-gray-900 text-white font-semibold text-base"
-                    >
-                      🧾 Send Quote + E-Sign
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleMarkContactAttempted(sheetLead!)}
-                    className="w-full py-4 rounded-xl bg-amber-500 text-white font-semibold text-base"
-                    >
-                    ✅ Mark as Attempted Contact
-                  </button>
-                  <button
-                    onClick={() => handleMarkComplete(sheetLead!)}
-                    className="w-full py-4 rounded-xl bg-green-600 text-white font-semibold text-base"
-                  >
-                    Complete Job ✅
-                  </button>
-                </div>
-              )}
-
-              <LeadRawSource lead={sheetLead} />
-
-              <button
-                onClick={closeSheet}
-                className="w-full py-4 rounded-xl bg-gray-50 text-gray-400 font-semibold text-base border border-gray-200"
-              >
-                Close
-              </button>
-            </div>
-          )}
-        </BottomSheet>
+      {sheetOpen && window.innerWidth < 768 && sheetLead && (
+        <LeadDetailSheet
+          lead={sheetLead}
+          isOpen={sheetOpen}
+          onClose={closeSheet}
+          profile={profile}
+          onCall={handleCall}
+          onSms={handleSMS}
+          onAssign={(lead) => { setAssigningLead(lead); closeSheet() }}
+          onBook={(lead) => { setBookingLead(lead); closeSheet() }}
+          onQuote={(lead) => { setQuoteLead(lead); closeSheet() }}
+          onMarkContactAttempted={handleMarkContactAttempted}
+          onUnassign={handleUnassign}
+          onComplete={handleMarkComplete}
+          onSharePhoto={handleSharePhoto}
+          quoteEnabled={quoteFeatureEnabled}
+          smsEnabled={onTheWayFeatureEnabled}
+          hideAssignPool={isSoloMode}
+          onRefresh={fetchLeads}
+        />
       )}
     </div>
   )

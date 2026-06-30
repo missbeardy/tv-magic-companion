@@ -67,11 +67,16 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Fix preview deploy type errors for Places API and inbound email handlers',
     'Merge Places autocomplete into geocode API to stay within Vercel Hobby function limit',
     'Fix address autocomplete dropdown not showing after API returned mapped suggestions',
+    'Leads kanban: compact mobile cards with suburb, assignee avatars, and bottom detail sheet',
+    'Lead drawer: grouped actions, address edit/navigate, and sticky primary button on mobile',
+    'Calendar: week view as default; mobile week scrolls horizontally with swipeable day columns',
+    'Calendar: manager resource view (all technicians) limited to Day view only',
+    'Remove static map thumbnails from lead cards and calendar to reduce Google Maps API usage',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.47'
+export const APP_VERSION = '1.1.48'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

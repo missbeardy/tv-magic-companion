@@ -25,13 +25,14 @@ interface Props {
   onUpdated: () => void
   logEvent?: (leadId: string, note: string) => Promise<void>
   onCompleteRequested?: () => void
+  variant?: 'badge' | 'pill'
 }
 
 const STATUSES = [
   { value: 'unassigned',        label: 'Unassigned',        color: 'bg-gray-100 text-gray-600' },
-  { value: 'assigned',          label: 'Assigned',          color: 'bg-blue-100 text-blue-700' },
+  { value: 'assigned',          label: 'Assigned',          color: 'bg-violet-100 text-violet-700' },
   { value: 'contact_attempted', label: 'Contact Attempted', color: 'bg-amber-100 text-amber-700' },
-  { value: 'booked',            label: 'Booked',            color: 'bg-green-100 text-green-700' },
+  { value: 'booked',            label: 'Booked',            color: 'bg-indigo-100 text-indigo-700' },
   { value: 'booking_cancelled', label: 'Booking Cancelled', color: 'bg-red-100 text-red-700' },
   { value: 'lost',              label: 'Lost',              color: 'bg-red-100 text-red-600' },
   { value: 'completed',         label: 'Completed',         color: 'bg-purple-100 text-purple-700' },
@@ -65,6 +66,7 @@ export default function LeadStatusMenu({
   onUpdated,
   logEvent,
   onCompleteRequested,
+  variant = 'badge',
 }: Props) {
   const { profile } = useAuth()
   const { isFeatureEnabled, featureSwitchesLoading } = useOrg()
@@ -85,6 +87,11 @@ export default function LeadStatusMenu({
   }
 
   const current = STATUSES.find(s => s.value === currentStatus) ?? STATUSES[0]
+
+  const buttonClass =
+    variant === 'pill'
+      ? 'text-xs border border-gray-300 bg-white hover:bg-gray-50 py-1 px-3 rounded-full text-gray-700 font-normal flex items-center gap-1'
+      : `text-xs px-2 py-1 rounded-full font-medium capitalize flex items-center gap-1 ${current.color}`
 
   useEffect(() => {
     if (!open || !buttonRef.current) return
@@ -203,10 +210,10 @@ export default function LeadStatusMenu({
         ref={buttonRef}
         onClick={() => setOpen(!open)}
         disabled={saving}
-        className={`text-xs px-2 py-1 rounded-full font-medium capitalize flex items-center gap-1 ${current.color}`}
+        className={buttonClass}
       >
         {saving ? 'Saving...' : current.label}
-        <span className="opacity-60">▾</span>
+        <span className={variant === 'pill' ? 'text-gray-400' : 'opacity-60'}>▾</span>
       </button>
 
       {open && (

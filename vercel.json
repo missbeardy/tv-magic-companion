@@ -1,6 +1,7 @@
 {
   "buildCommand": "npm run build",
   "installCommand": "npm install",
+  "devCommand": "vite --port $PORT --strictPort",
   "framework": "vite",
   "outputDirectory": "dist",
   "rewrites": [

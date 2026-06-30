@@ -194,7 +194,7 @@ export default function Calendar() {
   const [availabilityDuration, setAvailabilityDuration] = useState(60)
   const [availabilityEmployee, setAvailabilityEmployee] = useState<string>('all')
 
-  const showResourceView = isMobile && isManagerRole(profile?.role) && filterEmployee === 'all' && view !== 'month'
+  const showResourceView = isMobile && isManagerRole(profile?.role) && filterEmployee === 'all' && view === 'day'
 
   const employeeColorMap = useMemo(() => buildEmployeeColorMap(employees), [employees])
 
@@ -394,87 +394,121 @@ export default function Calendar() {
 
   // Renders one 7-day week grid (header row + leave banner + event cells).
   // Called once for normal week view, twice (stacked) for the 2-week view.
+  // On mobile, columns scroll horizontally instead of squeezing into 375px.
   function renderWeekGrid(days: Date[], weekKey: number) {
+    const hasLeave = days.some((day) => getEventsForDay(day).some(isLeaveEvent))
+    const mobileDayWidth = 'flex-none w-28 shrink-0'
+
+    function renderDayHeader(day: Date, i: number) {
+      const isToday = day.toDateString() === new Date().toDateString()
+      return (
+        <div
+          key={`hdr-${i}`}
+          className={`p-1 sm:p-2 text-center cursor-pointer hover:bg-gray-50 transition border-b border-gray-100 ${isToday ? 'bg-blue-50' : ''} ${isMobile ? mobileDayWidth : ''}`}
+          onClick={() => { setCurrentDate(new Date(day)); setView('day') }}
+        >
+          <p className="text-[10px] sm:text-xs text-gray-400">{dayNames[i]}</p>
+          <p className={`text-sm sm:text-base font-semibold ${isToday ? 'text-[#004B93]' : 'text-gray-700'}`}>
+            {day.getDate()}
+          </p>
+        </div>
+      )
+    }
+
+    function renderDayLeave(day: Date, i: number) {
+      const leaveEvents = getEventsForDay(day).filter(isLeaveEvent)
+      return (
+        <div
+          key={`leave-${i}`}
+          className={`p-1 space-y-0.5 min-h-[1.5rem] bg-gray-50 border-b border-gray-100 ${isMobile ? mobileDayWidth : ''}`}
+        >
+          {leaveEvents.map((ev) => (
+            <div
+              key={ev.id}
+              onClick={() => handleDeleteLeave(ev)}
+              className="text-[9px] sm:text-[10px] bg-gray-900 text-white rounded px-1 py-0.5 truncate cursor-pointer hover:bg-gray-800 transition"
+              title={`${ev.title} — click to remove`}
+            >
+              🚫 {ev.title}
+            </div>
+          ))}
+        </div>
+      )
+    }
+
+    function renderDayEvents(day: Date, i: number) {
+      const isToday = day.toDateString() === new Date().toDateString()
+      const dayEvents = getTimedEventsForDay(day)
+      return (
+        <div key={`ev-${i}`} className={`min-h-32 sm:min-h-40 ${isMobile ? `${mobileDayWidth} border-r border-gray-100 last:border-r-0` : ''}`}>
+          <div
+            className={`p-1 space-y-1 min-h-full ${isToday ? 'bg-blue-50/30' : ''}`}
+            onClick={() => openNewEvent(new Date(day))}
+          >
+            {dayEvents.map((event) => (
+              <div
+                key={event.id}
+                onClick={(e) => { e.stopPropagation(); openEditEvent(event) }}
+                className="text-[10px] sm:text-xs p-1 sm:p-1.5 rounded cursor-pointer text-white hover:opacity-90 transition shadow-sm"
+                style={{ backgroundColor: eventColor(event) }}
+                title={`${event.title}\n${formatDuration(event.start_time, event.end_time)}`}
+              >
+                <p className="font-medium truncate">{event.title}</p>
+                <p className="text-[9px] sm:text-[10px] opacity-90">
+                  {formatTime(event.start_time)} – {formatTime(event.end_time)}
+                </p>
+                {event.client_name && (
+                  <p className="text-[9px] sm:text-[10px] opacity-90 truncate">👤 {event.client_name}</p>
+                )}
+                {isTeamMeetingCategory(event.category) ? (
+                  <p className="text-[9px] sm:text-[10px] opacity-75 truncate">
+                    {teamMeetingAttendeeLabel(event)}
+                  </p>
+                ) : isManagerRole(profile?.role) && event.profiles && (
+                  <p className="text-[9px] sm:text-[10px] opacity-75 truncate">{event.profiles.full_name}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    }
+
+    if (isMobile) {
+      return (
+        <div key={weekKey}>
+          <p className="px-3 py-1.5 text-[10px] text-gray-400 border-b border-gray-100">
+            ← Swipe to see the full week →
+          </p>
+          <div className="overflow-x-auto">
+            <div className="flex min-w-max">
+              {days.map((day, i) => (
+                <div key={i} className={`${mobileDayWidth} border-r border-gray-100 last:border-r-0`}>
+                  {renderDayHeader(day, i)}
+                  {hasLeave && renderDayLeave(day, i)}
+                  {renderDayEvents(day, i)}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div key={weekKey}>
         <div className="grid grid-cols-7 divide-x divide-gray-100 border-b border-gray-100">
-          {days.map((day, i) => {
-            const isToday = day.toDateString() === new Date().toDateString()
-            return (
-              <div
-                key={i}
-                className={`p-1 sm:p-2 text-center cursor-pointer hover:bg-gray-50 transition ${isToday ? 'bg-blue-50' : ''}`}
-                onClick={() => { setCurrentDate(new Date(day)); setView('day') }}
-              >
-                <p className="text-[10px] sm:text-xs text-gray-400">{dayNames[i]}</p>
-                <p className={`text-sm sm:text-base font-semibold ${isToday ? 'text-[#004B93]' : 'text-gray-700'}`}>
-                  {day.getDate()}
-                </p>
-              </div>
-            )
-          })}
+          {days.map((day, i) => renderDayHeader(day, i))}
         </div>
 
-        {days.some(day => getEventsForDay(day).some(isLeaveEvent)) && (
+        {hasLeave && (
           <div className="grid grid-cols-7 divide-x divide-gray-100 border-b border-gray-100 bg-gray-50">
-            {days.map((day, i) => {
-              const leaveEvents = getEventsForDay(day).filter(isLeaveEvent)
-              return (
-                <div key={i} className="p-1 space-y-0.5 min-h-[1.5rem]">
-                  {leaveEvents.map(ev => (
-                    <div
-                      key={ev.id}
-                      onClick={() => handleDeleteLeave(ev)}
-                      className="text-[9px] sm:text-[10px] bg-gray-900 text-white rounded px-1 py-0.5 truncate cursor-pointer hover:bg-gray-800 transition"
-                      title={`${ev.title} — click to remove`}
-                    >
-                      🚫 {ev.title}
-                    </div>
-                  ))}
-                </div>
-              )
-            })}
+            {days.map((day, i) => renderDayLeave(day, i))}
           </div>
         )}
 
         <div className="grid grid-cols-7 divide-x divide-gray-100">
-          {days.map((day, i) => {
-            const isToday = day.toDateString() === new Date().toDateString()
-            const dayEvents = getTimedEventsForDay(day)
-            return (
-              <div key={i} className="min-h-32 sm:min-h-40">
-                <div
-                  className={`p-1 space-y-1 min-h-full ${isToday ? 'bg-blue-50/30' : ''}`}
-                  onClick={() => openNewEvent(new Date(day))}
-                >
-                  {dayEvents.map(event => (
-                    <div
-                      key={event.id}
-                      onClick={e => { e.stopPropagation(); openEditEvent(event) }}
-                      className="text-[10px] sm:text-xs p-1 sm:p-1.5 rounded cursor-pointer text-white hover:opacity-90 transition shadow-sm"
-                      style={{ backgroundColor: eventColor(event) }}
-                      title={`${event.title}\n${formatDuration(event.start_time, event.end_time)}`}
-                    >
-                      <p className="font-medium truncate">{event.title}</p>
-                      <p className="text-[9px] sm:text-[10px] opacity-90">
-                        {formatTime(event.start_time)} – {formatTime(event.end_time)}
-                      </p>
-                      {event.client_name && (
-                        <p className="text-[9px] sm:text-[10px] opacity-90 truncate">👤 {event.client_name}</p>
-                      )}
-                      {isTeamMeetingCategory(event.category) ? (
-                        <p className="text-[9px] sm:text-[10px] opacity-75 truncate">
-                          {teamMeetingAttendeeLabel(event)}
-                        </p>
-                      ) : isManagerRole(profile?.role) && event.profiles && (
-                        <p className="text-[9px] sm:text-[10px] opacity-75 truncate">{event.profiles.full_name}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )
-          })}
+          {days.map((day, i) => renderDayEvents(day, i))}
         </div>
       </div>
     )

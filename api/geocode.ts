@@ -1,6 +1,7 @@
 // api/geocode.ts — geocode + Places autocomplete (action=autocomplete)
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { authenticateRequest } from './_lib/auth.js'
+import { geocodeWithGoogle, geocodeWithNominatim } from './_lib/staticMap.js'
 import { mapPlacesAutocompleteResponse } from '../shared/placesAutocomplete.js'
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
@@ -14,14 +15,6 @@ function checkRateLimit(key: string, limit = 20, windowMs = 60_000): boolean {
   if (entry.count >= limit) return false
   entry.count++
   return true
-}
-
-interface GeocodeResult {
-  status: string
-  results: Array<{
-    geometry: { location: { lat: number; lng: number } }
-    formatted_address: string
-  }>
 }
 
 async function handleAutocomplete(
@@ -93,31 +86,29 @@ async function handleGeocode(
     return res.status(400).json({ error: 'Address is required' })
   }
 
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY
-  if (!apiKey) {
-    return res.status(500).json({ error: 'Google Maps API key not configured' })
-  }
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY ?? null
 
   try {
-    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}&components=country:AU`
-    const response = await fetch(url)
-    const data = await response.json() as GeocodeResult
+    let geocoded = apiKey ? await geocodeWithGoogle(address, apiKey) : null
+    if (!geocoded) {
+      const fallback = await geocodeWithNominatim(address)
+      if (fallback) {
+        geocoded = { ...fallback, formattedAddress: address.trim() }
+      }
+    }
 
-    if (data.status === 'OK' && data.results?.[0]) {
-      const loc = data.results[0].geometry.location
-      const formattedAddress = data.results[0].formatted_address
-
-      return res.status(200).json({
-        success: true,
-        lat: loc.lat,
-        lng: loc.lng,
-        formattedAddress,
+    if (!geocoded) {
+      return res.status(404).json({
+        success: false,
+        error: 'Geocoding failed for this address',
       })
     }
 
-    return res.status(404).json({
-      success: false,
-      error: `Geocoding failed: ${data.status}`,
+    return res.status(200).json({
+      success: true,
+      lat: geocoded.lat,
+      lng: geocoded.lng,
+      formattedAddress: geocoded.formattedAddress,
     })
   } catch (err) {
     console.error('Geocoding error:', err)
