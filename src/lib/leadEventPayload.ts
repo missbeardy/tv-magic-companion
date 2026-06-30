@@ -7,6 +7,8 @@ export const LEAD_EVENT_TYPES = [
   'contact_attempted',
   'call_attempted',
   'sms_attempted',
+  'second_attempt_started',
+  'third_attempt_started',
   'booked',
   'booking_cancelled',
   'completed',

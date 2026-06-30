@@ -99,6 +99,9 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
         assigned_to: employeeId,
         assigned_at: new Date().toISOString(),
         timer_expires_at: expiresAt,
+        contact_attempt_round: 0,
+        last_contact_attempted_at: null,
+        lost_reason: null,
       })
       .eq('id', lead.id)
 

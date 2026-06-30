@@ -4,12 +4,18 @@ import { createClient } from '@supabase/supabase-js'
 import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
 import { resolveOrgIdFromDid } from './_lib/resolveOrgFromDid.js'
 import { resolveOrgIdFromInboundEmail } from './_lib/resolveOrgFromInboundEmail.js'
-import { applySoloInboundAssignment } from './_lib/soloInboundLead.js'
 import { findRecentLeadByPhone } from './_lib/inboundLeadDedup.js'
 import { formatAuPhoneForSms } from './_lib/phone.js'
 import { notifyManagersNewLead } from './_lib/notifyManagersNewLead.js'
 import { sendMissedCallHookbackIfEnabled } from './_lib/missedCallHookbackSms.js'
 import { sendLeadAckSmsIfEnabled } from './_lib/leadAckSms.js'
+import {
+  emailFallbackParse,
+  insertRawFirstLead,
+  parseEmailSender,
+  updateLeadFromExtraction,
+  type ExtractedLeadFields,
+} from './_lib/rawFirstLead.js'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -173,6 +179,62 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ skipped: true, reason: 'inbound_calls_disabled' })
     }
     try {
+      const metadata = extractVoicemailMetadata(subject, emailText)
+      const callInfo = `Call received: ${metadata.receivedAt || 'time unknown'} (${metadata.duration || '?'}s)${
+        metadata.extensionName ? ` via ${metadata.extensionName}` : ''
+      }`
+
+      const rawPhone = metadata.phone
+      const normalizedPhone = rawPhone && rawPhone !== 'Unknown'
+        ? formatAuPhoneForSms(rawPhone)
+        : null
+
+      if (normalizedPhone) {
+        const existingLead = await findRecentLeadByPhone(supabase, normalizedPhone, orgId)
+        if (existingLead) {
+          await supabase.from('lead_events').insert({
+            lead_id: existingLead.id,
+            org_id: orgId,
+            event_type: 'missed_call_again',
+            note: `Another voicemail from ${normalizedPhone}`,
+            payload: { source: 'phone', transcription_failed: false },
+          })
+          return res.status(200).json({
+            success: true,
+            action: 'logged_to_existing',
+            lead_id: existingLead.id,
+            type: 'voicemail',
+          })
+        }
+      }
+
+      let leadId: string
+      try {
+        const inserted = await insertRawFirstLead(supabase, orgId, {
+          org_id: orgId,
+          name: 'Missed Call',
+          phone: normalizedPhone || rawPhone,
+          email: null,
+          service_type: 'General Enquiry',
+          details: `Voicemail received — processing. ${callInfo}`,
+          address: null,
+          source: 'phone',
+          raw_email: emailText,
+        })
+        leadId = inserted.id
+      } catch (insertErr) {
+        console.error('Voicemail raw-first insert failed:', insertErr)
+        return res.status(500).json({ error: 'Failed to save lead' })
+      }
+
+      await supabase.from('lead_events').insert({
+        lead_id: leadId,
+        org_id: orgId,
+        event_type: 'created',
+        note: 'Lead captured from inbound voicemail email (raw-first)',
+        payload: { source: 'phone' },
+      })
+
       let transcript = ''
       let transcriptionFailed = false
 
@@ -192,15 +254,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         transcriptionFailed = true
       }
 
-      const metadata = extractVoicemailMetadata(subject, emailText)
-      const callInfo = `Call received: ${metadata.receivedAt || 'time unknown'} (${metadata.duration || '?'}s)${
-        metadata.extensionName ? ` via ${metadata.extensionName}` : ''
-      }`
-
-      let lead: Record<string, any> = {}
+      let extracted: ExtractedLeadFields = {}
       if (!transcriptionFailed && transcript.trim()) {
         try {
-          lead = await extractLeadWithClaude(transcript, subject, from, 'voicemail')
+          extracted = await extractLeadWithClaude(transcript, subject, from, 'voicemail')
         } catch (claudeErr) {
           console.error('Claude voicemail extraction failed:', claudeErr)
         }
@@ -212,85 +269,66 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ? `Voicemail transcript: ${transcript}\n\n${callInfo}`
           : `Missed call voicemail received. ${callInfo}`
 
-      const rawPhone = lead.phone || metadata.phone
-      const normalizedPhone = rawPhone && rawPhone !== 'Unknown'
-        ? formatAuPhoneForSms(rawPhone)
-        : null
+      const details = extracted.details
+        ? `${extracted.details}\n\nFull transcript: ${transcript}\n\n${callInfo}`
+        : fallbackDetails
 
-      if (normalizedPhone) {
-        const existingLead = await findRecentLeadByPhone(supabase, normalizedPhone, orgId)
-        if (existingLead) {
-          await supabase.from('lead_events').insert({
-            lead_id: existingLead.id,
-            org_id: orgId,
-            event_type: 'missed_call_again',
-            note: `Another voicemail from ${normalizedPhone}`,
-            payload: { source: 'phone', transcription_failed: transcriptionFailed },
-          })
-          return res.status(200).json({
-            success: true,
-            action: 'logged_to_existing',
-            lead_id: existingLead.id,
-            type: 'voicemail',
-          })
+      try {
+        await updateLeadFromExtraction(supabase, leadId, {
+          name: extracted.name || 'Missed Call',
+          phone: extracted.phone || normalizedPhone || rawPhone,
+          email: extracted.email,
+          service_type: extracted.service_type || 'General Enquiry',
+          details,
+          address: extracted.address,
+        })
+        if (transcript) {
+          await supabase.from('leads').update({ raw_email: transcript }).eq('id', leadId)
         }
+      } catch (updateErr) {
+        console.error('Voicemail lead update failed:', updateErr)
       }
 
-      const { data: newLead, error } = await supabase
+      const { data: newLead } = await supabase
         .from('leads')
-        .insert({
-          org_id: orgId,
-          name: lead.name || 'Missed Call',
-          phone: normalizedPhone || rawPhone,
-          email: lead.email || null,
-          service_type: lead.service_type || 'General Enquiry',
-          details: lead.details
-            ? `${lead.details}\n\nFull transcript: ${transcript}\n\n${callInfo}`
-            : fallbackDetails,
-          address: lead.address || null,
-          status: 'unassigned',
-          source: 'phone',
-          raw_email: transcript || emailText,
-        })
-        .select()
+        .select('id, name, service_type, phone')
+        .eq('id', leadId)
         .single()
 
-      if (error) throw error
-
-      await supabase.from('lead_events').insert({
-        lead_id: newLead.id,
-        org_id: orgId,
-        event_type: 'created',
-        note: 'Lead created from inbound voicemail email',
-        payload: {
-          source: 'phone',
-          transcription_failed: transcriptionFailed,
-        },
-      })
-
       await notifyManagersNewLead({
-        id: newLead.id,
+        id: leadId,
         org_id: orgId,
-        name: newLead.name,
-        service_type: newLead.service_type,
+        name: newLead?.name || 'Missed Call',
+        service_type: newLead?.service_type || 'General Enquiry',
         status: 'unassigned',
       })
 
       let hookbackSent = false
-      if (normalizedPhone) {
+      const hookbackPhone = newLead?.phone
+        ? formatAuPhoneForSms(String(newLead.phone))
+        : normalizedPhone
+      if (hookbackPhone) {
         hookbackSent = await sendMissedCallHookbackIfEnabled({
           orgId,
-          leadId: newLead.id,
-          toPhone: normalizedPhone,
-          customerName: newLead.name,
+          leadId,
+          toPhone: hookbackPhone,
+          customerName: newLead?.name || 'there',
           source: 'voicemail_email',
         })
       }
 
-      console.log('Voicemail lead created:', newLead?.id)
+      await supabase.from('lead_events').insert({
+        lead_id: leadId,
+        org_id: orgId,
+        event_type: 'sms_sent',
+        note: transcriptionFailed ? 'Voicemail saved; transcription failed' : 'Voicemail processed',
+        payload: { source: 'phone', transcription_failed: transcriptionFailed },
+      })
+
+      console.log('Voicemail lead created:', leadId)
       return res.status(200).json({
         success: true,
-        lead_id: newLead?.id,
+        lead_id: leadId,
         type: 'voicemail',
         hookbackSent,
       })
@@ -323,32 +361,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const lead = await extractLeadWithClaude(emailText, subject, from, 'email')
+    const { name: senderName, email: senderEmail } = parseEmailSender(from)
 
-    const insertPayload = await applySoloInboundAssignment(supabase, orgId, {
-      org_id: orgId,
-      name: lead.name || from,
-      phone: lead.phone || null,
-      email: lead.email || from,
-      service_type: lead.service_type || 'General Enquiry',
-      details: lead.details || subject || 'Inbound email enquiry',
-      address: lead.address || null,
-      status: 'unassigned',
-      source: 'email',
-      raw_email: emailText,
-    })
-
-    const { data: newLead, error } = await supabase.from('leads').insert(insertPayload)
-      .select('id')
-      .single()
-
-    if (error) throw error
+    let leadId: string
+    try {
+      const inserted = await insertRawFirstLead(supabase, orgId, {
+        org_id: orgId,
+        name: senderName,
+        phone: null,
+        email: senderEmail || from,
+        service_type: 'General Enquiry',
+        details: subject || 'Inbound email enquiry',
+        address: null,
+        source: 'email',
+        raw_email: emailText,
+      })
+      leadId = inserted.id
+    } catch (insertErr) {
+      console.error('Email raw-first insert failed:', insertErr)
+      return res.status(500).json({ error: 'Failed to save lead' })
+    }
 
     await supabase.from('lead_events').insert({
-      lead_id: newLead.id,
+      lead_id: leadId,
       org_id: orgId,
       event_type: 'created',
-      note: 'Lead created from inbound email',
+      note: 'Lead captured from inbound email (raw-first)',
       payload: {
         source: 'email',
         from,
@@ -358,19 +396,55 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     })
 
-    console.log('Lead successfully created via CloudMailin:', lead.name || from)
+    let extracted: ExtractedLeadFields
+    try {
+      extracted = await extractLeadWithClaude(emailText, subject, from, 'email')
+    } catch (claudeErr) {
+      console.error('Claude email extraction failed:', claudeErr)
+      extracted = emailFallbackParse(emailText, subject, from)
+    }
 
-    if (newLead.id && lead.phone?.trim()) {
+    try {
+      await updateLeadFromExtraction(supabase, leadId, {
+        name: extracted.name || senderName,
+        phone: extracted.phone,
+        email: extracted.email || senderEmail || from,
+        service_type: extracted.service_type || 'General Enquiry',
+        details: extracted.details || subject || 'Inbound email enquiry',
+        address: extracted.address,
+      })
+    } catch (updateErr) {
+      console.error('Email lead extraction update failed:', updateErr)
+    }
+
+    const { data: savedLead } = await supabase
+      .from('leads')
+      .select('name, service_type, status, phone')
+      .eq('id', leadId)
+      .single()
+
+    await notifyManagersNewLead({
+      id: leadId,
+      org_id: orgId,
+      name: savedLead?.name || senderName,
+      service_type: savedLead?.service_type || 'General Enquiry',
+      status: savedLead?.status || 'unassigned',
+    })
+
+    console.log('Lead successfully created via CloudMailin:', savedLead?.name || from)
+
+    const ackPhone = extracted.phone?.trim() || savedLead?.phone?.trim()
+    if (ackPhone) {
       await sendLeadAckSmsIfEnabled({
         orgId,
-        leadId: newLead.id,
-        toPhone: lead.phone,
-        customerName: lead.name || from,
+        leadId,
+        toPhone: ackPhone,
+        customerName: savedLead?.name || senderName,
         source: 'email',
       })
     }
 
-    return res.status(200).json({ success: true })
+    return res.status(200).json({ success: true, lead_id: leadId })
   } catch (err) {
     console.error('Inbound email processing error:', err)
     return res.status(500).json({ error: 'Processing failed' })

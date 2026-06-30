@@ -44,6 +44,11 @@ import { formatAuPhoneForSms } from '../lib/phone'
 import type { LeadEventType } from '../lib/leadEventPayload'
 import { useOrgProfiles } from '../hooks/useOrgProfiles'
 import { isManagerRole } from '../lib/roles'
+import {
+  buildContactAttemptUpdate,
+  processContactFollowUpRollovers,
+  sortLeadsForKanbanColumn,
+} from '../lib/contactFollowUp'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -321,7 +326,29 @@ export default function LeadsPage() {
           latest_invoice_number: latestInvoice?.invoice_number ?? null,
         }
       })
-      setLeads(merged)
+
+      let withFollowUp = merged
+      if (profile?.org_id && profile?.id) {
+        withFollowUp = await processContactFollowUpRollovers(
+          merged,
+          async (leadId, update) => {
+            const { error } = await supabase.from('leads').update(update).eq('id', leadId)
+            return !error
+          },
+          async (leadId, eventType, note, payload) => {
+            await recordLeadEvent({
+              leadId,
+              orgId: profile.org_id!,
+              eventType,
+              note,
+              actorId: profile.id,
+              payload,
+            })
+          }
+        )
+      }
+
+      setLeads(withFollowUp)
     }
     setLoading(false)
   }, [profile?.org_id, profile?.role, profile?.id])
@@ -373,7 +400,7 @@ export default function LeadsPage() {
     const lead      = leads.find(l => l.id === leadId)
     if (!lead || lead.status === newStatus) return
 
-    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l))
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ...updatePayload } : l))
 
     const updatePayload: Record<string, unknown> = { status: newStatus }
 
@@ -381,6 +408,21 @@ export default function LeadsPage() {
       updatePayload.assigned_to = null
       updatePayload.assigned_at = null
       updatePayload.timer_expires_at = null
+      updatePayload.contact_attempt_round = 0
+      updatePayload.last_contact_attempted_at = null
+      updatePayload.lost_reason = null
+    }
+
+    if (newStatus === 'contact_attempted') {
+      const attempt = buildContactAttemptUpdate(lead)
+      Object.assign(updatePayload, attempt.update)
+      if (attempt.kind === 'unable_to_contact') {
+        updatePayload.status = 'lost'
+      }
+    } else if (newStatus === 'assigned' && lead.status === 'unassigned') {
+      updatePayload.contact_attempt_round = 0
+      updatePayload.last_contact_attempted_at = null
+      updatePayload.lost_reason = null
     }
 
     Object.assign(
@@ -397,15 +439,24 @@ export default function LeadsPage() {
       }
       await logLeadEvent(
         leadId,
-        newStatus === 'contact_attempted' ||
+        updatePayload.status === 'lost'
+          ? 'lost'
+          : newStatus === 'contact_attempted' ||
           newStatus === 'booked' ||
           newStatus === 'lost' ||
           newStatus === 'completed' ||
           newStatus === 'expired'
-          ? newStatus
+          ? (newStatus as LeadEventType)
           : 'status_change',
-        `Status changed from ${lead.status} to ${newStatus} via drag`,
-        { from_status: lead.status, to_status: newStatus, source: 'drag' }
+        updatePayload.status === 'lost' && updatePayload.lost_reason
+          ? `Marked lost — unable to contact after 3 attempts`
+          : `Status changed from ${lead.status} to ${String(updatePayload.status ?? newStatus)} via drag`,
+        {
+          from_status: lead.status,
+          to_status: String(updatePayload.status ?? newStatus),
+          source: 'drag',
+          ...(updatePayload.lost_reason ? { reason: updatePayload.lost_reason } : {}),
+        }
       )
       if (newStatus === 'completed') {
         const eligible = await isReviewRequestEligible(org, lead, profile?.org_id, reviewFeatureEnabled)
@@ -503,18 +554,22 @@ export default function LeadsPage() {
   }, [checklistLead, logLeadEvent, fetchLeads])
 
   const handleCall = useCallback(async (lead: Lead) => {
-    const toStatus = 'contact_attempted'
-    const poolPickup = shouldPoolPickup(lead.status, toStatus, profile?.id)
+    const attempt = buildContactAttemptUpdate(lead)
+    const isLost = attempt.kind === 'unable_to_contact'
+    const toStatus = isLost ? 'lost' : 'contact_attempted'
+    const poolPickup = !isLost && shouldPoolPickup(lead.status, toStatus, profile?.id)
     const confirmed = window.confirm(
-      poolPickup
-        ? `Call ${lead.name}?\n\nThis will assign the lead to you and mark it Contact Attempted.`
-        : `Call ${lead.name}?\n\nThis will update the lead status to "Contact Attempted".`
+      isLost
+        ? `Call ${lead.name}?\n\nThis is the third contact attempt — the lead will be marked Lost (Unable to contact).`
+        : poolPickup
+          ? `Call ${lead.name}?\n\nThis will assign the lead to you and mark it Contact Attempted.`
+          : `Call ${lead.name}?\n\nThis will update the lead status to "Contact Attempted".`
     )
     if (!confirmed) return
 
     const updatePayload = {
-      status: toStatus,
-      ...buildPoolPickupUpdate(lead.status, toStatus, profile?.id),
+      ...attempt.update,
+      ...(poolPickup ? buildPoolPickupUpdate(lead.status, toStatus, profile?.id) : {}),
     }
     await supabase.from('leads').update(updatePayload).eq('id', lead.id)
 
@@ -523,11 +578,18 @@ export default function LeadsPage() {
     }
     await logLeadEvent(
       lead.id,
-      'call_attempted',
-      `Called ${lead.phone}`,
-      { from_status: lead.status, to_status: toStatus, channel: 'phone' }
+      isLost ? 'lost' : 'call_attempted',
+      isLost ? `Unable to contact after 3 attempts — called ${lead.phone}` : `Called ${lead.phone}`,
+      {
+        from_status: lead.status,
+        to_status: toStatus,
+        channel: 'phone',
+        ...(isLost ? { reason: 'unable_to_contact', contact_attempt_round: lead.contact_attempt_round } : {}),
+      }
     )
-    window.location.href = `tel:${lead.phone}`
+    if (!isLost) {
+      window.location.href = `tel:${lead.phone}`
+    }
     closeSheet()
     focusMobileTabForStatus(toStatus)
     fetchLeads()
@@ -545,16 +607,44 @@ export default function LeadsPage() {
       return
     }
 
-    const toStatus = 'contact_attempted'
-    const poolPickup = shouldPoolPickup(lead.status, toStatus, profile?.id)
+    const attempt = buildContactAttemptUpdate(lead)
+    const isLost = attempt.kind === 'unable_to_contact'
+    const toStatus = isLost ? 'lost' : 'contact_attempted'
+    const poolPickup = !isLost && shouldPoolPickup(lead.status, toStatus, profile?.id)
+
+    if (isLost) {
+      const confirmed = window.confirm(
+        `Send SMS to ${lead.name}?\n\nThis is the third contact attempt — the lead will be marked Lost (Unable to contact).`
+      )
+      if (!confirmed) return
+      await supabase.from('leads').update(attempt.update).eq('id', lead.id)
+      await logLeadEvent(
+        lead.id,
+        'lost',
+        `Unable to contact after 3 attempts — SMS to ${lead.phone}`,
+        {
+          from_status: lead.status,
+          to_status: 'lost',
+          channel: 'sms',
+          reason: 'unable_to_contact',
+          contact_attempt_round: lead.contact_attempt_round,
+        }
+      )
+      closeSheet()
+      focusMobileTabForStatus('lost')
+      fetchLeads()
+      return
+    }
 
     if (poolPickup) {
       const updatePayload = {
-        status: toStatus,
+        ...attempt.update,
         ...buildPoolPickupUpdate(lead.status, toStatus, profile?.id),
       }
       await supabase.from('leads').update(updatePayload).eq('id', lead.id)
       await logPoolPickup(lead.id, 'sms_auto_assign')
+    } else if (lead.status === 'assigned' || lead.status === 'contact_attempted') {
+      await supabase.from('leads').update(attempt.update).eq('id', lead.id)
     }
 
     const techName = profile?.full_name ?? 'Your technician'
@@ -571,13 +661,13 @@ export default function LeadsPage() {
         template: 'customer_ontheway',
         from_device: true,
         from_status: lead.status,
-        to_status: poolPickup ? toStatus : lead.status,
+        to_status: poolPickup || lead.status === 'assigned' ? toStatus : lead.status,
       }
     )
 
     openOnTheWaySms(lead.phone, message)
     closeSheet()
-    if (poolPickup) {
+    if (poolPickup || lead.status === 'assigned' || lead.status === 'contact_attempted') {
       focusMobileTabForStatus(toStatus)
       fetchLeads()
     }
@@ -598,11 +688,21 @@ export default function LeadsPage() {
   }, [])
 
   const handleMarkContactAttempted = useCallback(async (lead: Lead) => {
-    const toStatus = 'contact_attempted'
-    const poolPickup = shouldPoolPickup(lead.status, toStatus, profile?.id)
+    const attempt = buildContactAttemptUpdate(lead)
+    const isLost = attempt.kind === 'unable_to_contact'
+    const toStatus = isLost ? 'lost' : 'contact_attempted'
+
+    if (isLost) {
+      const confirmed = window.confirm(
+        `Mark ${lead.name} as contact attempted?\n\nThis is the third attempt — the lead will be marked Lost (Unable to contact).`
+      )
+      if (!confirmed) return
+    }
+
+    const poolPickup = !isLost && shouldPoolPickup(lead.status, toStatus, profile?.id)
     const updatePayload = {
-      status: toStatus,
-      ...buildPoolPickupUpdate(lead.status, toStatus, profile?.id),
+      ...attempt.update,
+      ...(poolPickup ? buildPoolPickupUpdate(lead.status, toStatus, profile?.id) : {}),
     }
     await supabase.from('leads').update(updatePayload).eq('id', lead.id)
 
@@ -611,9 +711,14 @@ export default function LeadsPage() {
     }
     await logLeadEvent(
       lead.id,
-      'contact_attempted',
-      'Status updated to Contact Attempted',
-      { from_status: lead.status, to_status: toStatus, source: 'manual_action' }
+      isLost ? 'lost' : 'contact_attempted',
+      isLost ? 'Unable to contact after 3 attempts' : 'Status updated to Contact Attempted',
+      {
+        from_status: lead.status,
+        to_status: toStatus,
+        source: 'manual_action',
+        ...(isLost ? { reason: 'unable_to_contact', contact_attempt_round: lead.contact_attempt_round } : {}),
+      }
     )
     focusMobileTabForStatus(toStatus)
     fetchLeads()
@@ -632,6 +737,9 @@ export default function LeadsPage() {
         assigned_to: null,
         assigned_at: null,
         timer_expires_at: null,
+        contact_attempt_round: 0,
+        last_contact_attempted_at: null,
+        lost_reason: null,
       })
       .eq('id', lead.id)
     await logLeadEvent(
@@ -711,9 +819,10 @@ export default function LeadsPage() {
   }, [profile?.org_id, profile?.role, fetchOrgProfiles])
 
   function leadsForColumn(status: string) {
-    return leads.filter(
+    const filtered = leads.filter(
       (lead) => lead.status === status && isLeadVisibleInActiveKanban(lead.status, lead.hidden_from_kanban_at)
     )
+    return sortLeadsForKanbanColumn(filtered, status)
   }
 
   const activeDragLead = activeDragId ? leads.find(l => l.id === activeDragId) : null

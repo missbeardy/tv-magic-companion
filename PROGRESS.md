@@ -248,6 +248,8 @@ _Last updated: post-merge smoke test complete (all 6 pass); preview sign-off don
 
 ## What's next
 
+**Sales pipeline (primary):** see [`SALES_PIPELINE_BACKLOG.md`](SALES_PIPELINE_BACKLOG.md) — Stages 1–10 to fully automatable end-to-end.
+
 1. **Production cutover** — only when you approve (checklist below)
 2. **Optional polish** — theme colors beyond nav; Messenger (fold into existing API — 12/12 function cap); inbound email/voicemail org routing before franchise #2
 

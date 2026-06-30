@@ -15,6 +15,7 @@ import LeadPhotos from './LeadPhotos'
 import LeadAddressEditor from './LeadAddressEditor'
 import { LeadRawSource } from './LeadExtractedSummary'
 import { formatLocalityLabelFromAddress } from '../lib/extractSuburb'
+import { getAttemptPhaseLabel, LOST_REASON_UNABLE_TO_CONTACT } from '../lib/contactFollowUp'
 import { getLeadDisplayDetails } from '../lib/leadDisplay'
 import { isManagerRole } from '../lib/roles'
 import type { KanbanLead } from './LeadCard'
@@ -86,6 +87,9 @@ export default function LeadDetailSheet({
   const [transcriptOpen, setTranscriptOpen] = useState(false)
 
   const locality = formatLocalityLabelFromAddress(lead.address)
+  const attemptPhaseLabel = getAttemptPhaseLabel(lead.contact_attempt_round)
+  const isUnableToContact =
+    lead.status === 'lost' && lead.lost_reason === LOST_REASON_UNABLE_TO_CONTACT
   const summary = getLeadDisplayDetails(lead)
   const summaryLong = (summary?.length ?? 0) > 140
   const isCompleted = lead.status === 'completed'
@@ -121,6 +125,12 @@ export default function LeadDetailSheet({
       <div className="space-y-4 pb-2">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">{lead.name || 'Unknown'}</h2>
+          {isUnableToContact && (
+            <p className="text-xs font-semibold text-red-600 mt-1">Unable to contact</p>
+          )}
+          {attemptPhaseLabel && lead.status === 'assigned' && (
+            <p className="text-xs font-semibold text-red-600 mt-1">{attemptPhaseLabel}</p>
+          )}
           <p className="text-sm text-gray-500 mt-0.5">{lead.service_type || 'No service type'}</p>
           {locality && (
             <p className="text-sm text-gray-500 mt-0.5">📍 {locality}</p>

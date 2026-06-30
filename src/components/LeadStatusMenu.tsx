@@ -13,6 +13,7 @@ import {
   type ReviewRequestLead,
 } from '../lib/reviewRequest'
 import { buildPoolPickupUpdate, shouldPoolPickup } from '../lib/leadPoolPickup'
+import { buildContactAttemptUpdate } from '../lib/contactFollowUp'
 
 interface Props {
   leadId: string
@@ -26,6 +27,7 @@ interface Props {
   logEvent?: (leadId: string, note: string) => Promise<void>
   onCompleteRequested?: () => void
   variant?: 'badge' | 'pill'
+  contactAttemptRound?: number | null
 }
 
 const STATUSES = [
@@ -67,6 +69,7 @@ export default function LeadStatusMenu({
   logEvent,
   onCompleteRequested,
   variant = 'badge',
+  contactAttemptRound = 0,
 }: Props) {
   const { profile } = useAuth()
   const { isFeatureEnabled, featureSwitchesLoading } = useOrg()
@@ -117,6 +120,18 @@ export default function LeadStatusMenu({
       updatePayload.assigned_to = null
       updatePayload.assigned_at = null
       updatePayload.timer_expires_at = null
+      updatePayload.contact_attempt_round = 0
+      updatePayload.last_contact_attempted_at = null
+      updatePayload.lost_reason = null
+    }
+
+    if (newStatus === 'contact_attempted') {
+      const attempt = buildContactAttemptUpdate({
+        id: leadId,
+        status: fromStatus,
+        contact_attempt_round: contactAttemptRound,
+      })
+      Object.assign(updatePayload, attempt.update)
     }
 
     Object.assign(
@@ -137,22 +152,32 @@ export default function LeadStatusMenu({
       })
     }
 
-    if (fromStatus !== newStatus) {
+    const effectiveStatus = String(updatePayload.status ?? newStatus)
+
+    if (fromStatus !== effectiveStatus) {
       await logLeadEvent({
         leadId,
         orgId: profile?.org_id ?? null,
-        eventType: resolveStatusEventType(newStatus),
-        note: `Status changed from ${fromStatus} to ${newStatus} via menu`,
+        eventType: effectiveStatus === 'lost' ? 'lost' : resolveStatusEventType(effectiveStatus),
+        note:
+          effectiveStatus === 'lost' && updatePayload.lost_reason
+            ? 'Marked lost — unable to contact after 3 attempts'
+            : `Status changed from ${fromStatus} to ${effectiveStatus} via menu`,
         actorId: profile?.id ?? null,
-        payload: { from_status: fromStatus, to_status: newStatus, source: 'status_menu' },
+        payload: {
+          from_status: fromStatus,
+          to_status: effectiveStatus,
+          source: 'status_menu',
+          ...(updatePayload.lost_reason ? { reason: updatePayload.lost_reason } : {}),
+        },
       })
     }
 
     const notifyAssignee =
       (updatePayload.assigned_to as string | undefined) ?? assignedTo
 
-    if ((newStatus === 'completed' || newStatus === 'lost') && notifyAssignee) {
-      const statusLabel = newStatus === 'completed' ? 'Completed' : 'Lost'
+    if ((effectiveStatus === 'completed' || effectiveStatus === 'lost') && notifyAssignee) {
+      const statusLabel = effectiveStatus === 'completed' ? 'Completed' : 'Lost'
       await sendPushNotification(
         notifyAssignee,
         `Job ${statusLabel}`,

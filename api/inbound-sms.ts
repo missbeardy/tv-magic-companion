@@ -2,6 +2,11 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { createHmac, timingSafeEqual } from 'crypto'
+import { notifyManagersNewLead } from './_lib/notifyManagersNewLead.js'
+import {
+  insertRawFirstLead,
+  updateLeadFromExtraction,
+} from './_lib/rawFirstLead.js'
 
 const requests = new Map<string, { count: number; reset: number }>()
 
@@ -156,15 +161,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log(`SMS from ${fromNumber} to ${toNumber}`)
 
-    let parsed = await parseSmsWithClaude(smsText, fromNumber)
-    if (!parsed) {
-      console.log('Claude failed, using fallback')
-      parsed = fallbackParse(smsText, fromNumber)
-    }
-
-    const leadName = `SMS Lead: ${parsed.customer_name}`
-
-    // Resolve org_id
+    // Resolve org_id before save
     let orgId: string | null = null
     if (toNumber) {
       let normalizedTo = toNumber.replace(/\D/g, '')
@@ -198,56 +195,90 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).send('<Response></Response>')
     }
 
-    const { applySoloInboundAssignment } = await import('./_lib/soloInboundLead.js')
+    let leadId: string
+    try {
+      const inserted = await insertRawFirstLead(supabase, orgId, {
+        org_id: orgId,
+        name: 'SMS Enquiry',
+        phone: fromNumber,
+        email: null,
+        service_type: 'Other',
+        details: smsText.substring(0, 500),
+        address: null,
+        source: 'sms',
+        lead_source: 'SMS',
+        raw_sms: JSON.stringify(body),
+        created_at: new Date().toISOString(),
+      })
+      leadId = inserted.id
+    } catch (insertErr) {
+      console.error('SMS raw-first insert failed:', insertErr)
+      res.setHeader('Content-Type', 'text/xml')
+      return res.status(200).send('<Response></Response>')
+    }
 
-    const insertPayload = await applySoloInboundAssignment(supabase, orgId, {
-      name: leadName,
-      phone: parsed.phone,
-      email: parsed.email || null,
-      service_type: parsed.service_type,
-      details: parsed.job_details,
-      address: parsed.address,
-      source: 'sms',
-      lead_source: 'SMS',
+    await supabase.from('lead_events').insert({
+      lead_id: leadId,
       org_id: orgId,
-      raw_sms: JSON.stringify(body),
-      created_at: new Date().toISOString(),
+      event_type: 'created',
+      note: 'Lead captured from inbound SMS (raw-first)',
+      payload: {
+        source: 'sms',
+        from: fromNumber,
+      },
     })
 
-    console.log(`Inserting lead with org_id: ${orgId}`)
+    let parsed = await parseSmsWithClaude(smsText, fromNumber)
+    if (!parsed) {
+      console.log('Claude failed, using fallback')
+      parsed = fallbackParse(smsText, fromNumber)
+    }
 
-    const { data: newLead, error } = await supabase
+    const leadName = `SMS Lead: ${parsed.customer_name}`
+
+    try {
+      await updateLeadFromExtraction(supabase, leadId, {
+        name: leadName,
+        phone: parsed.phone,
+        email: parsed.email || null,
+        service_type: parsed.service_type,
+        details: parsed.job_details,
+        address: parsed.address,
+      })
+    } catch (updateErr) {
+      console.error('SMS lead extraction update failed:', updateErr)
+    }
+
+    const { data: savedLead } = await supabase
       .from('leads')
-      .insert(insertPayload)
-      .select('id')
+      .select('name, service_type, status')
+      .eq('id', leadId)
       .single()
 
-    if (error) {
-      console.error('Insert error:', error)
-    } else {
-      await supabase.from('lead_events').insert({
-        lead_id: newLead.id,
+    try {
+      await notifyManagersNewLead({
+        id: leadId,
         org_id: orgId,
-        event_type: 'created',
-        note: 'Lead created from inbound SMS',
-        payload: {
-          source: 'sms',
-          from: fromNumber,
-        },
+        name: savedLead?.name || leadName,
+        service_type: savedLead?.service_type || parsed.service_type,
+        status: savedLead?.status || 'unassigned',
       })
-      console.log(`Lead saved: ${newLead.id} with org ${orgId}`)
+    } catch (notifyErr) {
+      console.error('Manager notification failed for inbound SMS:', notifyErr)
+    }
 
-      const ackPhone = parsed.phone?.trim() || fromNumber
-      if (ackPhone) {
-        const { sendLeadAckSmsIfEnabled } = await import('./_lib/leadAckSms.js')
-        await sendLeadAckSmsIfEnabled({
-          orgId,
-          leadId: newLead.id,
-          toPhone: ackPhone,
-          customerName: parsed.customer_name,
-          source: 'sms',
-        })
-      }
+    console.log(`Lead saved: ${leadId} with org ${orgId}`)
+
+    const ackPhone = parsed.phone?.trim() || fromNumber
+    if (ackPhone) {
+      const { sendLeadAckSmsIfEnabled } = await import('./_lib/leadAckSms.js')
+      await sendLeadAckSmsIfEnabled({
+        orgId,
+        leadId,
+        toPhone: ackPhone,
+        customerName: parsed.customer_name,
+        source: 'sms',
+      })
     }
 
     res.setHeader('Content-Type', 'text/xml')

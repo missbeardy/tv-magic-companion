@@ -77,6 +77,16 @@ const EVENT_META: Record<
     iconColour: 'bg-cyan-500',
     template: (who, lead) => `${who} texted ${lead}`,
   },
+  second_attempt_started: {
+    icon: Clock,
+    iconColour: 'bg-red-500',
+    template: (_who, lead) => `${lead} — second contact attempt`,
+  },
+  third_attempt_started: {
+    icon: Clock,
+    iconColour: 'bg-red-600',
+    template: (_who, lead) => `${lead} — third contact attempt`,
+  },
   booked: {
     icon: CalendarCheck,
     iconColour: 'bg-green-500',

@@ -6,9 +6,11 @@ import LeadStatusMenu from './LeadStatusMenu'
 import LeadPhotos from './LeadPhotos'
 import LeadExtractedSummary, { LeadRawSource } from './LeadExtractedSummary'
 import UnassignedTimer from './UnassignedTimer'
+import ContactFollowUpBadge from './ContactFollowUpBadge'
 import LeadAssigneeAvatars from './LeadAssigneeAvatars'
 import LeadAddressEditor from './LeadAddressEditor'
 import { formatLocalityLabelFromAddress } from '../lib/extractSuburb'
+import { getAttemptPhaseLabel, LOST_REASON_UNABLE_TO_CONTACT } from '../lib/contactFollowUp'
 import { isManagerRole } from '../lib/roles'
 import { markInvoicePaid } from '../lib/invoices'
 import type { LeadEventType } from '../lib/leadEventPayload'
@@ -24,6 +26,9 @@ export interface KanbanLead {
   created_at: string
   assigned_at: string | null
   timer_expires_at: string | null
+  last_contact_attempted_at?: string | null
+  contact_attempt_round?: number | null
+  lost_reason?: string | null
   assigned_to: string | null
   address: string | undefined
   review_request_sent_at?: string | null
@@ -84,6 +89,9 @@ export default function LeadCard({
   const isQuoteAccepted = lead.latest_quote_status === 'accepted'
   const invoiceStatus = lead.latest_invoice_status
   const locality = formatLocalityLabelFromAddress(lead.address)
+  const attemptPhaseLabel = getAttemptPhaseLabel(lead.contact_attempt_round)
+  const isUnableToContact =
+    lead.status === 'lost' && lead.lost_reason === LOST_REASON_UNABLE_TO_CONTACT
   const [markingPaid, setMarkingPaid] = useState(false)
   const [events, setEvents] = useState<LeadEvent[]>([])
 
@@ -149,8 +157,13 @@ export default function LeadCard({
       }}
     >
       <div className="p-3">
-        {(invoiceStatus === 'sent' || invoiceStatus === 'paid') && (
+        {(invoiceStatus === 'sent' || invoiceStatus === 'paid' || isUnableToContact) && (
           <div className="flex flex-wrap gap-1 mb-2">
+            {isUnableToContact && (
+              <span className="text-[10px] font-medium uppercase tracking-wide text-red-700">
+                Unable to contact
+              </span>
+            )}
             {invoiceStatus === 'sent' && (
               <span className="text-[10px] font-medium uppercase tracking-wide text-violet-700">
                 Invoice sent
@@ -184,6 +197,7 @@ export default function LeadCard({
               onUpdated={onRefresh}
               logEvent={(id, note) => onLogEvent(id, 'review_request', note)}
               onCompleteRequested={() => onComplete(lead)}
+              contactAttemptRound={lead.contact_attempt_round}
             />
           </div>
           <ChevronUp size={16} className="md:hidden text-gray-400 shrink-0" aria-hidden />
@@ -199,8 +213,13 @@ export default function LeadCard({
         <div className="mt-2 flex items-center justify-between gap-2 min-h-[24px]">
           {lead.status === 'unassigned' ? (
             <UnassignedTimer createdAt={lead.created_at} />
+          ) : lead.status === 'contact_attempted' ? (
+            <ContactFollowUpBadge lastAttemptAt={lead.last_contact_attempted_at} />
           ) : (
             <LeadAssigneeAvatars assignees={assignees} />
+          )}
+          {attemptPhaseLabel && lead.status === 'assigned' && (
+            <span className="text-xs font-semibold text-red-600 shrink-0">{attemptPhaseLabel}</span>
           )}
           {!isBookingCancelled && isQuoteAccepted && (
             <span className="text-xs text-emerald-700">Quote accepted</span>
