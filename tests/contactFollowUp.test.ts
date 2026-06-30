@@ -6,15 +6,25 @@ import {
   isFollowUpRolloverDue,
   leadsDueForFollowUpRollover,
   LOST_REASON_UNABLE_TO_CONTACT,
+  MAX_CONTACT_ATTEMPTS,
+  MAX_RETRY_WAIT_ROUND,
   rolloverEventType,
   sortLeadsForKanbanColumn,
 } from '../src/lib/contactFollowUp'
 import { CONTACT_FOLLOW_UP_MS } from '../src/lib/timer'
 
 describe('contactFollowUp', () => {
-  it('labels second and third attempt phases', () => {
+  it('allows six contact attempts before lost', () => {
+    expect(MAX_CONTACT_ATTEMPTS).toBe(6)
+    expect(MAX_RETRY_WAIT_ROUND).toBe(5)
+  })
+
+  it('labels retry phases second through sixth', () => {
     expect(getAttemptPhaseLabel(1)).toBe('Second attempt')
     expect(getAttemptPhaseLabel(2)).toBe('Third attempt')
+    expect(getAttemptPhaseLabel(3)).toBe('Fourth attempt')
+    expect(getAttemptPhaseLabel(4)).toBe('Fifth attempt')
+    expect(getAttemptPhaseLabel(5)).toBe('Sixth attempt')
     expect(getAttemptPhaseLabel(0)).toBeNull()
   })
 
@@ -32,17 +42,17 @@ describe('contactFollowUp', () => {
     expect(rolloverEventType(1)).toBe('second_attempt_started')
   })
 
-  it('rolls from second contact_attempted to third attempt assigned', () => {
-    const update = buildFollowUpRolloverUpdate({ id: '1', status: 'contact_attempted', contact_attempt_round: 1 })
-    expect(update.contact_attempt_round).toBe(2)
-    expect(rolloverEventType(2)).toBe('third_attempt_started')
+  it('rolls through fifth attempt assigned', () => {
+    const update = buildFollowUpRolloverUpdate({ id: '1', status: 'contact_attempted', contact_attempt_round: 4 })
+    expect(update.contact_attempt_round).toBe(5)
+    expect(rolloverEventType(5)).toBe('sixth_attempt_started')
   })
 
-  it('third contact from assigned round 2 marks unable to contact lost', () => {
+  it('sixth contact from assigned round 5 marks unable to contact lost', () => {
     const result = buildContactAttemptUpdate({
       id: '1',
       status: 'assigned',
-      contact_attempt_round: 2,
+      contact_attempt_round: MAX_RETRY_WAIT_ROUND,
     })
     expect(result.kind).toBe('unable_to_contact')
     expect(result.update.status).toBe('lost')
@@ -81,7 +91,7 @@ describe('contactFollowUp', () => {
     expect(sorted.map((l) => l.id)).toEqual(['a', 'b'])
   })
 
-  it('finds leads due for rollover', () => {
+  it('finds leads due for rollover but not at final wait round', () => {
     const due = leadsDueForFollowUpRollover([
       {
         id: '1',
@@ -92,7 +102,7 @@ describe('contactFollowUp', () => {
       {
         id: '2',
         status: 'contact_attempted',
-        contact_attempt_round: 2,
+        contact_attempt_round: MAX_RETRY_WAIT_ROUND,
         last_contact_attempted_at: new Date(Date.now() - CONTACT_FOLLOW_UP_MS - 5000).toISOString(),
       },
     ])

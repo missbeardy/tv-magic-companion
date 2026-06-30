@@ -76,11 +76,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Inbound leads save immediately before AI parsing — email, SMS, and voicemail no longer lost on extraction failure',
     'Inbound email now alerts managers on new lead; inbound SMS manager alerts fixed',
     'Three-attempt contact follow-up: 4h rollover to Second/Third attempt, then Lost (Unable to contact)',
+    'Contact follow-up extended to six attempts — 4h rollover through Sixth attempt before Lost',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.51'
+export const APP_VERSION = '1.1.52'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

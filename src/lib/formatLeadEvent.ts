@@ -87,6 +87,21 @@ const EVENT_META: Record<
     iconColour: 'bg-red-600',
     template: (_who, lead) => `${lead} — third contact attempt`,
   },
+  fourth_attempt_started: {
+    icon: Clock,
+    iconColour: 'bg-red-600',
+    template: (_who, lead) => `${lead} — fourth contact attempt`,
+  },
+  fifth_attempt_started: {
+    icon: Clock,
+    iconColour: 'bg-red-700',
+    template: (_who, lead) => `${lead} — fifth contact attempt`,
+  },
+  sixth_attempt_started: {
+    icon: Clock,
+    iconColour: 'bg-red-800',
+    template: (_who, lead) => `${lead} — sixth contact attempt`,
+  },
   booked: {
     icon: CalendarCheck,
     iconColour: 'bg-green-500',

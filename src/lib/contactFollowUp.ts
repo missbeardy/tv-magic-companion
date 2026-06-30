@@ -1,7 +1,10 @@
 import { getExpiresAt, CONTACT_FOLLOW_UP_MS } from './timer'
 
-/** Waiting phases: 1 = second attempt, 2 = third attempt; lost on contact at round 2. */
-export const MAX_RETRY_WAIT_ROUND = 2
+/** Total contact tries before unable-to-contact lost. */
+export const MAX_CONTACT_ATTEMPTS = 6
+
+/** Assigned waiting phase after rollover; lost on contact at round 5 (6th attempt). */
+export const MAX_RETRY_WAIT_ROUND = MAX_CONTACT_ATTEMPTS - 1
 
 export const LOST_REASON_UNABLE_TO_CONTACT = 'unable_to_contact' as const
 
@@ -13,10 +16,17 @@ export interface ContactFollowUpLead {
   assigned_to?: string | null
 }
 
+const ATTEMPT_PHASE_LABELS: Record<number, string> = {
+  1: 'Second attempt',
+  2: 'Third attempt',
+  3: 'Fourth attempt',
+  4: 'Fifth attempt',
+  5: 'Sixth attempt',
+}
+
 export function getAttemptPhaseLabel(round: number | null | undefined): string | null {
-  if (round === 1) return 'Second attempt'
-  if (round === 2) return 'Third attempt'
-  return null
+  if (round == null || round < 1) return null
+  return ATTEMPT_PHASE_LABELS[round] ?? null
 }
 
 export function isFollowUpRolloverDue(lastAttemptAt: string | null | undefined): boolean {
@@ -42,8 +52,23 @@ export function buildFollowUpRolloverUpdate(lead: ContactFollowUpLead): Record<s
   }
 }
 
-export function rolloverEventType(nextRound: number): 'second_attempt_started' | 'third_attempt_started' {
-  return nextRound === 1 ? 'second_attempt_started' : 'third_attempt_started'
+export type RetryAttemptEventType =
+  | 'second_attempt_started'
+  | 'third_attempt_started'
+  | 'fourth_attempt_started'
+  | 'fifth_attempt_started'
+  | 'sixth_attempt_started'
+
+const RETRY_EVENT_BY_ROUND: Record<number, RetryAttemptEventType> = {
+  1: 'second_attempt_started',
+  2: 'third_attempt_started',
+  3: 'fourth_attempt_started',
+  4: 'fifth_attempt_started',
+  5: 'sixth_attempt_started',
+}
+
+export function rolloverEventType(nextRound: number): RetryAttemptEventType {
+  return RETRY_EVENT_BY_ROUND[nextRound] ?? 'sixth_attempt_started'
 }
 
 export function shouldMarkUnableToContact(lead: ContactFollowUpLead): boolean {
@@ -103,7 +128,7 @@ export async function processContactFollowUpRollovers<T extends ContactFollowUpL
   applyUpdate: (leadId: string, update: Record<string, unknown>) => Promise<boolean>,
   logEvent: (
     leadId: string,
-    eventType: 'second_attempt_started' | 'third_attempt_started',
+    eventType: RetryAttemptEventType,
     note: string,
     payload: Record<string, unknown>
   ) => Promise<void>

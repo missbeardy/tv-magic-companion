@@ -6,7 +6,7 @@ ALTER TABLE leads
   ADD COLUMN IF NOT EXISTS lost_reason text;
 
 COMMENT ON COLUMN leads.contact_attempt_round IS
-  '0 = first contact_attempted cycle; 1 = second attempt wait; 2 = third attempt wait';
+  '0 = first contact_attempted cycle; 1–5 = second through sixth attempt wait';
 COMMENT ON COLUMN leads.lost_reason IS
   'e.g. unable_to_contact when auto-closed after max contact attempts';
 
