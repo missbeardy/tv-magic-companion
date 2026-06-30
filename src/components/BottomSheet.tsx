@@ -2,6 +2,9 @@
 import { useEffect } from 'react'
 import { X } from 'lucide-react'
 
+/** Leave visible backdrop above the sheet (standard bottom-drawer cap). */
+const SHEET_MAX_HEIGHT = 'min(88dvh, calc(100% - 2.5rem))'
+
 interface Props {
   isOpen: boolean
   onClose: () => void
@@ -11,6 +14,52 @@ interface Props {
   showCloseButton?: boolean
   footer?: React.ReactNode
   children: React.ReactNode
+}
+
+function SheetTopChrome({
+  title,
+  hideHeader,
+  showCloseButton,
+  onClose,
+}: Pick<Props, 'title' | 'hideHeader' | 'showCloseButton' | 'onClose'>) {
+  if (title && !hideHeader) {
+    return (
+      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-white">
+        <h2 className="font-display font-semibold text-gray-900 text-base">{title}</h2>
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-11 h-11 flex items-center justify-center rounded-xl text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+          aria-label="Close"
+        >
+          <X size={20} strokeWidth={2} />
+        </button>
+      </div>
+    )
+  }
+
+  if (hideHeader && showCloseButton) {
+    return (
+      <div className="grid grid-cols-[44px_1fr_44px] items-center px-2 pt-3 pb-2 border-b border-gray-100 bg-white">
+        <span aria-hidden />
+        <div className="justify-self-center w-9 h-1 rounded-full bg-gray-200" />
+        <button
+          type="button"
+          onClick={onClose}
+          className="justify-self-end w-11 h-11 flex items-center justify-center rounded-xl text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+          aria-label="Close"
+        >
+          <X size={22} strokeWidth={2} />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex justify-center pt-3 pb-2 bg-white">
+      <div className="w-9 h-1 rounded-full bg-gray-200" />
+    </div>
+  )
 }
 
 export default function BottomSheet({
@@ -33,63 +82,40 @@ export default function BottomSheet({
 
   if (!isOpen) return null
 
+  const gridRows = footer
+    ? 'grid-rows-[auto_minmax(0,1fr)_auto]'
+    : 'grid-rows-[auto_minmax(0,1fr)]'
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end">
-      {/* Backdrop */}
+    <div className="fixed inset-0 z-50 flex flex-col justify-end">
       <div
         className="absolute inset-0 bg-black/50"
         onClick={onClose}
+        aria-hidden
       />
 
-      {/* Sheet */}
       <div
-        className="relative w-full bg-white rounded-t-3xl shadow-2xl animate-slide-up max-h-[90vh] flex flex-col"
+        className={`relative z-10 w-full bg-white rounded-t-3xl shadow-2xl animate-slide-up overflow-hidden grid ${gridRows}`}
+        style={{ maxHeight: SHEET_MAX_HEIGHT }}
         role="dialog"
         aria-modal="true"
       >
-        {/* Handle + optional close when using custom in-sheet header */}
-        {hideHeader && showCloseButton ? (
-          <div className="relative shrink-0 pt-3 pb-1">
-            <div className="flex justify-center">
-              <div className="w-9 h-1 rounded-full bg-gray-200" />
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="absolute right-4 top-2 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-              aria-label="Close"
-            >
-              <X size={18} />
-            </button>
-          </div>
-        ) : (
-          <div className="flex justify-center pt-3 pb-1 shrink-0">
-            <div className="w-9 h-1 rounded-full bg-gray-200" />
-          </div>
-        )}
+        <SheetTopChrome
+          title={title}
+          hideHeader={hideHeader}
+          showCloseButton={showCloseButton}
+          onClose={onClose}
+        />
 
-        {/* Header */}
-        {title && !hideHeader && (
-          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 shrink-0">
-            <h2 className="font-display font-semibold text-gray-900 text-base">{title}</h2>
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-              aria-label="Close"
-            >
-              <X size={18} />
-            </button>
-          </div>
-        )}
-
-        {/* Content */}
-        <div className="overflow-y-auto flex-1 px-5 py-4">
+        <div className="overflow-y-auto overscroll-contain px-5 py-4 min-h-0">
           {children}
         </div>
 
         {footer && (
-          <div className="shrink-0 px-5 pt-2 pb-4 border-t border-gray-100" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+          <div
+            className="shrink-0 px-5 pt-2 pb-4 border-t border-gray-100 bg-white"
+            style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+          >
             {footer}
           </div>
         )}

@@ -73,11 +73,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Calendar: manager resource view (all technicians) limited to Day view only',
     'Remove static map thumbnails from lead cards and calendar to reduce Google Maps API usage',
     'Lead detail drawer: close (X) button and browser back/swipe dismisses sheet without leaving Leads',
+    'Lead detail drawer: capped height with internal scroll so the close button stays visible',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.49'
+export const APP_VERSION = '1.1.50'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
