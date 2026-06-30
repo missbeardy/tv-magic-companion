@@ -25,6 +25,10 @@
       "destination": "/api/stripe?action=webhook"
     },
     {
+      "source": "/api/places-autocomplete",
+      "destination": "/api/geocode?action=autocomplete"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

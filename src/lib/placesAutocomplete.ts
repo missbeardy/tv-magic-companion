@@ -13,7 +13,7 @@ export async function fetchSuggestions(query: string): Promise<PlaceSuggestion[]
 
   try {
     const headers = await getAuthHeaders()
-    const response = await fetch('/api/places-autocomplete', {
+    const response = await fetch('/api/geocode?action=autocomplete', {
       method: 'POST',
       headers,
       body: JSON.stringify({ query: trimmed }),

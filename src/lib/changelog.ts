@@ -65,11 +65,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Lead card address updates sync to upcoming linked calendar bookings',
     'Assignment contact timer extended from 2 hours to 4 hours before auto-unassign',
     'Fix preview deploy type errors for Places API and inbound email handlers',
+    'Merge Places autocomplete into geocode API to stay within Vercel Hobby function limit',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.44'
+export const APP_VERSION = '1.1.45'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

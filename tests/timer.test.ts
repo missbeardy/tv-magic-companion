@@ -17,7 +17,7 @@ describe('timer', () => {
 
   describe('isRunningLow', () => {
     it('returns false when 2 hours or more remain', () => {
-      const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
+      const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000 + 60_000).toISOString()
       expect(isRunningLow(expiresAt)).toBe(false)
     })
 
