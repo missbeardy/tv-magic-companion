@@ -1,11 +1,27 @@
 import { formatAuPhoneForSms } from './phone.js'
+import type { EmployeeWhatsAppMessagePayload } from './employeeWhatsAppTemplates.js'
 
 export interface SendEmployeeWhatsAppOptions {
   toPhone: string
   body: string
-  /** Twilio Content template SID (required for business-initiated outside 24h window). */
+  /** Twilio Content template SID (required for business-initiated WhatsApp). */
   contentSid?: string
   contentVariables?: Record<string, string>
+}
+
+export type { EmployeeWhatsAppMessagePayload }
+
+export function applyEmployeeWhatsAppMessage(
+  options: Omit<SendEmployeeWhatsAppOptions, 'contentSid' | 'contentVariables' | 'body'> & {
+    message: EmployeeWhatsAppMessagePayload
+  }
+): SendEmployeeWhatsAppOptions {
+  return {
+    toPhone: options.toPhone,
+    body: options.message.body,
+    contentSid: options.message.contentSid,
+    contentVariables: options.message.contentVariables,
+  }
 }
 
 export interface SendEmployeeWhatsAppResult {
@@ -97,14 +113,16 @@ export async function sendEmployeeWhatsApp(
 /** Best-effort WhatsApp to a profile phone — never throws. */
 export async function sendEmployeeWhatsAppToPhone(
   phone: string | null | undefined,
-  title: string,
-  message: string,
-  url?: string
+  message: EmployeeWhatsAppMessagePayload
 ): Promise<SendEmployeeWhatsAppResult> {
   if (!phone?.trim()) {
     return { sent: false, skipped: 'No phone on profile' }
   }
 
-  const body = url ? `${title}\n\n${message}\n\n${url}` : `${title}\n\n${message}`
-  return sendEmployeeWhatsApp({ toPhone: phone, body })
+  return sendEmployeeWhatsApp(
+    applyEmployeeWhatsAppMessage({
+      toPhone: phone,
+      message,
+    })
+  )
 }

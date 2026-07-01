@@ -13,6 +13,10 @@ import { runContactFollowUpCron } from './_lib/runContactFollowUpCron.js'
 import { loadLocalEnvIfNeeded } from './_lib/loadLocalEnv.js'
 import { notifyOrgUser } from './_lib/notifyUser.js'
 import { sendEmployeeWhatsApp } from './_lib/sendEmployeeWhatsApp.js'
+import {
+  buildEmployeeWhatsAppMessage,
+  whatsAppTemplateKeyForMode,
+} from './_lib/employeeWhatsAppTemplates.js'
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
 function checkRateLimit(key: string, limit = 20, windowMs = 60_000): boolean {
@@ -734,7 +738,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (isInternalMode) {
-    const result = await sendEmployeeWhatsApp({ toPhone: smsTo, body: message })
+    const templateKey = whatsAppTemplateKeyForMode(mode!)
+    const waMessage = templateKey
+      ? buildEmployeeWhatsAppMessage(templateKey, message, {
+          orgName,
+          leadName: leadName ?? '',
+          serviceType: serviceType ?? '',
+          managerName: managerName ?? '',
+          dateTime: dateTime ?? '',
+          appUrl:
+            mode === 'booking_scheduled'
+              ? `${platformUrl}/calendar`
+              : `${platformUrl}/leads`,
+        })
+      : { body: message }
+    const result = await sendEmployeeWhatsApp({ toPhone: smsTo, ...waMessage })
     if (result.skipped) {
       return res.status(503).json({ error: result.skipped })
     }

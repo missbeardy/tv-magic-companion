@@ -4,6 +4,7 @@ import { getPlatformUrl } from './platformUrl.js'
 import { OPERATIONAL_MANAGER_ROLES } from './managerRoles.js'
 import { isFeatureEnabledForOrg } from './featureSwitches.js'
 import { sendEmployeeWhatsApp } from './sendEmployeeWhatsApp.js'
+import { buildEmployeeWhatsAppMessage } from './employeeWhatsAppTemplates.js'
 
 export interface NewLeadRecord {
   id?: string
@@ -92,7 +93,13 @@ export async function notifyManagersNewLead(
     for (const manager of managers) {
       if (!manager.phone) continue
       try {
-        const result = await sendEmployeeWhatsApp({ toPhone: manager.phone, body: message })
+        const waMessage = buildEmployeeWhatsAppMessage('manager_alert', message, {
+          orgName,
+          leadName,
+          serviceType,
+          appUrl: `${platformUrl}/leads`,
+        })
+        const result = await sendEmployeeWhatsApp({ toPhone: manager.phone, ...waMessage })
         if (result.error) {
           console.error(`Failed to send manager alert WhatsApp to ${manager.phone}:`, result.error)
         }

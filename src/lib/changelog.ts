@@ -86,11 +86,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Contact follow-up cron via GitHub Actions (Hobby Vercel cannot run 15-min crons)',
     'Employee alerts via Twilio WhatsApp — assignments, new leads, and contact follow-up reminders',
     'Fix Twilio WhatsApp From number normalization (typo-tolerant env parsing)',
+    'WhatsApp employee alerts use Twilio ContentSid + numbered ContentVariables when env is set',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.61'
+export const APP_VERSION = '1.1.62'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

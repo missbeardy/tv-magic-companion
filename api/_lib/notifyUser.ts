@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getPlatformUrl } from './platformUrl.js'
 import { sendEmployeeWhatsAppToPhone } from './sendEmployeeWhatsApp.js'
+import { buildEmployeeWhatsAppMessage } from './employeeWhatsAppTemplates.js'
 
 export interface NotifyOrgUserInput {
   supabase: SupabaseClient
@@ -69,7 +70,12 @@ export async function notifyOrgUser(input: NotifyOrgUserInput): Promise<{ ok: bo
     }
   }
 
-  const whatsapp = await sendEmployeeWhatsAppToPhone(target.phone, title, message, resolvedUrl)
+  const whatsappMessage = buildEmployeeWhatsAppMessage(
+    type === 'contact_follow_up' ? 'contact_follow_up' : 'generic_notify',
+    url ? `${title}\n\n${message}\n\n${resolvedUrl}` : `${title}\n\n${message}`,
+    { title, message, url: resolvedUrl }
+  )
+  const whatsapp = await sendEmployeeWhatsAppToPhone(target.phone, whatsappMessage)
   if (whatsapp.error) {
     console.error('Employee WhatsApp failed (non-fatal):', whatsapp.error)
   }
