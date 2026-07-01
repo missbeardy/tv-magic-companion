@@ -9,6 +9,7 @@ vi.mock('../api/_lib/soloInboundLead.js', () => ({
 }))
 
 import * as rawFirstLead from '../api/_lib/rawFirstLead'
+import { processInboundLead } from '../api/_lib/processInboundLead'
 
 const ROOT = resolve(import.meta.dirname, '..')
 
@@ -16,16 +17,19 @@ function readApiSource(relativePath: string): string {
   return readFileSync(resolve(ROOT, relativePath), 'utf8')
 }
 
-/** Symbols each inbound handler imports from rawFirstLead — missing exports caused prod 500s. */
+/** Handlers that use the shared inbound pipeline must import processInboundLead. */
+const INBOUND_PIPELINE_HANDLERS = [
+  'api/inbound-sms.ts',
+  'api/inbound-calls.ts',
+  'api/inbound-email.ts',
+  'api/inbound-voicemail.ts',
+] as const
+
+/** Symbols each inbound handler still imports from rawFirstLead directly. */
 const INBOUND_RAW_FIRST_IMPORTS = {
-  'api/inbound-sms.ts': ['insertRawFirstLead', 'updateLeadFromExtraction'],
-  'api/inbound-email.ts': [
-    'emailFallbackParse',
-    'insertRawFirstLead',
-    'parseEmailSender',
-    'updateLeadFromExtraction',
-  ],
-  'api/inbound-voicemail.ts': ['insertRawFirstLead', 'updateLeadFromExtraction'],
+  'api/inbound-sms.ts': ['insertRawFirstLead'],
+  'api/inbound-email.ts': ['emailFallbackParse', 'insertRawFirstLead', 'parseEmailSender'],
+  'api/inbound-voicemail.ts': ['insertRawFirstLead'],
 } as const
 
 describe('inbound raw-first module bundle', () => {
@@ -33,6 +37,22 @@ describe('inbound raw-first module bundle', () => {
     expect(typeof rawFirstLead.insertRawFirstLead).toBe('function')
     expect(typeof rawFirstLead.updateLeadFromExtraction).toBe('function')
   })
+
+  it('processInboundLead is exported and uses rawFirstLead primitives', () => {
+    expect(typeof processInboundLead).toBe('function')
+    const source = readApiSource('api/_lib/processInboundLead.ts')
+    expect(source).toContain("from './rawFirstLead.js'")
+    expect(source).toContain('updateLeadFromExtraction')
+    expect(source).toContain('insertLead')
+  })
+
+  for (const handlerPath of INBOUND_PIPELINE_HANDLERS) {
+    it(`${handlerPath} uses the shared processInboundLead pipeline`, () => {
+      const source = readApiSource(handlerPath)
+      expect(source).toContain("from './_lib/processInboundLead.js'")
+      expect(source).toContain('processInboundLead(')
+    })
+  }
 
   for (const [handlerPath, symbols] of Object.entries(INBOUND_RAW_FIRST_IMPORTS)) {
     it(`${handlerPath} imports resolve to exported functions`, () => {

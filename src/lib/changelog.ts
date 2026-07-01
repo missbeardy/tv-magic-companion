@@ -95,11 +95,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Employee alerts fall back to SMS when WhatsApp is off or fails — safe rollout with TWILIO_WHATSAPP_FROM removed',
     'Fix manager alert links using PLATFORM_URL on production (preview hostname no longer in SMS)',
     'Loud DEFAULT_ORG_ID fallback for inbound calls, SMS, and voicemail — greppable [ORG_RESOLUTION_FALLBACK] in Vercel logs',
+    'Consolidated inbound lead pipeline — SMS, email, calls, and voicemail share processInboundLead',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.72'
+export const APP_VERSION = '1.1.73'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

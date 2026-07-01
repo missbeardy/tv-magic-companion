@@ -3,8 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
 import { resolveOrgIdFromDid } from './_lib/resolveOrgFromDid.js'
 import { findRecentLeadByPhone } from './_lib/inboundLeadDedup.js'
-import { notifyManagersNewLead } from './_lib/notifyManagersNewLead.js'
-import { sendMissedCallHookbackIfEnabled } from './_lib/missedCallHookbackSms.js'
+import { processInboundLead } from './_lib/processInboundLead.js'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -93,64 +92,64 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
     }
 
-    const { data: newLead, error: insertError } = await supabase
-      .from('leads')
-      .insert({
-        name: 'Missed Call',
-        phone: normalizedPhone,
-        service_type: 'Other',
-        details: `Missed call from ${normalizedPhone}. Call type: ${payload.callType}. Duration: ${payload.duration || 0}s`,
-        status: 'unassigned',
-        source: '3cx_missed_call',
-        raw_sms: JSON.stringify(payload),
-        org_id: orgId,
-        created_at: payload.timestamp || new Date().toISOString(),
-      })
-      .select('id')
-      .single()
+    let result
+    try {
+      result = await processInboundLead({
+        supabase,
+        orgId,
+        insertLead: async () => {
+          const { data: newLead, error: insertError } = await supabase
+            .from('leads')
+            .insert({
+              name: 'Missed Call',
+              phone: normalizedPhone,
+              service_type: 'Other',
+              details: `Missed call from ${normalizedPhone}. Call type: ${payload.callType}. Duration: ${payload.duration || 0}s`,
+              status: 'unassigned',
+              source: '3cx_missed_call',
+              raw_sms: JSON.stringify(payload),
+              org_id: orgId,
+              created_at: payload.timestamp || new Date().toISOString(),
+            })
+            .select('id')
+            .single()
 
-    if (insertError) {
-      console.error('Failed to create lead from missed call:', insertError)
+          if (insertError) {
+            console.error('Failed to create lead from missed call:', insertError)
+            throw insertError
+          }
+          return { id: newLead.id }
+        },
+        createdEvent: {
+          note: 'Lead created from missed call',
+          payload: {
+            phone: normalizedPhone,
+            call_type: payload.callType,
+            source: '3cx_missed_call',
+          },
+        },
+        buildNotify: () => ({
+          name: 'Missed Call',
+          service_type: 'Other',
+          status: 'unassigned',
+        }),
+        followUp: {
+          type: 'hookback',
+          source: '3cx_missed_call',
+          resolvePhone: () => normalizedPhone,
+          resolveCustomerName: () => 'there',
+        },
+        logLabel: 'missed call',
+      })
+    } catch (insertErr) {
       return res.status(500).json({ error: 'Failed to create lead' })
     }
-
-    await supabase.from('lead_events').insert({
-      lead_id: newLead.id,
-      org_id: orgId,
-      event_type: 'created',
-      note: 'Lead created from missed call',
-      payload: {
-        phone: normalizedPhone,
-        call_type: payload.callType,
-        source: '3cx_missed_call',
-      },
-    })
-
-    try {
-      await notifyManagersNewLead({
-        id: newLead.id,
-        org_id: orgId,
-        name: 'Missed Call',
-        service_type: 'Other',
-        status: 'unassigned',
-      })
-    } catch (notifyErr) {
-      console.error('Manager notification failed for missed call lead:', notifyErr)
-    }
-
-    const hookbackSent = await sendMissedCallHookbackIfEnabled({
-      orgId,
-      leadId: newLead.id,
-      toPhone: normalizedPhone,
-      customerName: 'there',
-      source: '3cx_missed_call',
-    })
 
     return res.status(200).json({
       success: true,
       action: 'created_new_lead',
-      leadId: newLead.id,
-      hookbackSent,
+      leadId: result.leadId,
+      hookbackSent: result.hookbackSent,
     })
   } catch (err) {
     console.error('Inbound call handler error:', err)
