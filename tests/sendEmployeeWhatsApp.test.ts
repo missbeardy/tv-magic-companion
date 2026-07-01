@@ -31,6 +31,13 @@ describe('sendEmployeeWhatsApp', () => {
     expect(getWhatsAppFromNumber()).toBe('whatsapp:+14155238886')
   })
 
+  it('fixes doubled or misspelled whatsapp prefix in TWILIO_WHATSAPP_FROM', () => {
+    process.env.TWILIO_WHATSAPP_FROM = 'whatsapp:whatspp+15559367913'
+    expect(getWhatsAppFromNumber()).toBe('whatsapp:+15559367913')
+    process.env.TWILIO_WHATSAPP_FROM = 'whatspp+15559367913'
+    expect(getWhatsAppFromNumber()).toBe('whatsapp:+15559367913')
+  })
+
   it('reports configured when Twilio WhatsApp env is set', () => {
     expect(isEmployeeWhatsAppConfigured()).toBe(true)
     delete process.env.TWILIO_WHATSAPP_FROM

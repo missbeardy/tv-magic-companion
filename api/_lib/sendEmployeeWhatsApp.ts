@@ -20,10 +20,22 @@ export function formatWhatsAppAddress(phone: string): string {
   return e164.startsWith('whatsapp:') ? e164 : `whatsapp:${e164}`
 }
 
+/** Strip whatsapp:/whatspp: prefixes and return E.164 (+digits). */
+export function parseWhatsAppPhoneNumber(input: string): string | null {
+  let value = input.trim()
+  while (/^(?:whatsapp|whatspp):/i.test(value)) {
+    value = value.replace(/^(?:whatsapp|whatspp):/i, '').trim()
+  }
+  const e164 = formatAuPhoneForSms(value)
+  return e164.startsWith('+') ? e164 : null
+}
+
 export function getWhatsAppFromNumber(): string | null {
   const from = process.env.TWILIO_WHATSAPP_FROM?.trim()
   if (!from) return null
-  return from.startsWith('whatsapp:') ? from : `whatsapp:${from}`
+  const e164 = parseWhatsAppPhoneNumber(from)
+  if (!e164) return null
+  return `whatsapp:${e164}`
 }
 
 export function isEmployeeWhatsAppConfigured(): boolean {
