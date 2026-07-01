@@ -88,11 +88,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Fix Twilio WhatsApp From number normalization (typo-tolerant env parsing)',
     'WhatsApp employee alerts use Twilio ContentSid + numbered ContentVariables when env is set',
     'Fix WhatsApp ContentVariables — non-empty fallbacks for template placeholders',
+    'Fix WhatsApp 21656 — sanitize apostrophes; static templates skip ContentVariables; env debug in API',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.64'
+export const APP_VERSION = '1.1.66'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

@@ -30,11 +30,25 @@ export function getEmployeeWhatsAppContentSid(key: EmployeeWhatsAppTemplateKey):
 
 /** Set TWILIO_WHATSAPP_ASSIGNMENT_STATIC=true for a no-variable template (ContentSid only). */
 export function isStaticAssignmentWhatsAppTemplate(): boolean {
-  return process.env.TWILIO_WHATSAPP_ASSIGNMENT_STATIC === 'true'
+  const value = process.env.TWILIO_WHATSAPP_ASSIGNMENT_STATIC?.trim().toLowerCase()
+  return value === 'true' || value === '1' || value === 'yes'
+}
+
+/** How many {{n}} placeholders the assignment template has (default 4). Set 3 to omit URL. */
+export function getAssignmentVariableCount(): number {
+  if (isStaticAssignmentWhatsAppTemplate()) return 0
+  const raw = process.env.TWILIO_WHATSAPP_ASSIGNMENT_VAR_COUNT?.trim()
+  if (raw === '0') return 0
+  if (raw) {
+    const n = Number.parseInt(raw, 10)
+    if (Number.isFinite(n) && n >= 0 && n <= 10) return n
+  }
+  return 4
 }
 
 /**
  * Twilio rejects empty ContentVariables and values with newlines/tabs/long spaces.
+ * Straight apostrophes in values also trigger error 21656.
  */
 export function sanitizeWhatsAppVariable(
   value: string | null | undefined,
@@ -43,6 +57,11 @@ export function sanitizeWhatsAppVariable(
   const cleaned = (value ?? '')
     .replace(/[\r\n\t]+/g, ' ')
     .replace(/ {5,}/g, '    ')
+    // Twilio 21656: straight apostrophe in variable values breaks ContentVariables JSON
+    .replace(/'/g, '\u2019')
+    .replace(/\\/g, '/')
+    .replace(/\u2014/g, '-')
+    .replace(/\u2013/g, '-')
     .trim()
   return cleaned || fallback
 }
@@ -53,7 +72,7 @@ export function buildNumberedContentVariables(
 ): Record<string, string> {
   const out: Record<string, string> = {}
   values.forEach((value, index) => {
-    out[String(index + 1)] = sanitizeWhatsAppVariable(value, fallbacks[index] ?? '—')
+    out[String(index + 1)] = sanitizeWhatsAppVariable(value, fallbacks[index] ?? '-')
   })
   return out
 }
@@ -74,19 +93,27 @@ export function buildEmployeeWhatsAppMessage(
     return { body: fallbackBody }
   }
 
-  if (key === 'tech_assignment' && isStaticAssignmentWhatsAppTemplate()) {
-    return { body: fallbackBody, contentSid }
+  if (key === 'tech_assignment') {
+    const varCount = getAssignmentVariableCount()
+    if (varCount === 0) {
+      return { body: fallbackBody, contentSid }
+    }
+    return {
+      body: fallbackBody,
+      contentSid,
+      contentVariables: buildNumberedContentVariables(
+        [vars.orgName, vars.leadName, vars.serviceType, vars.appUrl].slice(0, varCount),
+        ['Your team', 'New lead', 'General enquiry', 'https://tv-magic-companion.vercel.app/leads'].slice(
+          0,
+          varCount
+        )
+      ),
+    }
   }
 
   let contentVariables: Record<string, string>
 
   switch (key) {
-    case 'tech_assignment':
-      contentVariables = buildNumberedContentVariables(
-        [vars.orgName, vars.leadName, vars.serviceType, vars.appUrl],
-        ['Your team', 'New lead', 'General enquiry', 'https://tv-magic-companion.vercel.app/leads']
-      )
-      break
     case 'manager_alert':
       contentVariables = buildNumberedContentVariables(
         [vars.orgName, vars.leadName, vars.serviceType, vars.appUrl],

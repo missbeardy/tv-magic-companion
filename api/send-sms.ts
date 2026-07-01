@@ -15,6 +15,7 @@ import { notifyOrgUser } from './_lib/notifyUser.js'
 import { sendEmployeeWhatsApp } from './_lib/sendEmployeeWhatsApp.js'
 import {
   buildEmployeeWhatsAppMessage,
+  getEmployeeWhatsAppContentSid,
   isStaticAssignmentWhatsAppTemplate,
   whatsAppTemplateKeyForMode,
 } from './_lib/employeeWhatsAppTemplates.js'
@@ -763,6 +764,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         code: result.code,
         contentSid: result.contentSid,
         contentVariables: result.contentVariables,
+        staticTemplateEnabled:
+          mode === 'tech_assignment' && isStaticAssignmentWhatsAppTemplate(),
+        envAssignmentTemplateSid:
+          mode === 'tech_assignment'
+            ? getEmployeeWhatsAppContentSid('tech_assignment')
+            : undefined,
       })
     }
     return res.status(200).json({
@@ -771,6 +778,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       sid: result.sid,
       usedTemplate: Boolean(waMessage.contentSid),
       staticTemplate: mode === 'tech_assignment' && isStaticAssignmentWhatsAppTemplate(),
+      envAssignmentTemplateSid:
+        mode === 'tech_assignment'
+          ? getEmployeeWhatsAppContentSid('tech_assignment')
+          : undefined,
     })
   }
 

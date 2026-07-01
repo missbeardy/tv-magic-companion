@@ -74,4 +74,35 @@ describe('sendEmployeeWhatsApp', () => {
     expect(body).toContain('From=whatsapp%3A%2B14155238886')
     expect(body).toContain('Body=New+lead+assigned')
   })
+
+  it('retries without ContentVariables when Twilio returns 21656', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({
+          code: 21656,
+          message: 'The Content Variables parameter is invalid.',
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ sid: 'SMretry' }),
+      })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await sendEmployeeWhatsApp({
+      toPhone: '0412 345 678',
+      body: 'fallback',
+      contentSid: 'HXstatic',
+      contentVariables: { '1': 'FieldBourne', '2': 'Jane', '3': 'TV', '4': 'https://x' },
+    })
+
+    expect(result.sent).toBe(true)
+    expect(result.sid).toBe('SMretry')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const retryBody = (fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string
+    expect(retryBody).toContain('ContentSid=HXstatic')
+    expect(retryBody).not.toContain('ContentVariables')
+  })
 })

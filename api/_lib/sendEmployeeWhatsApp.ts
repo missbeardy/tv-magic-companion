@@ -1,5 +1,6 @@
 import { formatAuPhoneForSms } from './phone.js'
 import type { EmployeeWhatsAppMessagePayload } from './employeeWhatsAppTemplates.js'
+import { isStaticAssignmentWhatsAppTemplate } from './employeeWhatsAppTemplates.js'
 
 export interface SendEmployeeWhatsAppOptions {
   toPhone: string
@@ -63,6 +64,43 @@ export function isEmployeeWhatsAppConfigured(): boolean {
   return Boolean(sid && token && getWhatsAppFromNumber())
 }
 
+function buildTwilioMessageBody(
+  from: string,
+  to: string,
+  options: Pick<SendEmployeeWhatsAppOptions, 'body' | 'contentSid' | 'contentVariables'>
+): URLSearchParams {
+  const bodyParams = new URLSearchParams({ To: to, From: from })
+
+  if (options.contentSid) {
+    bodyParams.set('ContentSid', options.contentSid)
+    if (options.contentVariables && Object.keys(options.contentVariables).length > 0) {
+      bodyParams.set('ContentVariables', JSON.stringify(options.contentVariables))
+    }
+  } else {
+    bodyParams.set('Body', options.body)
+  }
+
+  return bodyParams
+}
+
+async function postTwilioWhatsApp(
+  sid: string,
+  token: string,
+  bodyParams: URLSearchParams
+): Promise<{ ok: boolean; data: { sid?: string; message?: string; code?: number } }> {
+  const credentials = Buffer.from(`${sid}:${token}`).toString('base64')
+  const twRes = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${credentials}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: bodyParams.toString(),
+  })
+  const twData = (await twRes.json()) as { sid?: string; message?: string; code?: number }
+  return { ok: twRes.ok, data: twData }
+}
+
 /** Send a WhatsApp message to a team member via Twilio (not SMS). */
 export async function sendEmployeeWhatsApp(
   options: SendEmployeeWhatsAppOptions
@@ -76,32 +114,40 @@ export async function sendEmployeeWhatsApp(
   }
 
   const to = formatWhatsAppAddress(options.toPhone)
-  const bodyParams = new URLSearchParams({ To: to, From: from })
 
-  if (options.contentSid) {
-    bodyParams.set('ContentSid', options.contentSid)
-    if (options.contentVariables && Object.keys(options.contentVariables).length > 0) {
-      bodyParams.set('ContentVariables', JSON.stringify(options.contentVariables))
-    }
-  } else {
-    bodyParams.set('Body', options.body)
-  }
+  // Belt-and-suspenders: static templates must not send ContentVariables (Twilio 21656).
+  const sendOptions =
+    isStaticAssignmentWhatsAppTemplate() && options.contentSid
+      ? { ...options, contentVariables: undefined }
+      : options
 
-  const credentials = Buffer.from(`${sid}:${token}`).toString('base64')
+  const bodyParams = buildTwilioMessageBody(from, to, sendOptions)
 
   try {
-    const twRes = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${credentials}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: bodyParams.toString(),
-    })
+    let { ok, data: twData } = await postTwilioWhatsApp(sid, token, bodyParams)
 
-    const twData = (await twRes.json()) as { sid?: string; message?: string; code?: number }
+    // Static templates (no {{n}}) reject ContentVariables with 21656 — retry ContentSid only.
+    if (
+      !ok &&
+      twData.code === 21656 &&
+      sendOptions.contentSid &&
+      sendOptions.contentVariables &&
+      Object.keys(sendOptions.contentVariables).length > 0
+    ) {
+      console.warn('Twilio 21656 on ContentVariables — retrying ContentSid only', {
+        contentSid: sendOptions.contentSid,
+        contentVariables: sendOptions.contentVariables,
+      })
+      const retryParams = buildTwilioMessageBody(from, to, {
+        body: sendOptions.body,
+        contentSid: sendOptions.contentSid,
+      })
+      const retry = await postTwilioWhatsApp(sid, token, retryParams)
+      ok = retry.ok
+      twData = retry.data
+    }
 
-    if (!twRes.ok) {
+    if (!ok) {
       console.error('Twilio WhatsApp error:', twData, {
         contentSid: options.contentSid,
         contentVariables: options.contentVariables,
@@ -112,8 +158,8 @@ export async function sendEmployeeWhatsApp(
         sent: false,
         error: twData.message ?? 'Twilio rejected the WhatsApp request',
         code: twData.code,
-        contentSid: options.contentSid,
-        contentVariables: options.contentVariables,
+        contentSid: sendOptions.contentSid,
+        contentVariables: sendOptions.contentVariables,
       }
     }
 
