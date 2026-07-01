@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import {
   buildEmployeeWhatsAppMessage,
   buildNumberedContentVariables,
+  sanitizeWhatsAppVariable,
 } from '../api/_lib/employeeWhatsAppTemplates'
 
 describe('employeeWhatsAppTemplates', () => {
@@ -17,11 +18,37 @@ describe('employeeWhatsAppTemplates', () => {
     process.env = env
   })
 
+  it('sanitizes newlines and empty values', () => {
+    expect(sanitizeWhatsAppVariable('  Jane\nSmith  ', 'Unknown')).toBe('Jane Smith')
+    expect(sanitizeWhatsAppVariable('', 'Fallback')).toBe('Fallback')
+  })
+
   it('builds numbered ContentVariables for Twilio', () => {
-    expect(buildNumberedContentVariables(['FieldBourne', 'Jane', 'TV Aerial', 'https://app/leads'])).toEqual({
+    expect(
+      buildNumberedContentVariables(
+        ['FieldBourne', 'Jane', 'TV Aerial', 'https://app/leads'],
+        ['A', 'B', 'C', 'D']
+      )
+    ).toEqual({
       '1': 'FieldBourne',
       '2': 'Jane',
       '3': 'TV Aerial',
+      '4': 'https://app/leads',
+    })
+  })
+
+  it('uses fallbacks when values are empty', () => {
+    expect(
+      buildNumberedContentVariables(['', 'Jane', '', 'https://app/leads'], [
+        'Your team',
+        'New lead',
+        'General enquiry',
+        'https://x',
+      ])
+    ).toEqual({
+      '1': 'Your team',
+      '2': 'Jane',
+      '3': 'General enquiry',
       '4': 'https://app/leads',
     })
   })

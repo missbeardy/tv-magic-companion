@@ -18,7 +18,7 @@ const CONTENT_SID_ENV: Record<EmployeeWhatsAppTemplateKey, string> = {
  * ContentVariables must be JSON: {"1":"value","2":"value"}
  *
  * Template examples (create these in Twilio Content Template Builder):
- * - assignment:  {{1}}: You've been assigned {{2}} — {{3}}. Open: {{4}}
+ * - assignment:  {{1}}: New lead assigned - {{2}} ({{3}}). View: {{4}}
  * - manager:     {{1}}: New lead {{2}} ({{3}}). Assign: {{4}}
  * - follow-up:   {{1}}: {{2}} — {{3}}
  * - booking:     {{1}}: {{2}} scheduled "{{3}}" — {{4}}. Open: {{5}}
@@ -28,12 +28,27 @@ export function getEmployeeWhatsAppContentSid(key: EmployeeWhatsAppTemplateKey):
   return sid || undefined
 }
 
+/**
+ * Twilio rejects empty ContentVariables and values with newlines/tabs/long spaces.
+ */
+export function sanitizeWhatsAppVariable(
+  value: string | null | undefined,
+  fallback: string
+): string {
+  const cleaned = (value ?? '')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/ {5,}/g, '    ')
+    .trim()
+  return cleaned || fallback
+}
+
 export function buildNumberedContentVariables(
-  values: string[]
+  values: string[],
+  fallbacks: string[]
 ): Record<string, string> {
   const out: Record<string, string> = {}
   values.forEach((value, index) => {
-    out[String(index + 1)] = value
+    out[String(index + 1)] = sanitizeWhatsAppVariable(value, fallbacks[index] ?? '—')
   })
   return out
 }
@@ -58,37 +73,29 @@ export function buildEmployeeWhatsAppMessage(
 
   switch (key) {
     case 'tech_assignment':
-      contentVariables = buildNumberedContentVariables([
-        vars.orgName ?? '',
-        vars.leadName ?? '',
-        vars.serviceType ?? '',
-        vars.appUrl ?? '',
-      ])
+      contentVariables = buildNumberedContentVariables(
+        [vars.orgName, vars.leadName, vars.serviceType, vars.appUrl],
+        ['Your team', 'New lead', 'General enquiry', 'https://tv-magic-companion.vercel.app/leads']
+      )
       break
     case 'manager_alert':
-      contentVariables = buildNumberedContentVariables([
-        vars.orgName ?? '',
-        vars.leadName ?? '',
-        vars.serviceType ?? '',
-        vars.appUrl ?? '',
-      ])
+      contentVariables = buildNumberedContentVariables(
+        [vars.orgName, vars.leadName, vars.serviceType, vars.appUrl],
+        ['Your team', 'New lead', 'General enquiry', 'https://tv-magic-companion.vercel.app/leads']
+      )
       break
     case 'booking_scheduled':
-      contentVariables = buildNumberedContentVariables([
-        vars.orgName ?? '',
-        vars.managerName ?? '',
-        vars.leadName ?? '',
-        vars.dateTime ?? '',
-        vars.appUrl ?? '',
-      ])
+      contentVariables = buildNumberedContentVariables(
+        [vars.orgName, vars.managerName, vars.leadName, vars.dateTime, vars.appUrl],
+        ['Your team', 'Manager', 'Booking', 'Soon', 'https://tv-magic-companion.vercel.app/calendar']
+      )
       break
     case 'contact_follow_up':
     case 'generic_notify':
-      contentVariables = buildNumberedContentVariables([
-        vars.title ?? '',
-        vars.message ?? '',
-        vars.url ?? '',
-      ])
+      contentVariables = buildNumberedContentVariables(
+        [vars.title, vars.message, vars.url],
+        ['Lead update', 'Follow-up needed', 'https://tv-magic-companion.vercel.app/leads']
+      )
       break
     default:
       return { body: fallbackBody }
