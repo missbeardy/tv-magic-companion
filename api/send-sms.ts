@@ -157,7 +157,8 @@ async function handleNotify(req: VercelRequest, res: VercelResponse, auth: AuthC
 
   return res.status(200).json({
     success: true,
-    whatsapp: result.whatsapp,
+    alert: result.alert,
+    whatsapp: result.alert,
     note:
       type === 'lead_assigned'
         ? 'In-app notification only; assignment WhatsApp is sent separately via tech_assignment.'
