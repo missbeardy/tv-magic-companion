@@ -96,11 +96,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Fix manager alert links using PLATFORM_URL on production (preview hostname no longer in SMS)',
     'Loud DEFAULT_ORG_ID fallback for inbound calls, SMS, and voicemail — greppable [ORG_RESOLUTION_FALLBACK] in Vercel logs',
     'Consolidated inbound lead pipeline — SMS, email, calls, and voicemail share processInboundLead',
+    'Platform admin inbound simulator — test SMS, email, and voicemail through real HTTP endpoints',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.73'
+export const APP_VERSION = '1.1.74'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

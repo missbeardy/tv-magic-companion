@@ -158,6 +158,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const emailText = plain || html?.replace(/<[^>]+>/g, ' ') || ''
   const subject = req.body.subject || headers?.subject || 'No Subject'
   const from = req.body.from || headers?.from || 'Unknown Sender'
+  const simulatedTranscript =
+    typeof (req.body as Record<string, unknown>).simulated_transcript === 'string'
+      ? String((req.body as Record<string, unknown>).simulated_transcript).trim()
+      : ''
 
   // ── Voicemail branch ──────────────────────────────────────────
   const voicemailAttachment = attachments?.find(isVoicemailAttachment)
@@ -232,20 +236,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           extract: async () => {
             let transcript = ''
 
-            try {
-              if (voicemailAttachment.content) {
-                const buffer = Buffer.from(voicemailAttachment.content, 'base64')
-                transcript = await transcribeAudio(buffer, voicemailAttachment.file_name || 'voicemail.wav')
-              } else if (voicemailAttachment.url) {
-                const audioRes = await fetch(voicemailAttachment.url)
-                const buffer = Buffer.from(await audioRes.arrayBuffer())
-                transcript = await transcribeAudio(buffer, voicemailAttachment.file_name || 'voicemail.wav')
-              } else {
-                throw new Error('No attachment content or url present')
+            if (simulatedTranscript) {
+              transcript = simulatedTranscript
+            } else {
+              try {
+                if (voicemailAttachment.content) {
+                  const buffer = Buffer.from(voicemailAttachment.content, 'base64')
+                  transcript = await transcribeAudio(buffer, voicemailAttachment.file_name || 'voicemail.wav')
+                } else if (voicemailAttachment.url) {
+                  const audioRes = await fetch(voicemailAttachment.url)
+                  const buffer = Buffer.from(await audioRes.arrayBuffer())
+                  transcript = await transcribeAudio(buffer, voicemailAttachment.file_name || 'voicemail.wav')
+                } else {
+                  throw new Error('No attachment content or url present')
+                }
+              } catch (transcribeErr) {
+                console.error('Voicemail transcription failed:', transcribeErr)
+                transcriptionFailed = true
               }
-            } catch (transcribeErr) {
-              console.error('Voicemail transcription failed:', transcribeErr)
-              transcriptionFailed = true
             }
 
             let extracted: ExtractedLeadFields = {}

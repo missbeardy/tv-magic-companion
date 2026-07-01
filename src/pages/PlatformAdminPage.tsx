@@ -6,7 +6,7 @@ import { buildBrandTransferPayload } from '../lib/brandTransfer'
 import NavBar from '../components/NavBar'
 import BrandQuoteEmailEditor from '../components/BrandQuoteEmailEditor'
 import PlatformFeatureSwitches from '../components/platform/PlatformFeatureSwitches'
-import InboundEmailRoutingPanel from '../components/platform/InboundEmailRoutingPanel'
+import InboundSimulatorPanel from '../components/platform/InboundSimulatorPanel'
 import { Building2, Plus, RefreshCw, ArrowRightLeft } from 'lucide-react'
 import {
   FEATURE_SWITCH_DEFINITIONS,
@@ -423,6 +423,8 @@ export default function PlatformAdminPage() {
             />
           )}
         </section>
+
+        <InboundSimulatorPanel orgs={orgs.map((o) => ({ id: o.id, name: o.name }))} />
 
         <section className="card p-6 space-y-4">
           <h2 className="font-semibold text-gray-800 flex items-center gap-2">
