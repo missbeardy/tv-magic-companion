@@ -2,8 +2,7 @@
 
 export const PRODUCTION_TIMER_MS = 4 * 60 * 60 * 1000 // 4 hours
 
-/** Time in contact_attempted before rolling back to assigned retry phase. */
-export const CONTACT_FOLLOW_UP_MS = PRODUCTION_TIMER_MS
+export { CONTACT_FOLLOW_UP_MS } from '../../shared/contactFollowUp'
 
 export function getExpiresAt(): string {
   return new Date(Date.now() + PRODUCTION_TIMER_MS).toISOString()

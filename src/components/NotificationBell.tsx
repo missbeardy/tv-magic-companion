@@ -95,6 +95,7 @@ export default function NotificationBell() {
     lead_expired: '⚠️',
     timer_low: '⏰',
     lead_assigned: '✅',
+    contact_follow_up: '📞',
   }
 
   return (

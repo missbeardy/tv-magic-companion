@@ -9,6 +9,7 @@ import UnassignedTimer from './UnassignedTimer'
 import ContactFollowUpBadge from './ContactFollowUpBadge'
 import LeadAssigneeAvatars from './LeadAssigneeAvatars'
 import LeadAddressEditor from './LeadAddressEditor'
+import LeadContactNote from './LeadContactNote'
 import { formatLocalityLabelFromAddress } from '../lib/extractSuburb'
 import { getAttemptPhaseLabel, LOST_REASON_UNABLE_TO_CONTACT } from '../lib/contactFollowUp'
 import { isManagerRole } from '../lib/roles'
@@ -214,12 +215,19 @@ export default function LeadCard({
           {lead.status === 'unassigned' ? (
             <UnassignedTimer createdAt={lead.created_at} />
           ) : lead.status === 'contact_attempted' ? (
-            <ContactFollowUpBadge lastAttemptAt={lead.last_contact_attempted_at} />
+            <div className="flex items-center gap-2 min-w-0 flex-wrap">
+              <ContactFollowUpBadge lastAttemptAt={lead.last_contact_attempted_at} />
+              <LeadAssigneeAvatars assignees={assignees} />
+            </div>
           ) : (
             <LeadAssigneeAvatars assignees={assignees} />
           )}
-          {attemptPhaseLabel && lead.status === 'assigned' && (
-            <span className="text-xs font-semibold text-red-600 shrink-0">{attemptPhaseLabel}</span>
+          {attemptPhaseLabel && lead.status === 'contact_attempted' && (
+            <span className={`text-xs font-semibold shrink-0 ${
+              (lead.contact_attempt_round ?? 0) >= 3 ? 'text-red-700' : 'text-red-600'
+            }`}>
+              {attemptPhaseLabel}
+            </span>
           )}
           {!isBookingCancelled && isQuoteAccepted && (
             <span className="text-xs text-emerald-700">Quote accepted</span>
@@ -259,6 +267,23 @@ export default function LeadCard({
             )}
             <LeadExtractedSummary lead={lead} size="sm" showAddress={false} onPhoneClick={onCall} />
             <LeadRawSource lead={lead} />
+
+            {lead.status === 'contact_attempted' && profile?.org_id && (
+              <LeadContactNote
+                leadId={lead.id}
+                orgId={profile.org_id}
+                actorId={profile.id}
+                onSaved={() => {
+                  supabase
+                    .from('lead_events')
+                    .select('*')
+                    .eq('lead_id', lead.id)
+                    .order('created_at', { ascending: false })
+                    .limit(5)
+                    .then(({ data }) => setEvents((data as LeadEvent[]) ?? []))
+                }}
+              />
+            )}
 
             <div className="flex flex-wrap gap-1 mt-2">
               {lead.status === 'unassigned' && !hideAssignPool && isManagerRole(profile?.role) && (

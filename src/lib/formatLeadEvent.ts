@@ -67,6 +67,11 @@ const EVENT_META: Record<
     iconColour: 'bg-teal-500',
     template: (who, lead) => `${who} contacted ${lead}`,
   },
+  contact_note: {
+    icon: MessageSquare,
+    iconColour: 'bg-amber-600',
+    template: (who, lead) => `${who} noted on ${lead}`,
+  },
   call_attempted: {
     icon: Phone,
     iconColour: 'bg-teal-500',

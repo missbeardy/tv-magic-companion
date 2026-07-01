@@ -48,6 +48,7 @@ import {
   buildContactAttemptUpdate,
   processContactFollowUpRollovers,
   sortLeadsForKanbanColumn,
+  LOST_REASON_UNABLE_TO_CONTACT,
 } from '../lib/contactFollowUp'
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -400,8 +401,6 @@ export default function LeadsPage() {
     const lead      = leads.find(l => l.id === leadId)
     if (!lead || lead.status === newStatus) return
 
-    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ...updatePayload } : l))
-
     const updatePayload: Record<string, unknown> = { status: newStatus }
 
     if (newStatus === 'unassigned') {
@@ -415,10 +414,13 @@ export default function LeadsPage() {
 
     if (newStatus === 'contact_attempted') {
       const attempt = buildContactAttemptUpdate(lead)
-      Object.assign(updatePayload, attempt.update)
       if (attempt.kind === 'unable_to_contact') {
-        updatePayload.status = 'lost'
+        const confirmed = window.confirm(
+          `${lead.name} has had 5 contact attempts.\n\nMark as lost (unable to contact)?`
+        )
+        if (!confirmed) return
       }
+      Object.assign(updatePayload, attempt.update)
     } else if (newStatus === 'assigned' && lead.status === 'unassigned') {
       updatePayload.contact_attempt_round = 0
       updatePayload.last_contact_attempted_at = null
@@ -429,6 +431,8 @@ export default function LeadsPage() {
       updatePayload,
       buildPoolPickupUpdate(lead.status, newStatus, profile?.id)
     )
+
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ...updatePayload } : l))
 
     const { error } = await supabase.from('leads').update(updatePayload).eq('id', leadId)
     if (error) {
@@ -449,7 +453,7 @@ export default function LeadsPage() {
           ? (newStatus as LeadEventType)
           : 'status_change',
         updatePayload.status === 'lost' && updatePayload.lost_reason
-          ? `Marked lost — unable to contact after 3 attempts`
+          ? `Marked lost — unable to contact`
           : `Status changed from ${lead.status} to ${String(updatePayload.status ?? newStatus)} via drag`,
         {
           from_status: lead.status,
@@ -555,15 +559,30 @@ export default function LeadsPage() {
 
   const handleCall = useCallback(async (lead: Lead) => {
     const attempt = buildContactAttemptUpdate(lead)
-    const isLost = attempt.kind === 'unable_to_contact'
-    const toStatus = isLost ? 'lost' : 'contact_attempted'
-    const poolPickup = !isLost && shouldPoolPickup(lead.status, toStatus, profile?.id)
+
+    if (attempt.kind === 'unable_to_contact') {
+      const confirmed = window.confirm(
+        `${lead.name} has had 5 contact attempts.\n\nMark as lost (unable to contact)?`
+      )
+      if (!confirmed) return
+      await supabase.from('leads').update(attempt.update).eq('id', lead.id)
+      await logLeadEvent(lead.id, 'lost', 'Unable to contact', {
+        from_status: lead.status,
+        to_status: 'lost',
+        reason: LOST_REASON_UNABLE_TO_CONTACT,
+        source: 'max_attempts',
+      })
+      closeSheet()
+      fetchLeads()
+      return
+    }
+
+    const toStatus = 'contact_attempted'
+    const poolPickup = shouldPoolPickup(lead.status, toStatus, profile?.id)
     const confirmed = window.confirm(
-      isLost
-        ? `Call ${lead.name}?\n\nThis is the third contact attempt — the lead will be marked Lost (Unable to contact).`
-        : poolPickup
-          ? `Call ${lead.name}?\n\nThis will assign the lead to you and mark it Contact Attempted.`
-          : `Call ${lead.name}?\n\nThis will update the lead status to "Contact Attempted".`
+      poolPickup
+        ? `Call ${lead.name}?\n\nThis will assign the lead to you and mark it Contact Attempted.`
+        : `Call ${lead.name}?\n\nThis will update the lead status to "Contact Attempted".`
     )
     if (!confirmed) return
 
@@ -578,18 +597,15 @@ export default function LeadsPage() {
     }
     await logLeadEvent(
       lead.id,
-      isLost ? 'lost' : 'call_attempted',
-      isLost ? `Unable to contact after 3 attempts — called ${lead.phone}` : `Called ${lead.phone}`,
+      'call_attempted',
+      `Called ${lead.phone}`,
       {
         from_status: lead.status,
         to_status: toStatus,
         channel: 'phone',
-        ...(isLost ? { reason: 'unable_to_contact', contact_attempt_round: lead.contact_attempt_round } : {}),
       }
     )
-    if (!isLost) {
-      window.location.href = `tel:${lead.phone}`
-    }
+    window.location.href = `tel:${lead.phone}`
     closeSheet()
     focusMobileTabForStatus(toStatus)
     fetchLeads()
@@ -608,33 +624,26 @@ export default function LeadsPage() {
     }
 
     const attempt = buildContactAttemptUpdate(lead)
-    const isLost = attempt.kind === 'unable_to_contact'
-    const toStatus = isLost ? 'lost' : 'contact_attempted'
-    const poolPickup = !isLost && shouldPoolPickup(lead.status, toStatus, profile?.id)
 
-    if (isLost) {
+    if (attempt.kind === 'unable_to_contact') {
       const confirmed = window.confirm(
-        `Send SMS to ${lead.name}?\n\nThis is the third contact attempt — the lead will be marked Lost (Unable to contact).`
+        `${lead.name} has had 5 contact attempts.\n\nMark as lost (unable to contact)?`
       )
       if (!confirmed) return
       await supabase.from('leads').update(attempt.update).eq('id', lead.id)
-      await logLeadEvent(
-        lead.id,
-        'lost',
-        `Unable to contact after 3 attempts — SMS to ${lead.phone}`,
-        {
-          from_status: lead.status,
-          to_status: 'lost',
-          channel: 'sms',
-          reason: 'unable_to_contact',
-          contact_attempt_round: lead.contact_attempt_round,
-        }
-      )
+      await logLeadEvent(lead.id, 'lost', 'Unable to contact', {
+        from_status: lead.status,
+        to_status: 'lost',
+        reason: LOST_REASON_UNABLE_TO_CONTACT,
+        source: 'max_attempts',
+      })
       closeSheet()
-      focusMobileTabForStatus('lost')
       fetchLeads()
       return
     }
+
+    const toStatus = 'contact_attempted'
+    const poolPickup = shouldPoolPickup(lead.status, toStatus, profile?.id)
 
     if (poolPickup) {
       const updatePayload = {
@@ -689,17 +698,25 @@ export default function LeadsPage() {
 
   const handleMarkContactAttempted = useCallback(async (lead: Lead) => {
     const attempt = buildContactAttemptUpdate(lead)
-    const isLost = attempt.kind === 'unable_to_contact'
-    const toStatus = isLost ? 'lost' : 'contact_attempted'
 
-    if (isLost) {
+    if (attempt.kind === 'unable_to_contact') {
       const confirmed = window.confirm(
-        `Mark ${lead.name} as contact attempted?\n\nThis is the third attempt — the lead will be marked Lost (Unable to contact).`
+        `${lead.name} has had 5 contact attempts.\n\nMark as lost (unable to contact)?`
       )
       if (!confirmed) return
+      await supabase.from('leads').update(attempt.update).eq('id', lead.id)
+      await logLeadEvent(lead.id, 'lost', 'Unable to contact', {
+        from_status: lead.status,
+        to_status: 'lost',
+        reason: LOST_REASON_UNABLE_TO_CONTACT,
+        source: 'max_attempts',
+      })
+      fetchLeads()
+      return
     }
 
-    const poolPickup = !isLost && shouldPoolPickup(lead.status, toStatus, profile?.id)
+    const toStatus = 'contact_attempted'
+    const poolPickup = shouldPoolPickup(lead.status, toStatus, profile?.id)
     const updatePayload = {
       ...attempt.update,
       ...(poolPickup ? buildPoolPickupUpdate(lead.status, toStatus, profile?.id) : {}),
@@ -711,13 +728,12 @@ export default function LeadsPage() {
     }
     await logLeadEvent(
       lead.id,
-      isLost ? 'lost' : 'contact_attempted',
-      isLost ? 'Unable to contact after 3 attempts' : 'Status updated to Contact Attempted',
+      'contact_attempted',
+      'Status updated to Contact Attempted',
       {
         from_status: lead.status,
         to_status: toStatus,
         source: 'manual_action',
-        ...(isLost ? { reason: 'unable_to_contact', contact_attempt_round: lead.contact_attempt_round } : {}),
       }
     )
     focusMobileTabForStatus(toStatus)

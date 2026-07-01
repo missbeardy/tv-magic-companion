@@ -1,108 +1,30 @@
-import { getExpiresAt, CONTACT_FOLLOW_UP_MS } from './timer'
-
-/** Total contact tries before unable-to-contact lost. */
-export const MAX_CONTACT_ATTEMPTS = 6
-
-/** Assigned waiting phase after rollover; lost on contact at round 5 (6th attempt). */
-export const MAX_RETRY_WAIT_ROUND = MAX_CONTACT_ATTEMPTS - 1
-
-export const LOST_REASON_UNABLE_TO_CONTACT = 'unable_to_contact' as const
-
-export interface ContactFollowUpLead {
-  id: string
-  status: string
-  contact_attempt_round?: number | null
-  last_contact_attempted_at?: string | null
-  assigned_to?: string | null
-}
-
-const ATTEMPT_PHASE_LABELS: Record<number, string> = {
-  1: 'Second attempt',
-  2: 'Third attempt',
-  3: 'Fourth attempt',
-  4: 'Fifth attempt',
-  5: 'Sixth attempt',
-}
-
-export function getAttemptPhaseLabel(round: number | null | undefined): string | null {
-  if (round == null || round < 1) return null
-  return ATTEMPT_PHASE_LABELS[round] ?? null
-}
-
-export function isFollowUpRolloverDue(lastAttemptAt: string | null | undefined): boolean {
-  if (!lastAttemptAt) return false
-  return Date.now() - new Date(lastAttemptAt).getTime() >= CONTACT_FOLLOW_UP_MS
-}
-
-export function leadsDueForFollowUpRollover(leads: ContactFollowUpLead[]): ContactFollowUpLead[] {
-  return leads.filter(
-    (lead) =>
-      lead.status === 'contact_attempted' &&
-      (lead.contact_attempt_round ?? 0) < MAX_RETRY_WAIT_ROUND &&
-      isFollowUpRolloverDue(lead.last_contact_attempted_at)
-  )
-}
-
-export function buildFollowUpRolloverUpdate(lead: ContactFollowUpLead): Record<string, unknown> {
-  const nextRound = (lead.contact_attempt_round ?? 0) + 1
-  return {
-    status: 'assigned',
-    contact_attempt_round: nextRound,
-    timer_expires_at: getExpiresAt(),
-  }
-}
-
-export type RetryAttemptEventType =
-  | 'second_attempt_started'
-  | 'third_attempt_started'
-  | 'fourth_attempt_started'
-  | 'fifth_attempt_started'
-  | 'sixth_attempt_started'
-
-const RETRY_EVENT_BY_ROUND: Record<number, RetryAttemptEventType> = {
-  1: 'second_attempt_started',
-  2: 'third_attempt_started',
-  3: 'fourth_attempt_started',
-  4: 'fifth_attempt_started',
-  5: 'sixth_attempt_started',
-}
-
-export function rolloverEventType(nextRound: number): RetryAttemptEventType {
-  return RETRY_EVENT_BY_ROUND[nextRound] ?? 'sixth_attempt_started'
-}
-
-export function shouldMarkUnableToContact(lead: ContactFollowUpLead): boolean {
-  return (
-    lead.status === 'assigned' &&
-    (lead.contact_attempt_round ?? 0) >= MAX_RETRY_WAIT_ROUND
-  )
-}
-
-export type ContactAttemptResult =
-  | { kind: 'unable_to_contact'; update: Record<string, unknown> }
-  | { kind: 'contact_attempted'; update: Record<string, unknown> }
-
-export function buildContactAttemptUpdate(lead: ContactFollowUpLead): ContactAttemptResult {
-  if (shouldMarkUnableToContact(lead)) {
-    return {
-      kind: 'unable_to_contact',
-      update: {
-        status: 'lost',
-        lost_reason: LOST_REASON_UNABLE_TO_CONTACT,
-        timer_expires_at: null,
-      },
-    }
-  }
-
-  return {
-    kind: 'contact_attempted',
-    update: {
-      status: 'contact_attempted',
-      last_contact_attempted_at: new Date().toISOString(),
-      timer_expires_at: null,
-    },
-  }
-}
+export {
+  CONTACT_FOLLOW_UP_MS,
+  MAX_CONTACT_ATTEMPTS,
+  MAX_RETRY_WAIT_ROUND,
+  FINAL_LABEL_ROUND,
+  LOST_REASON_UNABLE_TO_CONTACT,
+  CONTACT_FOLLOW_UP_HOURS,
+  type ContactFollowUpLead,
+  getAttemptPhaseLabel,
+  isFollowUpRolloverDue,
+  leadsDueForFollowUpReminder,
+  leadsDueForFollowUpEscalation,
+  leadsDueForFollowUpAutoLost,
+  leadsDueForFollowUpRollover,
+  buildFollowUpEscalationUpdate,
+  buildFollowUpRolloverUpdate,
+  buildUnableToContactLostUpdate,
+  type RetryAttemptEventType,
+  escalationEventType,
+  rolloverEventType,
+  type ContactAttemptResult,
+  buildContactAttemptUpdate,
+  formatEscalationEventNote,
+  buildFollowUpNotificationCopy,
+  processContactFollowUpRollovers,
+  sortLeadsForKanbanColumn,
+} from '../../shared/contactFollowUp'
 
 export function getContactFollowUpState(lastAttemptAt: string | null | undefined): {
   elapsedMs: number
@@ -116,67 +38,4 @@ export function getContactFollowUpState(lastAttemptAt: string | null | undefined
   const minutes = totalMinutes % 60
   const label = hours > 0 ? `${hours}h ${minutes}m` : `${Math.max(minutes, 0)}m`
   return { elapsedMs, label }
-}
-
-interface SortableLead extends ContactFollowUpLead {
-  created_at?: string
-  timer_expires_at?: string | null
-}
-
-export async function processContactFollowUpRollovers<T extends ContactFollowUpLead>(
-  leads: T[],
-  applyUpdate: (leadId: string, update: Record<string, unknown>) => Promise<boolean>,
-  logEvent: (
-    leadId: string,
-    eventType: RetryAttemptEventType,
-    note: string,
-    payload: Record<string, unknown>
-  ) => Promise<void>
-): Promise<T[]> {
-  let result = leads
-  for (const lead of leadsDueForFollowUpRollover(leads)) {
-    const update = buildFollowUpRolloverUpdate(lead)
-    const ok = await applyUpdate(lead.id, update)
-    if (!ok) continue
-
-    const nextRound = update.contact_attempt_round as number
-    const label = getAttemptPhaseLabel(nextRound) ?? 'Retry'
-    await logEvent(
-      lead.id,
-      rolloverEventType(nextRound),
-      `${label} — no contact in 4 hours`,
-      {
-        from_status: 'contact_attempted',
-        to_status: 'assigned',
-        contact_attempt_round: nextRound,
-      }
-    )
-    result = result.map((row) => (row.id === lead.id ? { ...row, ...update } : row)) as T[]
-  }
-  return result
-}
-
-export function sortLeadsForKanbanColumn<T extends SortableLead>(leads: T[], columnStatus: string): T[] {
-  if (columnStatus === 'contact_attempted') {
-    return [...leads].sort((a, b) => {
-      const aTs = a.last_contact_attempted_at ? new Date(a.last_contact_attempted_at).getTime() : 0
-      const bTs = b.last_contact_attempted_at ? new Date(b.last_contact_attempted_at).getTime() : 0
-      if (aTs !== bTs) return aTs - bTs
-      return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
-    })
-  }
-
-  if (columnStatus === 'assigned') {
-    return [...leads].sort((a, b) => {
-      const aRound = a.contact_attempt_round ?? 0
-      const bRound = b.contact_attempt_round ?? 0
-      if (aRound !== bRound) return bRound - aRound
-      const aTimer = a.timer_expires_at ? new Date(a.timer_expires_at).getTime() : Number.MAX_SAFE_INTEGER
-      const bTimer = b.timer_expires_at ? new Date(b.timer_expires_at).getTime() : Number.MAX_SAFE_INTEGER
-      if (aTimer !== bTimer) return aTimer - bTimer
-      return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
-    })
-  }
-
-  return leads
 }

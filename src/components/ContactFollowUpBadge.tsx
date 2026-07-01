@@ -6,10 +6,10 @@ interface Props {
 }
 
 export default function ContactFollowUpBadge({ lastAttemptAt }: Props) {
-  const [label, setLabel] = useState(() => getContactFollowUpState(lastAttemptAt).label)
+  const [elapsed, setElapsed] = useState(() => getContactFollowUpState(lastAttemptAt).label)
 
   useEffect(() => {
-    const tick = () => setLabel(getContactFollowUpState(lastAttemptAt).label)
+    const tick = () => setElapsed(getContactFollowUpState(lastAttemptAt).label)
     tick()
     const id = window.setInterval(tick, 30_000)
     return () => window.clearInterval(id)
@@ -17,7 +17,7 @@ export default function ContactFollowUpBadge({ lastAttemptAt }: Props) {
 
   return (
     <span className="inline-flex items-center text-xs rounded-full px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200">
-      {label} since attempt
+      {elapsed} since attempt
     </span>
   )
 }

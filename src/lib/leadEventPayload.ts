@@ -5,6 +5,7 @@ export const LEAD_EVENT_TYPES = [
   'assigned',
   'status_change',
   'contact_attempted',
+  'contact_note',
   'call_attempted',
   'sms_attempted',
   'second_attempt_started',

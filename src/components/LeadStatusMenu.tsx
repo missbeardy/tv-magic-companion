@@ -131,6 +131,12 @@ export default function LeadStatusMenu({
         status: fromStatus,
         contact_attempt_round: contactAttemptRound,
       })
+      if (attempt.kind === 'unable_to_contact') {
+        const confirmed = window.confirm(
+          `${leadName} has had 5 contact attempts.\n\nMark as lost (unable to contact)?`
+        )
+        if (!confirmed) return
+      }
       Object.assign(updatePayload, attempt.update)
     }
 
@@ -161,7 +167,7 @@ export default function LeadStatusMenu({
         eventType: effectiveStatus === 'lost' ? 'lost' : resolveStatusEventType(effectiveStatus),
         note:
           effectiveStatus === 'lost' && updatePayload.lost_reason
-            ? 'Marked lost — unable to contact after 3 attempts'
+            ? 'Marked lost — unable to contact'
             : `Status changed from ${fromStatus} to ${effectiveStatus} via menu`,
         actorId: profile?.id ?? null,
         payload: {

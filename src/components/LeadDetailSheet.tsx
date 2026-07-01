@@ -13,6 +13,7 @@ import {
 import BottomSheet from './BottomSheet'
 import LeadPhotos from './LeadPhotos'
 import LeadAddressEditor from './LeadAddressEditor'
+import LeadContactNote from './LeadContactNote'
 import { LeadRawSource } from './LeadExtractedSummary'
 import { formatLocalityLabelFromAddress } from '../lib/extractSuburb'
 import { getAttemptPhaseLabel, LOST_REASON_UNABLE_TO_CONTACT } from '../lib/contactFollowUp'
@@ -128,7 +129,7 @@ export default function LeadDetailSheet({
           {isUnableToContact && (
             <p className="text-xs font-semibold text-red-600 mt-1">Unable to contact</p>
           )}
-          {attemptPhaseLabel && lead.status === 'assigned' && (
+          {attemptPhaseLabel && lead.status === 'contact_attempted' && (
             <p className="text-xs font-semibold text-red-600 mt-1">{attemptPhaseLabel}</p>
           )}
           <p className="text-sm text-gray-500 mt-0.5">{lead.service_type || 'No service type'}</p>
@@ -184,6 +185,15 @@ export default function LeadDetailSheet({
             actorId={profile.id}
             onSaved={onRefresh}
             variant="sheet"
+          />
+        )}
+
+        {lead.status === 'contact_attempted' && profile?.org_id && (
+          <LeadContactNote
+            leadId={lead.id}
+            orgId={profile.org_id}
+            actorId={profile.id}
+            onSaved={onRefresh}
           />
         )}
 

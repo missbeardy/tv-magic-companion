@@ -1,9 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { PRODUCTION_TIMER_MS, getExpiresAt, isRunningLow } from '../src/lib/timer'
+import { PRODUCTION_TIMER_MS, CONTACT_FOLLOW_UP_MS, getExpiresAt, isRunningLow } from '../src/lib/timer'
 
 describe('timer', () => {
   it('PRODUCTION_TIMER_MS equals 4 hours', () => {
     expect(PRODUCTION_TIMER_MS).toBe(4 * 60 * 60 * 1000)
+  })
+
+  it('CONTACT_FOLLOW_UP_MS equals 6 hours', () => {
+    expect(CONTACT_FOLLOW_UP_MS).toBe(6 * 60 * 60 * 1000)
   })
 
   it('getExpiresAt returns ~4 hours from now', () => {
