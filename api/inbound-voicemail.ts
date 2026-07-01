@@ -162,7 +162,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const bodyPlain = body['body-plain'] || ''
   const metadataPreview = extractVoicemailMetadata(subject, bodyPlain)
 
-  const orgId = await resolveOrgIdFromDid(supabase, metadataPreview.calledNumber)
+  const { orgId, source } = await resolveOrgIdFromDid(supabase, metadataPreview.calledNumber)
   if (!orgId) {
     console.error('Voicemail: no org_id resolved')
     return res.status(200).json({ skipped: true, reason: 'no_org' })

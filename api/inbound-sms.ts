@@ -7,6 +7,7 @@ import {
   insertRawFirstLead,
   updateLeadFromExtraction,
 } from './_lib/rawFirstLead.js'
+import { resolveOrgIdFromDid } from './_lib/resolveOrgFromDid.js'
 
 const requests = new Map<string, { count: number; reset: number }>()
 
@@ -161,25 +162,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log(`SMS from ${fromNumber} to ${toNumber}`)
 
-    // Resolve org_id before save
-    let orgId: string | null = null
-    if (toNumber) {
-      let normalizedTo = toNumber.replace(/\D/g, '')
-      if (normalizedTo.startsWith('61')) normalizedTo = '+' + normalizedTo
-      else if (normalizedTo.startsWith('0')) normalizedTo = '+61' + normalizedTo.slice(1)
-      else normalizedTo = '+' + normalizedTo
-      const { data: mapping } = await supabase
-        .from('org_phone_numbers')
-        .select('org_id')
-        .eq('phone_number', normalizedTo)
-        .maybeSingle()
-      if (mapping) orgId = mapping.org_id
-    }
-
-    if (!orgId && process.env.DEFAULT_ORG_ID) {
-      orgId = process.env.DEFAULT_ORG_ID
-      console.log(`Using DEFAULT_ORG_ID: ${orgId}`)
-    }
+    const { orgId, source } = await resolveOrgIdFromDid(supabase, toNumber)
 
     if (!orgId) {
       console.error('No org_id – lead rejected')

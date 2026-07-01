@@ -58,7 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const normalizedPhone = normalizeCallerPhone(phoneNumber)
-    const orgId = await resolveOrgIdFromDid(supabase, payload.calledNumber)
+    const { orgId, source } = await resolveOrgIdFromDid(supabase, payload.calledNumber)
 
     if (!orgId) {
       console.error('Inbound missed call: no org_id resolved')

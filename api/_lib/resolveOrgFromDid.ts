@@ -9,11 +9,16 @@ export function normalizeDidForLookup(phone: string): string {
   return normalized
 }
 
+export type DidOrgResolution =
+  | { orgId: string; source: 'phone_mapping' }
+  | { orgId: string; source: 'default_org' }
+  | { orgId: null; source: 'unresolved' }
+
 /** Resolve franchise org from called DID, with DEFAULT_ORG_ID fallback. */
 export async function resolveOrgIdFromDid(
   supabase: SupabaseClient,
   calledNumber: string | null | undefined
-): Promise<string | null> {
+): Promise<DidOrgResolution> {
   if (calledNumber?.trim()) {
     const normalizedTo = normalizeDidForLookup(calledNumber)
     const { data: mapping } = await supabase
@@ -21,8 +26,18 @@ export async function resolveOrgIdFromDid(
       .select('org_id')
       .eq('phone_number', normalizedTo)
       .maybeSingle()
-    if (mapping?.org_id) return mapping.org_id
+    if (mapping?.org_id) {
+      return { orgId: mapping.org_id, source: 'phone_mapping' }
+    }
   }
 
-  return process.env.DEFAULT_ORG_ID || null
+  const fallback = process.env.DEFAULT_ORG_ID
+  if (fallback) {
+    console.warn(
+      `[ORG_RESOLUTION_FALLBACK] DID lookup missed for "${calledNumber}" — defaulted to org ${fallback}`
+    )
+    return { orgId: fallback, source: 'default_org' }
+  }
+
+  return { orgId: null, source: 'unresolved' }
 }
