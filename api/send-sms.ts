@@ -15,6 +15,7 @@ import { notifyOrgUser } from './_lib/notifyUser.js'
 import { sendEmployeeWhatsApp } from './_lib/sendEmployeeWhatsApp.js'
 import {
   buildEmployeeWhatsAppMessage,
+  isStaticAssignmentWhatsAppTemplate,
   whatsAppTemplateKeyForMode,
 } from './_lib/employeeWhatsAppTemplates.js'
 
@@ -757,9 +758,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(503).json({ error: result.skipped })
     }
     if (result.error) {
-      return res.status(502).json({ error: result.error })
+      return res.status(502).json({
+        error: result.error,
+        code: result.code,
+        contentSid: result.contentSid,
+        contentVariables: result.contentVariables,
+      })
     }
-    return res.status(200).json({ success: true, channel: 'whatsapp', sid: result.sid })
+    return res.status(200).json({
+      success: true,
+      channel: 'whatsapp',
+      sid: result.sid,
+      usedTemplate: Boolean(waMessage.contentSid),
+      staticTemplate: mode === 'tech_assignment' && isStaticAssignmentWhatsAppTemplate(),
+    })
   }
 
   const bodyParams = new URLSearchParams({ To: smsTo, From: from!, Body: message })

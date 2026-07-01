@@ -29,6 +29,9 @@ export interface SendEmployeeWhatsAppResult {
   sid?: string
   skipped?: string
   error?: string
+  code?: number
+  contentSid?: string
+  contentVariables?: Record<string, string>
 }
 
 export function formatWhatsAppAddress(phone: string): string {
@@ -96,11 +99,22 @@ export async function sendEmployeeWhatsApp(
       body: bodyParams.toString(),
     })
 
-    const twData = (await twRes.json()) as { sid?: string; message?: string }
+    const twData = (await twRes.json()) as { sid?: string; message?: string; code?: number }
 
     if (!twRes.ok) {
-      console.error('Twilio WhatsApp error:', twData)
-      return { sent: false, error: twData.message ?? 'Twilio rejected the WhatsApp request' }
+      console.error('Twilio WhatsApp error:', twData, {
+        contentSid: options.contentSid,
+        contentVariables: options.contentVariables,
+        to,
+        from,
+      })
+      return {
+        sent: false,
+        error: twData.message ?? 'Twilio rejected the WhatsApp request',
+        code: twData.code,
+        contentSid: options.contentSid,
+        contentVariables: options.contentVariables,
+      }
     }
 
     return { sent: true, sid: twData.sid }

@@ -74,6 +74,18 @@ describe('employeeWhatsAppTemplates', () => {
     })
   })
 
+  it('uses ContentSid only for static assignment templates', () => {
+    process.env.TWILIO_WHATSAPP_ASSIGNMENT_STATIC = 'true'
+    const payload = buildEmployeeWhatsAppMessage('tech_assignment', 'fallback', {
+      orgName: 'X',
+      leadName: 'Y',
+      serviceType: 'Z',
+      appUrl: 'https://x',
+    })
+    expect(payload.contentSid).toBe('HXassignment123')
+    expect(payload.contentVariables).toBeUndefined()
+  })
+
   it('falls back to Body when ContentSid env is missing', () => {
     delete process.env.TWILIO_WHATSAPP_CONTENT_SID_ASSIGNMENT
     const payload = buildEmployeeWhatsAppMessage('tech_assignment', 'plain body only', {

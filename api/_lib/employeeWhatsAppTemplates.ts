@@ -28,6 +28,11 @@ export function getEmployeeWhatsAppContentSid(key: EmployeeWhatsAppTemplateKey):
   return sid || undefined
 }
 
+/** Set TWILIO_WHATSAPP_ASSIGNMENT_STATIC=true for a no-variable template (ContentSid only). */
+export function isStaticAssignmentWhatsAppTemplate(): boolean {
+  return process.env.TWILIO_WHATSAPP_ASSIGNMENT_STATIC === 'true'
+}
+
 /**
  * Twilio rejects empty ContentVariables and values with newlines/tabs/long spaces.
  */
@@ -67,6 +72,10 @@ export function buildEmployeeWhatsAppMessage(
   const contentSid = getEmployeeWhatsAppContentSid(key)
   if (!contentSid) {
     return { body: fallbackBody }
+  }
+
+  if (key === 'tech_assignment' && isStaticAssignmentWhatsAppTemplate()) {
+    return { body: fallbackBody, contentSid }
   }
 
   let contentVariables: Record<string, string>
