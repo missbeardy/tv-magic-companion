@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-import { authenticateRequest } from './_lib/auth.js'
-import { getPlatformUrl } from './_lib/platformUrl.js'
-import { computeTwilioSignature } from './_lib/twilioSignature.js'
-import { buildCloudmailinPlusAddress } from '../shared/inboundEmailRouting.js'
+import { authenticateRequest } from './auth.js'
+import { getPlatformUrl } from './platformUrl.js'
+import { computeTwilioSignature } from './twilioSignature.js'
+import { buildCloudmailinPlusAddress } from '../../shared/inboundEmailRouting.js'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -166,29 +166,39 @@ async function simulateVoicemail(text: string, calledNumber: string) {
   })
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+/** Platform admin inbound simulator — consolidated under create-user for Hobby 12-function limit. */
+export async function handlePlatformSimulateInbound(
+  req: VercelRequest,
+  res: VercelResponse
+): Promise<void> {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' })
+    res.status(405).json({ error: 'Method not allowed' })
+    return
   }
 
   const auth = await authenticateRequest(req)
   if (!auth) {
-    return res.status(401).json({ error: 'Unauthorized' })
+    res.status(401).json({ error: 'Unauthorized' })
+    return
   }
   if (auth.role !== 'platform_admin') {
-    return res.status(403).json({ error: 'Forbidden — platform_admin only' })
+    res.status(403).json({ error: 'Forbidden — platform_admin only' })
+    return
   }
 
   const { channel, orgId, text } = req.body as SimulateInboundBody
 
   if (!channel || !['sms', 'email', 'voicemail'].includes(channel)) {
-    return res.status(400).json({ error: 'channel must be sms, email, or voicemail' })
+    res.status(400).json({ error: 'channel must be sms, email, or voicemail' })
+    return
   }
   if (!orgId?.trim()) {
-    return res.status(400).json({ error: 'orgId is required' })
+    res.status(400).json({ error: 'orgId is required' })
+    return
   }
   if (!text?.trim()) {
-    return res.status(400).json({ error: 'text is required' })
+    res.status(400).json({ error: 'text is required' })
+    return
   }
 
   const { data: org, error: orgError } = await supabase
@@ -198,7 +208,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .maybeSingle()
 
   if (orgError || !org) {
-    return res.status(400).json({ error: 'orgId not found' })
+    res.status(400).json({ error: 'orgId not found' })
+    return
   }
 
   try {
@@ -210,7 +221,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } else if (channel === 'email') {
       const tag = (org.inbound_email_tag as string | null)?.trim()
       if (!tag) {
-        return res.status(400).json({ error: 'Org has no inbound_email_tag configured' })
+        res.status(400).json({ error: 'Org has no inbound_email_tag configured' })
+        return
       }
       handlerResult = await simulateEmail(text.trim(), tag)
     } else {
@@ -220,7 +232,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const leadId = extractLeadId(handlerResult.body)
 
-    return res.status(200).json({
+    res.status(200).json({
       simulated: true,
       channel,
       orgId,
@@ -232,7 +244,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
   } catch (err) {
     console.error('platform-simulate-inbound error:', err)
-    return res.status(500).json({
+    res.status(500).json({
       error: err instanceof Error ? err.message : 'Simulation failed',
       simulated: true,
       channel,

@@ -34,6 +34,10 @@
       "destination": "/api/geocode?action=autocomplete"
     },
     {
+      "source": "/api/platform-simulate-inbound",
+      "destination": "/api/create-user?action=simulate-inbound"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

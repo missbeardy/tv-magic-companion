@@ -97,11 +97,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Loud DEFAULT_ORG_ID fallback for inbound calls, SMS, and voicemail — greppable [ORG_RESOLUTION_FALLBACK] in Vercel logs',
     'Consolidated inbound lead pipeline — SMS, email, calls, and voicemail share processInboundLead',
     'Platform admin inbound simulator — test SMS, email, and voicemail through real HTTP endpoints',
+    'Fold inbound simulator into create-user API to stay within Vercel Hobby 12-function limit',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.74'
+export const APP_VERSION = '1.1.75'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
