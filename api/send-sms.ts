@@ -9,6 +9,8 @@ import { formatAuPhoneForSms, phoneCandidates } from './_lib/phone.js'
 import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
 import { acceptQuoteByToken, createQuote, getQuoteByToken } from './_lib/quotes.js'
 import { createAndSendInvoice, markInvoicePaid } from './_lib/invoices.js'
+import { runContactFollowUpCron } from './_lib/runContactFollowUpCron.js'
+import { loadLocalEnvIfNeeded } from './_lib/loadLocalEnv.js'
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
 function checkRateLimit(key: string, limit = 20, windowMs = 60_000): boolean {
@@ -489,6 +491,44 @@ async function handleInvoiceMarkPaid(req: VercelRequest, res: VercelResponse, au
   }
 }
 
+function isContactFollowUpCronAuthorized(req: VercelRequest): boolean {
+  loadLocalEnvIfNeeded()
+  const secret = process.env.CRON_SECRET?.trim()
+  if (!secret) return process.env.NODE_ENV !== 'production'
+
+  const authHeader = req.headers.authorization
+  if (typeof authHeader === 'string' && authHeader === `Bearer ${secret}`) return true
+
+  const cronHeader = req.headers['x-cron-secret']
+  const headerVal = Array.isArray(cronHeader) ? cronHeader[0] : cronHeader
+  return headerVal === secret
+}
+
+async function handleContactFollowUpCron(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  if (!isContactFollowUpCronAuthorized(req)) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  const supabase = getSupabaseAdmin()
+  if (!supabase) {
+    return res.status(503).json({ error: 'Server not configured' })
+  }
+
+  try {
+    const result = await runContactFollowUpCron(supabase)
+    return res.status(200).json({ ok: true, ...result })
+  } catch (err) {
+    console.error('contact-follow-up cron failed:', err)
+    return res.status(500).json({
+      error: err instanceof Error ? err.message : 'Cron failed',
+    })
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const action = String(req.query.action ?? '').trim()
 
@@ -500,6 +540,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (action === 'quote-public-accept') {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
     return handleQuotePublicAccept(req, res)
+  }
+
+  // CRON_SECRET — consolidated to stay under Hobby 12-function limit (see vercel.json).
+  if (action === 'contact-follow-up') {
+    return handleContactFollowUpCron(req, res)
   }
 
   if (req.method !== 'POST') {

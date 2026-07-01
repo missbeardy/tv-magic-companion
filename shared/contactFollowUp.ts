@@ -214,7 +214,7 @@ export async function processContactFollowUpRollovers<T extends ContactFollowUpL
 
   if (onReminder) {
     for (const lead of leadsDueForFollowUpReminder(result, nowMs)) {
-      await onReminder(lead)
+      await onReminder(lead as T)
     }
   }
 

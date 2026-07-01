@@ -6,6 +6,10 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/api/cron/contact-follow-up",
+      "destination": "/api/send-sms?action=contact-follow-up"
+    },
+    {
       "source": "/api/meta-webhook",
       "destination": "/api/inbound-sms?action=meta-webhook"
     },
