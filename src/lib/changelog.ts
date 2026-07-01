@@ -92,11 +92,13 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Fix WhatsApp 21656 — sanitize apostrophes; static templates skip ContentVariables; env debug in API',
     'Assignment notify 200 no longer masks WhatsApp — check tech_assignment request for Twilio sid',
     'Assignment WhatsApp uses /api/send-sms?action=tech-assignment; phone resolved server-side',
+    'Employee alerts fall back to SMS when WhatsApp is off or fails — safe rollout with TWILIO_WHATSAPP_FROM removed',
+    'Fix manager alert links using PLATFORM_URL on production (preview hostname no longer in SMS)',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.70'
+export const APP_VERSION = '1.1.71'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

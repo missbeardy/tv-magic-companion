@@ -12,7 +12,7 @@ import { createAndSendInvoice, markInvoicePaid } from './_lib/invoices.js'
 import { runContactFollowUpCron } from './_lib/runContactFollowUpCron.js'
 import { loadLocalEnvIfNeeded } from './_lib/loadLocalEnv.js'
 import { notifyOrgUser } from './_lib/notifyUser.js'
-import { sendEmployeeWhatsApp } from './_lib/sendEmployeeWhatsApp.js'
+import { sendEmployeeAlertWithSmsFallback } from './_lib/sendEmployeeAlert.js'
 import {
   buildEmployeeWhatsAppMessage,
   getEmployeeWhatsAppContentSid,
@@ -651,10 +651,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Twilio env vars not configured' })
   }
 
-  if (isInternalMode && !process.env.TWILIO_WHATSAPP_FROM?.trim()) {
-    return res.status(503).json({ error: 'Twilio WhatsApp not configured for employee alerts' })
-  }
-
   if (!isInternalMode && !from) {
     return res.status(500).json({ error: 'Twilio SMS from number not configured' })
   }
@@ -761,16 +757,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               : `${platformUrl}/leads`,
         })
       : { body: message }
-    const result = await sendEmployeeWhatsApp({ toPhone: smsTo, ...waMessage })
-    if (result.skipped) {
+    const result = await sendEmployeeAlertWithSmsFallback({
+      toPhone: smsTo,
+      smsBody: message,
+      whatsAppMessage: waMessage,
+    })
+    if (result.skipped && !result.sent) {
       return res.status(503).json({ error: result.skipped })
     }
-    if (result.error) {
+    if (!result.sent) {
       return res.status(502).json({
-        error: result.error,
+        error: result.error ?? 'Failed to send employee alert',
         code: result.code,
-        contentSid: result.contentSid,
-        contentVariables: result.contentVariables,
         staticTemplateEnabled:
           mode === 'tech_assignment' && isStaticAssignmentWhatsAppTemplate(),
         envAssignmentTemplateSid:
@@ -781,9 +779,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     return res.status(200).json({
       success: true,
-      channel: 'whatsapp',
+      channel: result.channel ?? 'sms',
       sid: result.sid,
-      usedTemplate: Boolean(waMessage.contentSid),
+      usedTemplate: Boolean(waMessage.contentSid) && result.channel === 'whatsapp',
       staticTemplate: mode === 'tech_assignment' && isStaticAssignmentWhatsAppTemplate(),
       envAssignmentTemplateSid:
         mode === 'tech_assignment'

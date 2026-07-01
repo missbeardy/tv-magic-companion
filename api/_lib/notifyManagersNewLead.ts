@@ -3,7 +3,7 @@ import { buildSmsFromBrand } from './smsTemplates.js'
 import { getPlatformUrl } from './platformUrl.js'
 import { OPERATIONAL_MANAGER_ROLES } from './managerRoles.js'
 import { isFeatureEnabledForOrg } from './featureSwitches.js'
-import { sendEmployeeWhatsApp } from './sendEmployeeWhatsApp.js'
+import { sendEmployeeAlertWithSmsFallback } from './sendEmployeeAlert.js'
 import { buildEmployeeWhatsAppMessage } from './employeeWhatsAppTemplates.js'
 
 export interface NewLeadRecord {
@@ -14,7 +14,7 @@ export interface NewLeadRecord {
   status: string
 }
 
-/** Alert all managers in the lead's org: in-app bell + optional WhatsApp. */
+/** Alert all managers in the lead's org: in-app bell + optional WhatsApp (SMS fallback). */
 export async function notifyManagersNewLead(
   lead: NewLeadRecord
 ): Promise<{ notified: number; skipped?: string }> {
@@ -99,9 +99,13 @@ export async function notifyManagersNewLead(
           serviceType,
           appUrl: `${platformUrl}/leads`,
         })
-        const result = await sendEmployeeWhatsApp({ toPhone: manager.phone, ...waMessage })
-        if (result.error) {
-          console.error(`Failed to send manager alert WhatsApp to ${manager.phone}:`, result.error)
+        const result = await sendEmployeeAlertWithSmsFallback({
+          toPhone: manager.phone,
+          smsBody: message,
+          whatsAppMessage: waMessage,
+        })
+        if (!result.sent) {
+          console.error(`Failed to send manager alert to ${manager.phone}:`, result.error ?? result.skipped)
         }
       } catch (err) {
         console.error(`Failed to send manager alert WhatsApp to ${manager.phone}:`, err)

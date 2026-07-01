@@ -1,6 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getPlatformUrl } from './platformUrl.js'
-import { sendEmployeeWhatsAppToPhone } from './sendEmployeeWhatsApp.js'
 import { buildEmployeeWhatsAppMessage } from './employeeWhatsAppTemplates.js'
 
 export interface NotifyOrgUserInput {
@@ -17,7 +16,7 @@ export interface NotifyOrgUserInput {
 export interface NotifyOrgUserResult {
   ok: boolean
   error?: string
-  whatsapp?: { sent: boolean; sid?: string; skipped?: string; error?: string }
+  alert?: { sent: boolean; channel?: 'whatsapp' | 'sms'; sid?: string; skipped?: string; error?: string }
 }
 
 /** In-app bell + best-effort OneSignal push + WhatsApp to profile phone (service role). */
@@ -76,19 +75,21 @@ export async function notifyOrgUser(input: NotifyOrgUserInput): Promise<NotifyOr
     }
   }
 
+  const smsBody = url ? `${title}\n\n${message}\n\n${resolvedUrl}` : `${title}\n\n${message}`
   const whatsappMessage = buildEmployeeWhatsAppMessage(
     type === 'contact_follow_up' ? 'contact_follow_up' : 'generic_notify',
-    url ? `${title}\n\n${message}\n\n${resolvedUrl}` : `${title}\n\n${message}`,
+    smsBody,
     { title, message, url: resolvedUrl }
   )
-  // Assignment WhatsApp is sent via send-sms mode=tech_assignment (static template).
-  let whatsapp: Awaited<ReturnType<typeof sendEmployeeWhatsAppToPhone>> = { sent: false, skipped: 'Skipped for lead_assigned' }
+  // Assignment alerts are sent via send-sms mode=tech_assignment.
+  let alert: NotifyOrgUserResult['alert'] = { sent: false, skipped: 'Skipped for lead_assigned' }
   if (type !== 'lead_assigned') {
-    whatsapp = await sendEmployeeWhatsAppToPhone(target.phone, whatsappMessage)
-    if (whatsapp.error) {
-      console.error('Employee WhatsApp failed (non-fatal):', whatsapp.error)
+    const { sendEmployeeAlertToPhone } = await import('./sendEmployeeAlert.js')
+    alert = await sendEmployeeAlertToPhone(target.phone, smsBody, whatsappMessage)
+    if (!alert.sent) {
+      console.error('Employee alert failed (non-fatal):', alert.error ?? alert.skipped)
     }
   }
 
-  return { ok: true, whatsapp }
+  return { ok: true, alert }
 }
