@@ -11,6 +11,8 @@ import { acceptQuoteByToken, createQuote, getQuoteByToken } from './_lib/quotes.
 import { createAndSendInvoice, markInvoicePaid } from './_lib/invoices.js'
 import { runContactFollowUpCron } from './_lib/runContactFollowUpCron.js'
 import { loadLocalEnvIfNeeded } from './_lib/loadLocalEnv.js'
+import { notifyOrgUser } from './_lib/notifyUser.js'
+import { sendEmployeeWhatsApp } from './_lib/sendEmployeeWhatsApp.js'
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
 function checkRateLimit(key: string, limit = 20, windowMs = 60_000): boolean {
@@ -110,10 +112,7 @@ async function loadOrgReviewSettings(orgId: string): Promise<{
 }
 
 /**
- * Notify a user inside the caller's org:
- *  1. Inserts a row into `notifications` (feeds the in-app bell — service role
- *     bypasses the user_id=auth.uid() RLS so a manager can notify an employee).
- *  2. Best-effort OneSignal device push.
+ * Notify a user inside the caller's org (in-app bell + OneSignal + WhatsApp).
  */
 async function handleNotify(req: VercelRequest, res: VercelResponse, auth: AuthContext) {
   const { userId, title, message, url, type, leadId } = req.body as {
@@ -134,55 +133,20 @@ async function handleNotify(req: VercelRequest, res: VercelResponse, auth: AuthC
     return res.status(503).json({ error: 'Server not configured' })
   }
 
-  const { data: target, error: targetError } = await supabase
-    .from('profiles')
-    .select('org_id')
-    .eq('id', userId)
-    .maybeSingle()
-
-  if (targetError || !target || target.org_id !== auth.orgId) {
-    return res.status(403).json({ error: 'Cannot notify a user outside your organisation' })
-  }
-
-  // 1. In-app bell notification (DB row). This is what the bell reads.
-  const { error: insertError } = await supabase.from('notifications').insert({
-    user_id: userId,
+  const result = await notifyOrgUser({
+    supabase,
+    orgId: auth.orgId,
+    userId,
     title,
     message,
-    type: type ?? 'lead_assigned',
-    read: false,
-    org_id: auth.orgId,
-    ...(leadId ? { lead_id: leadId } : {}),
-    created_at: new Date().toISOString(),
+    url,
+    type,
+    leadId,
   })
-  if (insertError) {
-    console.error('Notification insert failed:', insertError)
-    return res.status(500).json({ error: 'Failed to record notification' })
-  }
 
-  // 2. Best-effort device push (don't fail the request if OneSignal is down).
-  const appId = process.env.ONESIGNAL_APP_ID
-  const apiKey = process.env.ONESIGNAL_API_KEY
-  if (appId && apiKey) {
-    try {
-      await fetch('https://onesignal.com/api/v1/notifications', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Basic ${apiKey}`,
-        },
-        body: JSON.stringify({
-          app_id: appId,
-          target_channel: 'push',
-          include_aliases: { external_id: [userId] },
-          headings: { en: title },
-          contents: { en: message },
-          url: url || `${getPlatformUrl()}/leads`,
-        }),
-      })
-    } catch (err) {
-      console.error('OneSignal push failed (non-fatal):', err)
-    }
+  if (!result.ok) {
+    const status = result.error === 'User not in organisation' ? 403 : 500
+    return res.status(status).json({ error: result.error ?? 'Failed to notify user' })
   }
 
   return res.status(200).json({ success: true })
@@ -670,8 +634,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const token = process.env.TWILIO_AUTH_TOKEN
   const from = process.env.TWILIO_FROM_NUMBER
 
-  if (!sid || !token || !from) {
+  if (!sid || !token) {
     return res.status(500).json({ error: 'Twilio env vars not configured' })
+  }
+
+  if (isInternalMode && !process.env.TWILIO_WHATSAPP_FROM?.trim()) {
+    return res.status(503).json({ error: 'Twilio WhatsApp not configured for employee alerts' })
+  }
+
+  if (!isInternalMode && !from) {
+    return res.status(500).json({ error: 'Twilio SMS from number not configured' })
   }
 
   const orgName = auth.org.name
@@ -761,7 +733,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     )
   }
 
-  const bodyParams = new URLSearchParams({ To: smsTo, From: from, Body: message })
+  if (isInternalMode) {
+    const result = await sendEmployeeWhatsApp({ toPhone: smsTo, body: message })
+    if (result.skipped) {
+      return res.status(503).json({ error: result.skipped })
+    }
+    if (result.error) {
+      return res.status(502).json({ error: result.error })
+    }
+    return res.status(200).json({ success: true, channel: 'whatsapp', sid: result.sid })
+  }
+
+  const bodyParams = new URLSearchParams({ To: smsTo, From: from!, Body: message })
   const credentials = Buffer.from(`${sid}:${token}`).toString('base64')
 
   try {

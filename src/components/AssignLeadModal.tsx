@@ -132,7 +132,7 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
       `${getPlatformUrl()}/leads`
     )
 
-    // SMS notification to technician's phone
+    // WhatsApp notification to technician's phone (employee alerts — not SMS)
     const assignedEmployee = employees.find((e) => e.id === employeeId)
     const techPhone = (assignedEmployee as any)?.phone as string | null | undefined
     if (techPhone) {

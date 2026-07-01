@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getPlatformUrl } from './platformUrl.js'
+import { sendEmployeeWhatsAppToPhone } from './sendEmployeeWhatsApp.js'
 
 export interface NotifyOrgUserInput {
   supabase: SupabaseClient
@@ -12,13 +13,13 @@ export interface NotifyOrgUserInput {
   leadId?: string
 }
 
-/** In-app bell + best-effort OneSignal push (service role). */
+/** In-app bell + best-effort OneSignal push + WhatsApp to profile phone (service role). */
 export async function notifyOrgUser(input: NotifyOrgUserInput): Promise<{ ok: boolean; error?: string }> {
   const { supabase, orgId, userId, title, message, url, type, leadId } = input
 
   const { data: target, error: targetError } = await supabase
     .from('profiles')
-    .select('org_id')
+    .select('org_id, phone')
     .eq('id', userId)
     .maybeSingle()
 
@@ -42,6 +43,8 @@ export async function notifyOrgUser(input: NotifyOrgUserInput): Promise<{ ok: bo
     return { ok: false, error: insertError.message }
   }
 
+  const resolvedUrl = url || `${getPlatformUrl()}/leads`
+
   const appId = process.env.ONESIGNAL_APP_ID
   const apiKey = process.env.ONESIGNAL_API_KEY
   if (appId && apiKey) {
@@ -58,12 +61,17 @@ export async function notifyOrgUser(input: NotifyOrgUserInput): Promise<{ ok: bo
           include_aliases: { external_id: [userId] },
           headings: { en: title },
           contents: { en: message },
-          url: url || `${getPlatformUrl()}/leads`,
+          url: resolvedUrl,
         }),
       })
     } catch (err) {
       console.error('OneSignal push failed (non-fatal):', err)
     }
+  }
+
+  const whatsapp = await sendEmployeeWhatsAppToPhone(target.phone, title, message, resolvedUrl)
+  if (whatsapp.error) {
+    console.error('Employee WhatsApp failed (non-fatal):', whatsapp.error)
   }
 
   return { ok: true }

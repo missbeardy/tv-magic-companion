@@ -3,6 +3,7 @@ import { buildSmsFromBrand } from './smsTemplates.js'
 import { getPlatformUrl } from './platformUrl.js'
 import { OPERATIONAL_MANAGER_ROLES } from './managerRoles.js'
 import { isFeatureEnabledForOrg } from './featureSwitches.js'
+import { sendEmployeeWhatsApp } from './sendEmployeeWhatsApp.js'
 
 export interface NewLeadRecord {
   id?: string
@@ -12,7 +13,7 @@ export interface NewLeadRecord {
   status: string
 }
 
-/** Alert all managers in the lead's org: in-app bell + optional SMS. */
+/** Alert all managers in the lead's org: in-app bell + optional WhatsApp. */
 export async function notifyManagersNewLead(
   lead: NewLeadRecord
 ): Promise<{ notified: number; skipped?: string }> {
@@ -74,9 +75,8 @@ export async function notifyManagersNewLead(
 
   const sid = process.env.TWILIO_ACCOUNT_SID
   const token = process.env.TWILIO_AUTH_TOKEN
-  const from = process.env.TWILIO_FROM_NUMBER
   const smsEnabled = await isFeatureEnabledForOrg(lead.org_id, 'manager_new_lead_alerts')
-  if (sid && token && from && smsEnabled) {
+  if (sid && token && smsEnabled) {
     const message = buildSmsFromBrand(
       smsTemplates,
       'manager_alert',
@@ -88,22 +88,16 @@ export async function notifyManagersNewLead(
       },
       `${orgName}: A new lead has been submitted — ${leadName} (${serviceType}). Please review and assign a technician: ${platformUrl}/leads`
     )
-    const credentials = Buffer.from(`${sid}:${token}`).toString('base64')
 
     for (const manager of managers) {
       if (!manager.phone) continue
-      const bodyParams = new URLSearchParams({ To: manager.phone, From: from, Body: message })
       try {
-        await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Basic ${credentials}`,
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: bodyParams.toString(),
-        })
+        const result = await sendEmployeeWhatsApp({ toPhone: manager.phone, body: message })
+        if (result.error) {
+          console.error(`Failed to send manager alert WhatsApp to ${manager.phone}:`, result.error)
+        }
       } catch (err) {
-        console.error(`Failed to send manager alert SMS to ${manager.phone}:`, err)
+        console.error(`Failed to send manager alert WhatsApp to ${manager.phone}:`, err)
       }
     }
   }

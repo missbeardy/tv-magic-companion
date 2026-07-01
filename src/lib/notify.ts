@@ -1,6 +1,6 @@
 import { getAuthHeaders } from './apiAuth';
 
-/** Alert managers (bell + SMS) after creating an unassigned lead. */
+/** Alert managers (bell + WhatsApp) after creating an unassigned lead. */
 export async function alertManagersOnNewLead(leadId: string): Promise<void> {
   try {
     const headers = await getAuthHeaders();
