@@ -239,11 +239,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       await updateLeadFromExtraction(supabase, leadId, {
         name: leadName,
-        phone: parsed.phone,
-        email: parsed.email || null,
-        service_type: parsed.service_type,
-        details: parsed.job_details,
-        address: parsed.address,
+        phone: parsed.phone?.trim() || fromNumber,
+        email: parsed.email?.trim() || undefined,
+        service_type: parsed.service_type || 'Other',
+        details: parsed.job_details || smsText.substring(0, 500),
+        address: parsed.address?.trim() || undefined,
       })
     } catch (updateErr) {
       console.error('SMS lead extraction update failed:', updateErr)
@@ -260,7 +260,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         id: leadId,
         org_id: orgId,
         name: savedLead?.name || leadName,
-        service_type: savedLead?.service_type || parsed.service_type,
+        service_type: savedLead?.service_type || parsed.service_type || 'Other',
         status: savedLead?.status || 'unassigned',
       })
     } catch (notifyErr) {
@@ -271,14 +271,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const ackPhone = parsed.phone?.trim() || fromNumber
     if (ackPhone) {
-      const { sendLeadAckSmsIfEnabled } = await import('./_lib/leadAckSms.js')
-      await sendLeadAckSmsIfEnabled({
-        orgId,
-        leadId,
-        toPhone: ackPhone,
-        customerName: parsed.customer_name,
-        source: 'sms',
-      })
+      try {
+        const { sendLeadAckSmsIfEnabled } = await import('./_lib/leadAckSms.js')
+        await sendLeadAckSmsIfEnabled({
+          orgId,
+          leadId,
+          toPhone: ackPhone,
+          customerName: parsed.customer_name,
+          source: 'sms',
+        })
+      } catch (ackErr) {
+        console.error('Lead ack SMS failed for inbound SMS:', ackErr)
+      }
     }
 
     res.setHeader('Content-Type', 'text/xml')

@@ -79,7 +79,8 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Contact follow-up extended to six attempts — 4h rollover through Sixth attempt before Lost',
     'Fix production inbound SMS 500 — add missing api/_lib/rawFirstLead module to deploy bundle',
     'Contact follow-up stays in Contact Attempted — six attempts with 6h escalation and visual attempt labels',
-    'Inbound raw-first bundle tests — guard against missing rawFirstLead exports on SMS/email/voicemail handlers',
+    'Harden inbound raw-first leads — no duplicate retries on notify/ack failures; extraction cannot wipe saved phone',
+    'Enable inbound SMS, email, and calls feature switches for FieldBourne brands',
     'Contact follow-up cron every 15 min — escalates attempts and notifies assignee in-app',
     'Contact notes on lead cards while in Contact Attempted',
     'Contact follow-up labels: 2nd–5th Attempt on each contact; yellow bubble shows time only; 6th contact → lost',
@@ -90,11 +91,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Fix WhatsApp ContentVariables — non-empty fallbacks for template placeholders',
     'Fix WhatsApp 21656 — sanitize apostrophes; static templates skip ContentVariables; env debug in API',
     'Assignment notify 200 no longer masks WhatsApp — check tech_assignment request for Twilio sid',
+    'Assignment WhatsApp uses /api/send-sms?action=tech-assignment; phone resolved server-side',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.67'
+export const APP_VERSION = '1.1.70'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

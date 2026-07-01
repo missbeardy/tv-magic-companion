@@ -25,6 +25,23 @@ export interface RawFirstLeadPayload {
   created_at?: string
 }
 
+/** True when a value should be applied on top of raw-first placeholder fields. */
+export function isExtractedValuePresent(value: unknown): boolean {
+  if (value === null || value === undefined) return false
+  if (typeof value === 'string') return value.trim() !== ''
+  return true
+}
+
+/** Strip empty/null extracted fields so raw-first placeholders are not wiped. */
+export function pickExtractedFields(fields: ExtractedLeadFields): ExtractedLeadFields {
+  const picked: ExtractedLeadFields = {}
+  for (const [key, value] of Object.entries(fields) as [keyof ExtractedLeadFields, unknown][]) {
+    if (!isExtractedValuePresent(value)) continue
+    picked[key] = typeof value === 'string' ? value.trim() : (value as string | null)
+  }
+  return picked
+}
+
 /** Persist a minimal lead immediately before AI extraction (raw-first pattern). */
 export async function insertRawFirstLead(
   supabase: SupabaseClient,
@@ -33,6 +50,7 @@ export async function insertRawFirstLead(
 ): Promise<{ id: string }> {
   const insertPayload = await applySoloInboundAssignment(supabase, orgId, {
     ...payload,
+    org_id: orgId,
     status: 'unassigned',
   })
 
@@ -42,25 +60,28 @@ export async function insertRawFirstLead(
     .select('id')
     .single()
 
-  if (error) throw error
+  if (error) {
+    console.error('insertRawFirstLead failed:', error.message, error.details)
+    throw error
+  }
   if (!data?.id) throw new Error('Lead insert returned no id')
   return { id: data.id }
 }
 
-/** Apply extracted fields to an existing raw-first lead. */
+/** Apply extracted fields to an existing raw-first lead (never overwrites with empty/null). */
 export async function updateLeadFromExtraction(
   supabase: SupabaseClient,
   leadId: string,
   fields: ExtractedLeadFields
 ): Promise<void> {
-  const update: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(fields)) {
-    if (value !== undefined) update[key] = value
-  }
+  const update = pickExtractedFields(fields)
   if (Object.keys(update).length === 0) return
 
   const { error } = await supabase.from('leads').update(update).eq('id', leadId)
-  if (error) throw error
+  if (error) {
+    console.error('updateLeadFromExtraction failed:', error.message, error.details)
+    throw error
+  }
 }
 
 /** Parse a CloudMailin / RFC5322 From header into display name and email. */

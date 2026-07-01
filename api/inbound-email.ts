@@ -227,111 +227,118 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(500).json({ error: 'Failed to save lead' })
       }
 
-      await supabase.from('lead_events').insert({
-        lead_id: leadId,
-        org_id: orgId,
-        event_type: 'created',
-        note: 'Lead captured from inbound voicemail email (raw-first)',
-        payload: { source: 'phone' },
-      })
-
-      let transcript = ''
-      let transcriptionFailed = false
-
       try {
-        if (voicemailAttachment.content) {
-          const buffer = Buffer.from(voicemailAttachment.content, 'base64')
-          transcript = await transcribeAudio(buffer, voicemailAttachment.file_name || 'voicemail.wav')
-        } else if (voicemailAttachment.url) {
-          const audioRes = await fetch(voicemailAttachment.url)
-          const buffer = Buffer.from(await audioRes.arrayBuffer())
-          transcript = await transcribeAudio(buffer, voicemailAttachment.file_name || 'voicemail.wav')
-        } else {
-          throw new Error('No attachment content or url present')
-        }
-      } catch (transcribeErr) {
-        console.error('Voicemail transcription failed:', transcribeErr)
-        transcriptionFailed = true
-      }
+        await supabase.from('lead_events').insert({
+          lead_id: leadId,
+          org_id: orgId,
+          event_type: 'created',
+          note: 'Lead captured from inbound voicemail email (raw-first)',
+          payload: { source: 'phone' },
+        })
 
-      let extracted: ExtractedLeadFields = {}
-      if (!transcriptionFailed && transcript.trim()) {
+        let transcript = ''
+        let transcriptionFailed = false
+
         try {
-          extracted = await extractLeadWithClaude(transcript, subject, from, 'voicemail')
-        } catch (claudeErr) {
-          console.error('Claude voicemail extraction failed:', claudeErr)
+          if (voicemailAttachment.content) {
+            const buffer = Buffer.from(voicemailAttachment.content, 'base64')
+            transcript = await transcribeAudio(buffer, voicemailAttachment.file_name || 'voicemail.wav')
+          } else if (voicemailAttachment.url) {
+            const audioRes = await fetch(voicemailAttachment.url)
+            const buffer = Buffer.from(await audioRes.arrayBuffer())
+            transcript = await transcribeAudio(buffer, voicemailAttachment.file_name || 'voicemail.wav')
+          } else {
+            throw new Error('No attachment content or url present')
+          }
+        } catch (transcribeErr) {
+          console.error('Voicemail transcription failed:', transcribeErr)
+          transcriptionFailed = true
         }
-      }
 
-      const fallbackDetails = transcriptionFailed
-        ? `Voicemail received — transcription failed, please check 3CX manually. ${callInfo}`
-        : transcript.trim()
-          ? `Voicemail transcript: ${transcript}\n\n${callInfo}`
-          : `Missed call voicemail received. ${callInfo}`
-
-      const details = extracted.details
-        ? `${extracted.details}\n\nFull transcript: ${transcript}\n\n${callInfo}`
-        : fallbackDetails
-
-      try {
-        await updateLeadFromExtraction(supabase, leadId, {
-          name: extracted.name || 'Missed Call',
-          phone: extracted.phone || normalizedPhone || rawPhone,
-          email: extracted.email,
-          service_type: extracted.service_type || 'General Enquiry',
-          details,
-          address: extracted.address,
-        })
-        if (transcript) {
-          await supabase.from('leads').update({ raw_email: transcript }).eq('id', leadId)
+        let extracted: ExtractedLeadFields = {}
+        if (!transcriptionFailed && transcript.trim()) {
+          try {
+            extracted = await extractLeadWithClaude(transcript, subject, from, 'voicemail')
+          } catch (claudeErr) {
+            console.error('Claude voicemail extraction failed:', claudeErr)
+          }
         }
-      } catch (updateErr) {
-        console.error('Voicemail lead update failed:', updateErr)
-      }
 
-      const { data: newLead } = await supabase
-        .from('leads')
-        .select('id, name, service_type, phone')
-        .eq('id', leadId)
-        .single()
+        const fallbackDetails = transcriptionFailed
+          ? `Voicemail received — transcription failed, please check 3CX manually. ${callInfo}`
+          : transcript.trim()
+            ? `Voicemail transcript: ${transcript}\n\n${callInfo}`
+            : `Missed call voicemail received. ${callInfo}`
 
-      await notifyManagersNewLead({
-        id: leadId,
-        org_id: orgId,
-        name: newLead?.name || 'Missed Call',
-        service_type: newLead?.service_type || 'General Enquiry',
-        status: 'unassigned',
-      })
+        const details = extracted.details
+          ? `${extracted.details}\n\nFull transcript: ${transcript}\n\n${callInfo}`
+          : fallbackDetails
 
-      let hookbackSent = false
-      const hookbackPhone = newLead?.phone
-        ? formatAuPhoneForSms(String(newLead.phone))
-        : normalizedPhone
-      if (hookbackPhone) {
-        hookbackSent = await sendMissedCallHookbackIfEnabled({
-          orgId,
-          leadId,
-          toPhone: hookbackPhone,
-          customerName: newLead?.name || 'there',
-          source: 'voicemail_email',
+        try {
+          await updateLeadFromExtraction(supabase, leadId, {
+            name: extracted.name || 'Missed Call',
+            phone: extracted.phone || normalizedPhone || rawPhone,
+            email: extracted.email,
+            service_type: extracted.service_type || 'General Enquiry',
+            details,
+            address: extracted.address,
+          })
+          if (transcript) {
+            await supabase.from('leads').update({ raw_email: transcript }).eq('id', leadId)
+          }
+        } catch (updateErr) {
+          console.error('Voicemail lead update failed:', updateErr)
+        }
+
+        const { data: newLead } = await supabase
+          .from('leads')
+          .select('id, name, service_type, phone, status')
+          .eq('id', leadId)
+          .single()
+
+        try {
+          await notifyManagersNewLead({
+            id: leadId,
+            org_id: orgId,
+            name: newLead?.name || 'Missed Call',
+            service_type: newLead?.service_type || 'General Enquiry',
+            status: newLead?.status || 'unassigned',
+          })
+        } catch (notifyErr) {
+          console.error('Manager notification failed for voicemail email:', notifyErr)
+        }
+
+        let hookbackSent = false
+        const hookbackPhone = newLead?.phone
+          ? formatAuPhoneForSms(String(newLead.phone))
+          : normalizedPhone
+        if (hookbackPhone) {
+          hookbackSent = await sendMissedCallHookbackIfEnabled({
+            orgId,
+            leadId,
+            toPhone: hookbackPhone,
+            customerName: newLead?.name || 'there',
+            source: 'voicemail_email',
+          })
+        }
+
+        console.log('Voicemail lead created:', leadId)
+        return res.status(200).json({
+          success: true,
+          lead_id: leadId,
+          type: 'voicemail',
+          hookbackSent,
+          transcription_failed: transcriptionFailed,
+        })
+      } catch (postSaveErr) {
+        console.error('Voicemail post-save processing error:', postSaveErr)
+        return res.status(200).json({
+          success: true,
+          lead_id: leadId,
+          type: 'voicemail',
+          partial: true,
         })
       }
-
-      await supabase.from('lead_events').insert({
-        lead_id: leadId,
-        org_id: orgId,
-        event_type: 'sms_sent',
-        note: transcriptionFailed ? 'Voicemail saved; transcription failed' : 'Voicemail processed',
-        payload: { source: 'phone', transcription_failed: transcriptionFailed },
-      })
-
-      console.log('Voicemail lead created:', leadId)
-      return res.status(200).json({
-        success: true,
-        lead_id: leadId,
-        type: 'voicemail',
-        hookbackSent,
-      })
     } catch (err) {
       console.error('Voicemail processing error:', err)
       return res.status(500).json({ error: 'Voicemail processing failed' })
@@ -382,69 +389,82 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(500).json({ error: 'Failed to save lead' })
     }
 
-    await supabase.from('lead_events').insert({
-      lead_id: leadId,
-      org_id: orgId,
-      event_type: 'created',
-      note: 'Lead captured from inbound email (raw-first)',
-      payload: {
-        source: 'email',
-        from,
-        subject,
-        inbound_tag: orgResolution.tag,
-        routing: orgResolution.source,
-      },
-    })
-
-    let extracted: ExtractedLeadFields
     try {
-      extracted = await extractLeadWithClaude(emailText, subject, from, 'email')
-    } catch (claudeErr) {
-      console.error('Claude email extraction failed:', claudeErr)
-      extracted = emailFallbackParse(emailText, subject, from)
-    }
-
-    try {
-      await updateLeadFromExtraction(supabase, leadId, {
-        name: extracted.name || senderName,
-        phone: extracted.phone,
-        email: extracted.email || senderEmail || from,
-        service_type: extracted.service_type || 'General Enquiry',
-        details: extracted.details || subject || 'Inbound email enquiry',
-        address: extracted.address,
+      await supabase.from('lead_events').insert({
+        lead_id: leadId,
+        org_id: orgId,
+        event_type: 'created',
+        note: 'Lead captured from inbound email (raw-first)',
+        payload: {
+          source: 'email',
+          from,
+          subject,
+          inbound_tag: orgResolution.tag,
+          routing: orgResolution.source,
+        },
       })
-    } catch (updateErr) {
-      console.error('Email lead extraction update failed:', updateErr)
+
+      let extracted: ExtractedLeadFields
+      try {
+        extracted = await extractLeadWithClaude(emailText, subject, from, 'email')
+      } catch (claudeErr) {
+        console.error('Claude email extraction failed:', claudeErr)
+        extracted = emailFallbackParse(emailText, subject, from)
+      }
+
+      try {
+        await updateLeadFromExtraction(supabase, leadId, {
+          name: extracted.name || senderName,
+          phone: extracted.phone,
+          email: extracted.email || senderEmail || undefined,
+          service_type: extracted.service_type || 'General Enquiry',
+          details: extracted.details || subject || 'Inbound email enquiry',
+          address: extracted.address,
+        })
+      } catch (updateErr) {
+        console.error('Email lead extraction update failed:', updateErr)
+      }
+
+      const { data: savedLead } = await supabase
+        .from('leads')
+        .select('name, service_type, status, phone')
+        .eq('id', leadId)
+        .single()
+
+      try {
+        await notifyManagersNewLead({
+          id: leadId,
+          org_id: orgId,
+          name: savedLead?.name || senderName,
+          service_type: savedLead?.service_type || 'General Enquiry',
+          status: savedLead?.status || 'unassigned',
+        })
+      } catch (notifyErr) {
+        console.error('Manager notification failed for inbound email:', notifyErr)
+      }
+
+      console.log('Lead successfully created via CloudMailin:', savedLead?.name || from)
+
+      const ackPhone = extracted.phone?.trim() || savedLead?.phone?.trim()
+      if (ackPhone) {
+        try {
+          await sendLeadAckSmsIfEnabled({
+            orgId,
+            leadId,
+            toPhone: ackPhone,
+            customerName: savedLead?.name || senderName,
+            source: 'email',
+          })
+        } catch (ackErr) {
+          console.error('Lead ack SMS failed for inbound email:', ackErr)
+        }
+      }
+
+      return res.status(200).json({ success: true, lead_id: leadId })
+    } catch (postSaveErr) {
+      console.error('Inbound email post-save processing error:', postSaveErr)
+      return res.status(200).json({ success: true, lead_id: leadId, partial: true })
     }
-
-    const { data: savedLead } = await supabase
-      .from('leads')
-      .select('name, service_type, status, phone')
-      .eq('id', leadId)
-      .single()
-
-    await notifyManagersNewLead({
-      id: leadId,
-      org_id: orgId,
-      name: savedLead?.name || senderName,
-      service_type: savedLead?.service_type || 'General Enquiry',
-      status: savedLead?.status || 'unassigned',
-    })
-
-    console.log('Lead successfully created via CloudMailin:', savedLead?.name || from)
-
-    const ackPhone = extracted.phone?.trim() || savedLead?.phone?.trim()
-    if (ackPhone) {
-      await sendLeadAckSmsIfEnabled({
-        orgId,
-        leadId,
-        toPhone: ackPhone,
-        customerName: savedLead?.name || senderName,
-        source: 'email',
-      })
-    }
-
-    return res.status(200).json({ success: true, lead_id: leadId })
   } catch (err) {
     console.error('Inbound email processing error:', err)
     return res.status(500).json({ error: 'Processing failed' })
