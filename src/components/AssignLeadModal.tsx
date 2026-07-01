@@ -134,11 +134,11 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
 
     // WhatsApp notification to technician's phone (employee alerts — not SMS)
     const assignedEmployee = employees.find((e) => e.id === employeeId)
-    const techPhone = (assignedEmployee as any)?.phone as string | null | undefined
+    const techPhone = assignedEmployee?.phone?.trim()
     if (techPhone) {
       try {
         const headers = await getAuthHeaders()
-        await fetch('/api/send-sms', {
+        const waRes = await fetch('/api/send-sms', {
           method: 'POST',
           headers,
           body: JSON.stringify({
@@ -148,9 +148,17 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
             serviceType: lead.service_type,
           }),
         })
+        const waData = await waRes.json().catch(() => ({}))
+        if (!waRes.ok) {
+          console.error('Assignment WhatsApp failed:', waData)
+        } else if (!waData.sid) {
+          console.warn('Assignment WhatsApp 200 but no Twilio sid:', waData)
+        }
       } catch (smsErr) {
-        console.error('Tech assignment SMS failed:', smsErr)
+        console.error('Tech assignment WhatsApp failed:', smsErr)
       }
+    } else {
+      console.warn('Assignment WhatsApp skipped: no phone on assignee profile')
     }
 
     onAssigned()

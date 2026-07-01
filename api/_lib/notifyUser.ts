@@ -14,8 +14,14 @@ export interface NotifyOrgUserInput {
   leadId?: string
 }
 
+export interface NotifyOrgUserResult {
+  ok: boolean
+  error?: string
+  whatsapp?: { sent: boolean; sid?: string; skipped?: string; error?: string }
+}
+
 /** In-app bell + best-effort OneSignal push + WhatsApp to profile phone (service role). */
-export async function notifyOrgUser(input: NotifyOrgUserInput): Promise<{ ok: boolean; error?: string }> {
+export async function notifyOrgUser(input: NotifyOrgUserInput): Promise<NotifyOrgUserResult> {
   const { supabase, orgId, userId, title, message, url, type, leadId } = input
 
   const { data: target, error: targetError } = await supabase
@@ -75,10 +81,14 @@ export async function notifyOrgUser(input: NotifyOrgUserInput): Promise<{ ok: bo
     url ? `${title}\n\n${message}\n\n${resolvedUrl}` : `${title}\n\n${message}`,
     { title, message, url: resolvedUrl }
   )
-  const whatsapp = await sendEmployeeWhatsAppToPhone(target.phone, whatsappMessage)
-  if (whatsapp.error) {
-    console.error('Employee WhatsApp failed (non-fatal):', whatsapp.error)
+  // Assignment WhatsApp is sent via send-sms mode=tech_assignment (static template).
+  let whatsapp: Awaited<ReturnType<typeof sendEmployeeWhatsAppToPhone>> = { sent: false, skipped: 'Skipped for lead_assigned' }
+  if (type !== 'lead_assigned') {
+    whatsapp = await sendEmployeeWhatsAppToPhone(target.phone, whatsappMessage)
+    if (whatsapp.error) {
+      console.error('Employee WhatsApp failed (non-fatal):', whatsapp.error)
+    }
   }
 
-  return { ok: true }
+  return { ok: true, whatsapp }
 }

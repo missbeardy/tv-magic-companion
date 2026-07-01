@@ -155,7 +155,14 @@ async function handleNotify(req: VercelRequest, res: VercelResponse, auth: AuthC
     return res.status(status).json({ error: result.error ?? 'Failed to notify user' })
   }
 
-  return res.status(200).json({ success: true })
+  return res.status(200).json({
+    success: true,
+    whatsapp: result.whatsapp,
+    note:
+      type === 'lead_assigned'
+        ? 'In-app notification only; assignment WhatsApp is sent separately via tech_assignment.'
+        : undefined,
+  })
 }
 
 /** Alert managers after a new unassigned lead is created from the app. */
