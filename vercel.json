@@ -4,12 +4,6 @@
   "devCommand": "vite --port $PORT --strictPort",
   "framework": "vite",
   "outputDirectory": "dist",
-  "crons": [
-    {
-      "path": "/api/cron/contact-follow-up",
-      "schedule": "*/15 * * * *"
-    }
-  ],
   "rewrites": [
     {
       "source": "/api/meta-webhook",

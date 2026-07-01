@@ -83,11 +83,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Contact follow-up cron every 15 min — escalates attempts and notifies assignee in-app',
     'Contact notes on lead cards while in Contact Attempted',
     'Contact follow-up labels: 2nd–5th Attempt on each contact; yellow bubble shows time only; 6th contact → lost',
+    'Contact follow-up cron via GitHub Actions (Hobby Vercel cannot run 15-min crons)',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.56'
+export const APP_VERSION = '1.1.57'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

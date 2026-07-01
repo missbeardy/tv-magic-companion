@@ -1,0 +1,24 @@
+# Runs contact follow-up on Hobby Vercel (Vercel crons are daily-only on Hobby).
+# Repo secrets: PLATFORM_URL (e.g. https://tv-magic-companion.vercel.app), CRON_SECRET
+name: Contact follow-up cron
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  contact-follow-up:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger /api/cron/contact-follow-up
+        env:
+          PLATFORM_URL: ${{ secrets.PLATFORM_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$PLATFORM_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "Skip: set PLATFORM_URL and CRON_SECRET in repo secrets"
+            exit 0
+          fi
+          curl -fsS -X POST "${PLATFORM_URL%/}/api/cron/contact-follow-up" \
+            -H "Authorization: Bearer ${CRON_SECRET}"
