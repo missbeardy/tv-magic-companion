@@ -1,0 +1,12 @@
+---
+description: Keep agent replies short and actionable
+alwaysApply: true
+---
+
+# Concise responses
+
+- Lead with the answer or decision in 1–2 sentences.
+- Use short bullet lists for steps and checklists; avoid long prose.
+- No repeating context the user already knows.
+- Code citations only when they help navigation; skip large dumps.
+- For deploy/test tasks: numbered steps, env vars, and URLs — nothing else unless asked.

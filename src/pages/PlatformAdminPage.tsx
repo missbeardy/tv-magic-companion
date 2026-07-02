@@ -7,6 +7,7 @@ import NavBar from '../components/NavBar'
 import BrandQuoteEmailEditor from '../components/BrandQuoteEmailEditor'
 import PlatformFeatureSwitches from '../components/platform/PlatformFeatureSwitches'
 import InboundSimulatorPanel from '../components/platform/InboundSimulatorPanel'
+import InboundEmailRoutingPanel from '../components/platform/InboundEmailRoutingPanel'
 import { Building2, Plus, RefreshCw, ArrowRightLeft } from 'lucide-react'
 import {
   FEATURE_SWITCH_DEFINITIONS,
@@ -498,6 +499,8 @@ export default function PlatformAdminPage() {
             </div>
           </form>
         </section>
+
+        <InboundEmailRoutingPanel orgs={orgs} />
 
         <section className="card p-6 space-y-3">
           <h2 className="font-semibold text-gray-800 flex items-center gap-2">

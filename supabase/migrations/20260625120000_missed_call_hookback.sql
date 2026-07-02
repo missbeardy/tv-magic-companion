@@ -1,13 +1,14 @@
 -- Missed call instant SMS hookback + brand template seed
 
-INSERT INTO public.feature_flag_catalog (feature_key, label, description, default_enabled, min_tier)
+INSERT INTO public.feature_flag_catalog (feature_key, label, description, default_enabled, min_tier, category)
 VALUES
-  ('missed_call_hookback_sms', 'Missed Call Auto-Reply SMS', 'Instant branded SMS to callers when a call is missed', false, 'basic')
+  ('missed_call_hookback_sms', 'Missed Call Auto-Reply SMS', 'Instant branded SMS to callers when a call is missed', false, 'basic', 'customer_communication')
 ON CONFLICT (feature_key) DO UPDATE
 SET
   label = EXCLUDED.label,
   description = EXCLUDED.description,
-  min_tier = EXCLUDED.min_tier;
+  min_tier = EXCLUDED.min_tier,
+  category = EXCLUDED.category;
 
 INSERT INTO public.brand_feature_switches (brand_id, feature_key, enabled)
 SELECT b.id, 'missed_call_hookback_sms', false
