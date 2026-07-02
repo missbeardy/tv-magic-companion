@@ -92,7 +92,7 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
     setError('')
     const expiresAt = getExpiresAt()
 
-    const { error: assignError } = await supabase
+    const { data, error: assignError, count } = await supabase
       .from('leads')
       .update({
         status: 'assigned',
@@ -104,9 +104,18 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
         lost_reason: null,
       })
       .eq('id', lead.id)
+      .eq('status', 'unassigned')
+      .select('id', { count: 'exact' })
 
     if (assignError) {
       setError('Failed to assign: ' + assignError.message)
+      setSaving(false)
+      return
+    }
+
+    const rowsUpdated = count ?? data?.length ?? 0
+    if (rowsUpdated === 0) {
+      setError('This lead was just assigned by another manager.')
       setSaving(false)
       return
     }
@@ -163,6 +172,70 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
 
     onAssigned()
     onClose()
+  }
+
+  /** Dev-only: pre-assign as "another manager", then hit the status guard. */
+  async function handleDevSimulateConflict() {
+    if (!import.meta.env.DEV || employees.length === 0) return
+
+    setSaving(true)
+    setError('')
+
+    const winnerId = employees[0].id
+    const attemptId = employees[1]?.id ?? employees[0].id
+    const expiresAt = getExpiresAt()
+
+    const assignPayload = {
+      status: 'assigned' as const,
+      assigned_to: '',
+      assigned_at: new Date().toISOString(),
+      timer_expires_at: expiresAt,
+      contact_attempt_round: 0,
+      last_contact_attempted_at: null,
+      lost_reason: null,
+    }
+
+    const { data: preData, count: preCount, error: preError } = await supabase
+      .from('leads')
+      .update({ ...assignPayload, assigned_to: winnerId })
+      .eq('id', lead.id)
+      .eq('status', 'unassigned')
+      .select('id', { count: 'exact' })
+
+    if (preError) {
+      setError('Dev simulate pre-assign failed: ' + preError.message)
+      setSaving(false)
+      return
+    }
+
+    if ((preCount ?? preData?.length ?? 0) === 0) {
+      setError('Dev simulate: lead is not unassigned — reset it first.')
+      setSaving(false)
+      return
+    }
+
+    const { data, error: assignError, count } = await supabase
+      .from('leads')
+      .update({ ...assignPayload, assigned_to: attemptId })
+      .eq('id', lead.id)
+      .eq('status', 'unassigned')
+      .select('id', { count: 'exact' })
+
+    if (assignError) {
+      setError('Failed to assign: ' + assignError.message)
+      setSaving(false)
+      return
+    }
+
+    const rowsUpdated = count ?? data?.length ?? 0
+    if (rowsUpdated === 0) {
+      setError('This lead was just assigned by another manager.')
+      setSaving(false)
+      return
+    }
+
+    setError('Dev simulate: guard did not fire (unexpected success).')
+    setSaving(false)
   }
 
   return (
@@ -292,6 +365,16 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
 
         {/* Footer */}
         <div className="px-6 pb-5">
+          {import.meta.env.DEV && employees.length > 0 && (
+            <button
+              type="button"
+              onClick={handleDevSimulateConflict}
+              disabled={saving}
+              className="w-full py-2.5 mb-2 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 text-sm font-semibold hover:bg-amber-100 transition-colors disabled:opacity-50"
+            >
+              Dev: Simulate assign conflict
+            </button>
+          )}
           <button
             onClick={onClose}
             disabled={saving}

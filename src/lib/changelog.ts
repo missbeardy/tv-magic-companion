@@ -104,11 +104,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Fix inbound SMS simulator on localhost — http Twilio signature match and return created leadId',
     'Fix preview inbound simulator — invoke webhook handlers directly instead of self-fetch HTML',
     'Production release — consolidated inbound pipeline, platform simulator, and email routing panel',
+    'Assign lead modal guards against double-dispatch — concurrent assigns show a conflict message instead of overwriting',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.79'
+export const APP_VERSION = '1.1.80'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
