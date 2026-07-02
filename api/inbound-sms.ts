@@ -1,10 +1,12 @@
 // api/inbound-sms.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import './_lib/loadLocalEnv.js'
 import { createClient } from '@supabase/supabase-js'
-import { createHmac, timingSafeEqual } from 'crypto'
+import { timingSafeEqual } from 'crypto'
 import { processInboundLead } from './_lib/processInboundLead.js'
 import { insertRawFirstLead } from './_lib/rawFirstLead.js'
 import { resolveOrgIdFromDid } from './_lib/resolveOrgFromDid.js'
+import { computeTwilioSignature } from './_lib/twilioSignature.js'
 
 const requests = new Map<string, { count: number; reset: number }>()
 
@@ -26,14 +28,21 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+function webhookUrlFromRequest(req: VercelRequest): string {
+  const host = req.headers.host
+  if (!host || typeof host !== 'string') return ''
+  const proto =
+    host.includes('localhost') || host.startsWith('127.0.0.1') ? 'http' : 'https'
+  const path = (req.url ?? '/api/inbound-sms').split('?')[0]
+  return `${proto}://${host}${path}`
+}
+
 function verifyTwilioSignature(req: VercelRequest, authToken: string): boolean {
   const twilioSig = req.headers['x-twilio-signature'] as string
   if (!twilioSig) return false
-  const url = `https://${req.headers.host}${req.url}`
+  const url = webhookUrlFromRequest(req)
   const params = req.body as Record<string, string>
-  const sortedParams = Object.keys(params).sort().map(k => k + params[k]).join('')
-  const signatureBase = url + sortedParams
-  const expectedSig = createHmac('sha1', authToken).update(signatureBase).digest('base64')
+  const expectedSig = computeTwilioSignature(url, params, authToken)
   try {
     return timingSafeEqual(Buffer.from(twilioSig), Buffer.from(expectedSig))
   } catch {

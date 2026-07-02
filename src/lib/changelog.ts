@@ -99,11 +99,14 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Platform admin inbound simulator — test SMS, email, and voicemail through real HTTP endpoints',
     'Platform admin inbound email routing panel — per-org CloudMailin plus-address tags',
     'Fold inbound simulator into create-user API to stay within Vercel Hobby 12-function limit',
+    'Fix vercel dev — SPA rewrite only for HTML navigations so Vite modules load',
+    'Fix local API env loading for vercel dev — load .env.local and mirror VITE_* server vars',
+    'Fix inbound SMS simulator on localhost — http Twilio signature match and return created leadId',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.76'
+export const APP_VERSION = '1.1.77'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

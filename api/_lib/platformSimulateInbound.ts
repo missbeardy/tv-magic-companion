@@ -1,14 +1,20 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { createClient } from '@supabase/supabase-js'
+import './loadLocalEnv.js'
 import { authenticateRequest } from './auth.js'
 import { getPlatformUrl } from './platformUrl.js'
+import { getSupabaseAdmin } from './supabaseAdmin.js'
 import { computeTwilioSignature } from './twilioSignature.js'
 import { buildCloudmailinPlusAddress } from '../../shared/inboundEmailRouting.js'
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+function platformUrlFromRequest(req: VercelRequest): string {
+  const host = req.headers.host
+  if (typeof host === 'string' && host.length > 0) {
+    const proto =
+      host.includes('localhost') || host.startsWith('127.0.0.1') ? 'http' : 'https'
+    return `${proto}://${host}`
+  }
+  return getPlatformUrl()
+}
 
 type SimulateChannel = 'sms' | 'email' | 'voicemail'
 
@@ -29,6 +35,8 @@ function cloudmailinBase(): string | null {
 }
 
 async function lookupOrgPhoneNumber(orgId: string): Promise<string | null> {
+  const supabase = getSupabaseAdmin()
+  if (!supabase) return null
   const { data } = await supabase
     .from('org_phone_numbers')
     .select('phone_number')
@@ -54,11 +62,27 @@ function extractLeadId(payload: unknown): string | null {
   return typeof id === 'string' && id.length > 0 ? id : null
 }
 
+async function findRecentSimulatedLead(orgId: string): Promise<string | null> {
+  const supabase = getSupabaseAdmin()
+  if (!supabase) return null
+  const since = new Date(Date.now() - 120_000).toISOString()
+  const { data } = await supabase
+    .from('leads')
+    .select('id')
+    .eq('org_id', orgId)
+    .gte('created_at', since)
+    .or('details.ilike.%[SIMULATED TEST]%,raw_sms.ilike.%SIMULATED TEST%,raw_email.ilike.%SIMULATED TEST%')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return data?.id ?? null
+}
+
 async function postHandler(
+  baseUrl: string,
   path: string,
   init: RequestInit
 ): Promise<{ status: number; body: unknown; raw: string }> {
-  const baseUrl = getPlatformUrl()
   const url = `${baseUrl}${path}`
   const res = await fetch(url, init)
   const raw = await res.text()
@@ -71,7 +95,7 @@ async function postHandler(
   return { status: res.status, body, raw }
 }
 
-async function simulateSms(text: string, toNumber: string) {
+async function simulateSms(baseUrl: string, text: string, toNumber: string) {
   const authToken = process.env.TWILIO_AUTH_TOKEN
   if (!authToken) {
     throw new Error('TWILIO_AUTH_TOKEN is not configured on this deployment')
@@ -83,12 +107,11 @@ async function simulateSms(text: string, toNumber: string) {
     To: toNumber,
   }
 
-  const baseUrl = getPlatformUrl()
   const webhookUrl = `${baseUrl}/api/inbound-sms`
   const signature = computeTwilioSignature(webhookUrl, params, authToken)
   const formBody = new URLSearchParams(params).toString()
 
-  return postHandler('/api/inbound-sms', {
+  return postHandler(baseUrl, '/api/inbound-sms', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -98,7 +121,7 @@ async function simulateSms(text: string, toNumber: string) {
   })
 }
 
-async function simulateEmail(text: string, inboundEmailTag: string) {
+async function simulateEmail(baseUrl: string, text: string, inboundEmailTag: string) {
   const secret = process.env.INBOUND_SECRET
   if (!secret) {
     throw new Error('INBOUND_SECRET is not configured on this deployment')
@@ -121,7 +144,7 @@ async function simulateEmail(text: string, inboundEmailTag: string) {
     envelope: { to: plusAddress, recipients: [plusAddress] },
   }
 
-  return postHandler(`/api/inbound-email?secret=${encodeURIComponent(secret)}`, {
+  return postHandler(baseUrl, `/api/inbound-email?secret=${encodeURIComponent(secret)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -137,7 +160,7 @@ function buildVoicemailPlain(calledNumber: string): string {
   ].join('\n')
 }
 
-async function simulateVoicemail(text: string, calledNumber: string) {
+async function simulateVoicemail(baseUrl: string, text: string, calledNumber: string) {
   const secret = process.env.INBOUND_SECRET
   if (!secret) {
     throw new Error('INBOUND_SECRET is not configured on this deployment')
@@ -159,7 +182,7 @@ async function simulateVoicemail(text: string, calledNumber: string) {
     ],
   }
 
-  return postHandler(`/api/inbound-email?secret=${encodeURIComponent(secret)}`, {
+  return postHandler(baseUrl, `/api/inbound-email?secret=${encodeURIComponent(secret)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -201,6 +224,12 @@ export async function handlePlatformSimulateInbound(
     return
   }
 
+  const supabase = getSupabaseAdmin()
+  if (!supabase) {
+    res.status(500).json({ error: 'Server misconfiguration — Supabase env missing' })
+    return
+  }
+
   const { data: org, error: orgError } = await supabase
     .from('orgs')
     .select('id, name, inbound_email_tag')
@@ -212,25 +241,30 @@ export async function handlePlatformSimulateInbound(
     return
   }
 
+  const baseUrl = platformUrlFromRequest(req)
+
   try {
     let handlerResult: Awaited<ReturnType<typeof postHandler>>
 
     if (channel === 'sms') {
       const toNumber = await resolveMappedPhoneForOrg(orgId)
-      handlerResult = await simulateSms(text.trim(), toNumber)
+      handlerResult = await simulateSms(baseUrl, text.trim(), toNumber)
     } else if (channel === 'email') {
       const tag = (org.inbound_email_tag as string | null)?.trim()
       if (!tag) {
         res.status(400).json({ error: 'Org has no inbound_email_tag configured' })
         return
       }
-      handlerResult = await simulateEmail(text.trim(), tag)
+      handlerResult = await simulateEmail(baseUrl, text.trim(), tag)
     } else {
       const calledNumber = await resolveMappedPhoneForOrg(orgId)
-      handlerResult = await simulateVoicemail(text.trim(), calledNumber)
+      handlerResult = await simulateVoicemail(baseUrl, text.trim(), calledNumber)
     }
 
-    const leadId = extractLeadId(handlerResult.body)
+    let leadId = extractLeadId(handlerResult.body)
+    if (!leadId && handlerResult.status === 200) {
+      leadId = await findRecentSimulatedLead(orgId)
+    }
 
     res.status(200).json({
       simulated: true,

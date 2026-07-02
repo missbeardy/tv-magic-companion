@@ -1,5 +1,6 @@
 // FieldBourne ops forwards admin@fieldbourne → CloudMailin plus-address; tag resolves org.
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import './_lib/loadLocalEnv.js'
 import { createClient } from '@supabase/supabase-js'
 import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
 import { resolveOrgIdFromDid } from './_lib/resolveOrgFromDid.js'

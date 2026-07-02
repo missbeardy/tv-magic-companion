@@ -1,12 +1,8 @@
 // api/create-user.ts
 // Also routes platform-simulate-inbound (Hobby 12-function limit — see vercel.json).
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createClient } from '@supabase/supabase-js';
-
-const SUPABASE_URL = process.env.SUPABASE_URL!;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+import './_lib/loadLocalEnv.js';
+import { getSupabaseAdmin } from './_lib/supabaseAdmin.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const action = typeof req.query.action === 'string' ? req.query.action : undefined;
@@ -19,7 +15,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  const supabaseAdmin = getSupabaseAdmin();
+  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseAdmin || !supabaseUrl || !serviceRoleKey) {
     return res.status(500).json({ error: 'Server misconfiguration' });
   }
 
@@ -89,12 +88,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       redirectTo: redirectUrl,
     };
 
-    const response = await fetch(`${SUPABASE_URL}/auth/v1/invite`, {
+    const response = await fetch(`${supabaseUrl}/auth/v1/invite`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': SUPABASE_SERVICE_ROLE_KEY,
-        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        'apikey': serviceRoleKey,
+        'Authorization': `Bearer ${serviceRoleKey}`,
       },
       body: JSON.stringify(requestBody),
     });
