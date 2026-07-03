@@ -24,6 +24,9 @@ import QuoteComposerModal from '../components/QuoteComposerModal'
 import { UserPlus, Inbox, Plus } from 'lucide-react'
 import AddLeadModal from '../components/AddLeadModal'
 import EmailParser from '../components/EmailParser'
+import { hasAddLeadDraft } from '../lib/addLeadDraft'
+import { hasQuoteDraft, loadQuoteDraft, quoteDraftToLead } from '../lib/quoteDraft'
+import { useRestoreLeadBookingDraft } from '../hooks/useRestoreLeadBookingDraft'
 import LeadCard, { type KanbanLead } from '../components/LeadCard'
 import LeadDetailSheet from '../components/LeadDetailSheet'
 import {
@@ -778,8 +781,27 @@ export default function LeadsPage() {
     return () => { supabase.removeChannel(channel) }
   }, [profile, fetchLeads])
 
+  useRestoreLeadBookingDraft(
+    profile?.id,
+    profile?.org_id,
+    leads,
+    setBookingLead,
+    bookingLead,
+  )
+
   useEffect(() => {
-    if (!sheetLead) return
+    if (!profile?.id) return
+    if (hasAddLeadDraft(profile.id)) setShowAddLead(true)
+  }, [profile?.id])
+
+  useEffect(() => {
+    if (!profile?.id || quoteLead || !quoteFeatureEnabled) return
+    const draft = loadQuoteDraft(profile.id)
+    if (!draft) return
+    setQuoteLead(quoteDraftToLead(draft) as Lead)
+  }, [profile?.id, quoteFeatureEnabled, quoteLead])
+
+  useEffect(() => {
     const fresh = leads.find((l) => l.id === sheetLead.id)
     if (fresh) setSheetLead(fresh)
   }, [leads, sheetLead?.id])

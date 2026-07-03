@@ -10,6 +10,7 @@ import EventModal from './EventModal'
 import LeadExtractedSummary from './LeadExtractedSummary'
 import { CalendarPlus, User } from 'lucide-react'
 import { isManagerRole } from '../lib/roles'
+import { useRestoreLeadBookingDraft } from '../hooks/useRestoreLeadBookingDraft'
 
 interface Lead {
   id: string
@@ -72,6 +73,14 @@ export default function AssignedLeads() {
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [profile])
+
+  useRestoreLeadBookingDraft(
+    profile?.id,
+    profile?.org_id,
+    leads,
+    setBookingLead,
+    bookingLead,
+  )
 
   // Navigate to leads page and highlight this lead
   const handleLeadClick = (leadId: string) => {

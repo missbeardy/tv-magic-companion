@@ -1,9 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Plus } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+import { hasAddLeadDraft } from '../lib/addLeadDraft'
 import AddLeadModal from './AddLeadModal'
 
 export default function MobileNavFab() {
+  const { profile } = useAuth()
   const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (!profile?.id) return
+    if (hasAddLeadDraft(profile.id)) setOpen(true)
+  }, [profile?.id])
 
   return (
     <>

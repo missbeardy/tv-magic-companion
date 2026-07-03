@@ -1,6 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { X, FileSignature } from 'lucide-react'
 import { createQuote } from '../lib/quotes'
+import { useAuth } from '../context/AuthContext'
+import {
+  clearQuoteDraft,
+  loadQuoteDraft,
+  quoteDraftHasContent,
+  saveQuoteDraft,
+} from '../lib/quoteDraft'
 
 interface LeadLite {
   id: string
@@ -16,8 +23,13 @@ interface Props {
   onSent?: () => void
 }
 
+function defaultScope(serviceType?: string | null) {
+  return `Service: ${serviceType ?? 'General service'}\n\nIncludes:`
+}
+
 export default function QuoteComposerModal({ lead, onClose, onSent }: Props) {
-  const [scope, setScope] = useState(`Service: ${lead.service_type ?? 'General service'}\n\nIncludes:`)
+  const { profile } = useAuth()
+  const [scope, setScope] = useState(defaultScope(lead.service_type))
   const [terms, setTerms] = useState('Payment due on completion unless agreed otherwise.')
   const [totalAmount, setTotalAmount] = useState('180')
   const [expiryDays, setExpiryDays] = useState('7')
@@ -27,6 +39,67 @@ export default function QuoteComposerModal({ lead, onClose, onSent }: Props) {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
   const [deliveryMessage, setDeliveryMessage] = useState('')
   const [emailSent, setEmailSent] = useState<boolean | null>(null)
+  const draftRestoredRef = useRef(false)
+  const skipDraftSaveRef = useRef(true)
+
+  function handleClose() {
+    if (profile?.id) clearQuoteDraft(profile.id)
+    onClose()
+  }
+
+  useEffect(() => {
+    if (!profile?.id || draftRestoredRef.current) return
+    const draft = loadQuoteDraft(profile.id)
+    if (!draft || draft.leadId !== lead.id || !quoteDraftHasContent(draft)) return
+    draftRestoredRef.current = true
+    setScope(draft.scope)
+    setTerms(draft.terms)
+    setTotalAmount(draft.totalAmount)
+    setExpiryDays(draft.expiryDays)
+    skipDraftSaveRef.current = false
+  }, [profile?.id, lead.id])
+
+  useEffect(() => {
+    if (!profile?.id || skipDraftSaveRef.current || acceptanceUrl) {
+      skipDraftSaveRef.current = false
+      return
+    }
+
+    const draft = {
+      leadId: lead.id,
+      leadName: lead.name,
+      leadPhone: lead.phone,
+      leadEmail: lead.email,
+      serviceType: lead.service_type,
+      scope,
+      terms,
+      totalAmount,
+      expiryDays,
+    }
+
+    if (!quoteDraftHasContent(draft)) {
+      clearQuoteDraft(profile.id)
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      saveQuoteDraft(profile.id, draft)
+    }, 500)
+
+    return () => window.clearTimeout(timer)
+  }, [
+    profile?.id,
+    lead.id,
+    lead.name,
+    lead.phone,
+    lead.email,
+    lead.service_type,
+    scope,
+    terms,
+    totalAmount,
+    expiryDays,
+    acceptanceUrl,
+  ])
 
   async function handleSend() {
     setError('')
@@ -58,6 +131,7 @@ export default function QuoteComposerModal({ lead, onClose, onSent }: Props) {
       setEmailSent(quote.email_sent === true)
       setDeliveryMessage(quote.email_message ?? '')
       setCopyState('idle')
+      if (profile?.id) clearQuoteDraft(profile.id)
       onSent?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send quote')
@@ -90,7 +164,7 @@ export default function QuoteComposerModal({ lead, onClose, onSent }: Props) {
             <p className="text-sm text-gray-500 mt-0.5">{lead.name}</p>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
           >
             <X size={16} />
@@ -185,7 +259,7 @@ export default function QuoteComposerModal({ lead, onClose, onSent }: Props) {
 
         <div className="px-6 pb-5 flex gap-2">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             disabled={sending}
             className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-semibold hover:bg-gray-50 transition-colors"
           >

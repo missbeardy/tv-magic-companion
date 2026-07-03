@@ -1,5 +1,5 @@
 // src/components/EventModal.tsx
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { cancelBooking } from '../lib/cancelBooking'
@@ -15,6 +15,15 @@ import { sendNotification } from '../lib/notify'
 import { getPlatformUrl } from '../lib/env'
 import { getAuthHeaders } from '../lib/apiAuth'
 import { isManagerRole } from '../lib/roles'
+import {
+  clearEventModalDraft,
+  eventModalDraftHasContent,
+  eventModalDraftMatches,
+  loadEventModalDraft,
+  resolveEventModalContext,
+  saveEventModalDraft,
+  type EventModalDraft,
+} from '../lib/eventModalDraft'
 import TimePicker from './TimePicker'
 import AddressAutocomplete from './AddressAutocomplete'
 import { X, CalendarDays, Clock, User, FileText, MapPin, Phone, Briefcase, Link, Search, DollarSign, Users } from 'lucide-react'
@@ -212,6 +221,109 @@ export default function EventModal({
     return [...ids]
   })
 
+  const draftContextInput = {
+    existingEventId: existingEvent?.id,
+    prefillLeadId: prefillLead?.id,
+  }
+  const draftRestoredRef = useRef(false)
+  const skipDraftSaveRef = useRef(true)
+
+  function handleClose() {
+    if (profile?.id) clearEventModalDraft(profile.id)
+    onClose()
+  }
+
+  useEffect(() => {
+    if (!profile?.id || draftRestoredRef.current) return
+    const draft = loadEventModalDraft(profile.id)
+    if (!draft || !eventModalDraftMatches(draft, draftContextInput)) return
+    if (!eventModalDraftHasContent(draft)) return
+
+    draftRestoredRef.current = true
+    setEventKind(draft.eventKind)
+    setTitle(draft.title)
+    setDate(draft.date)
+    setStartTime(draft.startTime)
+    setEndTime(draft.endTime)
+    setNotes(draft.notes)
+    setClientName(draft.clientName)
+    setClientPhone(draft.clientPhone)
+    setClientEmail(draft.clientEmail)
+    setClientAddress(draft.clientAddress)
+    setClientJob(draft.clientJob)
+    setJobQuote(draft.jobQuote)
+    setLinkedLeadId(draft.linkedLeadId)
+    setLinkedLeadName(draft.linkedLeadName)
+    setAssigneeId(draft.assigneeId)
+    setTeamMemberIds(draft.teamMemberIds)
+    setShowLeadSearch(draft.showLeadSearch)
+    skipDraftSaveRef.current = false
+  }, [profile?.id, existingEvent?.id, prefillLead?.id])
+
+  useEffect(() => {
+    if (!profile?.id || skipDraftSaveRef.current) {
+      skipDraftSaveRef.current = false
+      return
+    }
+
+    const draft: EventModalDraft = {
+      context: resolveEventModalContext(draftContextInput),
+      leadId: prefillLead?.id,
+      eventId: existingEvent?.id,
+      defaultDate: defaultDate || undefined,
+      eventKind,
+      title,
+      date,
+      startTime,
+      endTime,
+      notes,
+      clientName,
+      clientPhone,
+      clientEmail,
+      clientAddress,
+      clientJob,
+      jobQuote,
+      linkedLeadId,
+      linkedLeadName,
+      assigneeId,
+      teamMemberIds,
+      showLeadSearch,
+    }
+
+    if (!eventModalDraftHasContent(draft)) {
+      clearEventModalDraft(profile.id)
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      saveEventModalDraft(profile.id, draft)
+    }, 500)
+
+    return () => window.clearTimeout(timer)
+  }, [
+    profile?.id,
+    existingEvent?.id,
+    prefillLead?.id,
+    defaultDate,
+    eventKind,
+    title,
+    date,
+    startTime,
+    endTime,
+    notes,
+    clientName,
+    clientPhone,
+    clientEmail,
+    clientAddress,
+    clientJob,
+    jobQuote,
+    linkedLeadId,
+    linkedLeadName,
+    assigneeId,
+    teamMemberIds,
+    showLeadSearch,
+  ])
+
   useEffect(() => {
     if (existingEvent?.lead_id && !prefillLead) {
       supabase
@@ -235,6 +347,12 @@ export default function EventModal({
 
   useEffect(() => {
     if (prefillLead && !existingEvent) {
+      if (profile?.id) {
+        const draft = loadEventModalDraft(profile.id)
+        if (draft && eventModalDraftMatches(draft, draftContextInput) && eventModalDraftHasContent(draft)) {
+          return
+        }
+      }
       setTitle(`${prefillLead.service_type} — ${prefillLead.name}`)
       setClientName(prefillLead.name)
       setClientPhone(prefillLead.phone ?? '')
@@ -479,7 +597,7 @@ export default function EventModal({
       }
 
       onSaved()
-      onClose()
+      handleClose()
       return
     }
 
@@ -644,7 +762,7 @@ export default function EventModal({
     }
 
     onSaved()
-    onClose()
+    handleClose()
   }
 
   async function handleCancelBooking() {
@@ -676,7 +794,7 @@ export default function EventModal({
     }
 
     onSaved()
-    onClose()
+    handleClose()
   }
 
   return (
@@ -697,7 +815,7 @@ export default function EventModal({
             </h3>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
           >
             <X size={16} />
@@ -1059,7 +1177,7 @@ export default function EventModal({
 
           <div className="flex gap-3">
             <button
-              onClick={onClose}
+              onClick={handleClose}
               disabled={saving || cancelling}
               className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-semibold hover:bg-gray-50 transition-colors"
             >

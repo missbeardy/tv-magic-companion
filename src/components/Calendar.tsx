@@ -17,6 +17,10 @@ import {
 import EventModal from './EventModal'
 import BlackoutModal from './BlackoutModal'
 import { MobileResourceView } from './MobileResourceView'
+import {
+  eventModalDraftHasContent,
+  loadEventModalDraft,
+} from '../lib/eventModalDraft'
 // Converts a Date to "YYYY-MM-DDTHH:mm" using LOCAL time components.
 // .toISOString() converts to UTC, which rolls the date back a day for
 // any timezone ahead of UTC (like AEST) during early local hours.
@@ -221,6 +225,31 @@ export default function Calendar() {
       setFilterEmployee(employeeParam)
     }
   }, [searchParams, profile?.role])
+
+  useEffect(() => {
+    if (!profile?.id || showModal) return
+    const draft = loadEventModalDraft(profile.id)
+    if (!draft || !eventModalDraftHasContent(draft)) return
+
+    if (draft.context === 'calendar') {
+      if (draft.defaultDate) setDefaultDate(draft.defaultDate)
+      setShowModal(true)
+      return
+    }
+
+    if (draft.context === 'edit' && draft.eventId) {
+      supabase
+        .from('events')
+        .select('*')
+        .eq('id', draft.eventId)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (!data) return
+          setSelectedEvent(data as Event)
+          setShowModal(true)
+        })
+    }
+  }, [profile?.id, showModal])
 
   useEffect(() => {
     const checkScreenSize = () => {

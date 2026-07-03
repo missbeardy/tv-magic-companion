@@ -1,11 +1,17 @@
 // src/components/AddLeadModal.tsx
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useOrg } from '../context/OrgContext';
 import { supabase } from '../lib/supabase';
 import { alertManagersOnNewLead } from '../lib/notify';
 import { logLeadEvent } from '../lib/leadEvents';
 import { buildSoloManualLeadFields } from '../lib/soloLeadAssignment';
+import {
+  addLeadDraftHasContent,
+  clearAddLeadDraft,
+  loadAddLeadDraft,
+  saveAddLeadDraft,
+} from '../lib/addLeadDraft';
 import { X, UserPlus, Phone, Mail, MapPin, Briefcase } from 'lucide-react';
 import AddressAutocomplete from './AddressAutocomplete';
 
@@ -25,6 +31,46 @@ export default function AddLeadModal({ onClose, onCreated }: Props) {
   const [details, setDetails] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const draftRestoredRef = useRef(false);
+  const skipDraftSaveRef = useRef(true);
+
+  function handleClose() {
+    if (profile?.id) clearAddLeadDraft(profile.id);
+    onClose();
+  }
+
+  useEffect(() => {
+    if (!profile?.id || draftRestoredRef.current) return;
+    const draft = loadAddLeadDraft(profile.id);
+    if (!draft || !addLeadDraftHasContent(draft)) return;
+    draftRestoredRef.current = true;
+    setName(draft.name);
+    setPhone(draft.phone);
+    setEmail(draft.email);
+    setAddress(draft.address);
+    setServiceType(draft.serviceType);
+    setDetails(draft.details);
+    skipDraftSaveRef.current = false;
+  }, [profile?.id]);
+
+  useEffect(() => {
+    if (!profile?.id || skipDraftSaveRef.current) {
+      skipDraftSaveRef.current = false;
+      return;
+    }
+
+    const draft = { name, phone, email, address, serviceType, details };
+    if (!addLeadDraftHasContent(draft)) {
+      clearAddLeadDraft(profile.id);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      saveAddLeadDraft(profile.id, draft);
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+  }, [profile?.id, name, phone, email, address, serviceType, details]);
 
   async function handleCreate() {
     if (!name.trim()) {
@@ -73,8 +119,9 @@ export default function AddLeadModal({ onClose, onCreated }: Props) {
 
     await alertManagersOnNewLead(lead.id);
 
+    if (profile?.id) clearAddLeadDraft(profile.id);
     onCreated();
-    onClose();
+    handleClose();
   }
 
   return (
@@ -87,7 +134,7 @@ export default function AddLeadModal({ onClose, onCreated }: Props) {
             </div>
             <h3 className="font-display font-semibold text-gray-900 text-base">Add Lead</h3>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+          <button onClick={handleClose} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
             <X size={16} />
           </button>
         </div>
@@ -172,7 +219,7 @@ export default function AddLeadModal({ onClose, onCreated }: Props) {
         </div>
 
         <div className="px-6 pb-5 flex gap-3 shrink-0">
-          <button onClick={onClose} disabled={saving} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-semibold hover:bg-gray-50 transition-colors">
+          <button onClick={handleClose} disabled={saving} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-semibold hover:bg-gray-50 transition-colors">
             Cancel
           </button>
           <button onClick={handleCreate} disabled={saving} className="flex-1 py-2.5 rounded-xl bg-[#004B93] text-white text-sm font-semibold hover:bg-[#003d7a] transition-colors disabled:opacity-60">

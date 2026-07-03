@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import AssignLeadModal from './AssignLeadModal'
 import EventModal from './EventModal'
+import { useRestoreLeadBookingDraft } from '../hooks/useRestoreLeadBookingDraft'
 import { MapPin, Phone, Mail, UserPlus, Inbox } from 'lucide-react'
 import { isManagerRole } from '../lib/roles'
 
@@ -72,6 +73,14 @@ export default function LeadsList() {
 
     return () => { supabase.removeChannel(channel) }
   }, [profile])
+
+  useRestoreLeadBookingDraft(
+    profile?.id,
+    profile?.org_id,
+    leads,
+    setBookingLead,
+    bookingLead,
+  )
 
   const handleLeadClick = (leadId: string) => {
     navigate(`/leads?highlight=${leadId}`)

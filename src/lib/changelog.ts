@@ -108,11 +108,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Assign timer expiry — overdue assigned leads auto-return to pool; expired events track which tech let the lead lapse; Reports leaderboard Expired column',
     'Fix 404 on page refresh and quote links — restore SPA rewrite for browser Accept headers',
     'Stop accidental page reload when pulling down in the installed app',
+    'Form drafts persist across app interruptions — booking, add lead, and quote modals auto-reopen with your data',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.83'
+export const APP_VERSION = '1.1.84'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
