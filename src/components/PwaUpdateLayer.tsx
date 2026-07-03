@@ -9,18 +9,17 @@ import {
 import { usePwaUpdate } from '../hooks/usePwaUpdate'
 
 export default function PwaUpdateLayer({ children }: { children: React.ReactNode }) {
-  const { updateAvailable, updating, applyUpdate, checkForUpdate } = usePwaUpdate()
+  const { updateAvailable, updating, applyUpdate, acknowledgeUpdate, checkForUpdate } = usePwaUpdate()
   const [isOpen, setIsOpen] = useState(false)
-  const [updatePromptDismissed, setUpdatePromptDismissed] = useState(false)
   const [entries, setEntries] = useState(getUnseenChangelogEntries())
 
   const refreshVisibility = useCallback(() => {
     const unseen = getUnseenChangelogEntries()
     setEntries(unseen)
     const showForChangelog = shouldShowChangelog() && unseen.length > 0
-    const showForUpdate = updateAvailable && !updatePromptDismissed
+    const showForUpdate = updateAvailable
     setIsOpen(showForChangelog || showForUpdate)
-  }, [updateAvailable, updatePromptDismissed])
+  }, [updateAvailable])
 
   useEffect(() => {
     refreshVisibility()
@@ -41,13 +40,14 @@ export default function PwaUpdateLayer({ children }: { children: React.ReactNode
       markChangelogSeen(getCurrentReleaseWeekId())
     }
     if (updateAvailable) {
-      setUpdatePromptDismissed(true)
+      acknowledgeUpdate()
     }
     setIsOpen(false)
   }
 
   const handleUpdate = () => {
     markChangelogSeen(getCurrentReleaseWeekId())
+    acknowledgeUpdate()
     applyUpdate()
   }
 

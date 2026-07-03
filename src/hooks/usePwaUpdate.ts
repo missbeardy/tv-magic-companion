@@ -2,6 +2,31 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 const SW_URL = '/sw.js'
 const UPDATE_CHECK_MS = 60 * 60 * 1000
+const HANDLED_UPDATE_KEY = 'companion-pwa-update-handled'
+
+function getHandledWorkerUrl(): string | null {
+  try {
+    return localStorage.getItem(HANDLED_UPDATE_KEY)
+  } catch {
+    return null
+  }
+}
+
+function setHandledWorkerUrl(url: string): void {
+  try {
+    localStorage.setItem(HANDLED_UPDATE_KEY, url)
+  } catch {
+    // private browsing / storage blocked
+  }
+}
+
+function clearHandledWorkerUrl(): void {
+  try {
+    localStorage.removeItem(HANDLED_UPDATE_KEY)
+  } catch {
+    // ignore
+  }
+}
 
 export function usePwaUpdate() {
   const [updateAvailable, setUpdateAvailable] = useState(false)
@@ -10,10 +35,28 @@ export function usePwaUpdate() {
   const waitingWorkerRef = useRef<ServiceWorker | null>(null)
 
   const trackWaitingWorker = useCallback((reg: ServiceWorkerRegistration) => {
-    if (reg.waiting && navigator.serviceWorker.controller) {
-      waitingWorkerRef.current = reg.waiting
-      setUpdateAvailable(true)
+    const waiting = reg.waiting
+    if (!waiting || !navigator.serviceWorker.controller) {
+      if (!waiting) clearHandledWorkerUrl()
+      waitingWorkerRef.current = null
+      setUpdateAvailable(false)
+      return
     }
+
+    if (getHandledWorkerUrl() === waiting.scriptURL) {
+      waitingWorkerRef.current = waiting
+      setUpdateAvailable(false)
+      return
+    }
+
+    waitingWorkerRef.current = waiting
+    setUpdateAvailable(true)
+  }, [])
+
+  const acknowledgeUpdate = useCallback(() => {
+    const waiting = waitingWorkerRef.current ?? registrationRef.current?.waiting
+    if (waiting) setHandledWorkerUrl(waiting.scriptURL)
+    setUpdateAvailable(false)
   }, [])
 
   useEffect(() => {
@@ -84,6 +127,7 @@ export function usePwaUpdate() {
     updateAvailable,
     updating,
     applyUpdate,
+    acknowledgeUpdate,
     checkForUpdate,
     supported: 'serviceWorker' in navigator,
   }
