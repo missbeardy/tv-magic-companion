@@ -18,6 +18,18 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+@media (display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui) {
+  html,
+  body {
+    overscroll-behavior-y: none;
+  }
+
+  .overflow-y-auto,
+  .overflow-auto {
+    overscroll-behavior-y: contain;
+  }
+}
+
 #root {
   min-height: 100%;
   padding-bottom: env(safe-area-inset-bottom);
