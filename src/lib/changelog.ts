@@ -106,11 +106,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Production release — consolidated inbound pipeline, platform simulator, and email routing panel',
     'Assign lead modal guards against double-dispatch — concurrent assigns show a conflict message instead of overwriting',
     'Assign timer expiry — overdue assigned leads auto-return to pool; expired events track which tech let the lead lapse; Reports leaderboard Expired column',
+    'Fix 404 on page refresh and quote links — restore SPA rewrite for browser Accept headers',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.81'
+export const APP_VERSION = '1.1.82'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

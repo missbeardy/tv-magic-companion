@@ -38,14 +38,7 @@
       "destination": "/api/create-user?action=simulate-inbound"
     },
     {
-      "source": "/(.*)",
-      "has": [
-        {
-          "type": "header",
-          "key": "accept",
-          "value": "text/html"
-        }
-      ],
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ]
