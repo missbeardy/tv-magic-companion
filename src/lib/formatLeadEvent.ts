@@ -205,6 +205,19 @@ export function formatLeadEventDisplay(input: FormatLeadEventInput): FormattedLe
     }
   }
 
+  if (eventType === 'expired') {
+    const assigneeName = input.payload?.previous_assignee_name
+    const assignee =
+      typeof assigneeName === 'string' && assigneeName.trim() ? assigneeName.trim() : null
+    return {
+      text: assignee
+        ? `${lead} assign timer expired (${assignee} did not act in time)`
+        : meta.template(who, lead),
+      icon: meta.icon,
+      iconColour: meta.iconColour,
+    }
+  }
+
   return {
     text: meta.template(who, lead),
     icon: meta.icon,

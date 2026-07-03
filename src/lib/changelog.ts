@@ -105,11 +105,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Fix preview inbound simulator — invoke webhook handlers directly instead of self-fetch HTML',
     'Production release — consolidated inbound pipeline, platform simulator, and email routing panel',
     'Assign lead modal guards against double-dispatch — concurrent assigns show a conflict message instead of overwriting',
+    'Assign timer expiry — overdue assigned leads auto-return to pool; expired events track which tech let the lead lapse; Reports leaderboard Expired column',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.80'
+export const APP_VERSION = '1.1.81'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

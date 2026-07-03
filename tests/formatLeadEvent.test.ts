@@ -46,4 +46,13 @@ describe('formatLeadEventDisplay', () => {
     })
     expect(result.text).toBe('Alex updated Test Lead')
   })
+
+  it('formats expired assign timer with previous assignee name', () => {
+    const result = formatLeadEventDisplay({
+      eventType: 'expired',
+      leadName: 'John Smith',
+      payload: { previous_assignee_name: 'Alex Jones' },
+    })
+    expect(result.text).toBe('John Smith assign timer expired (Alex Jones did not act in time)')
+  })
 })

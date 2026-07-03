@@ -24,6 +24,7 @@ type LeaderboardSortKey =
   | 'bookings'
   | 'completed'
   | 'lost'
+  | 'expired'
   | 'bookingCancelled'
   | 'unassigned'
   | 'reviewRequests'
@@ -342,6 +343,7 @@ export default function ReportsPage() {
                           { key: 'bookings', label: 'Booked' },
                           { key: 'completed', label: 'Completed' },
                           { key: 'lost', label: 'Lost' },
+                          { key: 'expired', label: 'Expired' },
                           { key: 'bookingCancelled', label: 'Cancelled' },
                           { key: 'unassigned', label: 'Unassigned' },
                         ].map((column) => (
@@ -381,6 +383,7 @@ export default function ReportsPage() {
                           <td className="px-4 py-3 text-right text-gray-700">{row.bookings}</td>
                           <td className="px-4 py-3 text-right text-gray-700">{row.completed}</td>
                           <td className="px-4 py-3 text-right text-gray-700">{row.lost}</td>
+                          <td className="px-4 py-3 text-right text-gray-700">{row.expired}</td>
                           <td className="px-4 py-3 text-right text-gray-700">{row.bookingCancelled}</td>
                           <td className="px-4 py-3 text-right text-gray-700">{row.unassigned}</td>
                         </tr>
