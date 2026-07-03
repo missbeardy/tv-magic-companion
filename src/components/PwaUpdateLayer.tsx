@@ -48,6 +48,7 @@ export default function PwaUpdateLayer({ children }: { children: React.ReactNode
   const handleUpdate = () => {
     markChangelogSeen(getCurrentReleaseWeekId())
     acknowledgeUpdate()
+    setIsOpen(false)
     applyUpdate()
   }
 

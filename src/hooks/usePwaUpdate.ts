@@ -1,32 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  setHandledWorkerId,
+  shouldPromptForWaitingWorker,
+} from '../lib/pwaUpdateAck'
 
 const SW_URL = '/sw.js'
 const UPDATE_CHECK_MS = 60 * 60 * 1000
-const HANDLED_UPDATE_KEY = 'companion-pwa-update-handled'
-
-function getHandledWorkerUrl(): string | null {
-  try {
-    return localStorage.getItem(HANDLED_UPDATE_KEY)
-  } catch {
-    return null
-  }
-}
-
-function setHandledWorkerUrl(url: string): void {
-  try {
-    localStorage.setItem(HANDLED_UPDATE_KEY, url)
-  } catch {
-    // private browsing / storage blocked
-  }
-}
-
-function clearHandledWorkerUrl(): void {
-  try {
-    localStorage.removeItem(HANDLED_UPDATE_KEY)
-  } catch {
-    // ignore
-  }
-}
 
 export function usePwaUpdate() {
   const [updateAvailable, setUpdateAvailable] = useState(false)
@@ -37,25 +16,18 @@ export function usePwaUpdate() {
   const trackWaitingWorker = useCallback((reg: ServiceWorkerRegistration) => {
     const waiting = reg.waiting
     if (!waiting || !navigator.serviceWorker.controller) {
-      if (!waiting) clearHandledWorkerUrl()
       waitingWorkerRef.current = null
       setUpdateAvailable(false)
       return
     }
 
-    if (getHandledWorkerUrl() === waiting.scriptURL) {
-      waitingWorkerRef.current = waiting
-      setUpdateAvailable(false)
-      return
-    }
-
     waitingWorkerRef.current = waiting
-    setUpdateAvailable(true)
+    setUpdateAvailable(shouldPromptForWaitingWorker(waiting.id))
   }, [])
 
   const acknowledgeUpdate = useCallback(() => {
     const waiting = waitingWorkerRef.current ?? registrationRef.current?.waiting
-    if (waiting) setHandledWorkerUrl(waiting.scriptURL)
+    if (waiting) setHandledWorkerId(waiting.id)
     setUpdateAvailable(false)
   }, [])
 
@@ -87,8 +59,7 @@ export function usePwaUpdate() {
               installing.state === 'installed' &&
               navigator.serviceWorker.controller
             ) {
-              waitingWorkerRef.current = reg.waiting
-              setUpdateAvailable(true)
+              trackWaitingWorker(reg)
             }
           })
         })
@@ -120,8 +91,12 @@ export function usePwaUpdate() {
   }, [])
 
   const checkForUpdate = useCallback(() => {
-    registrationRef.current?.update().catch(() => {})
-  }, [])
+    const reg = registrationRef.current
+    if (!reg) return
+    reg.update()
+      .then(() => trackWaitingWorker(reg))
+      .catch(() => {})
+  }, [trackWaitingWorker])
 
   return {
     updateAvailable,

@@ -110,11 +110,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Stop accidental page reload when pulling down in the installed app',
     'Form drafts persist across app interruptions — booking, add lead, and quote modals auto-reopen with your data',
     'Fix PWA update prompt reappearing after tapping Update now or Later',
+    'Fix PWA update loop — acknowledge waiting worker by id, not reset on mount',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.85'
+export const APP_VERSION = '1.1.86'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
