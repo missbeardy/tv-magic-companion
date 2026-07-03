@@ -802,9 +802,10 @@ export default function LeadsPage() {
   }, [profile?.id, quoteFeatureEnabled, quoteLead])
 
   useEffect(() => {
+    if (!sheetLead) return
     const fresh = leads.find((l) => l.id === sheetLead.id)
     if (fresh) setSheetLead(fresh)
-  }, [leads, sheetLead?.id])
+  }, [leads, sheetLead])
 
   useEffect(() => {
     setActiveTab(getDefaultMobileTab(isSoloMode))
