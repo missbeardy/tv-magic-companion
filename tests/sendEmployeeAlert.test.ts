@@ -18,6 +18,7 @@ describe('sendEmployeeAlert', () => {
   afterEach(() => {
     process.env = env
     vi.restoreAllMocks()
+    vi.useRealTimers()
   })
 
   it('sends SMS when WhatsApp is not configured', async () => {
@@ -44,23 +45,52 @@ describe('sendEmployeeAlert', () => {
   })
 
   it('uses WhatsApp when configured and does not send SMS', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ sid: 'SMwa' }),
-    })
+    vi.useFakeTimers()
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ sid: 'SMwa' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'delivered', sid: 'SMwa' }) })
     vi.stubGlobal('fetch', fetchMock)
 
-    const result = await sendEmployeeAlertWithSmsFallback({
+    const resultPromise = sendEmployeeAlertWithSmsFallback({
       toPhone: '0412 345 678',
       smsBody: 'New lead alert',
       whatsAppMessage: { body: 'New lead alert' },
     })
+    await vi.advanceTimersByTimeAsync(5000)
+    const result = await resultPromise
 
     expect(result.sent).toBe(true)
     expect(result.channel).toBe('whatsapp')
-    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
     const body = (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string
     expect(body).toContain('whatsapp')
+  })
+
+  it('falls back to SMS when WhatsApp is accepted by Twilio but fails delivery (e.g. Meta account suspended)', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ sid: 'SMghost' }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ status: 'failed', error_code: 63024, error_message: 'Channel policy violation' }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ sid: 'SMfallback2' }) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const resultPromise = sendEmployeeAlertWithSmsFallback({
+      toPhone: '0412 345 678',
+      smsBody: 'New lead alert',
+      whatsAppMessage: { body: 'New lead alert' },
+    })
+    await vi.advanceTimersByTimeAsync(5000)
+    const result = await resultPromise
+
+    expect(result.sent).toBe(true)
+    expect(result.channel).toBe('sms')
+    expect(result.sid).toBe('SMfallback2')
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 
   it('falls back to SMS when WhatsApp fails', async () => {

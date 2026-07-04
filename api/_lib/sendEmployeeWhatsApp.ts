@@ -101,6 +101,58 @@ async function postTwilioWhatsApp(
   return { ok: twRes.ok, data: twData }
 }
 
+interface TwilioMessageStatus {
+  status?: string
+  error_code?: number | null
+  error_message?: string | null
+}
+
+async function fetchTwilioMessageStatus(
+  sid: string,
+  token: string,
+  messageSid: string
+): Promise<TwilioMessageStatus> {
+  const credentials = Buffer.from(`${sid}:${token}`).toString('base64')
+  const res = await fetch(
+    `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages/${messageSid}.json`,
+    { headers: { Authorization: `Basic ${credentials}` } }
+  )
+  return (await res.json()) as TwilioMessageStatus
+}
+
+const FAILURE_STATUSES = new Set(['failed', 'undelivered'])
+const TERMINAL_STATUSES = new Set(['delivered', 'read', 'failed', 'undelivered'])
+
+/**
+ * Twilio's initial POST only means the message was accepted into its queue —
+ * a WhatsApp Business Account suspended/restricted by Meta still gets accepted here
+ * and only fails asynchronously. Poll briefly for a terminal status before trusting "sent".
+ */
+async function waitForWhatsAppDeliveryOutcome(
+  sid: string,
+  token: string,
+  messageSid: string
+): Promise<{ failed: boolean; status?: string; errorCode?: number | null; errorMessage?: string | null }> {
+  const pollDelaysMs = [800, 1200, 1500, 1500]
+  let last: TwilioMessageStatus = {}
+  for (const delayMs of pollDelaysMs) {
+    await new Promise((resolve) => setTimeout(resolve, delayMs))
+    try {
+      last = await fetchTwilioMessageStatus(sid, token, messageSid)
+    } catch (err) {
+      console.error('Failed to poll Twilio WhatsApp delivery status:', err)
+      break
+    }
+    if (last.status && TERMINAL_STATUSES.has(last.status)) break
+  }
+  return {
+    failed: Boolean(last.status && FAILURE_STATUSES.has(last.status)),
+    status: last.status,
+    errorCode: last.error_code,
+    errorMessage: last.error_message,
+  }
+}
+
 /** Send a WhatsApp message to a team member via Twilio (not SMS). */
 export async function sendEmployeeWhatsApp(
   options: SendEmployeeWhatsAppOptions
@@ -158,6 +210,33 @@ export async function sendEmployeeWhatsApp(
         sent: false,
         error: twData.message ?? 'Twilio rejected the WhatsApp request',
         code: twData.code,
+        contentSid: sendOptions.contentSid,
+        contentVariables: sendOptions.contentVariables,
+      }
+    }
+
+    if (!twData.sid) {
+      return {
+        sent: false,
+        error: 'Twilio accepted the request but returned no message sid',
+        contentSid: sendOptions.contentSid,
+        contentVariables: sendOptions.contentVariables,
+      }
+    }
+
+    // Twilio accepted the request — confirm it actually reached the recipient
+    // before declaring success (a Meta-suspended account still gets accepted here).
+    const outcome = await waitForWhatsAppDeliveryOutcome(sid, token, twData.sid)
+    if (outcome.failed) {
+      console.warn('Twilio WhatsApp accepted but failed delivery:', outcome, {
+        contentSid: sendOptions.contentSid,
+        to,
+        from,
+      })
+      return {
+        sent: false,
+        error: outcome.errorMessage ?? `WhatsApp delivery failed (status: ${outcome.status})`,
+        code: outcome.errorCode ?? undefined,
         contentSid: sendOptions.contentSid,
         contentVariables: sendOptions.contentVariables,
       }

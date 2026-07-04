@@ -4,6 +4,11 @@
   "devCommand": "vite --port $PORT --strictPort",
   "framework": "vite",
   "outputDirectory": "dist",
+  "functions": {
+    "api/send-sms.ts": {
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
     {
       "source": "/api/cron/contact-follow-up",
