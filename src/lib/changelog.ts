@@ -50,11 +50,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Fix assignment WhatsApp/SMS — resolve assignee phone server-side and fire alert before modal closes',
     'PWA app updates — refresh icon in nav with badge when cache is stale; no more blocking update overlay',
     'Remove unused Tasks from navigation and routing',
+    'Nav refresh button reloads the app when no PWA update is pending',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.89'
+export const APP_VERSION = '1.1.90'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
