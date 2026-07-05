@@ -120,58 +120,62 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
       return
     }
 
-    await logLeadEvent({
-      leadId: lead.id,
-      orgId: profile?.org_id ?? null,
-      eventType: 'assigned',
-      note: `Lead assigned to ${employees.find((e) => e.id === employeeId)?.full_name ?? 'team member'}`,
-      actorId: profile?.id ?? null,
-      payload: {
-        assigned_to: employeeId,
-        timer_expires_at: expiresAt,
-        source: profile?.role === 'employee' ? 'self_assign' : 'manager_assign',
-      },
-    })
-
-    // Push notification (in-app)
-    await sendNotification(
-      employeeId,
-      'New Lead Assigned',
-      `You've been assigned: ${lead.name} — ${lead.service_type}`,
-      `${getPlatformUrl()}/leads`
-    )
-
-    // WhatsApp notification to technician's phone (employee alerts — not SMS)
-    const assignedEmployee = employees.find((e) => e.id === employeeId)
-    const techPhone = assignedEmployee?.phone?.trim()
-    if (techPhone) {
-      try {
-        const headers = await getAuthHeaders()
-        const waRes = await fetch('/api/send-sms', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            mode: 'tech_assignment',
-            to: techPhone,
-            leadName: lead.name,
-            serviceType: lead.service_type,
-          }),
-        })
-        const waData = await waRes.json().catch(() => ({}))
-        if (!waRes.ok) {
-          console.error('Assignment WhatsApp failed:', waData)
-        } else if (!waData.sid) {
-          console.warn('Assignment WhatsApp 200 but no Twilio sid:', waData)
-        }
-      } catch (smsErr) {
-        console.error('Tech assignment WhatsApp failed:', smsErr)
-      }
-    } else {
-      console.warn('Assignment WhatsApp skipped: no phone on assignee profile')
-    }
-
     onAssigned()
     onClose()
+
+    void (async () => {
+      try {
+        await logLeadEvent({
+          leadId: lead.id,
+          orgId: profile?.org_id ?? null,
+          eventType: 'assigned',
+          note: `Lead assigned to ${employees.find((e) => e.id === employeeId)?.full_name ?? 'team member'}`,
+          actorId: profile?.id ?? null,
+          payload: {
+            assigned_to: employeeId,
+            timer_expires_at: expiresAt,
+            source: profile?.role === 'employee' ? 'self_assign' : 'manager_assign',
+          },
+        })
+
+        await sendNotification(
+          employeeId,
+          'New Lead Assigned',
+          `You've been assigned: ${lead.name} — ${lead.service_type}`,
+          `${getPlatformUrl()}/leads`
+        )
+
+        const assignedEmployee = employees.find((e) => e.id === employeeId)
+        const techPhone = assignedEmployee?.phone?.trim()
+        if (techPhone) {
+          try {
+            const headers = await getAuthHeaders()
+            const waRes = await fetch('/api/send-sms', {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                mode: 'tech_assignment',
+                to: techPhone,
+                leadName: lead.name,
+                serviceType: lead.service_type,
+              }),
+            })
+            const waData = await waRes.json().catch(() => ({}))
+            if (!waRes.ok) {
+              console.error('Assignment WhatsApp failed:', waData)
+            } else if (!waData.sid) {
+              console.warn('Assignment WhatsApp 200 but no Twilio sid:', waData)
+            }
+          } catch (smsErr) {
+            console.error('Tech assignment WhatsApp failed:', smsErr)
+          }
+        } else {
+          console.warn('Assignment WhatsApp skipped: no phone on assignee profile')
+        }
+      } catch (err) {
+        console.error('Assignment side effects failed:', err)
+      }
+    })()
   }
 
   /** Dev-only: pre-assign as "another manager", then hit the status guard. */
