@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { useOrg } from '../context/OrgContext'
 import { useTheme } from '../context/ThemeContext'
 import NotificationBell from './NotificationBell'
+import AppRefreshButton from './AppRefreshButton'
 import MobileBottomNav from './MobileBottomNav'
 import MobileNavDrawer from './MobileNavDrawer'
 import { filterNavLinks, isDrawerRoute, isNavActive } from '../lib/navConfig'
@@ -84,6 +85,7 @@ export default function NavBar() {
             </div>
 
             <div className="flex items-center gap-0.5 md:gap-2 shrink-0">
+              <AppRefreshButton />
               <NotificationBell />
 
               <button

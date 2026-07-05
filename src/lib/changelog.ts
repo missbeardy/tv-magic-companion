@@ -48,11 +48,13 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
   items: [
     'Assign lead modal closes immediately after DB update — notifications and WhatsApp run in background',
     'Fix assignment WhatsApp/SMS — resolve assignee phone server-side and fire alert before modal closes',
+    'PWA app updates — refresh icon in nav with badge when cache is stale; no more blocking update overlay',
+    'Remove unused Tasks from navigation and routing',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.88'
+export const APP_VERSION = '1.1.89'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

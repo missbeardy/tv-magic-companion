@@ -12,9 +12,15 @@ describe('filterNavLinks', () => {
     expect(labels).toContain('Leads')
     expect(labels).toContain('Team Activity')
     expect(labels).toContain('Profile')
+    expect(labels).not.toContain('Tasks')
     expect(labels).not.toContain('Reports')
     expect(labels).not.toContain('Franchise Settings')
     expect(labels).not.toContain('Platform')
+  })
+
+  it('manager never sees Tasks in nav', () => {
+    const links = filterNavLinks('manager', allowAll)
+    expect(links.map((l) => l.label)).not.toContain('Tasks')
   })
 
   it('manager gets franchise settings when features allowed', () => {

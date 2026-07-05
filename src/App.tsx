@@ -16,7 +16,6 @@ import LeadsPage from './pages/LeadsPage'
 import SupportPage from './pages/SupportPage';
 import ProfilePage from './pages/ProfilePage'
 import SocialPage from './pages/SocialPage'
-import TaskBoardPage from './pages/TaskBoardPage'
 import ReportsPage from './pages/ReportsPage'
 import OrgSettingsPage from './pages/OrgSettingsPage'
 import PlatformAdminPage from './pages/PlatformAdminPage'
@@ -137,14 +136,6 @@ function App() {
                 element={
                   <ProtectedRoute requiredRole="manager">
                     <SocialPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/tasks"
-                element={
-                  <ProtectedRoute>
-                    <TaskBoardPage />
                   </ProtectedRoute>
                 }
               />

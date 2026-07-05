@@ -1,31 +1,15 @@
-import { Sparkles, RefreshCw, X } from 'lucide-react'
+import { Sparkles, X } from 'lucide-react'
 import type { ChangelogEntry } from '../lib/changelog'
 import { formatChangelogDate } from '../lib/changelog'
 
 interface Props {
   isOpen: boolean
   entries: ChangelogEntry[]
-  updateAvailable: boolean
-  updating: boolean
   onClose: () => void
-  onUpdate: () => void
 }
 
-export default function ChangelogOverlay({
-  isOpen,
-  entries,
-  updateAvailable,
-  updating,
-  onClose,
-  onUpdate,
-}: Props) {
-  if (!isOpen) return null
-
-  const hasChangelog = entries.length > 0
-  const title = hasChangelog ? "What's New" : 'Update Available'
-  const subtitle = hasChangelog
-    ? `Week of ${formatChangelogDate(entries[0]?.date ?? '')}`
-  : 'A newer version of the app is ready to install.'
+export default function ChangelogOverlay({ isOpen, entries, onClose }: Props) {
+  if (!isOpen || entries.length === 0) return null
 
   return (
     <div
@@ -45,17 +29,15 @@ export default function ChangelogOverlay({
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 rounded-xl bg-brand/10 flex items-center justify-center shrink-0">
-                {updateAvailable ? (
-                  <RefreshCw size={18} className="text-brand" aria-hidden="true" />
-                ) : (
-                  <Sparkles size={18} className="text-brand" aria-hidden="true" />
-                )}
+                <Sparkles size={18} className="text-brand" aria-hidden="true" />
               </div>
               <div className="min-w-0">
                 <h2 id="changelog-title" className="font-display font-bold text-gray-900 text-lg leading-tight">
-                  {title}
+                  What&apos;s New
                 </h2>
-                <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Week of {formatChangelogDate(entries[0]?.date ?? '')}
+                </p>
               </div>
             </div>
             <button
@@ -70,61 +52,33 @@ export default function ChangelogOverlay({
         </div>
 
         <div className="px-6 py-5 overflow-y-auto flex-1 space-y-5">
-          {updateAvailable && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              Tap <strong>Update now</strong> to refresh the app cache and load the latest version.
-            </div>
-          )}
-
-          {hasChangelog ? (
-            entries.map((entry) => (
-              <section key={entry.version}>
-                <div className="flex items-baseline justify-between gap-2 mb-2">
-                  <h3 className="font-display font-semibold text-gray-900 text-sm">
-                    {entry.title}
-                  </h3>
-                  <span className="text-xs text-gray-400 shrink-0">{formatChangelogDate(entry.date)}</span>
-                </div>
-                <ul className="space-y-2">
-                  {entry.items.map((item) => (
-                    <li key={item} className="flex gap-2 text-sm text-gray-600 leading-snug">
-                      <span className="text-brand-secondary shrink-0 mt-0.5" aria-hidden="true">•</span>
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))
-          ) : (
-            <p className="text-sm text-gray-600">
-              This update includes bug fixes and improvements. Update now to stay on the latest build.
-            </p>
-          )}
+          {entries.map((entry) => (
+            <section key={entry.version}>
+              <div className="flex items-baseline justify-between gap-2 mb-2">
+                <h3 className="font-display font-semibold text-gray-900 text-sm">
+                  {entry.title}
+                </h3>
+                <span className="text-xs text-gray-400 shrink-0">{formatChangelogDate(entry.date)}</span>
+              </div>
+              <ul className="space-y-2">
+                {entry.items.map((item) => (
+                  <li key={item} className="flex gap-2 text-sm text-gray-600 leading-snug">
+                    <span className="text-brand-secondary shrink-0 mt-0.5" aria-hidden="true">•</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
         </div>
 
-        <div className="px-6 pb-6 pt-2 border-t border-gray-100 shrink-0 flex flex-col gap-2">
-          {updateAvailable && (
-            <button
-              type="button"
-              onClick={onUpdate}
-              disabled={updating}
-              className="w-full py-3 rounded-xl bg-brand text-white text-sm font-semibold hover:opacity-95 transition-opacity disabled:opacity-60 flex items-center justify-center gap-2"
-            >
-              <RefreshCw size={16} className={updating ? 'animate-spin' : ''} aria-hidden="true" />
-              {updating ? 'Updating…' : 'Update now'}
-            </button>
-          )}
+        <div className="px-6 pb-6 pt-2 border-t border-gray-100 shrink-0">
           <button
             type="button"
             onClick={onClose}
-            disabled={updating}
-            className={`w-full py-3 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60 ${
-              updateAvailable
-                ? 'border border-gray-200 text-gray-600 hover:bg-gray-50'
-                : 'bg-brand text-white hover:opacity-95'
-            }`}
+            className="w-full py-3 rounded-xl bg-brand text-white text-sm font-semibold hover:opacity-95 transition-opacity"
           >
-            {updateAvailable ? 'Later' : 'Got it'}
+            Got it
           </button>
         </div>
       </div>

@@ -86,6 +86,8 @@ export function usePwaUpdate() {
       window.location.reload()
       return
     }
+    setHandledWorkerId(waiting.id)
+    setUpdateAvailable(false)
     setUpdating(true)
     waiting.postMessage({ type: 'SKIP_WAITING' })
   }, [])
