@@ -557,9 +557,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return handleInvoiceMarkPaid(req, res, auth)
   }
 
-  const { mode, to, customerName, techName, address, leadName, serviceType, leadId, dateTime, managerName } = req.body as {
+  const { mode, to, assigneeId, customerName, techName, address, leadName, serviceType, leadId, dateTime, managerName } = req.body as {
     mode?: string
-    to: string
+    to?: string
+    assigneeId?: string
     customerName?: string
     techName?: string
     address?: string
@@ -570,13 +571,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     managerName?: string
   }
 
-  if (!to && mode !== 'review_request') {
+  const hasTechAssignee = mode === 'tech_assignment' && Boolean(assigneeId?.trim())
+
+  if (!to && mode !== 'review_request' && !hasTechAssignee) {
     return res.status(400).json({ error: 'Missing required field: to' })
   }
 
   const supabaseAdmin = getSupabaseAdmin()
 
   let smsTo = to ? formatAuPhoneForSms(to) : ''
+
+  if (mode === 'tech_assignment' && assigneeId?.trim()) {
+    if (!supabaseAdmin) {
+      return res.status(503).json({ error: 'Server not configured' })
+    }
+    const { data: assignee, error: assigneeError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, org_id, phone')
+      .eq('id', assigneeId.trim())
+      .maybeSingle()
+
+    if (assigneeError || !assignee) {
+      return res.status(404).json({ error: 'Assignee not found' })
+    }
+    if (assignee.org_id !== auth.orgId) {
+      return res.status(403).json({ error: 'Assignee is outside your organisation' })
+    }
+    if (!assignee.phone?.trim()) {
+      return res.status(400).json({ error: 'Assignee has no phone on profile' })
+    }
+    smsTo = formatAuPhoneForSms(assignee.phone)
+  }
 
   // Review requests: resolve phone from lead row (avoids format mismatch in phoneBelongsToOrg).
   if (mode === 'review_request') {

@@ -47,11 +47,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
   title: 'Assign modal & pipeline polish',
   items: [
     'Assign lead modal closes immediately after DB update — notifications and WhatsApp run in background',
+    'Fix assignment WhatsApp/SMS — resolve assignee phone server-side and fire alert before modal closes',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.87'
+export const APP_VERSION = '1.1.88'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
