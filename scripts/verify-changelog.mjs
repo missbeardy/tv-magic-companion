@@ -6,10 +6,22 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 const changelogSrc = readFileSync(join(root, 'src/lib/changelog.ts'), 'utf8')
 
+function getSydneyCalendarDate(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-AU', {
+    timeZone: 'Australia/Sydney',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+  const pick = (type) => Number(parts.find((p) => p.type === type)?.value)
+  return { year: pick('year'), month: pick('month'), day: pick('day') }
+}
+
 function getCurrentReleaseWeekId(date = new Date()) {
-  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-  const day = d.getDay()
-  const daysFromMonday = day === 0 ? 6 : day - 1
+  const { year, month, day } = getSydneyCalendarDate(date)
+  const d = new Date(year, month - 1, day)
+  const weekday = d.getDay()
+  const daysFromMonday = weekday === 0 ? 6 : weekday - 1
   d.setDate(d.getDate() - daysFromMonday)
   const pad = (n) => String(n).padStart(2, '0')
   return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`
