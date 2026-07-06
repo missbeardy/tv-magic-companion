@@ -54,11 +54,13 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Remove DEFAULT_ORG_ID fallback — unmapped inbound captured in unrouted_inbound with platform alert SMS',
     'Platform simulator: Unrouted option to test capture without curl',
     'Voicemail via CloudMailin: route org from plus-tag (+default), not 3CX extension',
+    'Platform admin: Workflow Runs trace view — filterable run list, step graph, error payload panel',
+    'Platform admin: accordion sections on Platform page; inbound simulator uses create-user API route locally',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.95'
+export const APP_VERSION = '1.1.96'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

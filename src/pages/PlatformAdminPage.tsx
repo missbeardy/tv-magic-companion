@@ -6,9 +6,11 @@ import { buildBrandTransferPayload } from '../lib/brandTransfer'
 import NavBar from '../components/NavBar'
 import BrandQuoteEmailEditor from '../components/BrandQuoteEmailEditor'
 import PlatformFeatureSwitches from '../components/platform/PlatformFeatureSwitches'
+import PlatformAdminSection from '../components/platform/PlatformAdminSection'
 import InboundSimulatorPanel from '../components/platform/InboundSimulatorPanel'
 import InboundEmailRoutingPanel from '../components/platform/InboundEmailRoutingPanel'
-import { Building2, Plus, RefreshCw, ArrowRightLeft } from 'lucide-react'
+import WorkflowRunsPanel from '../components/platform/WorkflowRunsPanel'
+import { Building2, Plus, RefreshCw, ArrowRightLeft, FlaskConical, Mail, GitBranch, Palette, ToggleLeft } from 'lucide-react'
 import {
   FEATURE_SWITCH_DEFINITIONS,
   FEATURE_SWITCH_KEYS,
@@ -332,7 +334,7 @@ export default function PlatformAdminPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <NavBar />
-      <main className="max-w-4xl mx-auto px-4 py-8 space-y-8">
+      <main className="max-w-6xl mx-auto px-4 py-8 space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
@@ -358,8 +360,11 @@ export default function PlatformAdminPage() {
           <div className="bg-green-50 border border-green-200 text-green-700 text-sm p-3 rounded-xl">{success}</div>
         )}
 
-        <section className="card p-6 space-y-4">
-          <h2 className="font-semibold text-gray-800">Brand templates</h2>
+        <PlatformAdminSection id="workflow-runs" title="Workflow Runs" icon={GitBranch} defaultOpen>
+          <WorkflowRunsPanel />
+        </PlatformAdminSection>
+
+        <PlatformAdminSection id="brand-templates" title="Brand templates" icon={Palette}>
           <p className="text-xs text-gray-500">
             SMS and email templates live on the brand and are used at runtime (quote emails use{' '}
             <code className="text-[10px]">customer_quote_request_subject</code> /{' '}
@@ -393,10 +398,9 @@ export default function PlatformAdminPage() {
               ))}
             </ul>
           )}
-        </section>
+        </PlatformAdminSection>
 
-        <section className="card p-6 space-y-4">
-          <h2 className="font-semibold text-gray-800">Feature switches</h2>
+        <PlatformAdminSection id="feature-switches" title="Feature switches" icon={ToggleLeft}>
           <p className="text-xs text-gray-500">
             Tier features (Tasks, Social, Reports, AI parsing) turn on automatically when a franchise upgrades.
             Feature switches below are manual rollout controls per brand — all franchises under a brand share the same
@@ -423,14 +427,13 @@ export default function PlatformAdminPage() {
               onBrandColorsUpdated={handleBrandColorsUpdated}
             />
           )}
-        </section>
+        </PlatformAdminSection>
 
-        <InboundSimulatorPanel orgs={orgs.map((o) => ({ id: o.id, name: o.name }))} />
+        <PlatformAdminSection id="inbound-simulator" title="Inbound pipeline simulator" icon={FlaskConical}>
+          <InboundSimulatorPanel orgs={orgs.map((o) => ({ id: o.id, name: o.name }))} />
+        </PlatformAdminSection>
 
-        <section className="card p-6 space-y-4">
-          <h2 className="font-semibold text-gray-800 flex items-center gap-2">
-            <Plus size={18} /> Provision franchisee org
-          </h2>
+        <PlatformAdminSection id="provision-org" title="Provision franchisee org" icon={Plus}>
           <form onSubmit={handleCreateOrg} className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Franchisee name</label>
@@ -498,14 +501,13 @@ export default function PlatformAdminPage() {
               </button>
             </div>
           </form>
-        </section>
+        </PlatformAdminSection>
 
-        <InboundEmailRoutingPanel orgs={orgs} />
+        <PlatformAdminSection id="inbound-email" title="Inbound email routing (FieldBourne ops)" icon={Mail}>
+          <InboundEmailRoutingPanel orgs={orgs} />
+        </PlatformAdminSection>
 
-        <section className="card p-6 space-y-3">
-          <h2 className="font-semibold text-gray-800 flex items-center gap-2">
-            <ArrowRightLeft size={18} /> Brand transfer — all franchisee orgs
-          </h2>
+        <PlatformAdminSection id="brand-transfer" title="Brand transfer — all franchisee orgs" icon={ArrowRightLeft}>
           <p className="text-xs text-gray-500">
             Assign a brand and apply its template (colors + upsells). Tier is set manually here — no payment integration.
           </p>
@@ -558,7 +560,7 @@ export default function PlatformAdminPage() {
               </li>
             ))}
           </ul>
-        </section>
+        </PlatformAdminSection>
       </main>
     </div>
   )

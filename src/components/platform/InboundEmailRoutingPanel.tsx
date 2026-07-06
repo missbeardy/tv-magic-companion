@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Copy, Mail } from 'lucide-react'
+import { Copy } from 'lucide-react'
 import { buildCloudmailinPlusAddress } from '../../../shared/inboundEmailRouting'
 
 interface OrgInboundRow {
@@ -35,11 +35,7 @@ export default function InboundEmailRoutingPanel({ orgs }: InboundEmailRoutingPa
   }
 
   return (
-    <section className="card p-6 space-y-4">
-      <h2 className="font-semibold text-gray-800 flex items-center gap-2">
-        <Mail size={18} /> Inbound email routing (FieldBourne ops)
-      </h2>
-
+    <div className="space-y-4">
       <div className="text-xs text-gray-600 space-y-2 bg-slate-50 border border-slate-200 rounded-xl p-4">
         <p>
           <strong>Customer-facing:</strong> enquiries go to{' '}
@@ -104,6 +100,6 @@ export default function InboundEmailRoutingPanel({ orgs }: InboundEmailRoutingPa
           )
         })}
       </ul>
-    </section>
+    </div>
   )
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { FlaskConical } from 'lucide-react'
 import { requireAuthHeaders } from '../../lib/apiAuth'
 import { getPlatformUrl } from '../../lib/env'
+import { PLATFORM_SIMULATE_INBOUND_URL } from '../../lib/platformSimulateInbound'
 
 const UNROUTED_ORG_ID = '__unrouted__'
 
@@ -60,14 +60,34 @@ export default function InboundSimulatorPanel({ orgs }: InboundSimulatorPanelPro
 
     try {
       const headers = await requireAuthHeaders()
-      const res = await fetch('/api/platform-simulate-inbound', {
+      const res = await fetch(PLATFORM_SIMULATE_INBOUND_URL, {
         method: 'POST',
         headers,
         body: JSON.stringify({ channel, orgId, text: text.trim() }),
       })
-      const data = (await res.json()) as SimulateResponse
+      const raw = await res.text()
+      let data: SimulateResponse
+      try {
+        data = (raw ? JSON.parse(raw) : {}) as SimulateResponse
+      } catch {
+        throw new Error(
+          raw.trim()
+            ? `Simulator returned non-JSON (${res.status}). Use npm run dev:full or restart npm run dev after pulling latest.`
+            : `Simulator returned an empty response (${res.status}). API routes need npm run dev:full, or restart vite if you already have the dev plugin. Check .env.local has INBOUND_SECRET and CLOUDMAILIN_INBOUND_BASE.`
+        )
+      }
       if (!res.ok) {
-        setError(data.error || `Simulation failed (${res.status})`)
+        const handlerNote =
+          typeof data.handlerStatus === 'number' && data.handlerStatus !== res.status
+            ? ` (inbound handler ${data.handlerStatus})`
+            : ''
+        setError(data.error || `Simulation failed (${res.status})${handlerNote}`)
+        setResult(data)
+      } else if (typeof data.handlerStatus === 'number' && data.handlerStatus >= 400) {
+        setError(
+          data.error ||
+            `Inbound handler returned ${data.handlerStatus}. See raw handler response below.`
+        )
         setResult(data)
       } else {
         setResult(data)
@@ -85,10 +105,7 @@ export default function InboundSimulatorPanel({ orgs }: InboundSimulatorPanelPro
       : null
 
   return (
-    <section className="card p-6 space-y-4">
-      <h2 className="font-semibold text-gray-800 flex items-center gap-2">
-        <FlaskConical size={18} /> Inbound pipeline simulator
-      </h2>
+    <div className="space-y-4">
       <p className="text-xs text-gray-500">
         Fires a real request through the same HTTP endpoints Twilio and CloudMailin use. Leads are
         prefixed with <code className="text-[10px]">[SIMULATED TEST]</code> in the raw payload.
@@ -206,6 +223,6 @@ export default function InboundSimulatorPanel({ orgs }: InboundSimulatorPanelPro
           </div>
         </div>
       )}
-    </section>
+    </div>
   )
 }

@@ -4,10 +4,12 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { devGeocodeApiPlugin } from './scripts/devGeocodeApiPlugin.js'
+import { devPlatformSimulateApiPlugin } from './scripts/devPlatformSimulateApiPlugin.js'
 
 export default defineConfig({
   plugins: [
     devGeocodeApiPlugin(),
+    devPlatformSimulateApiPlugin(),
     react(),
     tailwindcss(),
     VitePWA({

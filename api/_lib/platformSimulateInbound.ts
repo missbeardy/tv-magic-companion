@@ -12,9 +12,9 @@ function isLocalDevHost(host: string | undefined): boolean {
   return host.includes('localhost') || host.startsWith('127.0.0.1')
 }
 
-/** On Vercel preview/prod, self-fetch hits deployment protection and returns HTML — invoke handlers directly. */
+/** Invoke handlers in-process when self-fetch would fail (deployment protection or Vite-only dev). */
 function shouldInvokeHandlerDirectly(req: VercelRequest): boolean {
-  if (isLocalDevHost(req.headers.host as string | undefined)) return false
+  if (isLocalDevHost(req.headers.host as string | undefined)) return true
   return process.env.VERCEL === '1'
 }
 

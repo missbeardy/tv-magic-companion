@@ -1,7 +1,7 @@
 {
   "name": "tv-magic-companion",
   "private": true,
-  "version": "1.1.95",
+  "version": "1.1.96",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -20,6 +20,7 @@
     "@dnd-kit/core": "^6.1.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@supabase/supabase-js": "^2.108.2",
+    "@xyflow/react": "^12.11.2",
     "canvas-confetti": "^1.9.4",
     "lucide-react": "^1.17.0",
     "react": "^19.2.6",
@@ -33,9 +34,11 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
-    "@google/stitch-sdk": "^0.1.0",
     "@eslint/js": "^10.0.1",
+    "@google/stitch-sdk": "^0.1.0",
     "@tailwindcss/vite": "^4.3.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/canvas-confetti": "^1.9.0",
     "@types/google.maps": "^3.65.0",
     "@types/node": "^24.13.1",
@@ -47,6 +50,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
+    "jsdom": "^29.1.1",
     "puppeteer": "^24.0.0",
     "tailwindcss": "^4.3.0",
     "typescript": "~6.0.2",
