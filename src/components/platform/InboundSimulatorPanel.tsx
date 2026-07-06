@@ -3,19 +3,23 @@ import { FlaskConical } from 'lucide-react'
 import { requireAuthHeaders } from '../../lib/apiAuth'
 import { getPlatformUrl } from '../../lib/env'
 
+const UNROUTED_ORG_ID = '__unrouted__'
+
 interface OrgOption {
   id: string
   name: string
 }
 
-type SimulateChannel = 'sms' | 'email' | 'voicemail'
+type SimulateChannel = 'sms' | 'email' | 'voicemail' | 'facebook' | 'instagram'
 
 interface SimulateResponse {
   simulated?: boolean
+  unrouted?: boolean
   channel?: string
-  orgId?: string
-  orgName?: string
+  orgId?: string | null
+  orgName?: string | null
   leadId?: string | null
+  unroutedCaptureId?: string | null
   handlerStatus?: number
   handlerResponse?: unknown
   handlerRaw?: string
@@ -26,6 +30,8 @@ const CHANNEL_OPTIONS: Array<{ value: SimulateChannel; label: string }> = [
   { value: 'sms', label: 'SMS' },
   { value: 'email', label: 'Email' },
   { value: 'voicemail', label: 'Voicemail' },
+  { value: 'facebook', label: 'Facebook Messenger' },
+  { value: 'instagram', label: 'Instagram DM' },
 ]
 
 interface InboundSimulatorPanelProps {
@@ -40,9 +46,13 @@ export default function InboundSimulatorPanel({ orgs }: InboundSimulatorPanelPro
   const [error, setError] = useState('')
   const [result, setResult] = useState<SimulateResponse | null>(null)
 
+  const unrouted = orgId === UNROUTED_ORG_ID
+  const metaChannel = channel === 'facebook' || channel === 'instagram'
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!orgId || !text.trim()) return
+    if (unrouted && metaChannel) return
 
     setSubmitting(true)
     setError('')
@@ -82,7 +92,8 @@ export default function InboundSimulatorPanel({ orgs }: InboundSimulatorPanelPro
       <p className="text-xs text-gray-500">
         Fires a real request through the same HTTP endpoints Twilio and CloudMailin use. Leads are
         prefixed with <code className="text-[10px]">[SIMULATED TEST]</code> in the raw payload.
-        Requires mapped phone numbers (SMS/voicemail) and inbound email tags per org.
+        Requires mapped phone numbers (SMS/voicemail) and inbound email tags per org — unless you
+        choose <strong>Unrouted</strong> to test capture + platform alert.
       </p>
 
       <form onSubmit={handleSubmit} className="grid gap-4">
@@ -94,12 +105,11 @@ export default function InboundSimulatorPanel({ orgs }: InboundSimulatorPanelPro
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
           >
             {CHANNEL_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
+              <option key={opt.value} value={opt.value} disabled={unrouted && (opt.value === 'facebook' || opt.value === 'instagram')}>
                 {opt.label}
+                {unrouted && (opt.value === 'facebook' || opt.value === 'instagram') ? ' (not for unrouted)' : ''}
               </option>
             ))}
-            <option disabled>Facebook (coming soon)</option>
-            <option disabled>WhatsApp (coming soon)</option>
           </select>
         </div>
 
@@ -114,12 +124,20 @@ export default function InboundSimulatorPanel({ orgs }: InboundSimulatorPanelPro
             <option value="" disabled>
               Select franchisee…
             </option>
+            <option value={UNROUTED_ORG_ID}>Unrouted — no org mapping (capture test)</option>
             {orgs.map((o) => (
               <option key={o.id} value={o.id}>
                 {o.name}
               </option>
             ))}
           </select>
+          {unrouted && (
+            <p className="text-xs text-amber-700 mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Uses deliberately unmapped routing (fake DID <code className="text-[10px]">+61999999999</code>{' '}
+              or bare CloudMailin address). Expect no lead, one <code className="text-[10px]">unrouted_inbound</code>{' '}
+              row, and an SMS to <code className="text-[10px]">PLATFORM_ALERT_PHONE</code>.
+            </p>
+          )}
         </div>
 
         <div>
@@ -136,10 +154,10 @@ export default function InboundSimulatorPanel({ orgs }: InboundSimulatorPanelPro
 
         <button
           type="submit"
-          disabled={submitting || !orgId}
+          disabled={submitting || !orgId || (unrouted && metaChannel)}
           className="btn-primary px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 w-fit"
         >
-          {submitting ? 'Simulating…' : 'Simulate inbound'}
+          {submitting ? 'Simulating…' : unrouted ? 'Simulate unrouted inbound' : 'Simulate inbound'}
         </button>
       </form>
 
@@ -149,6 +167,21 @@ export default function InboundSimulatorPanel({ orgs }: InboundSimulatorPanelPro
 
       {result && (
         <div className="space-y-3">
+          {result.unrouted && result.unroutedCaptureId && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 text-sm p-3 rounded-xl">
+              Captured in <code className="text-xs">unrouted_inbound</code>:{' '}
+              <code className="text-xs">{result.unroutedCaptureId}</code>
+              <p className="text-xs mt-1 text-amber-800">
+                No lead created. Check your phone for the platform alert SMS.
+              </p>
+            </div>
+          )}
+          {result.unrouted && !result.unroutedCaptureId && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 text-sm p-3 rounded-xl">
+              Handler returned OK but no recent <code className="text-xs">unrouted_inbound</code> row
+              was found — check Vercel logs.
+            </div>
+          )}
           {result.leadId && (
             <div className="bg-green-50 border border-green-200 text-green-800 text-sm p-3 rounded-xl">
               Lead created: <code className="text-xs">{result.leadId}</code>

@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
 import { resolveOrgIdFromDid } from './_lib/resolveOrgFromDid.js'
 import { resolveOrgIdFromInboundEmail } from './_lib/resolveOrgFromInboundEmail.js'
+import { captureUnroutedInbound } from './_lib/captureUnroutedInbound.js'
 import { findRecentLeadByPhone } from './_lib/inboundLeadDedup.js'
 import { formatAuPhoneForSms } from './_lib/phone.js'
 import { processInboundLead } from './_lib/processInboundLead.js'
@@ -172,6 +173,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { orgId, source } = await resolveOrgIdFromDid(supabase, metadataPreview.calledNumber)
     if (!orgId) {
       console.error('Voicemail email: no org_id resolved')
+      await captureUnroutedInbound(supabase, {
+        channel: 'voicemail',
+        identifier: metadataPreview.calledNumber,
+        reason: 'no_mapping',
+        payload: req.body,
+      })
       return res.status(200).json({ skipped: true, reason: 'no_org' })
     }
 
@@ -338,6 +345,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const orgResolution = await resolveOrgIdFromInboundEmail(supabase, req.body)
   if (orgResolution.source === 'unresolved') {
     console.error(`Inbound email: org not resolved (${orgResolution.reason})`)
+    await captureUnroutedInbound(supabase, {
+      channel: 'email',
+      identifier: orgResolution.tag,
+      reason: orgResolution.reason,
+      payload: req.body,
+    })
     return res.status(200).json({ skipped: true, reason: orgResolution.reason, tag: orgResolution.tag })
   }
   if (!orgResolution.orgId) {

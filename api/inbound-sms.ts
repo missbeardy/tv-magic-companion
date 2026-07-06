@@ -6,6 +6,7 @@ import { timingSafeEqual } from 'crypto'
 import { processInboundLead } from './_lib/processInboundLead.js'
 import { insertRawFirstLead } from './_lib/rawFirstLead.js'
 import { resolveOrgIdFromDid } from './_lib/resolveOrgFromDid.js'
+import { captureUnroutedInbound } from './_lib/captureUnroutedInbound.js'
 import { computeTwilioSignature } from './_lib/twilioSignature.js'
 
 const requests = new Map<string, { count: number; reset: number }>()
@@ -172,6 +173,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!orgId) {
       console.error('No org_id – lead rejected')
+      await captureUnroutedInbound(supabase, {
+        channel: 'sms',
+        identifier: toNumber,
+        reason: 'no_mapping',
+        payload: body,
+      })
       res.setHeader('Content-Type', 'text/xml')
       return res.status(200).send('<Response></Response>')
     }

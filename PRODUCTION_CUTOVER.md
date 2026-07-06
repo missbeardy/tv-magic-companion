@@ -82,7 +82,7 @@ Run on **https://tv-magic-companion.vercel.app** after deploy. Use real manager 
 | 7 | **Manual lead mobile** | Phone: open a lead detail | Summary/layout OK |
 | 8 | **Franchise Settings** | Org Settings → colors/logo | Save works (logo needs storage policies) |
 | 9 | **Employee login** | Log in as technician | Sees assigned + unassigned leads only (not other orgs) |
-| 10 | **Inbound path** | Submit test email/call if configured | New lead appears (uses `DEFAULT_ORG_ID` today) |
+| 10 | **Inbound path** | Submit test email/call if configured | Mapped inbound creates a lead; unmapped → `unrouted_inbound` row + platform alert SMS |
 
 **Skip for now:** Social post (#9 from preview UAT), Stripe upgrade (test in Stripe test mode first if unsure).
 

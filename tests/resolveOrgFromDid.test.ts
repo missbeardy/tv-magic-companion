@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
+import { describe, expect, it, afterEach } from 'vitest'
 import { resolveOrgIdFromDid, normalizeDidForLookup } from '../api/_lib/resolveOrgFromDid'
 
 function mockSupabase(orgId: string | null) {
@@ -22,14 +22,12 @@ describe('normalizeDidForLookup', () => {
 describe('resolveOrgIdFromDid', () => {
   const originalDefault = process.env.DEFAULT_ORG_ID
 
-  beforeEach(() => {
-    process.env.DEFAULT_ORG_ID = 'default-org-uuid'
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-  })
-
   afterEach(() => {
-    process.env.DEFAULT_ORG_ID = originalDefault
-    vi.restoreAllMocks()
+    if (originalDefault === undefined) {
+      delete process.env.DEFAULT_ORG_ID
+    } else {
+      process.env.DEFAULT_ORG_ID = originalDefault
+    }
   })
 
   it('resolves org from phone mapping', async () => {
@@ -38,19 +36,16 @@ describe('resolveOrgIdFromDid', () => {
     expect(result).toEqual({ orgId: 'org-a-uuid', source: 'phone_mapping' })
   })
 
-  it('falls back to DEFAULT_ORG_ID when no mapping', async () => {
+  it('returns unresolved when no mapping', async () => {
+    process.env.DEFAULT_ORG_ID = 'default-org-uuid'
     const supabase = mockSupabase(null)
     const result = await resolveOrgIdFromDid(supabase, '0412345678')
-    expect(result).toEqual({ orgId: 'default-org-uuid', source: 'default_org' })
-    expect(console.warn).toHaveBeenCalledWith(
-      '[ORG_RESOLUTION_FALLBACK] DID lookup missed for "0412345678" — defaulted to org default-org-uuid'
-    )
+    expect(result).toEqual({ orgId: null, source: 'unresolved' })
   })
 
-  it('returns unresolved when no mapping and no DEFAULT_ORG_ID', async () => {
-    delete process.env.DEFAULT_ORG_ID
+  it('returns unresolved when called number is empty', async () => {
     const supabase = mockSupabase(null)
-    const result = await resolveOrgIdFromDid(supabase, '0412345678')
+    const result = await resolveOrgIdFromDid(supabase, '')
     expect(result).toEqual({ orgId: null, source: 'unresolved' })
   })
 })

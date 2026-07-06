@@ -51,11 +51,13 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'PWA app updates — refresh icon in nav with badge when cache is stale; no more blocking update overlay',
     'Remove unused Tasks from navigation and routing',
     'Nav refresh button reloads the app when no PWA update is pending',
+    'Remove DEFAULT_ORG_ID fallback — unmapped inbound captured in unrouted_inbound with platform alert SMS',
+    'Platform simulator: Unrouted option to test capture without curl',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.90'
+export const APP_VERSION = '1.1.91'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

@@ -1,5 +1,7 @@
 # Sales Pipeline Backlog
 
+**Workflow reference (keep updated):** [docs/SALES_PIPELINE_WORKFLOW.md](docs/SALES_PIPELINE_WORKFLOW.md) — versioned map of customer, user, and API behaviour. Update in the same PR as any pipeline change.
+
 **Goal:** Stages 1–10 → Completed (fully automatable end-to-end)  
 **Preview:** `https://tv-magic-companion-git-feature-plat-8c5410-missbeardys-projects.vercel.app`  
 **FieldBourne org:** _(set your org id in Supabase)_  
@@ -25,7 +27,7 @@
 
 ## Now
 
-- [ ] **1.3** Verify org routing: plus-tag + DID — no accidental `DEFAULT_ORG_ID`
+- [x] **1.3** Verify org routing: plus-tag + DID — `DEFAULT_ORG_ID` fallback removed; unmapped inbound → `unrouted_inbound` + alert
 
 ---
 
@@ -35,7 +37,7 @@
 
 - [x] 1.1 Raw-first insert on all webhooks (email, SMS, voicemail paths)
 - [x] 1.2 Enable inbound switches for FieldBourne (`inbound_sms`, `inbound_email`, `inbound_calls`)
-- [ ] 1.3 Verify org routing: plus-tag + DID — no accidental `DEFAULT_ORG_ID`
+- [x] 1.3 Verify org routing: plus-tag + DID — `DEFAULT_ORG_ID` fallback removed; unmapped inbound → `unrouted_inbound` + alert
 - [ ] 1.4 Platform Admin UI for `org_phone_numbers`
 - [ ] 1.5 `POST /api/inbound-web-form`
 - [ ] 1.6 Facebook Messenger lead insert (`metaWebhook.ts`)

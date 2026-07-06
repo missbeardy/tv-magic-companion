@@ -6,10 +6,10 @@ import {
 } from '../../shared/inboundEmailRouting.js'
 
 export type InboundEmailOrgResolution =
-  | { orgId: string; tag: string | null; source: 'plus_tag' | 'default_org' }
-  | { orgId: null; tag: string | null; source: 'unresolved'; reason: string }
+  | { orgId: string; tag: string | null; source: 'plus_tag' }
+  | { orgId: null; tag: string | null; source: 'unresolved'; reason: 'unknown_tag' | 'no_tag' }
 
-/** Resolve target org from CloudMailin envelope plus-tag, with DEFAULT_ORG_ID fallback. */
+/** Resolve target org from CloudMailin envelope plus-tag. */
 export async function resolveOrgIdFromInboundEmail(
   supabase: SupabaseClient,
   body: CloudmailinInboundPayload
@@ -38,11 +38,5 @@ export async function resolveOrgIdFromInboundEmail(
     return { orgId: null, tag, source: 'unresolved', reason: 'unknown_tag' }
   }
 
-  const fallback = process.env.DEFAULT_ORG_ID
-  if (fallback) {
-    console.log('Inbound email: no plus-tag — using DEFAULT_ORG_ID')
-    return { orgId: fallback, tag: null, source: 'default_org' }
-  }
-
-  return { orgId: null, tag: null, source: 'unresolved', reason: 'no_tag_or_default' }
+  return { orgId: null, tag: null, source: 'unresolved', reason: 'no_tag' }
 }

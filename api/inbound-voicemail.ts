@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
 import { resolveOrgIdFromDid } from './_lib/resolveOrgFromDid.js'
+import { captureUnroutedInbound } from './_lib/captureUnroutedInbound.js'
 import { findRecentLeadByPhone } from './_lib/inboundLeadDedup.js'
 import { formatAuPhoneForSms } from './_lib/phone.js'
 import { processInboundLead } from './_lib/processInboundLead.js'
@@ -157,6 +158,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { orgId, source } = await resolveOrgIdFromDid(supabase, metadataPreview.calledNumber)
   if (!orgId) {
     console.error('Voicemail: no org_id resolved')
+    await captureUnroutedInbound(supabase, {
+      channel: 'voicemail',
+      identifier: metadataPreview.calledNumber,
+      reason: 'no_mapping',
+      payload: body,
+    })
     return res.status(200).json({ skipped: true, reason: 'no_org' })
   }
 

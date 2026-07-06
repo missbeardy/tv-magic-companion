@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
 import { resolveOrgIdFromDid } from './_lib/resolveOrgFromDid.js'
+import { captureUnroutedInbound } from './_lib/captureUnroutedInbound.js'
 import { findRecentLeadByPhone } from './_lib/inboundLeadDedup.js'
 import { processInboundLead } from './_lib/processInboundLead.js'
 
@@ -61,6 +62,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!orgId) {
       console.error('Inbound missed call: no org_id resolved')
+      await captureUnroutedInbound(supabase, {
+        channel: 'call',
+        identifier: payload.calledNumber,
+        reason: 'no_mapping',
+        payload,
+      })
       return res.status(200).json({ skipped: true, reason: 'no_org' })
     }
 
