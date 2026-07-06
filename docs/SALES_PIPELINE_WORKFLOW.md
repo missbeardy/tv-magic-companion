@@ -2,8 +2,8 @@
 
 | Field | Value |
 |-------|-------|
-| **Document version** | `1.0.1` |
-| **Last updated** | 03-07-2026 |
+| **Document version** | `1.0.2` |
+| **Last updated** | 07-07-2026 |
 | **Maintained by** | Update in the same PR as any pipeline behaviour change |
 
 > **Living document.** This file must stay in sync with production behaviour. See [Maintenance policy](#maintenance-policy) and [Version history](#version-history).
@@ -476,11 +476,18 @@ Logged to `lead_events` for audit and reporting (`api/_lib/leadEventTypes.ts`):
 - `tests/contactFollowUp.test.ts`, `tests/contactFollowUpCron.test.ts`
 - `tests/leadPoolPickup.test.ts`, `tests/processInboundLead.test.ts`
 
+### Platform operator trace (`/platform` → Workflow Runs)
+- **Row 1:** `workflow_runs` / `workflow_run_steps` for the `inbound_lead` pipeline (save lead → ack SMS).
+- **Row 2:** Kanban lifecycle synthesized at read time from `lead_events` + current `leads.status` for the linked `trigger_summary.lead_id` — actual path only (deduped status transitions), not a full template.
+- Bridge: dashed edge from **Ack / hookback SMS** to the first kanban node.
+- Does **not** change pipeline behaviour or add new `lead_events` on assign/book; read-only for `platform_admin` (RLS SELECT on `leads` + `lead_events`).
+
 ---
 
 ## Version history
 
 | Version | Date | Summary |
 |---------|------|---------|
+| `1.0.2` | 07-07-2026 | Document platform Workflow Runs kanban row (lead_events-derived actual path, bridge from inbound ack SMS); no pipeline behaviour change |
 | `1.0.1` | 03-07-2026 | Added `expire_overdue_leads()` migration: pg_cron every minute, full pool reset, `expired` audit events attributed to previous assignee; Reports leaderboard Expired column |
 | `1.0.0` | 03-07-2026 | Initial workflow reference: full lifecycle, status machine, field coupling, pool pickup, contact escalation, customer/user/API maps, notification matrix, maintenance policy |

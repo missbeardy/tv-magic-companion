@@ -12,6 +12,7 @@ const mockRun = {
   org_id: 'org-1',
   workflow_key: 'inbound_lead',
   trigger_channel: 'sms',
+  trigger_summary: { lead_id: 'lead-1' },
   status: 'partial',
   started_at: '2026-07-07T10:00:00.000Z',
   finished_at: '2026-07-07T10:00:05.000Z',
@@ -75,6 +76,32 @@ vi.mock('../src/lib/supabase', () => {
     ),
   }
 
+  const leadEventsQuery = {
+    eq: vi.fn().mockReturnThis(),
+    order: vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        data: [
+          {
+            id: 'evt-1',
+            lead_id: 'lead-1',
+            event_type: 'created',
+            payload: null,
+            note: null,
+            created_at: '2026-07-07T10:00:01.000Z',
+          },
+        ],
+        error: null,
+      })
+    ),
+  }
+
+  const leadsQuery = {
+    eq: vi.fn().mockReturnThis(),
+    maybeSingle: vi.fn().mockImplementation(() =>
+      Promise.resolve({ data: { status: 'unassigned' }, error: null })
+    ),
+  }
+
   return {
     supabase: {
       from: vi.fn((table: string) => {
@@ -86,6 +113,16 @@ vi.mock('../src/lib/supabase', () => {
         if (table === 'workflow_run_steps') {
           return {
             select: vi.fn(() => stepsQuery),
+          }
+        }
+        if (table === 'lead_events') {
+          return {
+            select: vi.fn(() => leadEventsQuery),
+          }
+        }
+        if (table === 'leads') {
+          return {
+            select: vi.fn(() => leadsQuery),
           }
         }
         throw new Error(`Unexpected table ${table}`)

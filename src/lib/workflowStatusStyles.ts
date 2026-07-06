@@ -31,14 +31,19 @@ export function stepStatusPillClass(status: WorkflowStepDisplayStatus): string {
   }
 }
 
-export function stepNodeClass(status: WorkflowStepDisplayStatus, selected = false): string {
+export function stepNodeClass(
+  status: WorkflowStepDisplayStatus,
+  selected = false,
+  isCurrentKanban = false
+): string {
   const base =
     'rounded-xl border px-3 py-2 text-xs font-semibold text-center min-w-[120px] max-w-[160px] cursor-pointer transition-shadow'
   const ring = selected ? ' ring-2 ring-[var(--color-primary)] ring-offset-1' : ''
+  const current = isCurrentKanban ? ' ring-2 ring-blue-400 ring-offset-1' : ''
 
   switch (status) {
     case 'succeeded':
-      return `${base} bg-green-50 border-green-200 text-green-800${ring}`
+      return `${base} bg-green-50 border-green-200 text-green-800${ring}${current}`
     case 'failed':
       return `${base} bg-red-50 border-red-200 text-red-800${ring}`
     case 'skipped':

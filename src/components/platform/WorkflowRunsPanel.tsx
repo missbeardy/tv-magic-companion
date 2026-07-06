@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { GitBranch, RefreshCw } from 'lucide-react'
 import { WORKFLOWS } from '../../../shared/workflowRegistry'
-import { formatWorkflowDuration, type WorkflowStepRow } from '../../../shared/workflowGraph'
+import { formatWorkflowDuration, parseLeadIdFromTriggerSummary, type WorkflowStepRow } from '../../../shared/workflowGraph'
+import { buildKanbanPathFromEvents, type KanbanPathNode, type LeadEventRow } from '../../../shared/kanbanLifecycle'
 import { supabase } from '../../lib/supabase'
 import WorkflowRunGraph, { findGraphNode } from './WorkflowRunGraph'
 import WorkflowRunStepDetail from './WorkflowRunStepDetail'
@@ -18,6 +19,7 @@ interface WorkflowRunRow {
   org_id: string
   workflow_key: string
   trigger_channel: string | null
+  trigger_summary: Record<string, unknown> | null
   status: WorkflowRunDisplayStatus
   started_at: string
   finished_at: string | null
@@ -65,6 +67,8 @@ export default function WorkflowRunsPanel() {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [stepRows, setStepRows] = useState<WorkflowStepRow[]>([])
   const [stepsLoading, setStepsLoading] = useState(false)
+  const [kanbanPath, setKanbanPath] = useState<KanbanPathNode[]>([])
+  const [kanbanLoading, setKanbanLoading] = useState(false)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
 
   const orgOptions = useMemo(() => {
@@ -86,8 +90,8 @@ export default function WorkflowRunsPanel() {
 
   const selectedGraphNode = useMemo(() => {
     if (!selectedRun || !selectedNodeId) return null
-    return findGraphNode(selectedRun.workflow_key, stepRows, selectedNodeId, layout)
-  }, [selectedRun, selectedNodeId, stepRows, layout])
+    return findGraphNode(selectedRun.workflow_key, stepRows, selectedNodeId, layout, kanbanPath)
+  }, [selectedRun, selectedNodeId, stepRows, layout, kanbanPath])
 
   const loadRuns = useCallback(async () => {
     setLoading(true)
@@ -96,7 +100,7 @@ export default function WorkflowRunsPanel() {
     let query = supabase
       .from('workflow_runs')
       .select(
-        'id, org_id, workflow_key, trigger_channel, status, started_at, finished_at, orgs(name)',
+        'id, org_id, workflow_key, trigger_channel, trigger_summary, status, started_at, finished_at, orgs(name)',
         { count: 'exact' }
       )
       .gte('started_at', rangeStartIso(dateRange))
@@ -120,22 +124,63 @@ export default function WorkflowRunsPanel() {
     setLoading(false)
   }, [dateRange, orgFilter, workflowFilter, statusFilter, page])
 
-  const loadSteps = useCallback(async (runId: string) => {
-    setStepsLoading(true)
-    const { data, error: queryError } = await supabase
-      .from('workflow_run_steps')
-      .select('*')
-      .eq('run_id', runId)
-      .order('seq', { ascending: true })
-
-    if (queryError) {
-      setError(queryError.message)
-      setStepRows([])
-    } else {
-      setStepRows((data ?? []) as WorkflowStepRow[])
+  const loadKanbanPath = useCallback(async (run: WorkflowRunRow) => {
+    if (run.workflow_key !== 'inbound_lead') {
+      setKanbanPath([])
+      return
     }
-    setStepsLoading(false)
+
+    const leadId = parseLeadIdFromTriggerSummary(run.trigger_summary)
+    if (!leadId) {
+      setKanbanPath([])
+      return
+    }
+
+    setKanbanLoading(true)
+    const [eventsResult, leadResult] = await Promise.all([
+      supabase
+        .from('lead_events')
+        .select('id, lead_id, event_type, payload, note, created_at, created_by')
+        .eq('lead_id', leadId)
+        .order('created_at', { ascending: true }),
+      supabase.from('leads').select('status').eq('id', leadId).maybeSingle(),
+    ])
+
+    if (eventsResult.error || leadResult.error) {
+      setError(eventsResult.error?.message ?? leadResult.error?.message ?? 'Failed to load lead trace')
+      setKanbanPath([])
+    } else {
+      setKanbanPath(
+        buildKanbanPathFromEvents(
+          (eventsResult.data ?? []) as LeadEventRow[],
+          (leadResult.data?.status as string | undefined) ?? null
+        )
+      )
+    }
+    setKanbanLoading(false)
   }, [])
+
+  const loadSteps = useCallback(
+    async (runId: string, run?: WorkflowRunRow | null) => {
+      setStepsLoading(true)
+      const { data, error: queryError } = await supabase
+        .from('workflow_run_steps')
+        .select('*')
+        .eq('run_id', runId)
+        .order('seq', { ascending: true })
+
+      if (queryError) {
+        setError(queryError.message)
+        setStepRows([])
+      } else {
+        setStepRows((data ?? []) as WorkflowStepRow[])
+      }
+      setStepsLoading(false)
+
+      if (run) void loadKanbanPath(run)
+    },
+    [loadKanbanPath]
+  )
 
   useEffect(() => {
     void loadRuns()
@@ -145,11 +190,14 @@ export default function WorkflowRunsPanel() {
     const id = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
         void loadRuns()
-        if (selectedRunId) void loadSteps(selectedRunId)
+        if (selectedRunId) {
+          const run = runs.find((r) => r.id === selectedRunId)
+          void loadSteps(selectedRunId, run ?? null)
+        }
       }
     }, POLL_MS)
     return () => window.clearInterval(id)
-  }, [loadRuns, loadSteps, selectedRunId])
+  }, [loadRuns, loadSteps, selectedRunId, runs])
 
   useEffect(() => {
     setPage(0)
@@ -158,7 +206,9 @@ export default function WorkflowRunsPanel() {
   function handleSelectRun(runId: string) {
     setSelectedRunId(runId)
     setSelectedNodeId(null)
-    void loadSteps(runId)
+    setKanbanPath([])
+    const run = runs.find((r) => r.id === runId) ?? null
+    void loadSteps(runId, run)
   }
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
@@ -166,7 +216,8 @@ export default function WorkflowRunsPanel() {
   return (
     <div className="space-y-4">
       <p className="text-xs text-gray-500">
-        Read-only trace of inbound workflow runs. List refreshes every 30 seconds while this tab is visible.
+        Read-only trace of inbound workflow runs and kanban lifecycle (from lead events). List refreshes every 30
+        seconds while this tab is visible.
       </p>
 
       <div className="flex flex-wrap items-end gap-3">
@@ -314,13 +365,20 @@ export default function WorkflowRunsPanel() {
             <GitBranch size={16} />
             Run trace — {workflowLabel(selectedRun.workflow_key)}
           </h3>
-          {stepsLoading ? (
-            <p className="text-sm text-gray-400">Loading steps…</p>
+          {stepsLoading || kanbanLoading ? (
+            <p className="text-sm text-gray-400">Loading trace…</p>
           ) : (
             <>
+              {kanbanPath.length > 0 && (
+                <p className="text-xs text-gray-500">
+                  Row 2 shows the lead&apos;s actual kanban path from lead events (dashed line bridges inbound to
+                  pipeline).
+                </p>
+              )}
               <WorkflowRunGraph
                 workflowKey={selectedRun.workflow_key}
                 stepRows={stepRows}
+                kanbanPath={kanbanPath}
                 layout={layout}
                 selectedNodeId={selectedNodeId}
                 onSelectNode={setSelectedNodeId}

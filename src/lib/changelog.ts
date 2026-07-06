@@ -56,11 +56,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Voicemail via CloudMailin: route org from plus-tag (+default), not 3CX extension',
     'Platform admin: Workflow Runs trace view — filterable run list, step graph, error payload panel',
     'Platform admin: accordion sections on Platform page; inbound simulator uses create-user API route locally',
+    'Platform admin: Workflow Runs kanban row — actual lead lifecycle path from lead events, bridged from inbound ack SMS',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.96'
+export const APP_VERSION = '1.1.97'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

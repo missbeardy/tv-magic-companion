@@ -33,14 +33,24 @@ export default function WorkflowRunStepDetail({ node, onClose }: WorkflowRunStep
   if (!node) return null
 
   const step = node.stepRow
+  const leadEvent = node.leadEvent
+  const isKanban = node.lane === 'kanban'
   const outputTruncated = hasTruncatedMarker(step?.output)
   const errorTruncated = hasTruncatedMarker(step?.error)
 
   async function copyPayload() {
-    const payload = {
-      output: step?.output ?? null,
-      error: step?.error ?? null,
-    }
+    const payload = isKanban
+      ? {
+          event_type: leadEvent?.event_type ?? null,
+          note: leadEvent?.note ?? null,
+          payload: leadEvent?.payload ?? null,
+          kanban_status: node.kanbanStatus ?? null,
+          is_current: node.isCurrentStatus ?? false,
+        }
+      : {
+          output: step?.output ?? null,
+          error: step?.error ?? null,
+        }
     try {
       await navigator.clipboard.writeText(JSON.stringify(payload, null, 2))
       setCopyState('copied')
@@ -56,7 +66,9 @@ export default function WorkflowRunStepDetail({ node, onClose }: WorkflowRunStep
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="font-semibold text-gray-800 text-sm">{node.label}</h3>
-          <p className="text-xs text-gray-400 font-mono mt-0.5">{node.nodeId}</p>
+          <p className="text-xs text-gray-400 font-mono mt-0.5">
+            {isKanban ? `kanban · ${node.kanbanStatus ?? node.nodeId}` : node.nodeId}
+          </p>
         </div>
         <button
           type="button"
@@ -69,6 +81,9 @@ export default function WorkflowRunStepDetail({ node, onClose }: WorkflowRunStep
 
       <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
         <WorkflowStepStatusPill status={node.status} />
+        {isKanban && node.isCurrentStatus && (
+          <span className="badge badge-blue">Current status</span>
+        )}
         {step && (
           <>
             <span>Started: {new Date(step.started_at).toLocaleString()}</span>
@@ -76,7 +91,13 @@ export default function WorkflowRunStepDetail({ node, onClose }: WorkflowRunStep
             <span>Duration: {formatWorkflowDuration(step.started_at, step.finished_at)}</span>
           </>
         )}
-        {!step && <span className="text-gray-400">Step not reached in this run</span>}
+        {isKanban && leadEvent && (
+          <span>Event: {new Date(leadEvent.created_at).toLocaleString()}</span>
+        )}
+        {!step && !isKanban && <span className="text-gray-400">Step not reached in this run</span>}
+        {isKanban && !leadEvent && node.isCurrentStatus && (
+          <span className="text-gray-400">Derived from current lead status</span>
+        )}
       </div>
 
       {(outputTruncated || errorTruncated) && (
@@ -85,7 +106,42 @@ export default function WorkflowRunStepDetail({ node, onClose }: WorkflowRunStep
         </div>
       )}
 
-      {step && (
+      {isKanban && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-gray-600">Lead event</p>
+            <button
+              type="button"
+              onClick={copyPayload}
+              className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-gray-200 hover:bg-gray-50"
+            >
+              <Copy size={12} />
+              {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Copy failed' : 'Copy JSON'}
+            </button>
+          </div>
+          {leadEvent ? (
+            <div className="grid gap-2 sm:grid-cols-2 text-xs text-gray-600">
+              <div>
+                <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1">Type</p>
+                <p className="font-mono">{leadEvent.event_type}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1">Note</p>
+                <p>{leadEvent.note?.trim() || '—'}</p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500">No lead event — status inferred from leads.status.</p>
+          )}
+          {leadEvent?.payload && (
+            <pre className="text-xs font-mono bg-gray-900 text-gray-100 rounded-xl p-3 overflow-auto max-h-48 whitespace-pre-wrap">
+              {prettyJson(leadEvent.payload)}
+            </pre>
+          )}
+        </div>
+      )}
+
+      {step && !isKanban && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold text-gray-600">Output / error</p>

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { buildWorkflowGraphNodes, type WorkflowStepRow } from '../shared/workflowGraph'
+import {
+  buildInboundTraceGraph,
+  buildWorkflowGraphNodes,
+  type WorkflowStepRow,
+} from '../shared/workflowGraph'
+import { buildKanbanPathFromEvents, type LeadEventRow } from '../shared/kanbanLifecycle'
 import { INBOUND_LEAD_STEP_IDS } from '../shared/workflowRegistry'
 
 function makeStep(
@@ -99,5 +104,55 @@ describe('buildWorkflowGraphNodes', () => {
 
     expect(nodes.find((n) => n.nodeId === 'extract')?.status).toBe('skipped')
     expect(nodes.find((n) => n.nodeId === 'extract')?.status).not.toBe('failed')
+  })
+})
+
+describe('buildInboundTraceGraph', () => {
+  it('adds kanban row below inbound with dashed bridge from follow_up_sms', () => {
+    const stepRows = INBOUND_LEAD_STEP_IDS.map((id, index) =>
+      makeStep(id, index + 1, 'succeeded')
+    )
+    const events: LeadEventRow[] = [
+      {
+        id: 'e1',
+        lead_id: 'lead-1',
+        event_type: 'created',
+        payload: null,
+        note: null,
+        created_at: '2026-07-07T10:00:00Z',
+      },
+      {
+        id: 'e2',
+        lead_id: 'lead-1',
+        event_type: 'assigned',
+        payload: null,
+        note: null,
+        created_at: '2026-07-07T10:05:00Z',
+      },
+    ]
+    const kanbanPath = buildKanbanPathFromEvents(events, 'assigned')
+
+    const { nodes, edges } = buildInboundTraceGraph('inbound_lead', stepRows, kanbanPath, 'horizontal')
+
+    expect(nodes.filter((n) => n.lane === 'inbound')).toHaveLength(INBOUND_LEAD_STEP_IDS.length)
+    expect(nodes.filter((n) => n.lane === 'kanban')).toHaveLength(2)
+    expect(nodes.find((n) => n.lane === 'kanban' && n.kanbanStatus === 'unassigned')?.position).toEqual({
+      x: 0,
+      y: 140,
+    })
+    expect(
+      edges.some(
+        (e) => e.source === 'follow_up_sms' && e.target === kanbanPath[0].nodeId && e.dashed === true
+      )
+    ).toBe(true)
+  })
+
+  it('returns inbound-only graph when kanban path is empty', () => {
+    const stepRows = [makeStep('insert_lead', 1, 'succeeded')]
+    const inboundOnly = buildWorkflowGraphNodes('inbound_lead', stepRows, 'horizontal')
+    const merged = buildInboundTraceGraph('inbound_lead', stepRows, [], 'horizontal')
+
+    expect(merged.nodes).toHaveLength(inboundOnly.nodes.length)
+    expect(merged.edges).toEqual(inboundOnly.edges)
   })
 })

@@ -10,11 +10,13 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import {
+  buildInboundTraceGraph,
   buildWorkflowGraphNodes,
   type WorkflowGraphLayout,
   type WorkflowGraphNode,
   type WorkflowStepRow,
 } from '../../../shared/workflowGraph'
+import type { KanbanPathNode } from '../../../shared/kanbanLifecycle'
 import { stepNodeClass } from '../../lib/workflowStatusStyles'
 
 export interface WorkflowGraphNodeData extends Record<string, unknown> {
@@ -22,6 +24,7 @@ export interface WorkflowGraphNodeData extends Record<string, unknown> {
   status: WorkflowGraphNode['status']
   selected: boolean
   layout: WorkflowGraphLayout
+  isCurrentKanban: boolean
   onSelect: (nodeId: string) => void
 }
 
@@ -34,7 +37,7 @@ function WorkflowStepNode({ id, data }: NodeProps<WorkflowStepNodeType>) {
   return (
     <button
       type="button"
-      className={stepNodeClass(data.status, data.selected)}
+      className={stepNodeClass(data.status, data.selected, data.isCurrentKanban)}
       onClick={() => data.onSelect(id)}
     >
       <Handle type="target" position={targetPos} className="!bg-gray-300 !w-2 !h-2" />
@@ -49,6 +52,7 @@ const nodeTypes = { workflowStep: WorkflowStepNode }
 interface WorkflowRunGraphProps {
   workflowKey: string
   stepRows: WorkflowStepRow[]
+  kanbanPath?: KanbanPathNode[]
   layout: WorkflowGraphLayout
   selectedNodeId: string | null
   onSelectNode: (nodeId: string) => void
@@ -57,14 +61,17 @@ interface WorkflowRunGraphProps {
 export default function WorkflowRunGraph({
   workflowKey,
   stepRows,
+  kanbanPath = [],
   layout,
   selectedNodeId,
   onSelectNode,
 }: WorkflowRunGraphProps) {
-  const graph = useMemo(
-    () => buildWorkflowGraphNodes(workflowKey, stepRows, layout),
-    [workflowKey, stepRows, layout]
-  )
+  const graph = useMemo(() => {
+    if (workflowKey === 'inbound_lead' && kanbanPath.length > 0) {
+      return buildInboundTraceGraph(workflowKey, stepRows, kanbanPath, layout)
+    }
+    return buildWorkflowGraphNodes(workflowKey, stepRows, layout)
+  }, [workflowKey, stepRows, kanbanPath, layout])
 
   const handleSelect = useCallback(
     (nodeId: string) => {
@@ -83,6 +90,7 @@ export default function WorkflowRunGraph({
           label: node.label,
           status: node.status,
           selected: selectedNodeId === node.nodeId,
+          isCurrentKanban: node.isCurrentStatus === true,
           layout,
           onSelect: handleSelect,
         },
@@ -103,6 +111,7 @@ export default function WorkflowRunGraph({
         animated: false,
         selectable: false,
         focusable: false,
+        style: edge.dashed ? { strokeDasharray: '6 4', stroke: '#94a3b8' } : undefined,
       })),
     [graph.edges]
   )
@@ -112,7 +121,11 @@ export default function WorkflowRunGraph({
   }
 
   return (
-    <div className="h-[280px] sm:h-[220px] w-full border border-gray-100 rounded-xl overflow-hidden bg-gray-50">
+    <div
+      className={`w-full border border-gray-100 rounded-xl overflow-hidden bg-gray-50 ${
+        kanbanPath.length > 0 ? 'h-[360px] sm:h-[300px]' : 'h-[280px] sm:h-[220px]'
+      }`}
+    >
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -138,8 +151,12 @@ export function findGraphNode(
   workflowKey: string,
   stepRows: WorkflowStepRow[],
   nodeId: string,
-  layout: WorkflowGraphLayout = 'horizontal'
+  layout: WorkflowGraphLayout = 'horizontal',
+  kanbanPath: KanbanPathNode[] = []
 ): WorkflowGraphNode | null {
-  const { nodes } = buildWorkflowGraphNodes(workflowKey, stepRows, layout)
+  const { nodes } =
+    workflowKey === 'inbound_lead' && kanbanPath.length > 0
+      ? buildInboundTraceGraph(workflowKey, stepRows, kanbanPath, layout)
+      : buildWorkflowGraphNodes(workflowKey, stepRows, layout)
   return nodes.find((n) => n.nodeId === nodeId) ?? null
 }

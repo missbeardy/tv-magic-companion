@@ -1,6 +1,8 @@
+import type { KanbanPathNode } from './kanbanLifecycle.js'
 import { WORKFLOWS } from './workflowRegistry.js'
 
 export type WorkflowStepRowStatus = 'succeeded' | 'failed' | 'skipped'
+export type WorkflowGraphLane = 'inbound' | 'kanban'
 
 export interface WorkflowStepRow {
   id: string
@@ -24,12 +26,17 @@ export interface WorkflowGraphNode {
   status: WorkflowGraphNodeStatus
   stepRow: WorkflowStepRow | null
   position: { x: number; y: number }
+  lane?: WorkflowGraphLane
+  leadEvent?: KanbanPathNode['event']
+  isCurrentStatus?: boolean
+  kanbanStatus?: string
 }
 
 export interface WorkflowGraphEdge {
   id: string
   source: string
   target: string
+  dashed?: boolean
 }
 
 export interface WorkflowGraphResult {
@@ -39,6 +46,9 @@ export interface WorkflowGraphResult {
 
 const HORIZONTAL_GAP = 200
 const VERTICAL_GAP = 120
+const KANBAN_ROW_OFFSET_Y = 140
+const KANBAN_ROW_OFFSET_X = 220
+const BRIDGE_SOURCE_NODE_ID = 'follow_up_sms'
 
 function stepStatusFromRow(row: WorkflowStepRow | undefined): WorkflowGraphNodeStatus {
   if (!row) return 'unreached'
@@ -128,6 +138,65 @@ export function buildWorkflowGraphNodes(
   return {
     nodes,
     edges: buildEdges(nodes.map((n) => n.nodeId)),
+  }
+}
+
+export function parseLeadIdFromTriggerSummary(summary: unknown): string | null {
+  if (!summary || typeof summary !== 'object') return null
+  const id = (summary as Record<string, unknown>).lead_id
+  return typeof id === 'string' && id.length > 0 ? id : null
+}
+
+/** Merge inbound workflow steps (row 1) with kanban lifecycle path (row 2). */
+export function buildInboundTraceGraph(
+  workflowKey: string,
+  stepRows: WorkflowStepRow[],
+  kanbanPath: KanbanPathNode[],
+  layout: WorkflowGraphLayout = 'horizontal'
+): WorkflowGraphResult {
+  const inbound = buildWorkflowGraphNodes(workflowKey, stepRows, layout)
+  const inboundNodes: WorkflowGraphNode[] = inbound.nodes.map((node) => ({
+    ...node,
+    lane: 'inbound' as const,
+  }))
+
+  if (kanbanPath.length === 0) {
+    return { nodes: inboundNodes, edges: inbound.edges }
+  }
+
+  const kanbanNodes: WorkflowGraphNode[] = kanbanPath.map((item, index) => ({
+    nodeId: item.nodeId,
+    label: item.label,
+    status: 'succeeded',
+    stepRow: null,
+    lane: 'kanban',
+    leadEvent: item.event,
+    isCurrentStatus: item.isCurrent,
+    kanbanStatus: item.status,
+    position:
+      layout === 'horizontal'
+        ? { x: index * HORIZONTAL_GAP, y: KANBAN_ROW_OFFSET_Y }
+        : { x: KANBAN_ROW_OFFSET_X, y: index * VERTICAL_GAP },
+  }))
+
+  const edges: WorkflowGraphEdge[] = [...inbound.edges, ...buildEdges(kanbanPath.map((n) => n.nodeId))]
+
+  const bridgeSource = inboundNodes.some((n) => n.nodeId === BRIDGE_SOURCE_NODE_ID)
+    ? BRIDGE_SOURCE_NODE_ID
+    : inboundNodes[inboundNodes.length - 1]?.nodeId
+
+  if (bridgeSource && kanbanNodes[0]) {
+    edges.push({
+      id: `${bridgeSource}->${kanbanNodes[0].nodeId}`,
+      source: bridgeSource,
+      target: kanbanNodes[0].nodeId,
+      dashed: true,
+    })
+  }
+
+  return {
+    nodes: [...inboundNodes, ...kanbanNodes],
+    edges,
   }
 }
 
