@@ -3,8 +3,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import './_lib/loadLocalEnv.js'
 import { createClient } from '@supabase/supabase-js'
 import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
-import { resolveOrgIdFromDid } from './_lib/resolveOrgFromDid.js'
-import { resolveOrgIdFromInboundEmail } from './_lib/resolveOrgFromInboundEmail.js'
+import { resolveOrgIdFromInboundEmail, resolveOrgIdFromCloudmailinWebhook } from './_lib/resolveOrgFromInboundEmail.js'
 import { captureUnroutedInbound } from './_lib/captureUnroutedInbound.js'
 import { findRecentLeadByPhone } from './_lib/inboundLeadDedup.js'
 import { formatAuPhoneForSms } from './_lib/phone.js'
@@ -170,17 +169,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (voicemailAttachment) {
     const metadataPreview = extractVoicemailMetadata(subject, emailText)
-    const { orgId, source } = await resolveOrgIdFromDid(supabase, metadataPreview.calledNumber)
-    if (!orgId) {
-      console.error('Voicemail email: no org_id resolved')
+    const orgResolution = await resolveOrgIdFromCloudmailinWebhook(
+      supabase,
+      req.body,
+      metadataPreview.calledNumber
+    )
+    if (orgResolution.source === 'unresolved') {
+      console.error(`Voicemail email: org not resolved (${orgResolution.reason})`)
       await captureUnroutedInbound(supabase, {
         channel: 'voicemail',
-        identifier: metadataPreview.calledNumber,
-        reason: 'no_mapping',
+        identifier: orgResolution.tag ?? metadataPreview.calledNumber,
+        reason:
+          orgResolution.reason === 'no_tag' || orgResolution.reason === 'unknown_tag'
+            ? orgResolution.reason
+            : 'no_mapping',
         payload: req.body,
       })
       return res.status(200).json({ skipped: true, reason: 'no_org' })
     }
+    const orgId = orgResolution.orgId
 
     const callsEnabled = await isFeatureEnabledForOrg(orgId, 'inbound_calls')
     if (!callsEnabled) {
