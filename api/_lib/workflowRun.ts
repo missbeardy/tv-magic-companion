@@ -15,9 +15,9 @@ export interface WorkflowRunRecorder {
     nodeId: string,
     status: WorkflowStepStatus,
     opts?: { output?: Record<string, unknown>; error?: unknown }
-  ): void
-  attachLead(leadId: string): void
-  finish(status: Exclude<WorkflowRunStatus, 'running'>): void
+  ): Promise<void>
+  attachLead(leadId: string): Promise<void>
+  finish(status: Exclude<WorkflowRunStatus, 'running'>): Promise<void>
 }
 
 export interface StartWorkflowRunInput {
@@ -141,148 +141,130 @@ function logFailure(context: string, err: unknown): void {
 }
 
 const noopRecorder: WorkflowRunRecorder = {
-  step() {},
-  attachLead() {},
-  finish() {},
+  async step() {},
+  async attachLead() {},
+  async finish() {},
 }
 
 export const NOOP_RECORDER: WorkflowRunRecorder = noopRecorder
 
-export function startWorkflowRun(
+function createRecorder(
   supabase: SupabaseClient,
-  input: StartWorkflowRunInput
+  runId: string
 ): WorkflowRunRecorder {
-  if (isLoggingDisabled()) return noopRecorder
-
-  let runId: string | null = null
   let seq = 0
   let finished = false
-  let pendingStart = Promise.resolve()
-
-  const startPromise = (async () => {
-    try {
-      const summary = input.triggerSummary
-        ? truncateWorkflowJson(input.triggerSummary)
-        : null
-
-      const { data, error } = await supabase
-        .from('workflow_runs')
-        .insert({
-          org_id: input.orgId,
-          workflow_key: input.workflowKey,
-          trigger_channel: input.triggerChannel ?? null,
-          trigger_summary: summary,
-          status: 'running',
-        })
-        .select('id')
-        .single()
-
-      if (error || !data?.id) {
-        logFailure('initial insert', error ?? 'no id returned')
-        return
-      }
-      runId = data.id
-    } catch (err) {
-      logFailure('initial insert', err)
-    }
-  })()
-
-  pendingStart = startPromise
-
-  const ensureRunId = async (): Promise<string | null> => {
-    await pendingStart
-    return runId
-  }
 
   return {
-    step(nodeId, status, opts = {}) {
-      const output = opts.output ? truncateWorkflowJson(opts.output) : null
-      const error = opts.error ? normalizeError(opts.error) : null
-      const stepSeq = ++seq
-      const startedAt = new Date().toISOString()
+    async step(nodeId, status, opts = {}) {
+      try {
+        const output = opts.output ? truncateWorkflowJson(opts.output) : null
+        const error = opts.error ? normalizeError(opts.error) : null
+        const stepSeq = ++seq
+        const startedAt = new Date().toISOString()
 
-      void (async () => {
-        try {
-          const id = await ensureRunId()
-          if (!id) return
+        const { error: insertErr } = await supabase.from('workflow_run_steps').insert({
+          run_id: runId,
+          node_id: nodeId,
+          seq: stepSeq,
+          status,
+          output,
+          error,
+          started_at: startedAt,
+          finished_at: new Date().toISOString(),
+        })
 
-          const { error: insertErr } = await supabase.from('workflow_run_steps').insert({
-            run_id: id,
-            node_id: nodeId,
-            seq: stepSeq,
-            status,
-            output,
-            error,
-            started_at: startedAt,
-            finished_at: new Date().toISOString(),
-          })
-
-          if (insertErr) logFailure(`step ${nodeId}`, insertErr)
-        } catch (err) {
-          logFailure(`step ${nodeId}`, err)
-        }
-      })()
+        if (insertErr) logFailure(`step ${nodeId}`, insertErr)
+      } catch (err) {
+        logFailure(`step ${nodeId}`, err)
+      }
     },
 
-    attachLead(leadId) {
-      void (async () => {
-        try {
-          const id = await ensureRunId()
-          if (!id) return
+    async attachLead(leadId) {
+      try {
+        const { data: row, error: fetchErr } = await supabase
+          .from('workflow_runs')
+          .select('trigger_summary')
+          .eq('id', runId)
+          .single()
 
-          const { data: row, error: fetchErr } = await supabase
-            .from('workflow_runs')
-            .select('trigger_summary')
-            .eq('id', id)
-            .single()
-
-          if (fetchErr) {
-            logFailure('attachLead fetch', fetchErr)
-            return
-          }
-
-          const merged = {
-            ...(typeof row?.trigger_summary === 'object' && row.trigger_summary !== null
-              ? (row.trigger_summary as Record<string, unknown>)
-              : {}),
-            lead_id: leadId,
-          }
-
-          const { error: updateErr } = await supabase
-            .from('workflow_runs')
-            .update({ trigger_summary: truncateWorkflowJson(merged) })
-            .eq('id', id)
-
-          if (updateErr) logFailure('attachLead update', updateErr)
-        } catch (err) {
-          logFailure('attachLead', err)
+        if (fetchErr) {
+          logFailure('attachLead fetch', fetchErr)
+          return
         }
-      })()
+
+        const merged = {
+          ...(typeof row?.trigger_summary === 'object' && row.trigger_summary !== null
+            ? (row.trigger_summary as Record<string, unknown>)
+            : {}),
+          lead_id: leadId,
+        }
+
+        const { error: updateErr } = await supabase
+          .from('workflow_runs')
+          .update({ trigger_summary: truncateWorkflowJson(merged) })
+          .eq('id', runId)
+
+        if (updateErr) logFailure('attachLead update', updateErr)
+      } catch (err) {
+        logFailure('attachLead', err)
+      }
     },
 
-    finish(status) {
+    async finish(status) {
       if (finished) return
       finished = true
 
-      void (async () => {
-        try {
-          const id = await ensureRunId()
-          if (!id) return
+      try {
+        const { error: updateErr } = await supabase
+          .from('workflow_runs')
+          .update({
+            status,
+            finished_at: new Date().toISOString(),
+          })
+          .eq('id', runId)
 
-          const { error: updateErr } = await supabase
-            .from('workflow_runs')
-            .update({
-              status,
-              finished_at: new Date().toISOString(),
-            })
-            .eq('id', id)
-
-          if (updateErr) logFailure('finish', updateErr)
-        } catch (err) {
-          logFailure('finish', err)
-        }
-      })()
+        if (updateErr) logFailure('finish', updateErr)
+      } catch (err) {
+        logFailure('finish', err)
+      }
     },
+  }
+}
+
+/** Awaited start — required so Vercel does not freeze before writes complete. */
+export async function startWorkflowRun(
+  supabase: SupabaseClient,
+  input: StartWorkflowRunInput
+): Promise<WorkflowRunRecorder> {
+  if (isLoggingDisabled()) return noopRecorder
+
+  try {
+    const summary = input.triggerSummary
+      ? truncateWorkflowJson(input.triggerSummary)
+      : null
+
+    const { data, error } = await supabase
+      .from('workflow_runs')
+      .insert({
+        org_id: input.orgId,
+        workflow_key: input.workflowKey,
+        trigger_channel: input.triggerChannel ?? null,
+        trigger_summary: summary,
+        status: 'running',
+      })
+      .select('id')
+      .single()
+
+    if (error || !data?.id) {
+      logFailure('initial insert', error ?? 'no id returned')
+      return noopRecorder
+    }
+
+    return createRecorder(supabase, data.id)
+  } catch (err) {
+    logFailure('initial insert', err)
+    return noopRecorder
   }
 }
 

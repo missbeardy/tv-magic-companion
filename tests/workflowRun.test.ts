@@ -97,60 +97,55 @@ describe('startWorkflowRun', () => {
     }
   })
 
-  it('returns no-op recorder when kill switch is enabled', () => {
+  it('returns no-op recorder when kill switch is enabled', async () => {
     process.env.WORKFLOW_RUN_LOGGING_DISABLED = 'true'
     const { supabase } = mockSupabaseForRun({})
-    const recorder = startWorkflowRun(supabase as never, {
+    const recorder = await startWorkflowRun(supabase as never, {
       workflowKey: 'inbound_lead',
       orgId: 'org-1',
     })
     expect(recorder).toBe(NOOP_RECORDER)
-    recorder.step('insert_lead', 'succeeded')
-    recorder.finish('succeeded')
+    await recorder.step('insert_lead', 'succeeded')
+    await recorder.finish('succeeded')
   })
 
   it('degrades to no-op when initial insert fails', async () => {
     const { supabase } = mockSupabaseForRun({ insertError: { message: 'db down' } })
-    const recorder = startWorkflowRun(supabase as never, {
+    const recorder = await startWorkflowRun(supabase as never, {
       workflowKey: 'inbound_lead',
       orgId: 'org-1',
     })
 
-    recorder.step('insert_lead', 'succeeded')
-    recorder.attachLead('lead-1')
-    recorder.finish('succeeded')
-
-    await new Promise((r) => setTimeout(r, 20))
-    expect(() => recorder.step('created_event', 'failed')).not.toThrow()
+    await recorder.step('insert_lead', 'succeeded')
+    await recorder.attachLead('lead-1')
+    await recorder.finish('succeeded')
+    expect(recorder).toBe(NOOP_RECORDER)
   })
 
   it('step insert failure does not throw', async () => {
     const { supabase, steps } = mockSupabaseForRun({
       stepInsertError: { message: 'step failed' },
     })
-    const recorder = startWorkflowRun(supabase as never, {
+    const recorder = await startWorkflowRun(supabase as never, {
       workflowKey: 'inbound_lead',
       orgId: 'org-1',
     })
 
-    expect(() => recorder.step('insert_lead', 'succeeded')).not.toThrow()
-    await new Promise((r) => setTimeout(r, 30))
+    await expect(recorder.step('insert_lead', 'succeeded')).resolves.toBeUndefined()
     expect(steps).toHaveLength(0)
   })
 
   it('finish sets run status', async () => {
     const { supabase, runUpdates } = mockSupabaseForRun({})
-    const recorder = startWorkflowRun(supabase as never, {
+    const recorder = await startWorkflowRun(supabase as never, {
       workflowKey: 'inbound_lead',
       orgId: 'org-1',
       triggerChannel: 'sms',
       triggerSummary: { identifier: '+611234', source: 'sms' },
     })
 
-    recorder.step('insert_lead', 'succeeded')
-    recorder.finish('partial')
-
-    await new Promise((r) => setTimeout(r, 30))
+    await recorder.step('insert_lead', 'succeeded')
+    await recorder.finish('partial')
 
     const finishUpdate = runUpdates.find((u) => u.status === 'partial')
     expect(finishUpdate).toBeDefined()

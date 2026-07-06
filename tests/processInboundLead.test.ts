@@ -12,15 +12,21 @@ vi.mock('../api/_lib/missedCallHookbackSms.js', () => ({
   sendMissedCallHookbackIfEnabled: vi.fn().mockResolvedValue(true),
 }))
 
-const mockRecorder = {
-  step: vi.fn(),
-  attachLead: vi.fn(),
-  finish: vi.fn(),
-}
+const { mockRecorder } = vi.hoisted(() => ({
+  mockRecorder: {
+    step: vi.fn().mockResolvedValue(undefined),
+    attachLead: vi.fn().mockResolvedValue(undefined),
+    finish: vi.fn().mockResolvedValue(undefined),
+  },
+}))
 
 vi.mock('../api/_lib/workflowRun.js', () => ({
-  NOOP_RECORDER: { step: vi.fn(), attachLead: vi.fn(), finish: vi.fn() },
-  startWorkflowRun: vi.fn(() => mockRecorder),
+  NOOP_RECORDER: {
+    step: vi.fn().mockResolvedValue(undefined),
+    attachLead: vi.fn().mockResolvedValue(undefined),
+    finish: vi.fn().mockResolvedValue(undefined),
+  },
+  startWorkflowRun: vi.fn().mockResolvedValue(mockRecorder),
 }))
 
 import { processInboundLead } from '../api/_lib/processInboundLead'

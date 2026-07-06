@@ -97,7 +97,7 @@ export async function processInboundLead(
   } = input
 
   const recorder: WorkflowRunRecorder = run
-    ? startWorkflowRun(supabase, {
+    ? await startWorkflowRun(supabase, {
         workflowKey: run.workflowKey,
         orgId,
         triggerChannel: run.triggerChannel,
@@ -106,24 +106,24 @@ export async function processInboundLead(
     : NOOP_RECORDER
 
   let runFinished = false
-  const finishRun = (status: 'succeeded' | 'partial' | 'failed') => {
+  const finishRun = async (status: 'succeeded' | 'partial' | 'failed') => {
     if (runFinished) return
     runFinished = true
-    recorder.finish(status)
+    await recorder.finish(status)
   }
 
   let leadId: string
   try {
     const insertResult = await insertLead()
     leadId = insertResult.id
-    recorder.step('insert_lead', 'succeeded')
+    await recorder.step('insert_lead', 'succeeded')
   } catch (insertErr) {
-    recorder.step('insert_lead', 'failed', { error: insertErr })
-    finishRun('failed')
+    await recorder.step('insert_lead', 'failed', { error: insertErr })
+    await finishRun('failed')
     throw insertErr
   }
 
-  recorder.attachLead(leadId)
+  await recorder.attachLead(leadId)
 
   let extraction: ProcessInboundLeadExtractionResult | null = null
   let savedLead: SavedLeadRow | null = null
@@ -138,48 +138,48 @@ export async function processInboundLead(
       note: createdEvent.note,
       payload: createdEvent.payload,
     })
-    recorder.step('created_event', createdErr ? 'failed' : 'succeeded', {
+    await recorder.step('created_event', createdErr ? 'failed' : 'succeeded', {
       error: createdErr ?? undefined,
     })
 
     if (extract) {
       try {
         extraction = (await extract(leadId)) ?? null
-        recorder.step('extract', 'succeeded')
+        await recorder.step('extract', 'succeeded')
       } catch (extractErr) {
-        recorder.step('extract', 'failed', { error: extractErr })
+        await recorder.step('extract', 'failed', { error: extractErr })
         throw extractErr
       }
 
       if (extraction?.updateFields) {
         try {
           await updateLeadFromExtraction(supabase, leadId, extraction.updateFields)
-          recorder.step('apply_extraction', 'succeeded')
+          await recorder.step('apply_extraction', 'succeeded')
         } catch (updateErr) {
           console.error(`${logLabel} extraction update failed:`, updateErr)
-          recorder.step('apply_extraction', 'failed', { error: updateErr })
+          await recorder.step('apply_extraction', 'failed', { error: updateErr })
           partial = true
         }
       } else {
-        recorder.step('apply_extraction', 'skipped')
+        await recorder.step('apply_extraction', 'skipped')
       }
 
       if (extraction?.afterUpdate) {
         try {
           await extraction.afterUpdate(leadId)
-          recorder.step('after_extraction', 'succeeded')
+          await recorder.step('after_extraction', 'succeeded')
         } catch (afterErr) {
           console.error(`${logLabel} post-extraction update failed:`, afterErr)
-          recorder.step('after_extraction', 'failed', { error: afterErr })
+          await recorder.step('after_extraction', 'failed', { error: afterErr })
           partial = true
         }
       } else {
-        recorder.step('after_extraction', 'skipped')
+        await recorder.step('after_extraction', 'skipped')
       }
     } else {
-      recorder.step('extract', 'skipped')
-      recorder.step('apply_extraction', 'skipped')
-      recorder.step('after_extraction', 'skipped')
+      await recorder.step('extract', 'skipped')
+      await recorder.step('apply_extraction', 'skipped')
+      await recorder.step('after_extraction', 'skipped')
     }
 
     const { data } = await supabase
@@ -188,7 +188,7 @@ export async function processInboundLead(
       .eq('id', leadId)
       .single()
     savedLead = data
-    recorder.step('fetch_saved_lead', 'succeeded')
+    await recorder.step('fetch_saved_lead', 'succeeded')
 
     const ctx: ProcessInboundLeadContext = {
       leadId,
@@ -206,10 +206,10 @@ export async function processInboundLead(
         service_type: notifyPayload.service_type,
         status: notifyPayload.status,
       })
-      recorder.step('notify_managers', 'succeeded')
+      await recorder.step('notify_managers', 'succeeded')
     } catch (notifyErr) {
       console.error(`Manager notification failed for ${logLabel}:`, notifyErr)
-      recorder.step('notify_managers', 'failed', { error: notifyErr })
+      await recorder.step('notify_managers', 'failed', { error: notifyErr })
       partial = true
     }
 
@@ -236,29 +236,29 @@ export async function processInboundLead(
             })
             sent = hookbackSent
           }
-          recorder.step('follow_up_sms', 'succeeded', {
+          await recorder.step('follow_up_sms', 'succeeded', {
             output: { type: followUp.type, sent },
           })
         } catch (followUpErr) {
           console.error(`${logLabel} follow-up SMS failed:`, followUpErr)
-          recorder.step('follow_up_sms', 'failed', {
+          await recorder.step('follow_up_sms', 'failed', {
             error: followUpErr,
             output: { type: followUp.type, sent: false },
           })
           partial = true
         }
       } else {
-        recorder.step('follow_up_sms', 'skipped')
+        await recorder.step('follow_up_sms', 'skipped')
       }
     } else {
-      recorder.step('follow_up_sms', 'skipped')
+      await recorder.step('follow_up_sms', 'skipped')
     }
   } catch (postInsertErr) {
     console.error(`${logLabel} post-save processing error:`, postInsertErr)
     partial = true
   } finally {
     if (!runFinished) {
-      finishRun(partial ? 'partial' : 'succeeded')
+      await finishRun(partial ? 'partial' : 'succeeded')
     }
   }
 
