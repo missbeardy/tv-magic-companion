@@ -322,6 +322,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             resolveCustomerName: ({ savedLead }) => savedLead?.name || 'there',
           },
           logLabel: 'voicemail email',
+          run: {
+            workflowKey: 'inbound_lead',
+            triggerChannel: 'voicemail',
+            triggerSummary: {
+              identifier: orgResolution.tag ?? metadataPreview.calledNumber,
+              source: 'phone',
+            },
+          },
         })
       } catch (insertErr) {
         console.error('Voicemail raw-first insert failed:', insertErr)
@@ -436,6 +444,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           resolveCustomerName: ({ savedLead }) => savedLead?.name || senderName,
         },
         logLabel: 'inbound email',
+        run: {
+          workflowKey: 'inbound_lead',
+          triggerChannel: 'email',
+          triggerSummary: { identifier: orgResolution.tag, source: 'email' },
+        },
       })
     } catch (insertErr) {
       console.error('Email raw-first insert failed:', insertErr)

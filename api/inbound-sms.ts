@@ -246,6 +246,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           resolveCustomerName: () => parsedForAck.customer_name || 'there',
         },
         logLabel: 'inbound SMS',
+        run: {
+          workflowKey: 'inbound_lead',
+          triggerChannel: 'sms',
+          triggerSummary: { identifier: toNumber, source: 'sms' },
+        },
       })
       leadId = result.leadId
     } catch (insertErr) {

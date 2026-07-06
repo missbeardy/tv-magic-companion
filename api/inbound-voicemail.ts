@@ -303,6 +303,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           resolveCustomerName: ({ savedLead }) => savedLead?.name || 'there',
         },
         logLabel: 'inbound voicemail',
+        run: {
+          workflowKey: 'inbound_lead',
+          triggerChannel: 'voicemail',
+          triggerSummary: { identifier: metadataPreview.calledNumber, source: 'phone' },
+        },
       })
     } catch (insertErr) {
       console.error('Voicemail raw-first insert failed:', insertErr)

@@ -147,6 +147,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           resolveCustomerName: () => 'there',
         },
         logLabel: 'missed call',
+        run: {
+          workflowKey: 'inbound_lead',
+          triggerChannel: 'call',
+          triggerSummary: { identifier: payload.calledNumber, source: '3cx_missed_call' },
+        },
       })
     } catch (insertErr) {
       return res.status(500).json({ error: 'Failed to create lead' })

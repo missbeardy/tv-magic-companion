@@ -10,6 +10,7 @@ import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
 import { acceptQuoteByToken, createQuote, getQuoteByToken } from './_lib/quotes.js'
 import { createAndSendInvoice, markInvoicePaid } from './_lib/invoices.js'
 import { runContactFollowUpCron } from './_lib/runContactFollowUpCron.js'
+import { purgeOldWorkflowRuns } from './_lib/workflowRun.js'
 import { loadLocalEnvIfNeeded } from './_lib/loadLocalEnv.js'
 import { notifyOrgUser } from './_lib/notifyUser.js'
 import { sendEmployeeAlertWithSmsFallback } from './_lib/sendEmployeeAlert.js'
@@ -498,7 +499,13 @@ async function handleContactFollowUpCron(req: VercelRequest, res: VercelResponse
 
   try {
     const result = await runContactFollowUpCron(supabase)
-    return res.status(200).json({ ok: true, ...result })
+    let workflowPurge = { deleted: 0 }
+    try {
+      workflowPurge = await purgeOldWorkflowRuns(supabase)
+    } catch (purgeErr) {
+      console.error('[WORKFLOW_RUN_LOG_FAILED] workflow purge failed:', purgeErr)
+    }
+    return res.status(200).json({ ok: true, ...result, workflowPurge })
   } catch (err) {
     console.error('contact-follow-up cron failed:', err)
     return res.status(500).json({
