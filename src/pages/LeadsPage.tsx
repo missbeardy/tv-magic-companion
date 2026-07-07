@@ -43,7 +43,7 @@ import { buildPoolPickupUpdate, shouldPoolPickup, type PoolPickupSource } from '
 import { isReviewRequestEligible, sendReviewRequestSms } from '../lib/reviewRequest'
 import { getOnTheWayBlockReason, buildOnTheWayMessage, openOnTheWaySms } from '../lib/onTheWaySms'
 import { logLeadEvent as recordLeadEvent } from '../lib/leadEvents'
-import { formatAuPhoneForSms } from '../lib/phone'
+import { formatAuPhoneForSms, formatAuPhoneForTel } from '../lib/phone'
 import type { LeadEventType } from '../lib/leadEventPayload'
 import { useOrgProfiles } from '../hooks/useOrgProfiles'
 import { isManagerRole } from '../lib/roles'
@@ -593,25 +593,28 @@ export default function LeadsPage() {
       ...attempt.update,
       ...(poolPickup ? buildPoolPickupUpdate(lead.status, toStatus, profile?.id) : {}),
     }
-    await supabase.from('leads').update(updatePayload).eq('id', lead.id)
 
-    if (poolPickup) {
-      await logPoolPickup(lead.id, 'call_auto_assign')
-    }
-    await logLeadEvent(
-      lead.id,
-      'call_attempted',
-      `Called ${lead.phone}`,
-      {
-        from_status: lead.status,
-        to_status: toStatus,
-        channel: 'phone',
+    window.location.href = `tel:${formatAuPhoneForTel(lead.phone ?? '')}`
+    setTimeout(() => closeSheet(), 300)
+
+    void (async () => {
+      await supabase.from('leads').update(updatePayload).eq('id', lead.id)
+      if (poolPickup) {
+        await logPoolPickup(lead.id, 'call_auto_assign')
       }
-    )
-    window.location.href = `tel:${lead.phone}`
-    closeSheet()
-    focusMobileTabForStatus(toStatus)
-    fetchLeads()
+      await logLeadEvent(
+        lead.id,
+        'call_attempted',
+        `Called ${lead.phone}`,
+        {
+          from_status: lead.status,
+          to_status: toStatus,
+          channel: 'phone',
+        }
+      )
+      focusMobileTabForStatus(toStatus)
+      fetchLeads()
+    })()
   }, [logLeadEvent, logPoolPickup, closeSheet, fetchLeads, focusMobileTabForStatus, profile?.id])
 
   const handleSMS = useCallback(async (lead: Lead) => {
@@ -648,41 +651,46 @@ export default function LeadsPage() {
     const toStatus = 'contact_attempted'
     const poolPickup = shouldPoolPickup(lead.status, toStatus, profile?.id)
 
-    if (poolPickup) {
-      const updatePayload = {
-        ...attempt.update,
-        ...buildPoolPickupUpdate(lead.status, toStatus, profile?.id),
-      }
-      await supabase.from('leads').update(updatePayload).eq('id', lead.id)
-      await logPoolPickup(lead.id, 'sms_auto_assign')
-    } else if (lead.status === 'assigned' || lead.status === 'contact_attempted') {
-      await supabase.from('leads').update(attempt.update).eq('id', lead.id)
-    }
-
     const techName = profile?.full_name ?? 'Your technician'
     const message = buildOnTheWayMessage(lead, techName, org, brand)
     const to = formatAuPhoneForSms(lead.phone.trim())
-
-    await logLeadEvent(
-      lead.id,
-      'sms_attempted',
-      `Opened SMS to ${to}`,
-      {
-        channel: 'sms',
-        phone: to,
-        template: 'customer_ontheway',
-        from_device: true,
-        from_status: lead.status,
-        to_status: poolPickup || lead.status === 'assigned' ? toStatus : lead.status,
-      }
-    )
+    const shouldUpdateStatus =
+      poolPickup || lead.status === 'assigned' || lead.status === 'contact_attempted'
 
     openOnTheWaySms(lead.phone, message)
-    closeSheet()
-    if (poolPickup || lead.status === 'assigned' || lead.status === 'contact_attempted') {
-      focusMobileTabForStatus(toStatus)
-      fetchLeads()
-    }
+    setTimeout(() => closeSheet(), 300)
+
+    void (async () => {
+      if (poolPickup) {
+        const updatePayload = {
+          ...attempt.update,
+          ...buildPoolPickupUpdate(lead.status, toStatus, profile?.id),
+        }
+        await supabase.from('leads').update(updatePayload).eq('id', lead.id)
+        await logPoolPickup(lead.id, 'sms_auto_assign')
+      } else if (lead.status === 'assigned' || lead.status === 'contact_attempted') {
+        await supabase.from('leads').update(attempt.update).eq('id', lead.id)
+      }
+
+      await logLeadEvent(
+        lead.id,
+        'sms_attempted',
+        `Opened SMS to ${to}`,
+        {
+          channel: 'sms',
+          phone: to,
+          template: 'customer_ontheway',
+          from_device: true,
+          from_status: lead.status,
+          to_status: shouldUpdateStatus ? toStatus : lead.status,
+        }
+      )
+
+      if (shouldUpdateStatus) {
+        focusMobileTabForStatus(toStatus)
+        fetchLeads()
+      }
+    })()
   }, [brand, closeSheet, fetchLeads, focusMobileTabForStatus, logLeadEvent, logPoolPickup, onTheWayFeatureEnabled, org, profile?.full_name, profile?.id])
 
   const handleSharePhoto = useCallback(async (lead: Lead) => {

@@ -61,11 +61,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Overdue invoice chase — scheduled SMS/email reminders at 3/7/14 days past due (off by default, pro+)',
     'Fix contact-follow-up in-app notifications — rebuild notifications_type_check to include contact_follow_up and legacy types',
     'Quote follow-up chase — scheduled SMS/email nudges at 48h and 5 days after quote sent (off by default, pro+)',
+    'Fix iPhone lead calls — dialer opens immediately before status update (iOS Safari user-gesture fix)',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.101'
+export const APP_VERSION = '1.1.102'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
