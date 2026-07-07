@@ -12,7 +12,12 @@ import {
   sendReviewRequestSms,
   type ReviewRequestLead,
 } from '../lib/reviewRequest'
-import { buildPoolPickupUpdate, shouldPoolPickup } from '../lib/leadPoolPickup'
+import {
+  ASSIGNMENT_REQUIRED_MESSAGE,
+  blocksUnassignedStatusChange,
+  buildPoolPickupUpdate,
+  shouldPoolPickup,
+} from '../lib/leadPoolPickup'
 import { buildContactAttemptUpdate } from '../lib/contactFollowUp'
 
 interface Props {
@@ -114,7 +119,7 @@ export default function LeadStatusMenu({
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
-  async function applyStatusUpdate(fromStatus: string, newStatus: string) {
+  async function applyStatusUpdate(fromStatus: string, newStatus: string): Promise<boolean> {
     const updatePayload: Record<string, unknown> = { status: newStatus }
     if (newStatus === 'unassigned') {
       updatePayload.assigned_to = null
@@ -135,7 +140,7 @@ export default function LeadStatusMenu({
         const confirmed = window.confirm(
           `${leadName} has had 5 contact attempts.\n\nMark as lost (unable to contact)?`
         )
-        if (!confirmed) return
+        if (!confirmed) return false
       }
       Object.assign(updatePayload, attempt.update)
     }
@@ -144,6 +149,14 @@ export default function LeadStatusMenu({
       updatePayload,
       buildPoolPickupUpdate(fromStatus, newStatus, profile?.id)
     )
+
+    const effectiveAssignedTo = 'assigned_to' in updatePayload
+      ? (updatePayload.assigned_to as string | null)
+      : assignedTo
+    if (blocksUnassignedStatusChange(newStatus, effectiveAssignedTo)) {
+      window.alert(ASSIGNMENT_REQUIRED_MESSAGE)
+      return false
+    }
 
     await supabase.from('leads').update(updatePayload).eq('id', leadId)
 
@@ -191,6 +204,8 @@ export default function LeadStatusMenu({
         `/leads?leadId=${leadId}`
       )
     }
+
+    return true
   }
 
   async function updateStatus(newStatus: string) {
@@ -210,14 +225,19 @@ export default function LeadStatusMenu({
     }
 
     setSaving(true)
-    await applyStatusUpdate(currentStatus, newStatus)
+    const ok = await applyStatusUpdate(currentStatus, newStatus)
     setSaving(false)
-    onUpdated()
+    if (ok) onUpdated()
   }
 
   async function finalizeCompleted(sendReview: boolean) {
     setSaving(true)
-    await applyStatusUpdate(currentStatus, 'completed')
+    const ok = await applyStatusUpdate(currentStatus, 'completed')
+    if (!ok) {
+      setShowReviewModal(false)
+      setSaving(false)
+      return
+    }
     if (sendReview) {
       setReviewSending(true)
       setReviewError(null)

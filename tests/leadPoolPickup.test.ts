@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  blocksUnassignedStatusChange,
   buildPoolPickupUpdate,
   isPoolLead,
   shouldPoolPickup,
@@ -37,5 +38,22 @@ describe('leadPoolPickup', () => {
   it('no pickup without actor', () => {
     expect(shouldPoolPickup('unassigned', 'assigned', null)).toBe(false)
     expect(buildPoolPickupUpdate('unassigned', 'assigned', undefined)).toEqual({})
+  })
+})
+
+describe('blocksUnassignedStatusChange', () => {
+  it('never blocks a move back to unassigned', () => {
+    expect(blocksUnassignedStatusChange('unassigned', null)).toBe(false)
+    expect(blocksUnassignedStatusChange('unassigned', undefined)).toBe(false)
+  })
+
+  it('blocks a non-unassigned status with nobody assigned', () => {
+    expect(blocksUnassignedStatusChange('lost', null)).toBe(true)
+    expect(blocksUnassignedStatusChange('completed', undefined)).toBe(true)
+  })
+
+  it('allows a non-unassigned status once somebody is assigned', () => {
+    expect(blocksUnassignedStatusChange('lost', 'user-1')).toBe(false)
+    expect(blocksUnassignedStatusChange('contact_attempted', 'user-1')).toBe(false)
   })
 })

@@ -41,3 +41,14 @@ export function buildPoolPickupUpdate(
 
   return update
 }
+
+export const ASSIGNMENT_REQUIRED_MESSAGE =
+  'This lead needs to be assigned before its status can change'
+
+/** True when a status change would leave a lead in a non-unassigned status with nobody assigned. */
+export function blocksUnassignedStatusChange(
+  newStatus: string,
+  effectiveAssignedTo: string | null | undefined
+): boolean {
+  return newStatus !== 'unassigned' && !effectiveAssignedTo
+}

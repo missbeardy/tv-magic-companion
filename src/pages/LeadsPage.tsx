@@ -39,7 +39,13 @@ import {
   type KanbanColumnDef,
   type LeadsMobileTab,
 } from '../lib/leadsKanban'
-import { buildPoolPickupUpdate, shouldPoolPickup, type PoolPickupSource } from '../lib/leadPoolPickup'
+import {
+  ASSIGNMENT_REQUIRED_MESSAGE,
+  blocksUnassignedStatusChange,
+  buildPoolPickupUpdate,
+  shouldPoolPickup,
+  type PoolPickupSource,
+} from '../lib/leadPoolPickup'
 import { isReviewRequestEligible, sendReviewRequestSms } from '../lib/reviewRequest'
 import { getOnTheWayBlockReason, buildOnTheWayMessage, openOnTheWaySms } from '../lib/onTheWaySms'
 import { logLeadEvent as recordLeadEvent } from '../lib/leadEvents'
@@ -435,6 +441,14 @@ export default function LeadsPage() {
       buildPoolPickupUpdate(lead.status, newStatus, profile?.id)
     )
 
+    const effectiveAssignedTo = 'assigned_to' in updatePayload
+      ? (updatePayload.assigned_to as string | null)
+      : lead.assigned_to
+    if (blocksUnassignedStatusChange(newStatus, effectiveAssignedTo)) {
+      alert(ASSIGNMENT_REQUIRED_MESSAGE)
+      return
+    }
+
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ...updatePayload } : l))
 
     const { error } = await supabase.from('leads').update(updatePayload).eq('id', leadId)
@@ -544,8 +558,12 @@ export default function LeadsPage() {
   // Checklist confirmed → mark complete directly, no signature or receipt
   const confirmComplete = useCallback(async () => {
     if (!checklistLead) return
-    setShowChecklist(false)
     const lead = checklistLead
+    if (blocksUnassignedStatusChange('completed', lead.assigned_to)) {
+      alert(ASSIGNMENT_REQUIRED_MESSAGE)
+      return
+    }
+    setShowChecklist(false)
     await supabase
       .from('leads')
       .update({ status: 'completed' })
@@ -592,6 +610,14 @@ export default function LeadsPage() {
     const updatePayload = {
       ...attempt.update,
       ...(poolPickup ? buildPoolPickupUpdate(lead.status, toStatus, profile?.id) : {}),
+    }
+
+    const effectiveAssignedTo = 'assigned_to' in updatePayload
+      ? (updatePayload.assigned_to as string | null)
+      : lead.assigned_to
+    if (blocksUnassignedStatusChange(toStatus, effectiveAssignedTo)) {
+      alert(ASSIGNMENT_REQUIRED_MESSAGE)
+      return
     }
 
     window.location.href = `tel:${formatAuPhoneForTel(lead.phone ?? '')}`
@@ -656,6 +682,14 @@ export default function LeadsPage() {
     const to = formatAuPhoneForSms(lead.phone.trim())
     const shouldUpdateStatus =
       poolPickup || lead.status === 'assigned' || lead.status === 'contact_attempted'
+
+    if (shouldUpdateStatus) {
+      const prospectiveAssignedTo = poolPickup ? profile?.id ?? null : lead.assigned_to
+      if (blocksUnassignedStatusChange(toStatus, prospectiveAssignedTo)) {
+        alert(ASSIGNMENT_REQUIRED_MESSAGE)
+        return
+      }
+    }
 
     openOnTheWaySms(lead.phone, message)
     setTimeout(() => closeSheet(), 300)
@@ -732,6 +766,15 @@ export default function LeadsPage() {
       ...attempt.update,
       ...(poolPickup ? buildPoolPickupUpdate(lead.status, toStatus, profile?.id) : {}),
     }
+
+    const effectiveAssignedTo = 'assigned_to' in updatePayload
+      ? (updatePayload.assigned_to as string | null)
+      : lead.assigned_to
+    if (blocksUnassignedStatusChange(toStatus, effectiveAssignedTo)) {
+      alert(ASSIGNMENT_REQUIRED_MESSAGE)
+      return
+    }
+
     await supabase.from('leads').update(updatePayload).eq('id', lead.id)
 
     if (poolPickup) {
