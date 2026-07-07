@@ -17,6 +17,7 @@ export const FEATURE_SWITCH_KEYS = [
   'completion_upsells',
   'one_tap_invoice',
   'invoice_chase',
+  'quote_chase',
   'tech_location',
 ] as const
 
@@ -42,7 +43,7 @@ export const FEATURE_SWITCHES_BY_CATEGORY: Record<FeatureSwitchCategory, readonl
   lead_intake: ['inbound_sms', 'inbound_email', 'inbound_calls', 'inbound_messenger'],
   customer_communication: ['missed_call_hookback_sms', 'lead_ack_sms', 'customer_ontheway_sms', 'review_requests'],
   team_operations: ['manager_new_lead_alerts', 'smart_assign_badge', 'tech_location'],
-  sales_job_completion: ['quote_esign', 'completion_upsells', 'one_tap_invoice', 'invoice_chase'],
+  sales_job_completion: ['quote_esign', 'completion_upsells', 'one_tap_invoice', 'invoice_chase', 'quote_chase'],
 }
 
 export const FEATURE_SWITCH_CATEGORY_BY_KEY: Record<FeatureSwitchKey, FeatureSwitchCategory> = {
@@ -61,6 +62,7 @@ export const FEATURE_SWITCH_CATEGORY_BY_KEY: Record<FeatureSwitchKey, FeatureSwi
   completion_upsells: 'sales_job_completion',
   one_tap_invoice: 'sales_job_completion',
   invoice_chase: 'sales_job_completion',
+  quote_chase: 'sales_job_completion',
 }
 
 export const FEATURE_SWITCH_MIN_TIERS: Record<FeatureSwitchKey, SubscriptionTier> = {
@@ -78,5 +80,6 @@ export const FEATURE_SWITCH_MIN_TIERS: Record<FeatureSwitchKey, SubscriptionTier
   completion_upsells: 'basic',
   one_tap_invoice: 'pro',
   invoice_chase: 'pro',
+  quote_chase: 'pro',
   tech_location: 'basic',
 }

@@ -44,6 +44,8 @@ export function getDefaultSmsTemplates(orgName: string): Record<string, string> 
     invoice_chase_stage_1: "Hi {{firstName}}, a reminder from {{org.name}} — invoice {{invoiceNumber}} for {{amount}} was due on {{dueDate}}. If you've already paid, ignore this. Any questions, just reply.",
     invoice_chase_stage_2: 'Hi {{firstName}}, invoice {{invoiceNumber}} for {{amount}} from {{org.name}} is now {{daysOverdue}} days overdue. Reply here or call us to sort it out.',
     invoice_chase_stage_3: 'Hi {{firstName}}, invoice {{invoiceNumber}} for {{amount}} from {{org.name}} is now {{daysOverdue}} days overdue. Please reply or call us so we can help resolve this.',
+    quote_chase_stage_1: "Hi {{firstName}}, {{org.name}} here — just checking you got the quote for {{jobService}}. View or accept it here: {{link}}. Any questions, reply and I'll sort it.",
+    quote_chase_stage_2: "Hi {{firstName}}, that quote for {{jobService}} is still open if you'd like it: {{link}}. If the timing's not right, no worries — reply and let me know either way.",
   }
 }
 

@@ -51,6 +51,7 @@ describe('featureSwitchCatalog categories', () => {
       'completion_upsells',
       'one_tap_invoice',
       'invoice_chase',
+      'quote_chase',
     ])
   })
 })

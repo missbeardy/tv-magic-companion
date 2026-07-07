@@ -11,6 +11,7 @@ import { acceptQuoteByToken, createQuote, getQuoteByToken } from './_lib/quotes.
 import { createAndSendInvoice, markInvoicePaid } from './_lib/invoices.js'
 import { runContactFollowUpCron } from './_lib/runContactFollowUpCron.js'
 import { runInvoiceChaseSweep } from './_lib/invoiceChase.js'
+import { runQuoteChaseSweep } from './_lib/quoteChase.js'
 import { purgeOldWorkflowRuns } from './_lib/workflowRun.js'
 import { loadLocalEnvIfNeeded } from './_lib/loadLocalEnv.js'
 import { notifyOrgUser } from './_lib/notifyUser.js'
@@ -512,7 +513,13 @@ async function handleContactFollowUpCron(req: VercelRequest, res: VercelResponse
     } catch (chaseErr) {
       console.error('[INVOICE_CHASE_SWEEP_FAILED]', chaseErr)
     }
-    return res.status(200).json({ ok: true, ...result, workflowPurge, invoiceChase })
+    let quoteChase = { orgs: 0, checked: 0, sent: 0 }
+    try {
+      quoteChase = await runQuoteChaseSweep(supabase)
+    } catch (chaseErr) {
+      console.error('[QUOTE_CHASE_SWEEP_FAILED]', chaseErr)
+    }
+    return res.status(200).json({ ok: true, ...result, workflowPurge, invoiceChase, quoteChase })
   } catch (err) {
     console.error('contact-follow-up cron failed:', err)
     return res.status(500).json({

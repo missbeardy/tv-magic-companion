@@ -21,6 +21,15 @@ export const WORKFLOWS = {
       { id: 'record_chase', label: 'Record chase on invoice' },
     ],
   },
+  quote_chase: {
+    label: 'Quote Follow-Up',
+    steps: [
+      { id: 'load_quote', label: 'Load sent quote' },
+      { id: 'policy_check', label: 'Follow-up policy check' },
+      { id: 'send_follow_up', label: 'Send follow-up (SMS/email)' },
+      { id: 'record_follow_up', label: 'Record follow-up on quote' },
+    ],
+  },
 } as const
 
 export type WorkflowKey = keyof typeof WORKFLOWS
@@ -35,3 +44,8 @@ export type InvoiceChaseStepId = (typeof WORKFLOWS.invoice_chase.steps)[number][
 
 export const INVOICE_CHASE_STEP_IDS: readonly InvoiceChaseStepId[] =
   WORKFLOWS.invoice_chase.steps.map((s) => s.id)
+
+export type QuoteChaseStepId = (typeof WORKFLOWS.quote_chase.steps)[number]['id']
+
+export const QUOTE_CHASE_STEP_IDS: readonly QuoteChaseStepId[] =
+  WORKFLOWS.quote_chase.steps.map((s) => s.id)

@@ -48,6 +48,7 @@ export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   completion_upsells: false,
   one_tap_invoice: false,
   invoice_chase: false,
+  quote_chase: false,
   tech_location: false,
 }
 
@@ -110,6 +111,10 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   invoice_chase: {
     label: 'Overdue Invoice Chase',
     description: 'Automated SMS/email reminders for overdue sent invoices',
+  },
+  quote_chase: {
+    label: 'Quote Follow-Up Chase',
+    description: 'Automated SMS/email nudges for sent quotes awaiting customer response',
   },
   tech_location: {
     label: 'Tech Location Tracking',
