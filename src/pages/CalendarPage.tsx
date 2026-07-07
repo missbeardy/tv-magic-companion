@@ -22,7 +22,7 @@ export default function CalendarPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="font-display font-bold text-gray-900 text-xl flex items-center gap-2">
-              <CalendarDays size={20} className="text-[#004B93]" />
+              <CalendarDays size={20} className="text-brand" />
               Calendar
             </h1>
             <p className="text-sm text-gray-400 mt-0.5">Your appointments and scheduled jobs</p>

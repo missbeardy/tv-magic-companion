@@ -2,13 +2,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
 import { cancelBooking } from '../lib/cancelBooking'
 import { resolveBookingCustomerName } from '../lib/calendarBooking'
 import {
   BOOKING_CATEGORY,
   TEAM_MEETING_CATEGORY,
-  TEAM_MEETING_COLOR,
   getEmployeeColor,
+  getTeamMeetingAccentColor,
 } from '../lib/calendarColors'
 import { logLeadEvent } from '../lib/leadEvents'
 import { sendNotification } from '../lib/notify'
@@ -154,6 +155,7 @@ export default function EventModal({
   defaultDate,
 }: Props) {
   const { profile } = useAuth()
+  const theme = useTheme()
   const isManager = isManagerRole(profile?.role)
   const resolvedKind = initialEventKind(isManager, existingEvent, prefillLead)
   const [eventKind, setEventKind] = useState<ManagerEventKind | 'employee'>(resolvedKind)
@@ -564,7 +566,7 @@ export default function EventModal({
         job_quote: null,
         org_id: profile?.org_id,
         category: TEAM_MEETING_CATEGORY,
-        color: TEAM_MEETING_COLOR,
+        color: getTeamMeetingAccentColor(theme),
       }
 
       if (existingEvent?.booking_group_id) {
@@ -708,7 +710,7 @@ export default function EventModal({
       }
     }
 
-    const eventColor = getEmployeeColor(bookingAssigneeId, memberList)
+    const eventColor = getEmployeeColor(bookingAssigneeId, memberList, theme)
     const eventData = {
       title,
       start_time: startISO,

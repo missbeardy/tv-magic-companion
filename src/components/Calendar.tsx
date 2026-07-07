@@ -4,18 +4,21 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
 import { useOrgProfiles } from '../hooks/useOrgProfiles'
 import { isManagerRole } from '../lib/roles'
 import {
   buildEmployeeColorMap,
   dedupeTeamMeetingsForAggregatedView,
-  getEventDisplayColor,
+  getEventCardStyles,
+  getTeamMeetingAccentColor,
   isTeamMeetingCategory,
   countTeamMeetingAttendees,
-  TEAM_MEETING_COLOR,
 } from '../lib/calendarColors'
+import { assignOverlapLayout } from '../lib/calendarLayout'
 import EventModal from './EventModal'
 import BlackoutModal from './BlackoutModal'
+import CalendarEventCard from './CalendarEventCard'
 import { MobileResourceView } from './MobileResourceView'
 import {
   eventModalDraftHasContent,
@@ -181,6 +184,7 @@ function isLeaveEvent(e: Event): boolean {
 
 export default function Calendar() {
   const { profile } = useAuth()
+  const theme = useTheme()
   const { fetchOrgProfiles } = useOrgProfiles()
   const [searchParams] = useSearchParams()
   const [events, setEvents] = useState<Event[]>([])
@@ -197,14 +201,20 @@ export default function Calendar() {
   const [showAvailability, setShowAvailability] = useState(false)
   const [availabilityDuration, setAvailabilityDuration] = useState(60)
   const [availabilityEmployee, setAvailabilityEmployee] = useState<string>('all')
+  const [nowTick, setNowTick] = useState(() => Date.now())
 
   const showResourceView = isMobile && isManagerRole(profile?.role) && filterEmployee === 'all' && view === 'day'
 
-  const employeeColorMap = useMemo(() => buildEmployeeColorMap(employees), [employees])
+  const employeeColorMap = useMemo(
+    () => buildEmployeeColorMap(employees, theme),
+    [employees, theme],
+  )
 
-  function eventColor(event: Event): string {
-    return getEventDisplayColor(event, employeeColorMap)
+  function eventCardStyles(event: Event) {
+    return getEventCardStyles(event, employeeColorMap, theme)
   }
+
+  const teamMeetingAccent = getTeamMeetingAccentColor(theme)
 
   const showAggregatedAllEmployees = isManagerRole(profile?.role) && filterEmployee === 'all'
 
@@ -259,6 +269,11 @@ export default function Calendar() {
     checkScreenSize()
     window.addEventListener('resize', checkScreenSize)
     return () => window.removeEventListener('resize', checkScreenSize)
+  }, [])
+
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 60_000)
+    return () => clearInterval(id)
   }, [])
 
   function getQueryRange(date: Date, viewMode: ViewMode): { start: Date; end: Date } {
@@ -433,13 +448,17 @@ export default function Calendar() {
       return (
         <div
           key={`hdr-${i}`}
-          className={`p-1 sm:p-2 text-center cursor-pointer hover:bg-gray-50 transition border-b border-gray-100 ${isToday ? 'bg-blue-50' : ''} ${isMobile ? mobileDayWidth : ''}`}
+          className={`p-1 sm:p-2 text-center cursor-pointer hover:bg-gray-50 transition border-b border-gray-100 ${isToday ? 'bg-gray-50' : ''} ${isMobile ? mobileDayWidth : ''}`}
           onClick={() => { setCurrentDate(new Date(day)); setView('day') }}
         >
           <p className="text-[10px] sm:text-xs text-gray-400">{dayNames[i]}</p>
-          <p className={`text-sm sm:text-base font-semibold ${isToday ? 'text-[#004B93]' : 'text-gray-700'}`}>
-            {day.getDate()}
-          </p>
+          {isToday ? (
+            <span className="inline-flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-brand text-white text-sm font-semibold mt-0.5">
+              {day.getDate()}
+            </span>
+          ) : (
+            <p className="text-sm sm:text-base font-semibold text-gray-700">{day.getDate()}</p>
+          )}
         </div>
       )
     }
@@ -471,32 +490,30 @@ export default function Calendar() {
       return (
         <div key={`ev-${i}`} className={`min-h-32 sm:min-h-40 ${isMobile ? `${mobileDayWidth} border-r border-gray-100 last:border-r-0` : ''}`}>
           <div
-            className={`p-1 space-y-1 min-h-full ${isToday ? 'bg-blue-50/30' : ''}`}
+            className={`p-1 space-y-1 min-h-full ${isToday ? 'bg-gray-50/50' : ''}`}
             onClick={() => openNewEvent(new Date(day))}
           >
             {dayEvents.map((event) => (
-              <div
+              <CalendarEventCard
                 key={event.id}
+                event={event}
+                styles={eventCardStyles(event)}
                 onClick={(e) => { e.stopPropagation(); openEditEvent(event) }}
-                className="text-[10px] sm:text-xs p-1 sm:p-1.5 rounded cursor-pointer text-white hover:opacity-90 transition shadow-sm"
-                style={{ backgroundColor: eventColor(event) }}
-                title={`${event.title}\n${formatDuration(event.start_time, event.end_time)}`}
-              >
-                <p className="font-medium truncate">{event.title}</p>
-                <p className="text-[9px] sm:text-[10px] opacity-90">
-                  {formatTime(event.start_time)} – {formatTime(event.end_time)}
-                </p>
-                {event.client_name && (
-                  <p className="text-[9px] sm:text-[10px] opacity-90 truncate">👤 {event.client_name}</p>
-                )}
-                {isTeamMeetingCategory(event.category) ? (
-                  <p className="text-[9px] sm:text-[10px] opacity-75 truncate">
-                    {teamMeetingAttendeeLabel(event)}
-                  </p>
-                ) : isManagerRole(profile?.role) && event.profiles && (
-                  <p className="text-[9px] sm:text-[10px] opacity-75 truncate">{event.profiles.full_name}</p>
-                )}
-              </div>
+                compact
+                showTime
+                showAddress={!isMobile}
+                formatDuration={formatDuration}
+                title={event.title}
+                footer={
+                  isTeamMeetingCategory(event.category) ? (
+                    <p className="text-[9px] opacity-75 truncate mt-0.5">
+                      {teamMeetingAttendeeLabel(event)}
+                    </p>
+                  ) : isManagerRole(profile?.role) && event.profiles ? (
+                    <p className="text-[9px] opacity-75 truncate mt-0.5">{event.profiles.full_name}</p>
+                  ) : undefined
+                }
+              />
             ))}
           </div>
         </div>
@@ -565,6 +582,11 @@ export default function Calendar() {
     return currentDate.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
   })()
 
+  const monthTitle = currentDate.toLocaleDateString('en-AU', {
+    month: 'long',
+    year: view === 'month' ? 'numeric' : undefined,
+  })
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200">
       {showModal && (
@@ -588,33 +610,38 @@ export default function Calendar() {
 
       {/* ── Toolbar ── */}
       <div className="p-3 sm:p-4 border-b border-gray-100">
-        <div className="flex items-center justify-between mb-2 sm:mb-3">
-          <div className="flex items-center gap-1 sm:gap-2">
-            <button
-              onClick={() => navigate(-1)}
-              className="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-600"
-              aria-label="Previous"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <span className="font-semibold text-gray-800 text-sm sm:text-base min-w-0 truncate max-w-[180px] sm:max-w-none">
-              {headerLabel}
-            </span>
-            <button
-              onClick={() => navigate(1)}
-              className="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-600"
-              aria-label="Next"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
+        <div className="flex items-start justify-between gap-2 mb-2 sm:mb-3">
+          <div className="min-w-0">
+            <h2 className="font-display text-xl sm:text-2xl font-bold text-brand truncate">
+              {monthTitle}
+            </h2>
+            <div className="flex items-center gap-1 sm:gap-2 mt-1">
+              <button
+                onClick={() => navigate(-1)}
+                className="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-600"
+                aria-label="Previous"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <span className="text-xs sm:text-sm text-gray-600 min-w-0 truncate max-w-[200px] sm:max-w-none">
+                {headerLabel}
+              </span>
+              <button
+                onClick={() => navigate(1)}
+                className="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-600"
+                aria-label="Next"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
           </div>
           <button
             onClick={goToToday}
-            className="text-xs sm:text-sm border border-gray-300 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg hover:bg-gray-50 transition font-medium whitespace-nowrap"
+            className="text-xs sm:text-sm border border-gray-300 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full hover:bg-gray-50 transition font-medium whitespace-nowrap shrink-0"
           >
             Today
           </button>
@@ -625,7 +652,7 @@ export default function Calendar() {
             <select
               value={filterEmployee}
               onChange={e => setFilterEmployee(e.target.value)}
-              className="w-full sm:w-auto text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#004B93] bg-white"
+              className="w-full sm:w-auto text-sm border border-gray-300 rounded-full px-3 py-1.5 focus-brand bg-white"
             >
               <option value="all">All employees</option>
               {employees.map(emp => (
@@ -646,21 +673,21 @@ export default function Calendar() {
                 </span>
               ))}
               <span className="inline-flex items-center gap-1 text-[10px] sm:text-xs text-gray-600">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: TEAM_MEETING_COLOR }} />
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: teamMeetingAccent }} />
                 Team meeting
               </span>
             </div>
           )}
 
           <div className="flex items-center gap-2 sm:ml-auto">
-            <div className="flex rounded-lg border border-gray-200 overflow-hidden flex-1 sm:flex-none">
+            <div className="flex rounded-full border border-gray-200 overflow-hidden flex-1 sm:flex-none">
               {(['day', 'week', 'month'] as ViewMode[]).map(v => (
                 <button
                   key={v}
                   onClick={() => setView(v)}
-                  className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 text-sm capitalize transition ${
+                  className={`flex-1 sm:flex-none px-3 sm:px-4 py-1.5 text-sm capitalize transition ${
                     view === v
-                      ? 'bg-[#004B93] text-white'
+                      ? 'bg-brand text-white'
                       : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
@@ -671,7 +698,7 @@ export default function Calendar() {
 
             <button
               onClick={() => setShowAvailability(!showAvailability)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1 whitespace-nowrap flex-shrink-0 border ${
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition flex items-center gap-1 whitespace-nowrap flex-shrink-0 border ${
                 showAvailability
                   ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
                   : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
@@ -686,7 +713,7 @@ export default function Calendar() {
 
             <button
               onClick={() => setShowBlackoutModal(true)}
-              className="px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1 whitespace-nowrap flex-shrink-0 border bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+              className="px-3 py-1.5 rounded-full text-sm font-medium transition flex items-center gap-1 whitespace-nowrap flex-shrink-0 border bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
               title="Block out a day as leave/unavailable"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -702,7 +729,7 @@ export default function Calendar() {
                 setDefaultDate(toLocalDateTimeInput(new Date()))
                 setShowModal(true)
               }}
-              className="bg-[#004B93] text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-[#003d7a] transition flex items-center gap-1 whitespace-nowrap flex-shrink-0"
+              className="btn-primary px-3 py-1.5 rounded-full text-sm font-medium transition flex items-center gap-1 whitespace-nowrap flex-shrink-0"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -727,7 +754,7 @@ export default function Calendar() {
                 <select
                   value={availabilityEmployee}
                   onChange={e => setAvailabilityEmployee(e.target.value)}
-                  className="w-full sm:w-auto text-xs border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#004B93] bg-white"
+                  className="w-full sm:w-auto text-xs border border-gray-300 rounded-full px-3 py-1 focus-brand bg-white"
                 >
                   <option value="all">All employees</option>
                   {employees.map(emp => (
@@ -739,7 +766,7 @@ export default function Calendar() {
               <select
                 value={availabilityDuration}
                 onChange={e => setAvailabilityDuration(Number(e.target.value))}
-                className="w-full sm:w-auto text-xs border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#004B93] bg-white"
+                className="w-full sm:w-auto text-xs border border-gray-300 rounded-full px-3 py-1 focus-brand bg-white"
               >
                 <option value={30}>30 min job</option>
                 <option value={60}>1 hour job</option>
@@ -795,8 +822,8 @@ export default function Calendar() {
                   const dateNum = day.getDate()
 
                   return (
-                    <div key={i} className={`border rounded-lg overflow-hidden ${isToday ? 'border-[#004B93]' : 'border-gray-200'}`}>
-                      <div className={`text-center py-1 text-xs font-medium ${isToday ? 'bg-[#004B93] text-white' : 'bg-gray-100 text-gray-600'}`}>
+                    <div key={i} className={`border rounded-lg overflow-hidden ${isToday ? 'border-brand' : 'border-gray-200'}`}>
+                      <div className={`text-center py-1 text-xs font-medium ${isToday ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600'}`}>
                         <div>{dayName}</div>
                         <div>{dateNum}</div>
                       </div>
@@ -841,11 +868,11 @@ export default function Calendar() {
                     <div
                       key={i}
                       className={`min-h-12 p-1 rounded border cursor-pointer hover:opacity-80 transition ${
-                        isToday ? 'border-[#004B93] bg-blue-50' : 'border-gray-200'
+                        isToday ? 'border-brand bg-gray-50' : 'border-gray-200'
                       }`}
                       onClick={() => { setCurrentDate(new Date(day)); setView('day') }}
                     >
-                      <div className={`text-[10px] font-semibold mb-0.5 ${isToday ? 'text-[#004B93]' : 'text-gray-600'}`}>
+                      <div className={`text-[10px] font-semibold mb-0.5 ${isToday ? 'text-brand' : 'text-gray-600'}`}>
                         {day.getDate()}
                       </div>
                       <div className="flex items-center gap-1">
@@ -875,7 +902,9 @@ export default function Calendar() {
           events={events}
           employees={employees}
           employeeColorMap={employeeColorMap}
+          theme={theme}
           selectedDate={currentDate}
+          nowTick={nowTick}
           onEventClick={openEditEvent}
           onAddEvent={openNewEvent}
           onLeaveClick={handleDeleteLeave}
@@ -910,7 +939,7 @@ export default function Calendar() {
                   {HOUR_LABELS.map(hour => (
                     <div
                       key={hour}
-                      className="text-[10px] sm:text-xs text-gray-400 text-right pr-1 sm:pr-2 pt-1"
+                      className="text-[10px] sm:text-xs text-gray-400 text-right pr-1 sm:pr-2 pt-1 border-b border-gray-100"
                       style={{ height: SLOT_HEIGHT }}
                     >
                       {String(hour).padStart(2, '0')}:00
@@ -920,9 +949,20 @@ export default function Calendar() {
 
                 <div className="flex-1 relative">
                   <div className="h-10 border-b border-gray-100 flex items-center justify-center bg-white sticky top-0 z-10">
-                    <span className="text-sm font-semibold text-gray-700">
-                      {fullDayNames[currentDate.getDay() === 0 ? 6 : currentDate.getDay() - 1]}
-                    </span>
+                    {currentDate.toDateString() === new Date().toDateString() ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">
+                          {dayNames[currentDate.getDay() === 0 ? 6 : currentDate.getDay() - 1]}
+                        </span>
+                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-brand text-white text-sm font-semibold">
+                          {currentDate.getDate()}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-sm font-semibold text-gray-700">
+                        {fullDayNames[currentDate.getDay() === 0 ? 6 : currentDate.getDay() - 1]}
+                      </span>
+                    )}
                   </div>
 
                   <div className="relative">
@@ -935,8 +975,16 @@ export default function Calendar() {
                       />
                     ))}
 
+                    {HOUR_LABELS.slice(0, -1).map(hour => (
+                      <div
+                        key={`half-${hour}`}
+                        className="absolute left-0 right-0 border-t border-dotted border-gray-200/80 pointer-events-none z-0"
+                        style={{ top: (hour - DAY_START_HOUR) * SLOT_HEIGHT + SLOT_HEIGHT / 2 }}
+                      />
+                    ))}
+
                     {(() => {
-                      const now = new Date()
+                      const now = new Date(nowTick)
                       const isToday = currentDate.toDateString() === now.toDateString()
                       if (!isToday) return null
                       const minutes = now.getHours() * 60 + now.getMinutes()
@@ -955,55 +1003,53 @@ export default function Calendar() {
                       )
                     })()}
 
-                    {getTimedEventsForDay(currentDate).map(event => {
-                      const top = getEventTop(event.start_time)
-                      const height = getEventHeight(event.start_time, event.end_time)
-                      const isBooking = event.category === 'Booking' || event.category === 'Assigned Leads'
+                    {(() => {
+                      const dayEvents = getTimedEventsForDay(currentDate)
+                      const overlapLayout = assignOverlapLayout(dayEvents)
 
-                      return (
-                        <div
-                          key={event.id}
-                          className="absolute left-1 right-1 rounded-lg cursor-pointer hover:brightness-95 transition overflow-hidden shadow-sm"
-                          style={{ top, height, backgroundColor: eventColor(event), minHeight: 28 }}
-                          onClick={e => { e.stopPropagation(); openEditEvent(event) }}
-                        >
-                          <div className="p-1 sm:p-1.5 text-white h-full flex flex-col">
-                            <p className="text-[10px] sm:text-xs font-semibold truncate leading-tight">{event.title}</p>
-                            <p className="text-[9px] sm:text-[10px] opacity-90 leading-tight mt-0.5">
-                              {formatTime(event.start_time)} – {formatTime(event.end_time)}
-                            </p>
-                            {isBooking && height > 50 && (
-                              <div className="mt-1 space-y-0.5">
-                                {event.client_name && (
-                                  <p className="text-[9px] sm:text-[10px] opacity-90 truncate">👤 {event.client_name}</p>
-                                )}
-                                {event.client_phone && height > 70 && (
-                                  <p className="text-[9px] sm:text-[10px] opacity-90 truncate">📞 {event.client_phone}</p>
-                                )}
-                                {event.client_address && height > 90 && (
-                                  <p className="text-[9px] sm:text-[10px] opacity-90 truncate">📍 {event.client_address}</p>
-                                )}
-                                {event.client_job && height > 110 && (
-                                  <p className="text-[9px] sm:text-[10px] opacity-80 truncate">📝 {event.client_job}</p>
-                                )}
-                                {event.job_quote && height > 110 && (
-                                  <p className="text-[9px] sm:text-[10px] opacity-80 truncate">💲 Quote: ${event.job_quote}</p>
-                                )}
-                              </div>
-                            )}
-                            {isTeamMeetingCategory(event.category) ? (
-                              <p className="text-[9px] sm:text-[10px] opacity-75 mt-auto pt-1 truncate">
-                                {teamMeetingAttendeeLabel(event)}
-                              </p>
-                            ) : isManagerRole(profile?.role) && event.profiles && height > 50 && (
-                              <p className="text-[9px] sm:text-[10px] opacity-75 mt-auto pt-1 truncate">
-                                {event.profiles.full_name}
-                              </p>
-                            )}
+                      return dayEvents.map(event => {
+                        const top = getEventTop(event.start_time)
+                        const height = getEventHeight(event.start_time, event.end_time)
+                        const layout = overlapLayout.get(event.id) ?? { column: 0, totalColumns: 1 }
+                        const widthPct = 100 / layout.totalColumns
+                        const leftPct = layout.column * widthPct
+
+                        return (
+                          <div
+                            key={event.id}
+                            className="absolute z-10"
+                            style={{
+                              top,
+                              height,
+                              left: `calc(${leftPct}% + 2px)`,
+                              width: `calc(${widthPct}% - 4px)`,
+                              minHeight: 28,
+                            }}
+                          >
+                            <CalendarEventCard
+                              event={event}
+                              styles={eventCardStyles(event)}
+                              onClick={e => { e.stopPropagation(); openEditEvent(event) }}
+                              showTime
+                              showAddress
+                              formatDuration={formatDuration}
+                              className="h-full"
+                              footer={
+                                isTeamMeetingCategory(event.category) ? (
+                                  <p className="text-[9px] sm:text-[10px] opacity-75 mt-auto pt-1 truncate">
+                                    {teamMeetingAttendeeLabel(event)}
+                                  </p>
+                                ) : isManagerRole(profile?.role) && event.profiles && height > 50 ? (
+                                  <p className="text-[9px] sm:text-[10px] opacity-75 mt-auto pt-1 truncate">
+                                    {event.profiles.full_name}
+                                  </p>
+                                ) : undefined
+                              }
+                            />
                           </div>
-                        </div>
-                      )
-                    })}
+                        )
+                      })
+                    })()}
                   </div>
                 </div>
               </div>
@@ -1039,33 +1085,48 @@ export default function Calendar() {
                   return (
                     <div
                       key={i}
-                      className={`min-h-16 sm:min-h-24 p-0.5 sm:p-1 cursor-pointer hover:bg-gray-50 transition ${isToday ? 'bg-blue-50' : ''}`}
+                      className={`min-h-16 sm:min-h-24 p-0.5 sm:p-1 cursor-pointer hover:bg-gray-50 transition ${isToday ? 'bg-gray-50' : ''}`}
                       onClick={() => { setCurrentDate(new Date(day)); setView('day') }}
                     >
-                      <p className={`text-[10px] sm:text-xs font-semibold mb-0.5 sm:mb-1 ${isToday ? 'text-[#004B93]' : 'text-gray-600'}`}>
-                        {day.getDate()}
-                      </p>
+                      {isToday ? (
+                        <span className="inline-flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-brand text-white text-[10px] sm:text-xs font-semibold mb-0.5 sm:mb-1">
+                          {day.getDate()}
+                        </span>
+                      ) : (
+                        <p className="text-[10px] sm:text-xs font-semibold mb-0.5 sm:mb-1 text-gray-600">
+                          {day.getDate()}
+                        </p>
+                      )}
                       <div className="space-y-0.5">
                         {dayEvents.slice(0, 3).map(event => (
-                          <div
-                            key={event.id}
-                            onClick={e => {
-                              e.stopPropagation()
-                              isLeaveEvent(event) ? handleDeleteLeave(event) : openEditEvent(event)
-                            }}
-                            className="text-[9px] sm:text-xs p-0.5 px-1 rounded cursor-pointer text-white truncate hover:opacity-80 transition shadow-sm"
-                            style={{ backgroundColor: eventColor(event) }}
-                            title={`${event.title}\n${formatDuration(event.start_time, event.end_time)}`}
-                          >
-                            {isLeaveEvent(event) ? (
+                          isLeaveEvent(event) ? (
+                            <div
+                              key={event.id}
+                              onClick={e => {
+                                e.stopPropagation()
+                                handleDeleteLeave(event)
+                              }}
+                              className="text-[9px] sm:text-xs p-0.5 px-1 rounded cursor-pointer text-white truncate hover:opacity-80 transition shadow-sm bg-gray-900"
+                              title={`${event.title}\n${formatDuration(event.start_time, event.end_time)}`}
+                            >
                               <span className="font-medium">🚫 {event.title}</span>
-                            ) : (
-                              <>
-                                <span className="font-medium">{formatTime(event.start_time)}</span>{' '}
-                                <span>{event.title}</span>
-                              </>
-                            )}
-                          </div>
+                            </div>
+                          ) : (
+                            <CalendarEventCard
+                              key={event.id}
+                              event={event}
+                              styles={eventCardStyles(event)}
+                              onClick={e => {
+                                e.stopPropagation()
+                                openEditEvent(event)
+                              }}
+                              compact
+                              showTime
+                              showAddress={false}
+                              formatDuration={formatDuration}
+                              title={`${formatTime(event.start_time)} ${event.title}`}
+                            />
+                          )
                         ))}
                         {dayEvents.length > 3 && (
                           <p className="text-[9px] sm:text-xs text-gray-400 font-medium">

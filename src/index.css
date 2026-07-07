@@ -134,6 +134,9 @@ html, body {
   background-color: var(--color-secondary);
   color: #fff;
 }
+.text-brand {
+  color: var(--color-primary);
+}
 .text-brand-secondary {
   color: var(--color-secondary);
 }

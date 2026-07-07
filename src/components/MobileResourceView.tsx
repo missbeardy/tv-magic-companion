@@ -1,6 +1,9 @@
 // src/components/MobileResourceView.tsx
 
-import { getEventDisplayColor } from '../lib/calendarColors'
+import type { ThemeTokens } from '../lib/theme'
+import { getEventCardStyles } from '../lib/calendarColors'
+import { assignOverlapLayout } from '../lib/calendarLayout'
+import CalendarEventCard from './CalendarEventCard'
 
 interface CalEvent {
   id: string
@@ -12,6 +15,7 @@ interface CalEvent {
   category?: string
   client_name?: string
   client_phone?: string
+  client_address?: string
 }
 
 interface Profile {
@@ -23,25 +27,35 @@ interface MobileResourceViewProps {
   events: CalEvent[]
   employees: Profile[]
   employeeColorMap: Map<string, string>
+  theme: Pick<ThemeTokens, 'primary' | 'secondary' | 'primaryDark'>
   selectedDate: Date
+  nowTick: number
   onEventClick: (event: CalEvent) => void
   onAddEvent: (date: Date, hour: number) => void
   onLeaveClick?: (event: CalEvent) => void
 }
 
-const DAY_START_HOUR = 6   // matches your Calendar.tsx constant
-const DAY_END_HOUR = 20    // matches your Calendar.tsx constant
-const SLOT_HEIGHT = 64     // matches your Calendar.tsx constant
-const LEAVE_ROW_HEIGHT = 20 // px per leave entry in the banner strip
+const DAY_START_HOUR = 6
+const DAY_END_HOUR = 20
+const SLOT_HEIGHT = 64
+const LEAVE_ROW_HEIGHT = 20
 const HOURS = Array.from(
   { length: DAY_END_HOUR - DAY_START_HOUR + 1 },
-  (_, i) => DAY_START_HOUR + i
+  (_, i) => DAY_START_HOUR + i,
 )
 
 function formatHour(hour: number): string {
   const suffix = hour >= 12 ? 'pm' : 'am'
   const display = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
   return `${display}${suffix}`
+}
+
+function formatTime(dateStr: string): string {
+  return new Date(dateStr).toLocaleTimeString('en-AU', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
 }
 
 function getEventTop(isoTime: string): number {
@@ -69,9 +83,6 @@ function isLeaveEvent(e: CalEvent): boolean {
   return e.category === 'Leave'
 }
 
-// Leave blocks can span multiple days, so unlike timed appointments we check
-// whether `date` falls anywhere inside [start_time, end_time], not just
-// whether start_time happens to be on that day.
 function leaveActiveOnDay(event: CalEvent, date: Date): boolean {
   const dayStart = new Date(date)
   dayStart.setHours(0, 0, 0, 0)
@@ -86,7 +97,9 @@ export function MobileResourceView({
   events,
   employees,
   employeeColorMap,
+  theme,
   selectedDate,
+  nowTick,
   onEventClick,
   onAddEvent,
   onLeaveClick,
@@ -94,9 +107,8 @@ export function MobileResourceView({
   const timedDayEvents = events.filter(e => !isLeaveEvent(e) && isSameDay(e.start_time, selectedDate))
   const leaveEventsForDay = events.filter(e => isLeaveEvent(e) && leaveActiveOnDay(e, selectedDate))
   const totalHeight = HOURS.length * SLOT_HEIGHT
+  const isToday = selectedDate.toDateString() === new Date(nowTick).toDateString()
 
-  // Reserve enough banner height for whichever technician has the most leave
-  // entries today, so every column (and the time gutter) stays aligned.
   const maxLeaveRows = employees.reduce((max, emp) => {
     const count = leaveEventsForDay.filter(e => e.user_id === emp.id).length
     return Math.max(max, count)
@@ -105,26 +117,27 @@ export function MobileResourceView({
 
   return (
     <div className="flex flex-col" style={{ maxHeight: '70vh' }}>
-      {/* Date header */}
-      <div className="px-3 py-2 bg-blue-50 border-b border-blue-100 flex-shrink-0">
-        <p className="text-sm font-semibold text-[#004B93]">
-          {selectedDate.toLocaleDateString('en-AU', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-          })}
-        </p>
+      <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 flex-shrink-0">
+        <div className="flex items-center gap-2">
+          {isToday && (
+            <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-brand text-white text-sm font-semibold shrink-0">
+              {selectedDate.getDate()}
+            </span>
+          )}
+          <p className="text-sm font-semibold text-brand">
+            {selectedDate.toLocaleDateString('en-AU', {
+              weekday: 'long',
+              day: isToday ? undefined : 'numeric',
+              month: 'long',
+            })}
+          </p>
+        </div>
         <p className="text-xs text-gray-400 mt-0.5">← Swipe to see all technicians →</p>
       </div>
 
-      {/* Scrollable grid */}
       <div className="flex overflow-auto flex-1">
-
-        {/* Time gutter */}
         <div className="flex-none w-12 bg-gray-50 border-r border-gray-100 flex-shrink-0">
-          {/* header spacer */}
           <div className="h-10 border-b border-gray-100" />
-          {/* leave banner spacer — keeps gutter aligned with tech columns */}
           {leaveBannerHeight > 0 && (
             <div className="border-b border-gray-100" style={{ height: leaveBannerHeight }} />
           )}
@@ -132,7 +145,7 @@ export function MobileResourceView({
             {HOURS.map(hour => (
               <div
                 key={hour}
-                className="absolute left-0 right-0 flex justify-center items-start"
+                className="absolute left-0 right-0 flex justify-center items-start border-b border-gray-100"
                 style={{ top: (hour - DAY_START_HOUR) * SLOT_HEIGHT, height: SLOT_HEIGHT }}
               >
                 <span className="text-[10px] text-gray-400 mt-1">
@@ -143,28 +156,32 @@ export function MobileResourceView({
           </div>
         </div>
 
-        {/* Tech columns — horizontal scroll */}
         <div className="flex overflow-x-auto">
           {employees.map(emp => {
             const techEvents = timedDayEvents.filter(e => e.user_id === emp.id)
             const techLeave = leaveEventsForDay.filter(e => e.user_id === emp.id)
+            const accent = employeeColorMap.get(emp.id) ?? theme.primary
+            const headerFill = getEventCardStyles(
+              { user_id: emp.id, category: 'Booking' },
+              employeeColorMap,
+              theme,
+            ).fill
+            const overlapLayout = assignOverlapLayout(techEvents)
 
             return (
               <div key={emp.id} className="flex-none w-36 border-r border-gray-100">
-                {/* Tech name header */}
                 <div
                   className="h-10 flex items-center justify-center border-b border-gray-100 px-1 sticky top-0 z-10"
-                  style={{ backgroundColor: `${employeeColorMap.get(emp.id) ?? '#004B93'}18` }}
+                  style={{ backgroundColor: headerFill }}
                 >
                   <span
                     className="text-xs font-semibold text-center truncate"
-                    style={{ color: employeeColorMap.get(emp.id) ?? '#004B93' }}
+                    style={{ color: accent }}
                   >
                     {emp.full_name}
                   </span>
                 </div>
 
-                {/* Leave/blackout banner */}
                 {leaveBannerHeight > 0 && (
                   <div
                     className="bg-gray-900 border-b border-gray-100 px-1 py-0.5 space-y-0.5 overflow-hidden"
@@ -183,50 +200,72 @@ export function MobileResourceView({
                   </div>
                 )}
 
-                {/* Event area */}
-                <div
-                  className="relative bg-white"
-                  style={{ height: totalHeight }}
-                >
-                  {/* Hour grid lines */}
+                <div className="relative bg-white" style={{ height: totalHeight }}>
                   {HOURS.map(hour => (
                     <div
                       key={hour}
-                      className="absolute left-0 right-0 border-t border-gray-50 hover:bg-gray-50/50 cursor-pointer transition"
+                      className="absolute left-0 right-0 border-t border-gray-100 hover:bg-gray-50/50 cursor-pointer transition"
                       style={{ top: (hour - DAY_START_HOUR) * SLOT_HEIGHT, height: SLOT_HEIGHT }}
                       onClick={() => onAddEvent(selectedDate, hour)}
                     />
                   ))}
 
-                  {/* Events */}
+                  {HOURS.slice(0, -1).map(hour => (
+                    <div
+                      key={`half-${hour}`}
+                      className="absolute left-0 right-0 border-t border-dotted border-gray-200/80 pointer-events-none"
+                      style={{ top: (hour - DAY_START_HOUR) * SLOT_HEIGHT + SLOT_HEIGHT / 2 }}
+                    />
+                  ))}
+
+                  {isToday && (() => {
+                    const now = new Date(nowTick)
+                    const minutes = now.getHours() * 60 + now.getMinutes()
+                    const dayMinutes = DAY_START_HOUR * 60
+                    const totalDayMinutes = (DAY_END_HOUR - DAY_START_HOUR + 1) * 60
+                    const elapsed = minutes - dayMinutes
+                    if (elapsed < 0 || elapsed > totalDayMinutes) return null
+                    const top = (elapsed / 60) * SLOT_HEIGHT
+                    return (
+                      <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top }}>
+                        <div className="flex items-center">
+                          <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                          <div className="flex-1 h-px bg-red-500" />
+                        </div>
+                      </div>
+                    )
+                  })()}
+
                   {techEvents.map(event => {
                     const top = getEventTop(event.start_time)
                     const height = getEventHeight(event.start_time, event.end_time)
-                    const startTime = new Date(event.start_time).toLocaleTimeString('en-AU', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      hour12: false,
-                    })
+                    const layout = overlapLayout.get(event.id) ?? { column: 0, totalColumns: 1 }
+                    const widthPct = 100 / layout.totalColumns
+                    const leftPct = layout.column * widthPct
 
                     return (
-                      <button
+                      <div
                         key={event.id}
-                        onClick={e => { e.stopPropagation(); onEventClick(event) }}
-                        className="absolute left-0.5 right-0.5 rounded-lg px-1.5 py-1 text-left overflow-hidden shadow-sm hover:brightness-95 transition"
-                        style={{ top, height, backgroundColor: getEventDisplayColor(event, employeeColorMap), minHeight: 28 }}
+                        className="absolute z-10"
+                        style={{
+                          top,
+                          height,
+                          left: `calc(${leftPct}% + 1px)`,
+                          width: `calc(${widthPct}% - 2px)`,
+                          minHeight: 28,
+                        }}
                       >
-                        <p className="text-[10px] font-semibold text-white truncate leading-tight">
-                          {event.title}
-                        </p>
-                        <p className="text-[9px] text-white/80 leading-tight">
-                          {startTime}
-                        </p>
-                        {event.client_name && height > 50 && (
-                          <p className="text-[9px] text-white/80 truncate leading-tight">
-                            👤 {event.client_name}
-                          </p>
-                        )}
-                      </button>
+                        <CalendarEventCard
+                          event={event}
+                          styles={getEventCardStyles(event, employeeColorMap, theme)}
+                          onClick={e => { e.stopPropagation(); onEventClick(event) }}
+                          compact
+                          showTime
+                          showAddress={false}
+                          formatTime={formatTime}
+                          className="h-full"
+                        />
+                      </div>
                     )
                   })}
                 </div>
