@@ -50,6 +50,7 @@ export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   invoice_chase: false,
   quote_chase: false,
   tech_location: false,
+  internal_messaging: false,
 }
 
 export const FEATURE_SWITCH_DEFINITIONS: Record<
@@ -119,6 +120,10 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   tech_location: {
     label: 'Tech Location Tracking',
     description: 'Periodic GPS updates from employee devices',
+  },
+  internal_messaging: {
+    label: 'Internal Support Messaging',
+    description: 'In-app 1:1 messaging with support plus a read-only announcements feed',
   },
 }
 

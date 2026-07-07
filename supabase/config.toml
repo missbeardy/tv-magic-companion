@@ -9,3 +9,10 @@ entrypoint = "./functions/push-notify/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/push-notify/*.html" ]
+
+[functions.notify-message]
+enabled = true
+# Called by Supabase Database Webhooks with a shared-secret header, not a JWT.
+verify_jwt = false
+import_map = "./functions/notify-message/deno.json"
+entrypoint = "./functions/notify-message/index.ts"
