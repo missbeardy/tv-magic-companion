@@ -41,6 +41,9 @@ export function getDefaultSmsTemplates(orgName: string): Record<string, string> 
     customer_review_request: `Hi {{customerName}}, thanks for choosing ${orgName}! We'd love your feedback: {{reviewUrl}}`,
     booking_scheduled: `${orgName}: {{managerName}} scheduled "{{leadName}}" on your calendar — {{dateTime}}. Open: {{appUrl}}`,
     receipt_footer: `— ${orgName} Team`,
+    invoice_chase_stage_1: "Hi {{firstName}}, a reminder from {{org.name}} — invoice {{invoiceNumber}} for {{amount}} was due on {{dueDate}}. If you've already paid, ignore this. Any questions, just reply.",
+    invoice_chase_stage_2: 'Hi {{firstName}}, invoice {{invoiceNumber}} for {{amount}} from {{org.name}} is now {{daysOverdue}} days overdue. Reply here or call us to sort it out.',
+    invoice_chase_stage_3: 'Hi {{firstName}}, invoice {{invoiceNumber}} for {{amount}} from {{org.name}} is now {{daysOverdue}} days overdue. Please reply or call us so we can help resolve this.',
   }
 }
 

@@ -42,10 +42,12 @@ export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   inbound_sms: false,
   inbound_email: false,
   inbound_calls: false,
+  inbound_messenger: false,
   missed_call_hookback_sms: false,
   lead_ack_sms: false,
   completion_upsells: false,
   one_tap_invoice: false,
+  invoice_chase: false,
   tech_location: false,
 }
 
@@ -85,6 +87,10 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
     label: 'Inbound Calls / Voicemail',
     description: 'Create leads from missed calls and voicemail',
   },
+  inbound_messenger: {
+    label: 'Inbound Meta Messaging',
+    description: 'Create leads from Facebook Messenger and Instagram DM webhooks',
+  },
   missed_call_hookback_sms: {
     label: 'Missed Call Auto-Reply SMS',
     description: 'Instant branded SMS to callers when a voicemail lead is created (Cloudmailin path)',
@@ -100,6 +106,10 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   one_tap_invoice: {
     label: 'One-Tap Invoice Email',
     description: 'Send branded invoice emails at job completion with optional PDF attachment',
+  },
+  invoice_chase: {
+    label: 'Overdue Invoice Chase',
+    description: 'Automated SMS/email reminders for overdue sent invoices',
   },
   tech_location: {
     label: 'Tech Location Tracking',

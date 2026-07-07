@@ -58,11 +58,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Platform admin: accordion sections on Platform page; inbound simulator uses create-user API route locally',
     'Platform admin: Workflow Runs kanban row — actual lead lifecycle path from lead events, bridged from inbound ack SMS',
     'Platform admin: Workflow Runs list links each run to its lead (name + service type)',
+    'Overdue invoice chase — scheduled SMS/email reminders at 3/7/14 days past due (off by default, pro+)',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.98'
+export const APP_VERSION = '1.1.99'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

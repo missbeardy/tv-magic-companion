@@ -33,6 +33,7 @@ describe('featureSwitchCatalog categories', () => {
       'inbound_sms',
       'inbound_email',
       'inbound_calls',
+      'inbound_messenger',
     ])
     expect(FEATURE_SWITCHES_BY_CATEGORY.customer_communication).toEqual([
       'missed_call_hookback_sms',
@@ -49,6 +50,7 @@ describe('featureSwitchCatalog categories', () => {
       'quote_esign',
       'completion_upsells',
       'one_tap_invoice',
+      'invoice_chase',
     ])
   })
 })

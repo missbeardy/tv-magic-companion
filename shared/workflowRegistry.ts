@@ -12,6 +12,15 @@ export const WORKFLOWS = {
       { id: 'follow_up_sms', label: 'Ack / hookback SMS' },
     ],
   },
+  invoice_chase: {
+    label: 'Invoice Chase',
+    steps: [
+      { id: 'load_invoice', label: 'Load overdue invoice' },
+      { id: 'policy_check', label: 'Chase policy check' },
+      { id: 'send_reminder', label: 'Send reminder (SMS/email)' },
+      { id: 'record_chase', label: 'Record chase on invoice' },
+    ],
+  },
 } as const
 
 export type WorkflowKey = keyof typeof WORKFLOWS
@@ -21,3 +30,8 @@ export type InboundLeadStepId = (typeof WORKFLOWS.inbound_lead.steps)[number]['i
 /** Step ids recorded by processInboundLead — used for registry conformance tests. */
 export const INBOUND_LEAD_STEP_IDS: readonly InboundLeadStepId[] =
   WORKFLOWS.inbound_lead.steps.map((s) => s.id)
+
+export type InvoiceChaseStepId = (typeof WORKFLOWS.invoice_chase.steps)[number]['id']
+
+export const INVOICE_CHASE_STEP_IDS: readonly InvoiceChaseStepId[] =
+  WORKFLOWS.invoice_chase.steps.map((s) => s.id)
