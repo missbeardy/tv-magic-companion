@@ -44,7 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const payload = req.body as ThreeCXPayload
 
-    // Voicemail is handled by inbound-voicemail / inbound-email (rich transcript path).
+    // Voicemail is handled by inbound-email (CloudMailin voicemail sub-path).
     if (payload.callType !== 'missed') {
       return res.status(200).json({
         skipped: true,

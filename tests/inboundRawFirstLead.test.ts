@@ -22,14 +22,12 @@ const INBOUND_PIPELINE_HANDLERS = [
   'api/inbound-sms.ts',
   'api/inbound-calls.ts',
   'api/inbound-email.ts',
-  'api/inbound-voicemail.ts',
 ] as const
 
 /** Symbols each inbound handler still imports from rawFirstLead directly. */
 const INBOUND_RAW_FIRST_IMPORTS = {
   'api/inbound-sms.ts': ['insertRawFirstLead'],
   'api/inbound-email.ts': ['emailFallbackParse', 'insertRawFirstLead', 'parseEmailSender'],
-  'api/inbound-voicemail.ts': ['insertRawFirstLead'],
 } as const
 
 describe('inbound raw-first module bundle', () => {

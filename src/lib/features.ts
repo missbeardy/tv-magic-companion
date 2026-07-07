@@ -87,7 +87,7 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   },
   missed_call_hookback_sms: {
     label: 'Missed Call Auto-Reply SMS',
-    description: 'Instant branded SMS to callers when a voicemail lead is created (Cloudmailin / Mailgun path)',
+    description: 'Instant branded SMS to callers when a voicemail lead is created (Cloudmailin path)',
   },
   lead_ack_sms: {
     label: 'Lead Acknowledgement SMS',

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Document version** | `1.0.2` |
+| **Document version** | `1.0.3` |
 | **Last updated** | 07-07-2026 |
 | **Maintained by** | Update in the same PR as any pipeline behaviour change |
 
@@ -79,7 +79,7 @@ flowchart TB
   end
 
   subgraph inbound [API Inbound]
-    I1[inbound-sms / email / calls / voicemail]
+    I1[inbound-sms / email + voicemail / calls]
     I2[processInboundLead]
     I3[insert lead + created event]
     I4[AI extraction async]
@@ -368,7 +368,6 @@ sequenceDiagram
 | `POST /api/inbound-sms` | `api/inbound-sms.ts` | Yes |
 | `POST /api/inbound-email` | `api/inbound-email.ts` | Yes |
 | `POST /api/inbound-calls` | `api/inbound-calls.ts` | Yes (missed) |
-| `POST /api/inbound-voicemail` | `api/inbound-voicemail.ts` | Yes |
 | Manual / paste | `AddLeadModal`, `EmailParser` | Client insert |
 
 **Important:** Status mutations after creation are **client-side Supabase updates** — no server-side transition validation; RLS is the guard.
@@ -466,7 +465,7 @@ Logged to `lead_events` for audit and reporting (`api/_lib/leadEventTypes.ts`):
 
 ### API
 - `api/_lib/processInboundLead.ts` — inbound pipeline
-- `api/inbound-sms.ts`, `inbound-email.ts`, `inbound-calls.ts`, `inbound-voicemail.ts`
+- `api/inbound-sms.ts`, `inbound-email.ts` (email + CloudMailin voicemail), `inbound-calls.ts`
 - `api/_lib/runContactFollowUpCron.ts` — 6h follow-up
 - `api/_lib/notifyManagersNewLead.ts`, `leadAckSms.ts`, `missedCallHookbackSms.ts`
 - `api/_lib/employeeWhatsAppTemplates.ts`
@@ -488,6 +487,7 @@ Logged to `lead_events` for audit and reporting (`api/_lib/leadEventTypes.ts`):
 
 | Version | Date | Summary |
 |---------|------|---------|
+| `1.0.3` | 07-07-2026 | Retired dead Mailgun `POST /api/inbound-voicemail`; voicemail only via CloudMailin branch in `inbound-email.ts` |
 | `1.0.2` | 07-07-2026 | Document platform Workflow Runs kanban row (lead_events-derived actual path, bridge from inbound ack SMS); no pipeline behaviour change |
 | `1.0.1` | 03-07-2026 | Added `expire_overdue_leads()` migration: pg_cron every minute, full pool reset, `expired` audit events attributed to previous assignee; Reports leaderboard Expired column |
 | `1.0.0` | 03-07-2026 | Initial workflow reference: full lifecycle, status machine, field coupling, pool pickup, contact escalation, customer/user/API maps, notification matrix, maintenance policy |
