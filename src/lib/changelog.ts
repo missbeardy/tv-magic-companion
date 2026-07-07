@@ -57,11 +57,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Platform admin: Workflow Runs trace view — filterable run list, step graph, error payload panel',
     'Platform admin: accordion sections on Platform page; inbound simulator uses create-user API route locally',
     'Platform admin: Workflow Runs kanban row — actual lead lifecycle path from lead events, bridged from inbound ack SMS',
+    'Platform admin: Workflow Runs list links each run to its lead (name + service type)',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.97'
+export const APP_VERSION = '1.1.98'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

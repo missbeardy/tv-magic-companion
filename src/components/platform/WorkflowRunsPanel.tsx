@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { GitBranch, RefreshCw } from 'lucide-react'
 import { WORKFLOWS } from '../../../shared/workflowRegistry'
 import { formatWorkflowDuration, parseLeadIdFromTriggerSummary, type WorkflowStepRow } from '../../../shared/workflowGraph'
@@ -24,6 +25,16 @@ interface WorkflowRunRow {
   started_at: string
   finished_at: string | null
   orgs: { name: string } | null
+}
+
+interface LeadSummary {
+  id: string
+  name: string
+  service_type: string | null
+}
+
+function leadHighlightPath(leadId: string): string {
+  return `/leads?highlight=${encodeURIComponent(leadId)}`
 }
 
 function rangeStartIso(range: DateRange): string {
@@ -70,6 +81,7 @@ export default function WorkflowRunsPanel() {
   const [kanbanPath, setKanbanPath] = useState<KanbanPathNode[]>([])
   const [kanbanLoading, setKanbanLoading] = useState(false)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [leadById, setLeadById] = useState<Record<string, LeadSummary>>({})
 
   const orgOptions = useMemo(() => {
     const map = new Map<string, string>()
@@ -116,9 +128,38 @@ export default function WorkflowRunsPanel() {
     if (queryError) {
       setError(queryError.message)
       setRuns([])
+      setLeadById({})
       setTotalCount(0)
     } else {
-      setRuns((data ?? []) as WorkflowRunRow[])
+      const loadedRuns = (data ?? []) as WorkflowRunRow[]
+      const leadIds = [
+        ...new Set(
+          loadedRuns
+            .map((run) => parseLeadIdFromTriggerSummary(run.trigger_summary))
+            .filter((id): id is string => Boolean(id))
+        ),
+      ]
+
+      if (leadIds.length === 0) {
+        setLeadById({})
+      } else {
+        const { data: leadsData, error: leadsError } = await supabase
+          .from('leads')
+          .select('id, name, service_type')
+          .in('id', leadIds)
+
+        if (leadsError) {
+          setLeadById({})
+        } else {
+          const map: Record<string, LeadSummary> = {}
+          for (const row of leadsData ?? []) {
+            map[row.id] = row as LeadSummary
+          }
+          setLeadById(map)
+        }
+      }
+
+      setRuns(loadedRuns)
       setTotalCount(count ?? 0)
     }
     setLoading(false)
@@ -301,6 +342,7 @@ export default function WorkflowRunsPanel() {
               <tr>
                 <th className="text-left px-3 py-2 font-semibold">Workflow</th>
                 <th className="text-left px-3 py-2 font-semibold">Org</th>
+                <th className="text-left px-3 py-2 font-semibold">Lead</th>
                 <th className="text-left px-3 py-2 font-semibold">Channel</th>
                 <th className="text-left px-3 py-2 font-semibold">Status</th>
                 <th className="text-left px-3 py-2 font-semibold">Started</th>
@@ -308,7 +350,11 @@ export default function WorkflowRunsPanel() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {runs.map((run) => (
+              {runs.map((run) => {
+                const leadId = parseLeadIdFromTriggerSummary(run.trigger_summary)
+                const lead = leadId ? leadById[leadId] : null
+
+                return (
                 <tr
                   key={run.id}
                   onClick={() => handleSelectRun(run.id)}
@@ -316,6 +362,26 @@ export default function WorkflowRunsPanel() {
                 >
                   <td className="px-3 py-2 font-medium text-gray-800">{workflowLabel(run.workflow_key)}</td>
                   <td className="px-3 py-2 text-gray-600">{run.orgs?.name ?? run.org_id}</td>
+                  <td className="px-3 py-2 max-w-[180px]" onClick={(e) => e.stopPropagation()}>
+                    {leadId && lead ? (
+                      <Link
+                        to={leadHighlightPath(leadId)}
+                        className="text-[var(--color-primary)] hover:underline block truncate"
+                        title={[lead.name, lead.service_type].filter(Boolean).join(' · ')}
+                      >
+                        {lead.name}
+                        {lead.service_type ? (
+                          <span className="text-gray-400 font-normal"> · {lead.service_type}</span>
+                        ) : null}
+                      </Link>
+                    ) : leadId ? (
+                      <span className="text-gray-400 font-mono text-xs" title={leadId}>
+                        {leadId.slice(0, 8)}…
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-gray-500">{run.trigger_channel ?? '—'}</td>
                   <td className="px-3 py-2">
                     <WorkflowRunStatusPill status={run.status} />
@@ -327,7 +393,7 @@ export default function WorkflowRunsPanel() {
                     {formatWorkflowDuration(run.started_at, run.finished_at)}
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>

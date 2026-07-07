@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import React from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import WorkflowRunsPanel from '../src/components/platform/WorkflowRunsPanel'
 import { INBOUND_LEAD_STEP_IDS } from '../shared/workflowRegistry'
@@ -96,6 +97,12 @@ vi.mock('../src/lib/supabase', () => {
   }
 
   const leadsQuery = {
+    in: vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        data: [{ id: 'lead-1', name: 'Jane Doe', service_type: 'TV Aerial' }],
+        error: null,
+      })
+    ),
     eq: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockImplementation(() =>
       Promise.resolve({ data: { status: 'unassigned' }, error: null })
@@ -145,11 +152,20 @@ describe('WorkflowRunsPanel', () => {
   })
 
   it('renders a run and shows failed extraction detail with truncated note', async () => {
-    render(<WorkflowRunsPanel />)
+    render(
+      <MemoryRouter>
+        <WorkflowRunsPanel />
+      </MemoryRouter>
+    )
 
     await waitFor(() => {
       expect(screen.getByRole('cell', { name: 'Inbound Lead' })).toBeInTheDocument()
     })
+
+    expect(screen.getByRole('link', { name: /Jane Doe/ })).toHaveAttribute(
+      'href',
+      '/leads?highlight=lead-1'
+    )
 
     fireEvent.click(screen.getByRole('cell', { name: 'Inbound Lead' }))
 
