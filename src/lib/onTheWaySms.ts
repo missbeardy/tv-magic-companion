@@ -59,8 +59,13 @@ export function buildOnTheWayMessage(
   return appendMapsLink(message, mapsUrl)
 }
 
-/** Open the device SMS app pre-filled for the technician to send. */
-export function openOnTheWaySms(toPhone: string, message: string): void {
+/** Open the device SMS app pre-filled with any message body. */
+export function openDeviceSms(toPhone: string, message: string): void {
   const to = formatAuPhoneForSms(toPhone)
   window.location.href = `sms:${to}?body=${encodeURIComponent(message)}`
+}
+
+/** Open the device SMS app pre-filled for the technician to send. */
+export function openOnTheWaySms(toPhone: string, message: string): void {
+  openDeviceSms(toPhone, message)
 }

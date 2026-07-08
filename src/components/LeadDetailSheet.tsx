@@ -3,11 +3,12 @@ import {
   MapPin,
   UserPlus,
   Calendar,
-  MailCheck,
+  Navigation,
   FileText,
   ChevronRight,
 } from 'lucide-react'
 import BottomSheet from './BottomSheet'
+import SmsComposeModal from './SmsComposeModal'
 import LeadPhotos from './LeadPhotos'
 import LeadAddressEditor from './LeadAddressEditor'
 import LeadContactEditor from './LeadContactEditor'
@@ -26,10 +27,10 @@ interface Props {
   profile: { role: string; id: string; org_id?: string } | null
   onCall: (lead: KanbanLead) => void
   onSms: (lead: KanbanLead) => void
+  onSendManualSms: (lead: KanbanLead, text: string) => void
   onAssign: (lead: KanbanLead) => void
   onBook: (lead: KanbanLead) => void
   onQuote: (lead: KanbanLead) => void
-  onMarkContactAttempted: (lead: KanbanLead) => void
   onUnassign: (lead: KanbanLead) => void
   onComplete: (lead: KanbanLead) => void
   onSharePhoto: (lead: KanbanLead) => void
@@ -70,10 +71,10 @@ export default function LeadDetailSheet({
   profile,
   onCall,
   onSms,
+  onSendManualSms,
   onAssign,
   onBook,
   onQuote,
-  onMarkContactAttempted,
   onUnassign,
   onComplete,
   onSharePhoto,
@@ -84,6 +85,7 @@ export default function LeadDetailSheet({
 }: Props) {
   const [summaryExpanded, setSummaryExpanded] = useState(false)
   const [transcriptOpen, setTranscriptOpen] = useState(false)
+  const [composeOpen, setComposeOpen] = useState(false)
 
   const locality = formatLocalityLabelFromAddress(lead.address)
   const attemptPhaseLabel = getAttemptPhaseLabel(lead.contact_attempt_round)
@@ -111,6 +113,7 @@ export default function LeadDetailSheet({
   const primary = primaryAction()
 
   return (
+    <>
     <BottomSheet isOpen={isOpen} onClose={onClose} hideHeader showCloseButton footer={primary ? (
       <button
         type="button"
@@ -130,6 +133,9 @@ export default function LeadDetailSheet({
           {attemptPhaseLabel && lead.status === 'contact_attempted' && (
             <p className="text-xs font-semibold text-red-600 mt-1">{attemptPhaseLabel}</p>
           )}
+          {lead.last_manual_sms_at && (
+            <p className="text-xs font-semibold text-red-600 mt-1">SMS sent</p>
+          )}
           <p className="text-sm text-gray-500 mt-0.5">{lead.service_type || 'No service type'}</p>
           {locality && (
             <p className="text-sm text-gray-500 mt-0.5">📍 {locality}</p>
@@ -143,9 +149,16 @@ export default function LeadDetailSheet({
             actorId={profile.id}
             smsEnabled={smsEnabled}
             onCall={() => onCall(lead)}
-            onSms={() => onSms(lead)}
+            onSms={() => setComposeOpen(true)}
             onSaved={onRefresh}
           />
+        )}
+
+        {lead.last_manual_sms_text && (
+          <div className="rounded-lg bg-red-50 border border-red-100 p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-red-600 mb-1">SMS sent</p>
+            <p className="text-sm text-gray-700 whitespace-pre-wrap">{lead.last_manual_sms_text}</p>
+          </div>
         )}
 
         {profile?.org_id && (
@@ -234,11 +247,13 @@ export default function LeadDetailSheet({
                   onClick={() => onQuote(lead)}
                 />
               )}
-              <ActionRow
-                icon={MailCheck}
-                label="Mark as attempted contact"
-                onClick={() => onMarkContactAttempted(lead)}
-              />
+              {smsEnabled && (
+                <ActionRow
+                  icon={Navigation}
+                  label="Send ETA SMS"
+                  onClick={() => onSms(lead)}
+                />
+              )}
               {(lead.raw_email || lead.raw_sms) && (
                 <div>
                   <button
@@ -265,5 +280,17 @@ export default function LeadDetailSheet({
         )}
       </div>
     </BottomSheet>
+
+    {composeOpen && (
+      <SmsComposeModal
+        customerName={lead.name}
+        onCancel={() => setComposeOpen(false)}
+        onSend={(text) => {
+          setComposeOpen(false)
+          onSendManualSms(lead, text)
+        }}
+      />
+    )}
+    </>
   )
 }

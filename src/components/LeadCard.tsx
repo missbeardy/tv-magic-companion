@@ -28,6 +28,8 @@ export interface KanbanLead {
   assigned_at: string | null
   timer_expires_at: string | null
   last_contact_attempted_at?: string | null
+  last_manual_sms_text?: string | null
+  last_manual_sms_at?: string | null
   contact_attempt_round?: number | null
   lost_reason?: string | null
   assigned_to: string | null
@@ -158,11 +160,16 @@ export default function LeadCard({
       }}
     >
       <div className="p-3">
-        {(invoiceStatus === 'sent' || invoiceStatus === 'paid' || isUnableToContact) && (
+        {(invoiceStatus === 'sent' || invoiceStatus === 'paid' || isUnableToContact || lead.last_manual_sms_at) && (
           <div className="flex flex-wrap gap-1 mb-2">
             {isUnableToContact && (
               <span className="text-[10px] font-medium uppercase tracking-wide text-red-700">
                 Unable to contact
+              </span>
+            )}
+            {lead.last_manual_sms_at && (
+              <span className="text-[10px] font-medium uppercase tracking-wide text-red-600">
+                SMS sent
               </span>
             )}
             {invoiceStatus === 'sent' && (
@@ -267,6 +274,13 @@ export default function LeadCard({
             )}
             <LeadExtractedSummary lead={lead} size="sm" showAddress={false} onPhoneClick={onCall as (lead: LeadSummaryFields) => void} />
             <LeadRawSource lead={lead} />
+
+            {lead.last_manual_sms_text && (
+              <div className="rounded-lg bg-red-50 border border-red-100 p-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-red-600 mb-0.5">SMS sent</p>
+                <p className="text-xs text-gray-700 whitespace-pre-wrap">{lead.last_manual_sms_text}</p>
+              </div>
+            )}
 
             {lead.status === 'contact_attempted' && profile?.org_id && (
               <LeadContactNote

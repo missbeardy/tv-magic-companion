@@ -46,6 +46,7 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
   weekStarts: '06-07-2026',
   title: 'Assign modal & pipeline polish',
   items: [
+    'Lead card SMS: the message icon now opens a free-text composer ("What would you like to SMS?"); a new "Send ETA SMS" action sends the default on-the-way template. Manual sends show "SMS sent" in red on the card and keep the saved text visible when the lead is reopened',
     'Assign lead modal closes immediately after DB update — notifications and WhatsApp run in background',
     'Fix assignment WhatsApp/SMS — resolve assignee phone server-side and fire alert before modal closes',
     'PWA app updates — refresh icon in nav with badge when cache is stale; no more blocking update overlay',
@@ -73,7 +74,7 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.108'
+export const APP_VERSION = '1.1.109'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

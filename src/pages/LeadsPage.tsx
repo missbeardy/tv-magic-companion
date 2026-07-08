@@ -48,7 +48,7 @@ import {
   type PoolPickupSource,
 } from '../lib/leadPoolPickup'
 import { isReviewRequestEligible, sendReviewRequestSms } from '../lib/reviewRequest'
-import { getOnTheWayBlockReason, buildOnTheWayMessage, openOnTheWaySms } from '../lib/onTheWaySms'
+import { getOnTheWayBlockReason, buildOnTheWayMessage, openOnTheWaySms, openDeviceSms } from '../lib/onTheWaySms'
 import { logLeadEvent as recordLeadEvent } from '../lib/leadEvents'
 import { formatAuPhoneForSms, formatAuPhoneForTel } from '../lib/phone'
 import type { LeadEventType } from '../lib/leadEventPayload'
@@ -325,9 +325,30 @@ export default function LeadsPage() {
         }
       }
 
+      // Latest manually-composed SMS per lead (stored as a tagged sms_sent event).
+      const latestManualSmsByLead = new Map<string, { note: string | null; created_at: string }>()
+      try {
+        const smsRes = await supabase
+          .from('lead_events')
+          .select('lead_id, note, payload, created_at')
+          .in('lead_id', leadIds)
+          .eq('event_type', 'sms_sent')
+          .order('created_at', { ascending: false })
+        if (!smsRes.error && smsRes.data) {
+          for (const row of smsRes.data as { lead_id: string; note: string | null; payload: Record<string, unknown> | null; created_at: string }[]) {
+            if (row.payload?.manual === true && !latestManualSmsByLead.has(row.lead_id)) {
+              latestManualSmsByLead.set(row.lead_id, { note: row.note, created_at: row.created_at })
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Manual SMS fetch skipped:', err)
+      }
+
       const merged = baseLeads.map((lead) => {
         const latestQuote = latestQuoteByLead.get(lead.id)
         const latestInvoice = latestInvoiceByLead.get(lead.id)
+        const manualSms = latestManualSmsByLead.get(lead.id)
         return {
           ...lead,
           latest_quote_status: latestQuote?.status ?? null,
@@ -335,6 +356,8 @@ export default function LeadsPage() {
           latest_invoice_status: latestInvoice?.status ?? null,
           latest_invoice_id: latestInvoice?.id ?? null,
           latest_invoice_number: latestInvoice?.invoice_number ?? null,
+          last_manual_sms_text: manualSms?.note ?? null,
+          last_manual_sms_at: manualSms?.created_at ?? null,
         }
       })
 
@@ -742,59 +765,32 @@ export default function LeadsPage() {
     }
   }, [])
 
-  const handleMarkContactAttempted = useCallback(async (lead: Lead) => {
-    const attempt = buildContactAttemptUpdate(lead)
+  // Free-text SMS from the compose modal. Opens the device SMS app, records the
+  // text against the lead, and leaves the status untouched (stays assigned).
+  const handleSendManualSms = useCallback(async (lead: Lead, text: string) => {
+    const body = text.trim()
+    if (!body) return
+    if (!lead.phone?.trim()) {
+      alert('No phone number saved for this lead.')
+      return
+    }
 
-    if (attempt.kind === 'unable_to_contact') {
-      const confirmed = window.confirm(
-        `${lead.name} has had 5 contact attempts.\n\nMark as lost (unable to contact)?`
-      )
-      if (!confirmed) return
-      await supabase.from('leads').update(asLeadUpdate(attempt.update)).eq('id', lead.id)
-      await logLeadEvent(lead.id, 'lost', 'Unable to contact', {
+    const to = formatAuPhoneForSms(lead.phone.trim())
+    openDeviceSms(lead.phone, body)
+    setTimeout(() => closeSheet(), 300)
+
+    void (async () => {
+      await logLeadEvent(lead.id, 'sms_sent', body, {
+        channel: 'sms',
+        phone: to,
+        manual: true,
+        from_device: true,
         from_status: lead.status,
-        to_status: 'lost',
-        reason: LOST_REASON_UNABLE_TO_CONTACT,
-        source: 'max_attempts',
+        to_status: lead.status,
       })
       fetchLeads()
-      return
-    }
-
-    const toStatus = 'contact_attempted'
-    const poolPickup = shouldPoolPickup(lead.status, toStatus, profile?.id)
-    const updatePayload = {
-      ...attempt.update,
-      ...(poolPickup ? buildPoolPickupUpdate(lead.status, toStatus, profile?.id) : {}),
-    }
-
-    const effectiveAssignedTo = 'assigned_to' in updatePayload
-      ? (updatePayload.assigned_to as string | null)
-      : lead.assigned_to
-    if (blocksUnassignedStatusChange(toStatus, effectiveAssignedTo)) {
-      alert(ASSIGNMENT_REQUIRED_MESSAGE)
-      return
-    }
-
-    await supabase.from('leads').update(asLeadUpdate(updatePayload)).eq('id', lead.id)
-
-    if (poolPickup) {
-      await logPoolPickup(lead.id, 'manual_contact')
-    }
-    await logLeadEvent(
-      lead.id,
-      'contact_attempted',
-      'Status updated to Contact Attempted',
-      {
-        from_status: lead.status,
-        to_status: toStatus,
-        source: 'manual_action',
-      }
-    )
-    focusMobileTabForStatus(toStatus)
-    fetchLeads()
-    closeSheet()
-  }, [logLeadEvent, logPoolPickup, fetchLeads, closeSheet, focusMobileTabForStatus, profile?.id])
+    })()
+  }, [logLeadEvent, fetchLeads, closeSheet])
 
   const handleUnassign = useCallback(async (lead: Lead) => {
     const confirmed = window.confirm(
@@ -1137,10 +1133,10 @@ export default function LeadsPage() {
           profile={profile}
           onCall={handleCall}
           onSms={handleSMS}
+          onSendManualSms={handleSendManualSms}
           onAssign={(lead) => { setAssigningLead(lead); closeSheet() }}
           onBook={(lead) => { setBookingLead(lead); closeSheet() }}
           onQuote={(lead) => { setQuoteLead(lead); closeSheet() }}
-          onMarkContactAttempted={handleMarkContactAttempted}
           onUnassign={handleUnassign}
           onComplete={handleMarkComplete}
           onSharePhoto={handleSharePhoto}
