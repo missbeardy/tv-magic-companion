@@ -13,6 +13,9 @@ describe('sendEmployeeAlert', () => {
     process.env.TWILIO_AUTH_TOKEN = 'token'
     process.env.TWILIO_FROM_NUMBER = '+611300000000'
     process.env.TWILIO_WHATSAPP_FROM = 'whatsapp:+14155238886'
+    // WhatsApp is off by default in production (kill switch); these tests
+    // exercise the WhatsApp/SMS-fallback logic itself, so opt back in here.
+    process.env.EMPLOYEE_WHATSAPP_ENABLED = 'true'
   })
 
   afterEach(() => {
@@ -116,6 +119,27 @@ describe('sendEmployeeAlert', () => {
     expect(result.channel).toBe('sms')
     expect(result.sid).toBe('SMfallback')
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('skips WhatsApp and goes straight to SMS when EMPLOYEE_WHATSAPP_ENABLED is unset (kill switch)', async () => {
+    delete process.env.EMPLOYEE_WHATSAPP_ENABLED
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ sid: 'SMkillswitch' }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await sendEmployeeAlertWithSmsFallback({
+      toPhone: '0412 345 678',
+      smsBody: 'New lead alert',
+      whatsAppMessage: { body: 'New lead alert' },
+    })
+
+    expect(result.sent).toBe(true)
+    expect(result.channel).toBe('sms')
+    expect(fetchMock).toHaveBeenCalledOnce()
+    const body = (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string
+    expect(body).not.toContain('whatsapp')
   })
 
   it('skips SMS when TWILIO_FROM_NUMBER missing', async () => {

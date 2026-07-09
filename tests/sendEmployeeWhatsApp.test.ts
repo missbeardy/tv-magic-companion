@@ -39,7 +39,13 @@ describe('sendEmployeeWhatsApp', () => {
     expect(getWhatsAppFromNumber()).toBe('whatsapp:+15559367913')
   })
 
-  it('reports configured when Twilio WhatsApp env is set', () => {
+  it('is disabled by default even when Twilio WhatsApp env is set (kill switch)', () => {
+    delete process.env.EMPLOYEE_WHATSAPP_ENABLED
+    expect(isEmployeeWhatsAppConfigured()).toBe(false)
+  })
+
+  it('reports configured when explicitly enabled and Twilio WhatsApp env is set', () => {
+    process.env.EMPLOYEE_WHATSAPP_ENABLED = 'true'
     expect(isEmployeeWhatsAppConfigured()).toBe(true)
     delete process.env.TWILIO_WHATSAPP_FROM
     expect(isEmployeeWhatsAppConfigured()).toBe(false)

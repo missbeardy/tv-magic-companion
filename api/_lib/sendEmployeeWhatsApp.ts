@@ -58,7 +58,20 @@ export function getWhatsAppFromNumber(): string | null {
   return `whatsapp:${e164}`
 }
 
+/**
+ * Kill switch: employee WhatsApp is disconnected pending a broader overhaul
+ * (free-form sends without an approved template fail Meta's 24h session
+ * window, which was burning the contact-follow-up cron's 30s budget on
+ * doomed delivery-status polling). Set EMPLOYEE_WHATSAPP_ENABLED=true to
+ * turn WhatsApp sending back on once that's fixed.
+ */
+function isEmployeeWhatsAppEnabled(): boolean {
+  const value = process.env.EMPLOYEE_WHATSAPP_ENABLED?.trim().toLowerCase()
+  return value === 'true' || value === '1' || value === 'yes'
+}
+
 export function isEmployeeWhatsAppConfigured(): boolean {
+  if (!isEmployeeWhatsAppEnabled()) return false
   const sid = process.env.TWILIO_ACCOUNT_SID
   const token = process.env.TWILIO_AUTH_TOKEN
   return Boolean(sid && token && getWhatsAppFromNumber())
