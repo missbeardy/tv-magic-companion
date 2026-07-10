@@ -82,8 +82,9 @@ export async function notifyOrgUser(input: NotifyOrgUserInput): Promise<NotifyOr
     { title, message, url: resolvedUrl }
   )
   // Assignment alerts are sent via send-sms mode=tech_assignment.
-  let alert: NotifyOrgUserResult['alert'] = { sent: false, skipped: 'Skipped for lead_assigned' }
-  if (type !== 'lead_assigned') {
+  // Contact-follow-up reminders stay in-app/push only — no SMS/WhatsApp to employees.
+  let alert: NotifyOrgUserResult['alert'] = { sent: false, skipped: `Skipped for ${type}` }
+  if (type !== 'lead_assigned' && type !== 'contact_follow_up') {
     const { sendEmployeeAlertToPhone } = await import('./sendEmployeeAlert.js')
     alert = await sendEmployeeAlertToPhone(target.phone, smsBody, whatsappMessage)
     if (!alert.sent) {
