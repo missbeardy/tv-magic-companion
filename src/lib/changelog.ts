@@ -64,11 +64,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Fix iPhone lead calls — dialer opens immediately before status update (iOS Safari user-gesture fix)',
     'Calendar visual redesign — Fergus-style tinted job cards, org-theme colours, today marker and current-time line',
     'Lead photos — private storage bucket with signed URLs (org-scoped access)',
+    'Contact follow-up reminders — in-app bell only; no push, SMS, or WhatsApp to assignee',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.104'
+export const APP_VERSION = '1.1.105'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

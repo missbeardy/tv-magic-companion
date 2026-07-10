@@ -19,7 +19,7 @@ export interface NotifyOrgUserResult {
   alert?: { sent: boolean; channel?: 'whatsapp' | 'sms'; sid?: string; skipped?: string; error?: string }
 }
 
-/** In-app bell + best-effort OneSignal push + WhatsApp to profile phone (service role). */
+/** In-app bell + best-effort OneSignal push + WhatsApp to profile phone (service role). Contact follow-up is in-app only. */
 export async function notifyOrgUser(input: NotifyOrgUserInput): Promise<NotifyOrgUserResult> {
   const { supabase, orgId, userId, title, message, url, type, leadId } = input
 
@@ -53,7 +53,7 @@ export async function notifyOrgUser(input: NotifyOrgUserInput): Promise<NotifyOr
 
   const appId = process.env.ONESIGNAL_APP_ID
   const apiKey = process.env.ONESIGNAL_API_KEY
-  if (appId && apiKey) {
+  if (appId && apiKey && type !== 'contact_follow_up') {
     try {
       await fetch('https://onesignal.com/api/v1/notifications', {
         method: 'POST',
@@ -82,7 +82,7 @@ export async function notifyOrgUser(input: NotifyOrgUserInput): Promise<NotifyOr
     { title, message, url: resolvedUrl }
   )
   // Assignment alerts are sent via send-sms mode=tech_assignment.
-  // Contact-follow-up reminders stay in-app/push only — no SMS/WhatsApp to employees.
+  // Contact-follow-up reminders stay in-app only — no push, SMS, or WhatsApp.
   let alert: NotifyOrgUserResult['alert'] = { sent: false, skipped: `Skipped for ${type}` }
   if (type !== 'lead_assigned' && type !== 'contact_follow_up') {
     const { sendEmployeeAlertToPhone } = await import('./sendEmployeeAlert.js')
