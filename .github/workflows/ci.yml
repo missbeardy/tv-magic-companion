@@ -25,6 +25,12 @@ jobs:
         run: npm ci
 
       - name: Test
+        # src/lib/supabase.ts throws at import time if these are unset. No
+        # network call happens in the unit tests that pull it in — this only
+        # needs to satisfy the module-load guard, not point at a real project.
+        env:
+          VITE_SUPABASE_URL: https://placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: placeholder-anon-key
         run: npm test
 
       - name: Typecheck
