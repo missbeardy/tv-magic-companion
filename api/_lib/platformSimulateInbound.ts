@@ -128,6 +128,14 @@ function cloudmailinBase(): string | null {
   return base || null
 }
 
+/** Match inbound-email.ts: secret via HTTP Basic Auth, never in the URL. */
+function inboundEmailAuthHeaders(secret: string): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Basic ${Buffer.from(`cloudmailin:${secret}`).toString('base64')}`,
+  }
+}
+
 async function lookupOrgPhoneNumber(orgId: string): Promise<string | null> {
   const supabase = getSupabaseAdmin()
   if (!supabase) return null
@@ -263,10 +271,10 @@ async function simulateEmailUnrouted(parentReq: VercelRequest, baseUrl: string, 
   return dispatchInboundHandler(
     parentReq,
     baseUrl,
-    `/api/inbound-email?secret=${encodeURIComponent(secret)}`,
+    '/api/inbound-email',
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: inboundEmailAuthHeaders(secret),
       body: JSON.stringify(payload),
     }
   )
@@ -303,10 +311,10 @@ async function simulateEmail(
   return dispatchInboundHandler(
     parentReq,
     baseUrl,
-    `/api/inbound-email?secret=${encodeURIComponent(secret)}`,
+    '/api/inbound-email',
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: inboundEmailAuthHeaders(secret),
       body: JSON.stringify(payload),
     }
   )
@@ -351,10 +359,10 @@ async function simulateVoicemail(
   return dispatchInboundHandler(
     parentReq,
     baseUrl,
-    `/api/inbound-email?secret=${encodeURIComponent(secret)}`,
+    '/api/inbound-email',
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: inboundEmailAuthHeaders(secret),
       body: JSON.stringify(payload),
     }
   )
@@ -495,7 +503,7 @@ export async function handlePlatformSimulateInbound(
       const toNumber = await resolveMappedPhoneForOrg(orgId)
       handlerResult = await simulateSms(req, baseUrl, text.trim(), toNumber)
     } else if (channel === 'email') {
-      const tag = (org.inbound_email_tag as string | null)?.trim()
+      const tag = (org?.inbound_email_tag as string | null)?.trim()
       if (!tag) {
         res.status(400).json({ error: 'Org has no inbound_email_tag configured' })
         return

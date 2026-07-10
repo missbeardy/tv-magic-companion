@@ -124,7 +124,7 @@ export default function TaskBoardPage() {
       // Items that already existed — push the (possibly edited) label
       const existingItems = validItems.filter(i => i.id)
       for (const item of existingItems) {
-        await supabase.from('task_items').update({ label: item.label.trim() }).eq('id', item.id)
+        await supabase.from('task_items').update({ label: item.label.trim() }).eq('id', item.id!)
       }
 
       // Brand-new items typed during this edit — insert them

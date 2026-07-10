@@ -30,6 +30,8 @@ export interface QuoteChaseMessageVars {
   jobService: string
   link: string
   'org.name': string
+  // Index signature so this is assignable to the template renderer's TemplateVars.
+  [key: string]: string
 }
 
 export function buildQuoteChaseEmail(

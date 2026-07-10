@@ -6,7 +6,9 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // `dist` is build output; `*.d.ts` and the generated Supabase types are
+  // generated artifacts, not hand-maintained source, so they aren't linted.
+  globalIgnores(['dist', '**/*.d.ts', 'src/types/database.types.ts']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

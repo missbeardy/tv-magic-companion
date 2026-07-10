@@ -1,3 +1,5 @@
+import type { Json } from '../types/database.types'
+
 export const LEAD_EVENT_TYPES = [
   'created',
   'duplicate_blocked',
@@ -42,7 +44,7 @@ export function buildLeadEventInsert(input: LeadEventInput) {
     org_id: input.orgId,
     event_type: input.eventType,
     note: input.note ?? null,
-    payload: input.payload ?? null,
+    payload: (input.payload ?? null) as Json,
     created_by: input.actorId ?? null,
   }
 }

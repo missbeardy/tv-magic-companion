@@ -15,8 +15,8 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     
-    /* Linting - relaxed for build */
-    "strict": false,
+    /* Linting */
+    "strict": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": false

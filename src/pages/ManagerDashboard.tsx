@@ -130,11 +130,12 @@ export default function ManagerDashboard() {
 
     let cancelled = false
     const monthStart = getMonthStart(new Date())
+    const orgId = profile.org_id
 
     async function loadReportSnapshot() {
       setReportLoading(true)
       try {
-        const report = await fetchReportingData(profile.org_id, monthStart)
+        const report = await fetchReportingData(orgId, monthStart)
         if (!cancelled) {
           setReportSnapshot({
             monthLabel: report.period.label,
@@ -200,10 +201,11 @@ export default function ManagerDashboard() {
 
     let cancelled = false
     const previousMonth = getPreviousMonthStart(new Date())
+    const orgId = profile.org_id
 
     async function loadMonthlyBrief() {
       try {
-        const report = await fetchReportingData(profile.org_id, previousMonth)
+        const report = await fetchReportingData(orgId, previousMonth)
         if (cancelled) return
 
         const hasMeaningfulActivity =

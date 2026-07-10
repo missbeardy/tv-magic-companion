@@ -72,7 +72,7 @@ export default function CompletionChecklist({ lead, onComplete, onCancel, logEve
         .single();
 
       if (!error && Array.isArray(data?.upsell_items) && data.upsell_items.length > 0) {
-        const labels = (data.upsell_items as UpsellItem[]).map(item => item.label);
+        const labels = (data.upsell_items as unknown as UpsellItem[]).map(item => item.label);
         setUpsellLabels(labels);
       }
     }

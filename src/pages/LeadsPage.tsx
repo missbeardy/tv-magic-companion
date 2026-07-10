@@ -13,6 +13,7 @@ import {
 import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { supabase } from '../lib/supabase'
+import { asLeadUpdate } from '../lib/dbTypes'
 import { useAuth } from '../context/AuthContext'
 import { useOrg } from '../context/OrgContext'
 import NavBar from '../components/NavBar'
@@ -342,7 +343,7 @@ export default function LeadsPage() {
         withFollowUp = await processContactFollowUpRollovers(
           merged,
           async (leadId, update) => {
-            const { error } = await supabase.from('leads').update(update).eq('id', leadId)
+            const { error } = await supabase.from('leads').update(asLeadUpdate(update)).eq('id', leadId)
             return !error
           },
           async (leadId, eventType, note, payload) => {
@@ -451,7 +452,7 @@ export default function LeadsPage() {
 
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ...updatePayload } : l))
 
-    const { error } = await supabase.from('leads').update(updatePayload).eq('id', leadId)
+    const { error } = await supabase.from('leads').update(asLeadUpdate(updatePayload)).eq('id', leadId)
     if (error) {
       fetchLeads()
     } else {
@@ -586,7 +587,7 @@ export default function LeadsPage() {
         `${lead.name} has had 5 contact attempts.\n\nMark as lost (unable to contact)?`
       )
       if (!confirmed) return
-      await supabase.from('leads').update(attempt.update).eq('id', lead.id)
+      await supabase.from('leads').update(asLeadUpdate(attempt.update)).eq('id', lead.id)
       await logLeadEvent(lead.id, 'lost', 'Unable to contact', {
         from_status: lead.status,
         to_status: 'lost',
@@ -624,7 +625,7 @@ export default function LeadsPage() {
     setTimeout(() => closeSheet(), 300)
 
     void (async () => {
-      await supabase.from('leads').update(updatePayload).eq('id', lead.id)
+      await supabase.from('leads').update(asLeadUpdate(updatePayload)).eq('id', lead.id)
       if (poolPickup) {
         await logPoolPickup(lead.id, 'call_auto_assign')
       }
@@ -662,7 +663,7 @@ export default function LeadsPage() {
         `${lead.name} has had 5 contact attempts.\n\nMark as lost (unable to contact)?`
       )
       if (!confirmed) return
-      await supabase.from('leads').update(attempt.update).eq('id', lead.id)
+      await supabase.from('leads').update(asLeadUpdate(attempt.update)).eq('id', lead.id)
       await logLeadEvent(lead.id, 'lost', 'Unable to contact', {
         from_status: lead.status,
         to_status: 'lost',
@@ -700,10 +701,10 @@ export default function LeadsPage() {
           ...attempt.update,
           ...buildPoolPickupUpdate(lead.status, toStatus, profile?.id),
         }
-        await supabase.from('leads').update(updatePayload).eq('id', lead.id)
+        await supabase.from('leads').update(asLeadUpdate(updatePayload)).eq('id', lead.id)
         await logPoolPickup(lead.id, 'sms_auto_assign')
       } else if (lead.status === 'assigned' || lead.status === 'contact_attempted') {
-        await supabase.from('leads').update(attempt.update).eq('id', lead.id)
+        await supabase.from('leads').update(asLeadUpdate(attempt.update)).eq('id', lead.id)
       }
 
       await logLeadEvent(
@@ -749,7 +750,7 @@ export default function LeadsPage() {
         `${lead.name} has had 5 contact attempts.\n\nMark as lost (unable to contact)?`
       )
       if (!confirmed) return
-      await supabase.from('leads').update(attempt.update).eq('id', lead.id)
+      await supabase.from('leads').update(asLeadUpdate(attempt.update)).eq('id', lead.id)
       await logLeadEvent(lead.id, 'lost', 'Unable to contact', {
         from_status: lead.status,
         to_status: 'lost',
@@ -775,7 +776,7 @@ export default function LeadsPage() {
       return
     }
 
-    await supabase.from('leads').update(updatePayload).eq('id', lead.id)
+    await supabase.from('leads').update(asLeadUpdate(updatePayload)).eq('id', lead.id)
 
     if (poolPickup) {
       await logPoolPickup(lead.id, 'manual_contact')

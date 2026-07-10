@@ -1,6 +1,7 @@
 // src/components/LeadStatusMenu.tsx
 import { useState, useRef, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { asLeadUpdate } from '../lib/dbTypes'
 import { sendPushNotification } from '../lib/sendPush'
 import { useAuth } from '../context/AuthContext'
 import { useOrg } from '../context/OrgContext'
@@ -158,7 +159,7 @@ export default function LeadStatusMenu({
       return false
     }
 
-    await supabase.from('leads').update(updatePayload).eq('id', leadId)
+    await supabase.from('leads').update(asLeadUpdate(updatePayload)).eq('id', leadId)
 
     if (shouldPoolPickup(fromStatus, newStatus, profile?.id)) {
       await logLeadEvent({

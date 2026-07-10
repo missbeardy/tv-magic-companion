@@ -45,7 +45,7 @@ export default function SourceBarChart({ data, accentColor }: SourceBarChartProp
           />
           <Tooltip
             cursor={{ fill: 'rgba(0,0,0,0.04)' }}
-            formatter={(value: number) => [`${value}`, 'Leads']}
+            formatter={(value) => [`${value}`, 'Leads']}
             labelStyle={{ color: 'rgb(31, 41, 55)', fontSize: 12 }}
             itemStyle={{ color: 'rgb(31, 41, 55)', fontSize: 12 }}
           />

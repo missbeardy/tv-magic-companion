@@ -18,8 +18,8 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 export interface TechWithDistance {
   id: string
   full_name: string
-  lat: number | null
-  lng: number | null
+  lat?: number | null
+  lng?: number | null
   distanceKm: number | null
   distanceLabel: string
 }
@@ -60,7 +60,7 @@ export async function geocodeAddress(
 export function rankTechsByDistance(
   leadLat: number,
   leadLng: number,
-  techs: Array<{ id: string; full_name: string; lat: number | null; lng: number | null }>
+  techs: Array<{ id: string; full_name: string; lat?: number | null; lng?: number | null }>
 ): TechWithDistance[] {
   const withDistance: TechWithDistance[] = techs.map((tech) => {
     if (tech.lat == null || tech.lng == null) {

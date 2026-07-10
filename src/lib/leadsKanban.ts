@@ -20,7 +20,9 @@ export const SOLO_KANBAN_COLUMNS = [
   { key: 'completed', label: 'Done', color: 'border-purple-300', badge: 'bg-purple-100 text-purple-700' },
 ] as const
 
-export type KanbanColumnDef = (typeof TEAM_KANBAN_COLUMNS)[number]
+export type KanbanColumnDef =
+  | (typeof TEAM_KANBAN_COLUMNS)[number]
+  | (typeof SOLO_KANBAN_COLUMNS)[number]
 
 export const TEAM_MOBILE_TABS = [
   { key: 'unassigned', label: 'Unassigned' },

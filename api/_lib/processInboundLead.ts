@@ -187,7 +187,9 @@ export async function processInboundLead(
       .select(selectColumns)
       .eq('id', leadId)
       .single()
-    savedLead = data
+    // `selectColumns` is a dynamic string, so the typed client can't infer the
+    // row shape; coerce to the known SavedLeadRow.
+    savedLead = data as unknown as SavedLeadRow | null
     await recorder.step('fetch_saved_lead', 'succeeded')
 
     const ctx: ProcessInboundLeadContext = {
@@ -224,7 +226,7 @@ export async function processInboundLead(
               leadId,
               toPhone,
               customerName: followUp.resolveCustomerName(ctx),
-              source: followUp.source,
+              source: followUp.source as 'sms' | 'email',
             })
           } else {
             hookbackSent = await sendMissedCallHookbackIfEnabled({
@@ -232,7 +234,7 @@ export async function processInboundLead(
               leadId,
               toPhone,
               customerName: followUp.resolveCustomerName(ctx),
-              source: followUp.source,
+              source: followUp.source as 'phone' | '3cx_missed_call' | 'voicemail_email',
             })
             sent = hookbackSent
           }

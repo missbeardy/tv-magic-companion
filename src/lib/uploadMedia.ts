@@ -1,5 +1,5 @@
 // src/lib/uploadMedia.ts
-import { supabase } from './supabase.ts'
+import { supabase } from './supabase'
 
 /** Uploads to lead-photos bucket; returns storage path (not a public URL). */
 export async function uploadMedia(file: File, orgId: string): Promise<string> {

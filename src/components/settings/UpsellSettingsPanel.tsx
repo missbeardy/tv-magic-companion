@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import type { Json } from '../../types/database.types';
 import { Plus, Trash2, Save } from 'lucide-react';
 
 interface UpsellItem {
@@ -37,7 +38,7 @@ export default function UpsellSettingsPanel({ orgId }: UpsellSettingsPanelProps)
       if (error) {
         setError('Could not load upsell settings.');
       } else if (data?.upsell_items && Array.isArray(data.upsell_items)) {
-        setItems(data.upsell_items as UpsellItem[]);
+        setItems(data.upsell_items as unknown as UpsellItem[]);
       }
       setLoading(false);
     }
@@ -69,7 +70,7 @@ export default function UpsellSettingsPanel({ orgId }: UpsellSettingsPanelProps)
 
     const { error: saveError } = await supabase
       .from('orgs')
-      .update({ upsell_items: items })
+      .update({ upsell_items: items as unknown as Json })
       .eq('id', orgId);
 
     setSaving(false);

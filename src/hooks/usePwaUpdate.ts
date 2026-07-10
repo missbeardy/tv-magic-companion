@@ -3,6 +3,11 @@ import {
   setHandledWorkerId,
   shouldPromptForWaitingWorker,
 } from '../lib/pwaUpdateAck'
+import { APP_VERSION } from '../lib/changelog'
+
+// The DOM `ServiceWorker` type has no stable per-worker id, so we dedupe the
+// update prompt per app release: `APP_VERSION` bumps every deploy (enforced by
+// the changelog gate), which is exactly "prompt once per release".
 
 const SW_URL = '/sw.js'
 const UPDATE_CHECK_MS = 60 * 60 * 1000
@@ -22,12 +27,12 @@ export function usePwaUpdate() {
     }
 
     waitingWorkerRef.current = waiting
-    setUpdateAvailable(shouldPromptForWaitingWorker(waiting.id))
+    setUpdateAvailable(shouldPromptForWaitingWorker(APP_VERSION))
   }, [])
 
   const acknowledgeUpdate = useCallback(() => {
     const waiting = waitingWorkerRef.current ?? registrationRef.current?.waiting
-    if (waiting) setHandledWorkerId(waiting.id)
+    if (waiting) setHandledWorkerId(APP_VERSION)
     setUpdateAvailable(false)
   }, [])
 
@@ -86,7 +91,7 @@ export function usePwaUpdate() {
       window.location.reload()
       return
     }
-    setHandledWorkerId(waiting.id)
+    setHandledWorkerId(APP_VERSION)
     setUpdateAvailable(false)
     setUpdating(true)
     waiting.postMessage({ type: 'SKIP_WAITING' })

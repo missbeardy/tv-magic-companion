@@ -125,5 +125,4 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 }
 
-export type { Profile, UserRole }
 export const useAuth = () => useContext(AuthContext)

@@ -1,7 +1,9 @@
 import { useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import type { Database } from '../types/database.types';
 
+type TableName = keyof Database['public']['Tables'];
 type QueryBuilder = ReturnType<typeof supabase.from>;
 
 /**
@@ -21,7 +23,7 @@ export function useOrgSupabase() {
   }, [profile?.org_id]);
 
   const from = useCallback((table: string) => {
-    const query = supabase.from(table);
+    const query = supabase.from(table as TableName);
     const tablesWithOrgFilter = [
       'leads', 'events', 'tasks', 'notifications', 
       'customers', 'lead_photos', 'lead_events'

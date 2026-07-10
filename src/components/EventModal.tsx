@@ -1,6 +1,7 @@
 // src/components/EventModal.tsx
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { asLeadUpdate } from '../lib/dbTypes'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { cancelBooking } from '../lib/cancelBooking'
@@ -416,7 +417,7 @@ export default function EventModal({
       const { data } = await supabase
         .from('leads')
         .select('id, name, phone, service_type, address, email, details')
-        .eq('org_id', profile?.org_id)
+        .eq('org_id', profile?.org_id ?? '')
         .or(`name.ilike.%${leadSearch}%,phone.ilike.%${leadSearch}%,service_type.ilike.%${leadSearch}%`)
         .limit(6)
       setLeadResults((data as LeadSearchResult[]) ?? [])
@@ -700,7 +701,7 @@ export default function EventModal({
 
       const { error: leadUpdateError } = await supabase
         .from('leads')
-        .update(leadUpdate)
+        .update(asLeadUpdate(leadUpdate))
         .eq('id', leadIdToUse)
 
       if (leadUpdateError) {

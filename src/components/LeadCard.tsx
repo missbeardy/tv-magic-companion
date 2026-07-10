@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import CountdownTimer from './CountdownTimer'
 import LeadStatusMenu from './LeadStatusMenu'
 import LeadPhotos from './LeadPhotos'
-import LeadExtractedSummary, { LeadRawSource } from './LeadExtractedSummary'
+import LeadExtractedSummary, { LeadRawSource, type LeadSummaryFields } from './LeadExtractedSummary'
 import UnassignedTimer from './UnassignedTimer'
 import ContactFollowUpBadge from './ContactFollowUpBadge'
 import LeadAssigneeAvatars from './LeadAssigneeAvatars'
@@ -114,8 +114,8 @@ export default function LeadCard({
       await markInvoicePaid(lead.latest_invoice_id)
       await onLogEvent(
         lead.id,
-        `Invoice ${lead.latest_invoice_number ?? ''} marked paid`.trim(),
-        'invoice_paid_manual'
+        'invoice_paid_manual',
+        `Invoice ${lead.latest_invoice_number ?? ''} marked paid`.trim()
       )
       onRefresh()
     } catch (err) {
@@ -265,7 +265,7 @@ export default function LeadCard({
                 variant="card"
               />
             )}
-            <LeadExtractedSummary lead={lead} size="sm" showAddress={false} onPhoneClick={onCall} />
+            <LeadExtractedSummary lead={lead} size="sm" showAddress={false} onPhoneClick={onCall as (lead: LeadSummaryFields) => void} />
             <LeadRawSource lead={lead} />
 
             {lead.status === 'contact_attempted' && profile?.org_id && (

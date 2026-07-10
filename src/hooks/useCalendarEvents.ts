@@ -38,7 +38,7 @@ export function useCalendarEvents() {
 
       const { data, error: fetchError } = await query;
       if (fetchError) throw fetchError;
-      setEvents(data || []);
+      setEvents((data ?? []) as CalendarEvent[]);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -102,7 +102,7 @@ export function useCalendarEvents() {
         await notifyManager(`scheduled a new event: "${eventData.title}"`);
       }
 
-      setEvents(prev => [...prev, data]);
+      setEvents(prev => [...prev, data as CalendarEvent]);
       return data;
     } catch (err: any) {
       setError(err.message);
@@ -127,7 +127,7 @@ export function useCalendarEvents() {
         await notifyManager(`updated an event: "${title}"`);
       }
 
-      setEvents(prev => prev.map(e => e.id === id ? data : e));
+      setEvents(prev => prev.map(e => e.id === id ? (data as CalendarEvent) : e));
       return data;
     } catch (err: any) {
       setError(err.message);

@@ -6,7 +6,10 @@ export interface HandlerInvokeResult {
   raw: string
 }
 
-type ApiHandler = (req: VercelRequest, res: VercelResponse) => void | Promise<void>
+type ApiHandler = (
+  req: VercelRequest,
+  res: VercelResponse
+) => void | VercelResponse | Promise<void | VercelResponse>
 
 /** Run a Vercel API handler in-process (avoids preview deployment-protection HTML on self-fetch). */
 export async function invokeApiHandler(

@@ -114,12 +114,13 @@ export function usePushNotifications() {
     if (!user) return
 
     const subJson = sub.toJSON()
+    if (!subJson.endpoint || !subJson.keys?.p256dh || !subJson.keys?.auth) return
     await supabase.from('push_subscriptions').upsert(
       {
         user_id: user.id,
         endpoint: subJson.endpoint,
-        p256dh: subJson.keys?.p256dh,
-        auth: subJson.keys?.auth,
+        p256dh: subJson.keys.p256dh,
+        auth: subJson.keys.auth,
       },
       { onConflict: 'endpoint' }
     )

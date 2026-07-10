@@ -44,8 +44,8 @@ export default function WorkflowRunStepDetail({ node, onClose }: WorkflowRunStep
           event_type: leadEvent?.event_type ?? null,
           note: leadEvent?.note ?? null,
           payload: leadEvent?.payload ?? null,
-          kanban_status: node.kanbanStatus ?? null,
-          is_current: node.isCurrentStatus ?? false,
+          kanban_status: node?.kanbanStatus ?? null,
+          is_current: node?.isCurrentStatus ?? false,
         }
       : {
           output: step?.output ?? null,

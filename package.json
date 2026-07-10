@@ -11,8 +11,10 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
+    "lint": "eslint .",
     "verify:changelog": "node scripts/verify-changelog.mjs",
-    "prebuild": "node scripts/verify-changelog.mjs",
+    "prebuild": "node scripts/verify-changelog.mjs && npm run typecheck",
     "stitch:push": "node scripts/stitch/push-to-stitch.mjs"
   },
   "dependencies": {

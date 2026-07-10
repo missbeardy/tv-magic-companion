@@ -47,7 +47,7 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
       const { data: activeCounts } = await supabase
         .from('leads')
         .select('assigned_to')
-        .eq('org_id', profile?.org_id)
+        .eq('org_id', profile?.org_id ?? '')
         .eq('status', 'assigned')
 
       const counts: Record<string, number> = {}
@@ -102,10 +102,10 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
         contact_attempt_round: 0,
         last_contact_attempted_at: null,
         lost_reason: null,
-      })
+      }, { count: 'exact' })
       .eq('id', lead.id)
       .eq('status', 'unassigned')
-      .select('id', { count: 'exact' })
+      .select('id')
 
     if (assignError) {
       setError('Failed to assign: ' + assignError.message)
@@ -197,10 +197,10 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
 
     const { data: preData, count: preCount, error: preError } = await supabase
       .from('leads')
-      .update({ ...assignPayload, assigned_to: winnerId })
+      .update({ ...assignPayload, assigned_to: winnerId }, { count: 'exact' })
       .eq('id', lead.id)
       .eq('status', 'unassigned')
-      .select('id', { count: 'exact' })
+      .select('id')
 
     if (preError) {
       setError('Dev simulate pre-assign failed: ' + preError.message)
@@ -216,10 +216,10 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
 
     const { data, error: assignError, count } = await supabase
       .from('leads')
-      .update({ ...assignPayload, assigned_to: attemptId })
+      .update({ ...assignPayload, assigned_to: attemptId }, { count: 'exact' })
       .eq('id', lead.id)
       .eq('status', 'unassigned')
-      .select('id', { count: 'exact' })
+      .select('id')
 
     if (assignError) {
       setError('Failed to assign: ' + assignError.message)

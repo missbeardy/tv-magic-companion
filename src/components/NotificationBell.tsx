@@ -31,7 +31,7 @@ export default function NotificationBell() {
       const { count } = await supabase
         .from('notifications')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId)
+        .eq('user_id', userId!)
         .eq('read', false)
       setUnread(count ?? 0)
     }

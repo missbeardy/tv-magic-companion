@@ -40,7 +40,7 @@ export function useRestoreLeadBookingDraft<T extends LeadLike>(
       .then(({ data }) => {
         if (cancelled || !data) return
         attemptedRef.current = true
-        setBookingLead(data as T)
+        setBookingLead(data as unknown as T)
       })
 
     return () => {
