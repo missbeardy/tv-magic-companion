@@ -63,11 +63,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Quote follow-up chase — scheduled SMS/email nudges at 48h and 5 days after quote sent (off by default, pro+)',
     'Fix iPhone lead calls — dialer opens immediately before status update (iOS Safari user-gesture fix)',
     'Calendar visual redesign — Fergus-style tinted job cards, org-theme colours, today marker and current-time line',
+    'Lead photos — private storage bucket with signed URLs (org-scoped access)',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.103'
+export const APP_VERSION = '1.1.104'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

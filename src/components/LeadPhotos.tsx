@@ -1,10 +1,10 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { signLeadPhotoPath, signLeadPhotoPaths } from '../lib/leadPhotoStorage'
 
 interface Photo {
   id: string
-  public_url: string
   storage_path: string
   created_at: string
 }
@@ -18,6 +18,7 @@ interface Props {
 export default function LeadPhotos({ leadId, canUpload = true, onShare }: Props) {
   const { profile } = useAuth()
   const [photos, setPhotos] = useState<Photo[]>([])
+  const [signedUrls, setSignedUrls] = useState<Map<string, string>>(new Map())
   const [uploading, setUploading] = useState(false)
   const [lightbox, setLightbox] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -25,17 +26,23 @@ export default function LeadPhotos({ leadId, canUpload = true, onShare }: Props)
   async function fetchPhotos() {
     const { data } = await supabase
       .from('lead_photos')
-      .select('*')
+      .select('id, storage_path, created_at')
       .eq('lead_id', leadId)
       .order('created_at', { ascending: true })
-    if (data) setPhotos(data)
+
+    if (!data) return
+
+    setPhotos(data)
+    const paths = data.map(p => p.storage_path).filter(Boolean)
+    const urls = await signLeadPhotoPaths(paths)
+    setSignedUrls(urls)
   }
 
   useEffect(() => { fetchPhotos() }, [leadId])
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || [])
-    if (!files.length) return
+    if (!files.length || !profile?.org_id) return
 
     const remaining = 3 - photos.length
     if (remaining <= 0) return
@@ -45,7 +52,7 @@ export default function LeadPhotos({ leadId, canUpload = true, onShare }: Props)
 
     for (const file of toUpload) {
       const ext = file.name.split('.').pop()
-      const path = `${profile?.id}/${leadId}-${Date.now()}.${ext}`
+      const path = `${profile.org_id}/leads/${leadId}/${Date.now()}.${ext}`
 
       const { error: uploadError } = await supabase.storage
         .from('lead-photos')
@@ -53,15 +60,11 @@ export default function LeadPhotos({ leadId, canUpload = true, onShare }: Props)
 
       if (uploadError) continue
 
-      const { data: urlData } = supabase.storage
-        .from('lead-photos')
-        .getPublicUrl(path)
-
       await supabase.from('lead_photos').insert({
         lead_id: leadId,
-        uploaded_by: profile?.id,
+        org_id: profile.org_id,
+        uploaded_by: profile.id,
         storage_path: path,
-        public_url: urlData.publicUrl,
       })
     }
 
@@ -76,6 +79,17 @@ export default function LeadPhotos({ leadId, canUpload = true, onShare }: Props)
     fetchPhotos()
   }
 
+  async function openLightbox(storagePath: string) {
+    const signed = signedUrls.get(storagePath) ?? await signLeadPhotoPath(storagePath)
+    if (signed) setLightbox(signed)
+  }
+
+  async function sharePhoto(storagePath: string) {
+    if (!onShare) return
+    const signed = signedUrls.get(storagePath) ?? await signLeadPhotoPath(storagePath)
+    if (signed) onShare(signed)
+  }
+
   return (
     <div className="mt-3">
       {lightbox && (
@@ -83,36 +97,42 @@ export default function LeadPhotos({ leadId, canUpload = true, onShare }: Props)
           className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4"
           onClick={() => setLightbox(null)}
         >
-          <img src={lightbox} className="max-w-full max-h-full rounded-xl" />
+          <img src={lightbox} className="max-w-full max-h-full rounded-xl" alt="" />
         </div>
       )}
 
       <div className="flex gap-2 flex-wrap">
-        {photos.map(photo => (
-          <div key={photo.id} className="relative group">
-            <img
-                  src={photo.public_url}
-                  onClick={() => setLightbox(photo.public_url)}
-                  className="w-20 h-20 object-cover rounded-lg cursor-pointer hover:opacity-90 transition border border-gray-200"
-                />
-                {onShare && (
-                  <button
-                    onClick={() => onShare(photo.public_url)}
-                    className="absolute bottom-0 left-0 right-0 bg-[#004B93] text-white text-xs py-0.5 rounded-b-lg opacity-0 group-hover:opacity-100 transition"
-                  >
-                    Share
-                  </button>
-                )}
-                {canUpload && (
-                  <button
-                    onClick={() => handleDelete(photo)}
-                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs items-center justify-center hidden group-hover:flex"
-                  >
-                    ×
-                  </button>
-                )}
-          </div>
-        ))}
+        {photos.map(photo => {
+          const src = signedUrls.get(photo.storage_path)
+          if (!src) return null
+
+          return (
+            <div key={photo.id} className="relative group">
+              <img
+                src={src}
+                onClick={() => openLightbox(photo.storage_path)}
+                className="w-20 h-20 object-cover rounded-lg cursor-pointer hover:opacity-90 transition border border-gray-200"
+                alt=""
+              />
+              {onShare && (
+                <button
+                  onClick={() => sharePhoto(photo.storage_path)}
+                  className="absolute bottom-0 left-0 right-0 bg-[#004B93] text-white text-xs py-0.5 rounded-b-lg opacity-0 group-hover:opacity-100 transition"
+                >
+                  Share
+                </button>
+              )}
+              {canUpload && (
+                <button
+                  onClick={() => handleDelete(photo)}
+                  className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs items-center justify-center hidden group-hover:flex"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          )
+        })}
 
         {canUpload && photos.length < 3 && (
           <button

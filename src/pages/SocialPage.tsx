@@ -6,10 +6,15 @@ import { useAuth } from '../context/AuthContext'
 import { generateCaption } from '../lib/generateCaption'
 import { postToSocial } from '../hooks/useSocialPost'
 import { uploadMedia } from '../lib/uploadMedia'
+import {
+  signLeadPhotoPath,
+  signLeadPhotoPaths,
+  LEAD_PHOTO_POST_TTL,
+} from '../lib/leadPhotoStorage'
 
 interface JobPhoto {
-  url: string
-  name: string
+  storagePath: string
+  previewUrl: string
   createdAt: string
 }
 
@@ -19,8 +24,8 @@ function isVideoFile(file: File): boolean {
   return file.type.startsWith('video/')
 }
 
-function isVideoUrl(url: string): boolean {
-  return /\.(mp4|mov|webm|avi|m4v)(\?|$)/i.test(url)
+function isVideoPath(path: string): boolean {
+  return /\.(mp4|mov|webm|avi|m4v)$/i.test(path)
 }
 
 const PHOTOS_PER_PAGE = 20
@@ -33,7 +38,8 @@ export default function SocialPage() {
   const [jobPhotos, setJobPhotos] = useState<JobPhoto[]>([])
   const [loadingPhotos, setLoadingPhotos] = useState(true)
   const [hasMore, setHasMore] = useState(false)
-  const [selectedUrl, setSelectedUrl] = useState<string | null>(null)
+  const [selectedStoragePath, setSelectedStoragePath] = useState<string | null>(null)
+  const [selectedPreviewUrl, setSelectedPreviewUrl] = useState<string | null>(null)
   const [selectedMediaType, setSelectedMediaType] = useState<MediaType>('image')
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [uploadPreview, setUploadPreview] = useState<string | null>(null)
@@ -74,7 +80,7 @@ export default function SocialPage() {
 
       const { data: photos, error } = await supabase
         .from('lead_photos')
-        .select('id, public_url, storage_path, created_at, leads!inner(status, org_id)')
+        .select('id, storage_path, created_at, leads!inner(status, org_id)')
         .eq('org_id', profile.org_id)
         .eq('leads.status', 'completed')
         .order('created_at', { ascending: false })
@@ -88,11 +94,20 @@ export default function SocialPage() {
 
       setHasMore(photos.length === PHOTOS_PER_PAGE)
 
-      const allPhotos: JobPhoto[] = photos.map(p => ({
-        name: p.storage_path,
-        url: p.public_url,
-        createdAt: p.created_at,
-      }))
+      const paths = photos.map(p => p.storage_path).filter(Boolean)
+      const signed = await signLeadPhotoPaths(paths)
+
+      const allPhotos: JobPhoto[] = photos
+        .map(p => {
+          const previewUrl = signed.get(p.storage_path)
+          if (!previewUrl) return null
+          return {
+            storagePath: p.storage_path,
+            previewUrl,
+            createdAt: p.created_at,
+          }
+        })
+        .filter((p): p is JobPhoto => p !== null)
 
       setJobPhotos(allPhotos)
       setLoadingPhotos(false)
@@ -102,8 +117,9 @@ export default function SocialPage() {
   }, [profile?.org_id])
 
   function handleSelectJobPhoto(photo: JobPhoto) {
-    setSelectedUrl(photo.url)
-    setSelectedMediaType(isVideoUrl(photo.url) ? 'video' : 'image')
+    setSelectedStoragePath(photo.storagePath)
+    setSelectedPreviewUrl(photo.previewUrl)
+    setSelectedMediaType(isVideoPath(photo.storagePath) ? 'video' : 'image')
     setUploadedFile(null)
     setUploadPreview(null)
   }
@@ -112,7 +128,8 @@ export default function SocialPage() {
     const file = e.target.files?.[0]
     if (!file) return
     setUploadedFile(file)
-    setSelectedUrl(null)
+    setSelectedStoragePath(null)
+    setSelectedPreviewUrl(null)
     setSelectedMediaType(isVideoFile(file) ? 'video' : 'image')
     const objectUrl = URL.createObjectURL(file)
     setUploadPreview(objectUrl)
@@ -122,8 +139,11 @@ export default function SocialPage() {
     if (uploadedFile) {
       setUploading(true)
       try {
-        const publicUrl = await uploadMedia(uploadedFile, profile?.org_id ?? '')
-        setSelectedUrl(publicUrl)
+        const storagePath = await uploadMedia(uploadedFile, profile?.org_id ?? '')
+        const previewUrl = await signLeadPhotoPath(storagePath)
+        if (!previewUrl) throw new Error('Failed to sign upload')
+        setSelectedStoragePath(storagePath)
+        setSelectedPreviewUrl(previewUrl)
       } catch {
         alert('Upload failed. Please try again.')
         setUploading(false)
@@ -152,12 +172,20 @@ export default function SocialPage() {
   }
 
   async function handlePost() {
-    if (!selectedUrl || !caption.trim() || !anyChannelSelected) return
+    if (!selectedStoragePath || !caption.trim() || !anyChannelSelected) return
     setPosting(true)
     setPostError('')
+
+    const mediaUrl = await signLeadPhotoPath(selectedStoragePath, LEAD_PHOTO_POST_TTL)
+    if (!mediaUrl) {
+      setPostError('Could not prepare media for posting. Please try again.')
+      setPosting(false)
+      return
+    }
+
     const result = await postToSocial({
       caption,
-      mediaUrl: selectedUrl,
+      mediaUrl,
       mediaType: selectedMediaType,
       channels,
     })
@@ -172,7 +200,8 @@ export default function SocialPage() {
 
   function handleReset() {
     setStep(1)
-    setSelectedUrl(null)
+    setSelectedStoragePath(null)
+    setSelectedPreviewUrl(null)
     setUploadedFile(null)
     setUploadPreview(null)
     setNotes('')
@@ -181,8 +210,8 @@ export default function SocialPage() {
     setPosted(false)
   }
 
-  const hasMedia = selectedUrl !== null || uploadPreview !== null
-  const previewUrl = uploadPreview ?? selectedUrl
+  const hasMedia = selectedStoragePath !== null || uploadPreview !== null
+  const previewUrl = uploadPreview ?? selectedPreviewUrl
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -294,26 +323,26 @@ export default function SocialPage() {
                   <div className="grid grid-cols-3 gap-2">
                     {jobPhotos.map(photo => (
                       <button
-                        key={photo.name}
+                        key={photo.storagePath}
                         onClick={() => handleSelectJobPhoto(photo)}
                         className={`relative rounded-xl overflow-hidden aspect-square border-2 transition-all ${
-                          selectedUrl === photo.url
+                          selectedStoragePath === photo.storagePath
                             ? 'border-[#004B93] shadow-md'
                             : 'border-transparent hover:border-[#00B4C5]'
                         }`}
                       >
-                        {isVideoUrl(photo.url) ? (
+                        {isVideoPath(photo.storagePath) ? (
                           <div className="w-full h-full bg-gray-900 flex items-center justify-center">
                             <span className="text-2xl">▶️</span>
                           </div>
                         ) : (
                           <img
-                            src={photo.url}
-                            alt={photo.name}
+                            src={photo.previewUrl}
+                            alt={photo.storagePath}
                             className="w-full h-full object-cover"
                           />
                         )}
-                        {selectedUrl === photo.url && (
+                        {selectedStoragePath === photo.storagePath && (
                           <div className="absolute inset-0 bg-[#004B93] bg-opacity-20 flex items-center justify-center">
                             <span className="text-white text-xl">✓</span>
                           </div>

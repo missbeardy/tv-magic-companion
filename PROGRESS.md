@@ -106,10 +106,12 @@ Repeat for **`lead-photos`** and **`avatars`** when you need those features.
 
 #### `lead-photos` policies (Social uploads + job photos)
 
+Bucket is **private** (`public = false`). App uses signed URLs for display.
+
 | Policy name | Operation | Roles | Definition |
 |-------------|-----------|-------|------------|
-| `lead_photos_public_read` | SELECT | public | `bucket_id = 'lead-photos'` |
-| `lead_photos_authenticated_upload` | INSERT | authenticated | `bucket_id = 'lead-photos' AND ((storage.foldername(name))[1] = (SELECT org_id::text FROM profiles WHERE id = auth.uid()) OR (storage.foldername(name))[1] = auth.uid()::text)` |
+| `lead_photos_authenticated_read` | SELECT | authenticated | `bucket_id = 'lead-photos'` AND (first path segment = caller's `org_id`, OR first segment = profile id in same org, OR platform admin) |
+| `lead_photos_authenticated_write` | INSERT | authenticated | `bucket_id = 'lead-photos' AND ((storage.foldername(name))[1] = org_id OR auth.uid())` |
 | `lead_photos_authenticated_update` | UPDATE | authenticated | same as upload |
 
 

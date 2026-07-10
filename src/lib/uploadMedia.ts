@@ -1,6 +1,7 @@
 // src/lib/uploadMedia.ts
 import { supabase } from './supabase.ts'
 
+/** Uploads to lead-photos bucket; returns storage path (not a public URL). */
 export async function uploadMedia(file: File, orgId: string): Promise<string> {
   if (!orgId) throw new Error('Organisation context required for upload')
 
@@ -13,9 +14,5 @@ export async function uploadMedia(file: File, orgId: string): Promise<string> {
 
   if (error) throw new Error(`Upload failed: ${error.message}`)
 
-  const { data } = supabase.storage
-    .from('lead-photos')
-    .getPublicUrl(path)
-
-  return data.publicUrl
+  return path
 }
