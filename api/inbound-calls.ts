@@ -5,6 +5,7 @@ import { resolveOrgIdFromDid } from './_lib/resolveOrgFromDid.js'
 import { captureUnroutedInbound } from './_lib/captureUnroutedInbound.js'
 import { findRecentLeadByPhone } from './_lib/inboundLeadDedup.js'
 import { processInboundLead } from './_lib/processInboundLead.js'
+import { safeCompareSecret } from './_lib/timingSafeCompare.js'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -36,7 +37,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const expectedSecret = process.env.THREECX_WEBHOOK_SECRET
   const incomingSecret = req.headers['x-webhook-secret']
 
-  if (!expectedSecret || incomingSecret !== expectedSecret) {
+  if (!safeCompareSecret(incomingSecret as string | undefined, expectedSecret)) {
     console.warn('Inbound call rejected: invalid or missing webhook secret')
     return res.status(403).json({ error: 'Forbidden' })
   }

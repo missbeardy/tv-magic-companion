@@ -210,6 +210,22 @@ async function handleNewLeadAlert(req: VercelRequest, res: VercelResponse, auth:
   }
 }
 
+/** Confirm a client-supplied lead id belongs to the caller's org before acting on it. */
+async function assertLeadInOrg(leadId: string, orgId: string): Promise<boolean> {
+  const supabase = getSupabaseAdmin()
+  if (!supabase) return false
+  const { data } = await supabase.from('leads').select('org_id').eq('id', leadId).maybeSingle()
+  return !!data && data.org_id === orgId
+}
+
+/** Confirm a client-supplied quote id belongs to the caller's org before acting on it. */
+async function assertQuoteInOrg(quoteId: string, orgId: string): Promise<boolean> {
+  const supabase = getSupabaseAdmin()
+  if (!supabase) return false
+  const { data } = await supabase.from('quotes').select('org_id').eq('id', quoteId).maybeSingle()
+  return !!data && data.org_id === orgId
+}
+
 async function handleQuoteCreate(req: VercelRequest, res: VercelResponse, auth: AuthContext) {
   if (!['manager', 'platform_admin'].includes(auth.role)) {
     return res.status(403).json({ error: 'Only managers can send quotes' })
@@ -244,6 +260,10 @@ async function handleQuoteCreate(req: VercelRequest, res: VercelResponse, auth: 
 
   if (!leadId || !customerName || !scope || typeof totalAmount !== 'number') {
     return res.status(400).json({ error: 'Missing quote fields (leadId, customerName, scope, totalAmount)' })
+  }
+
+  if (!(await assertLeadInOrg(leadId, auth.orgId))) {
+    return res.status(403).json({ error: 'Lead is outside your organisation' })
   }
 
   try {
@@ -420,6 +440,13 @@ async function handleInvoiceSendEmail(req: VercelRequest, res: VercelResponse, a
     return res.status(400).json({
       error: 'Missing invoice fields (leadId, customerName, customerEmail, totalAmount)',
     })
+  }
+
+  if (!(await assertLeadInOrg(leadId, auth.orgId))) {
+    return res.status(403).json({ error: 'Lead is outside your organisation' })
+  }
+  if (quoteId && !(await assertQuoteInOrg(quoteId, auth.orgId))) {
+    return res.status(403).json({ error: 'Quote is outside your organisation' })
   }
 
   const orgSettings = await loadOrgInvoiceSettings(auth.orgId)

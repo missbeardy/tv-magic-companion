@@ -14,6 +14,7 @@ import {
   parseEmailSender,
   type ExtractedLeadFields,
 } from './_lib/rawFirstLead.js'
+import { safeCompareSecret } from './_lib/timingSafeCompare.js'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -144,8 +145,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const { secret } = req.query
-  if (secret !== process.env.INBOUND_SECRET) {
+  const incomingSecret = req.headers['x-inbound-secret']
+  if (!safeCompareSecret(incomingSecret as string | undefined, process.env.INBOUND_SECRET)) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 

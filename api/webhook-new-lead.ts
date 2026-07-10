@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { notifyManagersNewLead } from './_lib/notifyManagersNewLead.js'
+import { safeCompareSecret } from './_lib/timingSafeCompare.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -7,7 +8,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const webhookSecret = req.headers['x-supabase-webhook-secret']
-  if (webhookSecret !== process.env.SUPABASE_WEBHOOK_SECRET) {
+  if (!safeCompareSecret(webhookSecret as string | undefined, process.env.SUPABASE_WEBHOOK_SECRET)) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
