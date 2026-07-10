@@ -475,7 +475,8 @@ async function handleInvoiceMarkPaid(req: VercelRequest, res: VercelResponse, au
 function isContactFollowUpCronAuthorized(req: VercelRequest): boolean {
   loadLocalEnvIfNeeded()
   const secret = process.env.CRON_SECRET?.trim()
-  if (!secret) return process.env.NODE_ENV !== 'production'
+  // Fail closed in every environment: no secret configured means no access.
+  if (!secret) return false
 
   const authHeader = req.headers.authorization
   if (typeof authHeader === 'string' && authHeader === `Bearer ${secret}`) return true
