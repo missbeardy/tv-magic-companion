@@ -3,6 +3,7 @@ import { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import NavBar from '../components/NavBar';
 import { supabase } from '../lib/supabase';
+import { requireAuthHeaders } from '../lib/apiAuth';
 import { HelpCircle, Lightbulb, Bug, Paperclip, Send, X, Image as ImageIcon, AlertCircle, CheckCircle } from 'lucide-react';
 
 type RequestType = 'feature' | 'issue';
@@ -12,7 +13,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
 export default function SupportPage() {
-  const { profile, user } = useAuth();
+  const { profile } = useAuth();
   const [requestType, setRequestType] = useState<RequestType>('feature');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -88,17 +89,15 @@ export default function SupportPage() {
         imageUrls = await uploadFiles();
       }
 
+      const headers = await requireAuthHeaders();
       const response = await fetch('/api/send-support-email', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           type: requestType,
           title: title.trim(),
           description: description.trim(),
           imageUrls,
-          userName: profile?.full_name || user?.email?.split('@')[0] || 'Anonymous',
-          userEmail: user?.email || 'no-email@example.com',
-          orgName: profile?.org_id || 'Unknown organization',
         }),
       });
 

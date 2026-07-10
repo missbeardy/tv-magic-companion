@@ -64,6 +64,7 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Fix iPhone lead calls — dialer opens immediately before status update (iOS Safari user-gesture fix)',
     'Calendar visual redesign — Fergus-style tinted job cards, org-theme colours, today marker and current-time line',
     'Lead photos — private storage bucket with signed URLs (org-scoped access)',
+    'Support & Feedback form requires login — server escapes content, verifies attachment ownership, replies route to the reporter',
     'Contact follow-up reminders — in-app bell only; no push, SMS, or WhatsApp to assignee',
   ],
 }

@@ -4,6 +4,8 @@ import type { SubscriptionTier } from './tier.js'
 
 export interface AuthContext {
   userId: string
+  email: string | null
+  fullName: string | null
   role: string
   orgId: string
   org: {
@@ -52,7 +54,7 @@ export async function authenticateRequestDetailed(
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('role, org_id')
+    .select('role, org_id, full_name')
     .eq('id', userData.user.id)
     .single()
 
@@ -85,6 +87,8 @@ export async function authenticateRequestDetailed(
   return {
     auth: {
       userId: userData.user.id,
+      email: userData.user.email ?? null,
+      fullName: (profile.full_name as string | null) ?? null,
       role: profile.role,
       orgId: profile.org_id,
       org: {
