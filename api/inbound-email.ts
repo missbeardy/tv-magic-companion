@@ -145,8 +145,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const incomingSecret = req.headers['x-inbound-secret']
-  if (!safeCompareSecret(incomingSecret as string | undefined, process.env.INBOUND_SECRET)) {
+  // CloudMailin's target config only supports a plain URL + POST format (no
+  // custom headers), so auth is passed via HTTP Basic Auth in the URL
+  // userinfo (https://user:pass@host/...), which CloudMailin sends as a real
+  // Authorization header rather than a loggable query string.
+  const authHeader = req.headers.authorization
+  const basicPrefix = 'Basic '
+  const incomingPassword =
+    typeof authHeader === 'string' && authHeader.startsWith(basicPrefix)
+      ? Buffer.from(authHeader.slice(basicPrefix.length), 'base64').toString('utf8').split(':').slice(1).join(':')
+      : undefined
+  if (!safeCompareSecret(incomingPassword, process.env.INBOUND_SECRET)) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
