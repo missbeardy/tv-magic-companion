@@ -8,6 +8,18 @@ import { insertRawFirstLead } from './_lib/rawFirstLead.js'
 import { resolveOrgIdFromDid } from './_lib/resolveOrgFromDid.js'
 import { captureUnroutedInbound } from './_lib/captureUnroutedInbound.js'
 import { computeTwilioSignature } from './_lib/twilioSignature.js'
+import { readRawBody } from './_lib/rawBody.js'
+
+/**
+ * Disable Vercel's default body parser so the Meta webhook can verify its
+ * HMAC over the exact raw bytes. The Twilio path re-parses the raw
+ * form-encoded body explicitly in the handler below.
+ */
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+}
 
 const requests = new Map<string, { count: number; reset: number }>()
 
@@ -128,14 +140,21 @@ function fallbackParse(smsText: string, fromNumber: string): any {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const action = typeof req.query.action === 'string' ? req.query.action : undefined
 
+  // Body parser is disabled (see `config` above); read the raw stream once.
+  const rawBody = (await readRawBody(req)).toString('utf8')
+
   if (action === 'meta-webhook') {
     const { handleMetaWebhook } = await import('./_lib/metaWebhook.js')
-    return handleMetaWebhook(req, res, supabase)
+    return handleMetaWebhook(req, res, supabase, rawBody)
   }
 
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
+
+  // Twilio posts application/x-www-form-urlencoded. Reconstruct the params
+  // object the rest of this handler (and verifyTwilioSignature) expects.
+  req.body = Object.fromEntries(new URLSearchParams(rawBody))
 
   const ip = (req.headers['x-forwarded-for'] as string) ?? 'unknown'
   if (!checkRateLimit(ip)) {

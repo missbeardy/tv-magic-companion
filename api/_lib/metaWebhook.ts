@@ -34,7 +34,8 @@ export async function resolveOrgIdFromFacebookPageId(
 export async function handleMetaWebhook(
   req: VercelRequest,
   res: VercelResponse,
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  rawBody: string
 ): Promise<void> {
   if (req.method === 'GET') {
     const mode = req.query['hub.mode']
@@ -56,18 +57,22 @@ export async function handleMetaWebhook(
     return
   }
 
+  // Fail closed: without the app secret we cannot authenticate the sender.
   const appSecret = process.env.META_APP_SECRET
-  if (appSecret) {
-    const sig = req.headers['x-hub-signature-256'] as string | undefined
-    const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body)
-    if (!verifyMetaWebhookSignature(rawBody, sig, appSecret)) {
-      console.warn('Invalid Meta webhook signature')
-      res.status(401).json({ error: 'Invalid signature' })
-      return
-    }
+  if (!appSecret) {
+    console.error('META_APP_SECRET not configured; rejecting Meta webhook')
+    res.status(503).json({ error: 'Server not configured' })
+    return
   }
 
-  const body = req.body as {
+  const sig = req.headers['x-hub-signature-256'] as string | undefined
+  if (!verifyMetaWebhookSignature(rawBody, sig, appSecret)) {
+    console.warn('Invalid Meta webhook signature')
+    res.status(401).json({ error: 'Invalid signature' })
+    return
+  }
+
+  let body: {
     object?: string
     entry?: Array<{
       id?: string
@@ -77,6 +82,12 @@ export async function handleMetaWebhook(
         message?: { text?: string; mid?: string }
       }>
     }>
+  }
+  try {
+    body = rawBody ? JSON.parse(rawBody) : {}
+  } catch {
+    res.status(400).json({ error: 'Invalid JSON' })
+    return
   }
 
   if (body.object !== 'page') {

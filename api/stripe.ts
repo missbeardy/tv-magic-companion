@@ -4,6 +4,7 @@ import { authenticateRequestDetailed, authErrorMessage } from './_lib/auth.js'
 import { getStripe, getPlatformUrl, getPriceIdForTier, validatePriceId } from './_lib/stripe.js'
 import { getSupabaseAdmin } from './_lib/supabaseAdmin.js'
 import { tierFromStripePriceId, type SubscriptionTier } from './_lib/tier.js'
+import { readRawBody } from './_lib/rawBody.js'
 
 /** Single function for Hobby plan (12-function limit). Routes via vercel.json rewrites. */
 export const config = {
@@ -24,15 +25,6 @@ function resolveAction(req: VercelRequest): StripeAction | null {
   if (path.includes('stripe-portal')) return 'portal'
   if (path.includes('stripe-checkout')) return 'checkout'
   return null
-}
-
-async function readRawBody(req: VercelRequest): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = []
-    req.on('data', (chunk: Buffer) => chunks.push(chunk))
-    req.on('end', () => resolve(Buffer.concat(chunks)))
-    req.on('error', reject)
-  })
 }
 
 async function readJsonBody<T>(req: VercelRequest): Promise<T> {
