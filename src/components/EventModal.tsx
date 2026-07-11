@@ -80,6 +80,7 @@ interface Props {
     job_quote?: number | string | null
   }
   defaultDate?: string
+  defaultDurationMinutes?: number
 }
 
 // ── Timezone helper ──────────────────────────────────────────────────────────
@@ -131,6 +132,32 @@ function sanitizeNumericInput(raw: string): string {
   return stripped.slice(0, firstDot + 1) + stripped.slice(firstDot + 1).replace(/\./g, '')
 }
 
+// ── Duration presets for the booking form ────────────────────────────────────
+const DURATION_PRESETS: { minutes: number; label: string }[] = [
+  { minutes: 60, label: '1 hr' },
+  { minutes: 90, label: '1.5 hr' },
+  { minutes: 120, label: '2 hr' },
+  { minutes: 180, label: '3 hr' },
+  { minutes: 240, label: '4 hr' },
+]
+
+// Add `minutes` to an "HH:mm" time. Clamped so it never rolls past 23:59.
+function addMinutesToTime(hhmm: string, minutes: number): string {
+  const [h, m] = hhmm.split(':').map(Number)
+  const total = h * 60 + m + minutes
+  const clamped = Math.max(0, Math.min(total, 23 * 60 + 59))
+  const hh = Math.floor(clamped / 60)
+  const mm = clamped % 60
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+}
+
+// Difference in minutes between two "HH:mm" times (end - start). May be negative.
+function diffMinutes(start: string, end: string): number {
+  const [sh, sm] = start.split(':').map(Number)
+  const [eh, em] = end.split(':').map(Number)
+  return (eh * 60 + em) - (sh * 60 + sm)
+}
+
 type ManagerEventKind = 'picker' | 'booking' | 'meeting'
 
 function initialEventKind(
@@ -154,6 +181,7 @@ export default function EventModal({
   onSaved,
   existingEvent,
   defaultDate,
+  defaultDurationMinutes,
 }: Props) {
   const { profile } = useAuth()
   const theme = useTheme()
@@ -183,10 +211,19 @@ export default function EventModal({
       ? defaultDate.slice(11, 16)
       : '09:00'
 
+  // Duration drives the end time for new events. For an existing event we derive
+  // it from the stored start/end (falling back to 60 min if that diff is ≤ 0).
+  const initialDurationMinutes = existingEvent
+    ? Math.max(diffMinutes(initialStartTime, localTimeStr(existingEvent.end_time)), 0) || 60
+    : (defaultDurationMinutes ?? 60)
+
   const [title, setTitle] = useState(existingEvent?.title ?? (prefillLead ? `${prefillLead.service_type} — ${prefillLead.name}` : ''))
   const [date, setDate] = useState(initialDate)
   const [startTime, setStartTime] = useState(initialStartTime)
-  const [endTime, setEndTime] = useState(existingEvent ? localTimeStr(existingEvent.end_time) : '10:00')
+  const [durationMinutes, setDurationMinutes] = useState(initialDurationMinutes)
+  const [endTime, setEndTime] = useState(
+    existingEvent ? localTimeStr(existingEvent.end_time) : addMinutesToTime(initialStartTime, initialDurationMinutes),
+  )
   const [notes, setNotes] = useState(existingEvent?.notes ?? '')
 
   const [clientName, setClientName] = useState(existingEvent?.client_name ?? prefillLead?.name ?? '')
@@ -208,6 +245,10 @@ export default function EventModal({
   const [leadResults, setLeadResults] = useState<LeadSearchResult[]>([])
   const [searchingLeads, setSearchingLeads] = useState(false)
   const [showLeadSearch, setShowLeadSearch] = useState(false)
+
+  // Prefilled bookings from a lead collapse the (already-filled) customer section.
+  const isPrefilledNewBooking = Boolean(prefillLead && !existingEvent)
+  const [showCustomerFields, setShowCustomerFields] = useState(!isPrefilledNewBooking)
 
   const [saving, setSaving] = useState(false)
   const [cancelling, setCancelling] = useState(false)
@@ -247,7 +288,16 @@ export default function EventModal({
     setTitle(draft.title)
     setDate(draft.date)
     setStartTime(draft.startTime)
-    setEndTime(draft.endTime)
+    // Draft stores start/end strings only; rederive the duration from the pair.
+    // Guard against a non-positive (pre-fix) pair by resetting to a 60-min block.
+    const restoredDuration = diffMinutes(draft.startTime, draft.endTime)
+    if (restoredDuration > 0) {
+      setEndTime(draft.endTime)
+      setDurationMinutes(restoredDuration)
+    } else {
+      setEndTime(addMinutesToTime(draft.startTime, 60))
+      setDurationMinutes(60)
+    }
     setNotes(draft.notes)
     setClientName(draft.clientName)
     setClientPhone(draft.clientPhone)
@@ -443,6 +493,25 @@ export default function EventModal({
   function unlinkLead() {
     setLinkedLeadId(null)
     setLinkedLeadName('')
+    setShowCustomerFields(true)
+  }
+
+  // Changing the start preserves the intended duration by shifting the end with it.
+  function handleStartTimeChange(newStart: string) {
+    setStartTime(newStart)
+    setEndTime(addMinutesToTime(newStart, durationMinutes))
+  }
+
+  // Tapping a preset chip sets the duration and recomputes the end from the start.
+  function handleDurationPreset(minutes: number) {
+    setDurationMinutes(minutes)
+    setEndTime(addMinutesToTime(startTime, minutes))
+  }
+
+  // Manually editing the end switches to a custom duration (no chip selected).
+  function handleEndTimeChange(newEnd: string) {
+    setEndTime(newEnd)
+    setDurationMinutes(diffMinutes(startTime, newEnd))
   }
 
   function toggleTeamMember(memberId: string) {
@@ -528,6 +597,13 @@ export default function EventModal({
 
     const startISO = toLocalISO(date, startTime)
     const endISO = toLocalISO(date, endTime)
+
+    if (new Date(endISO) <= new Date(startISO)) {
+      setError('End time must be after start time.')
+      setSaving(false)
+      return
+    }
+
     const customerName = clientName.trim()
     const nowIso = new Date().toISOString()
     const teamMeeting = isTeamMeetingMode
@@ -1011,8 +1087,8 @@ export default function EventModal({
           </div>
           )}
 
-          {/* Customer Info — booking only */}
-          {!showTypePicker && isBookingMode && (
+          {/* Customer Info — booking only (collapsed to a summary card when prefilled) */}
+          {!showTypePicker && isBookingMode && (showCustomerFields ? (
           <div className="bg-[#004B93]/5 rounded-xl p-3 space-y-3">
             <p className="text-xs font-semibold text-[#004B93] uppercase tracking-wide">Customer Information</p>
             <div>
@@ -1086,7 +1162,25 @@ export default function EventModal({
               />
             </div>
           </div>
-          )}
+          ) : (
+          <div className="bg-[#004B93]/5 rounded-xl p-3 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-[#004B93] uppercase tracking-wide mb-1">Customer</p>
+              <p className="text-sm font-medium text-gray-900 truncate">{clientName || 'Customer'}</p>
+              {clientPhone && <p className="text-xs text-gray-500 truncate">{clientPhone}</p>}
+              {clientAddress && (
+                <p className="text-xs text-gray-500 truncate">{clientAddress.split(/[\n,]/)[0].trim()}</p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowCustomerFields(true)}
+              className="text-xs text-[#004B93] font-medium hover:underline shrink-0"
+            >
+              Edit details
+            </button>
+          </div>
+          ))}
 
           {/* Appointment Details */}
           {!showTypePicker && (
@@ -1120,13 +1214,35 @@ export default function EventModal({
                 <label className="block text-xs font-medium text-gray-600 mb-1">
                   <Clock size={11} className="inline mr-1" />Start
                 </label>
-                <TimePicker value={startTime} onChange={setStartTime} />
+                <TimePicker value={startTime} onChange={handleStartTimeChange} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
                   <Clock size={11} className="inline mr-1" />End
                 </label>
-                <TimePicker value={endTime} onChange={setEndTime} />
+                <TimePicker value={endTime} onChange={handleEndTimeChange} />
+              </div>
+            </div>
+            <div className="mb-3">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Duration</label>
+              <div className="flex flex-wrap gap-1.5">
+                {DURATION_PRESETS.map((preset) => {
+                  const selected = durationMinutes === preset.minutes
+                  return (
+                    <button
+                      key={preset.minutes}
+                      type="button"
+                      onClick={() => handleDurationPreset(preset.minutes)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                        selected
+                          ? 'bg-[#004B93] text-white border-[#004B93]'
+                          : 'bg-white text-gray-600 border-gray-200 hover:border-[#004B93]'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  )
+                })}
               </div>
             </div>
             <div>

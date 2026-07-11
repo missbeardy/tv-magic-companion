@@ -67,11 +67,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Support & Feedback form requires login — server escapes content, verifies attachment ownership, replies route to the reporter',
     'Contact follow-up reminders — in-app bell only; no push, SMS, or WhatsApp to assignee',
     'Edit lead contact details — fix a wrong name, phone, or email from the lead sheet; future bookings update to match',
+    'Booking form — duration chips (1/1.5/2/3/4 hr) drive the end time; changing the start keeps the duration; end-before-start is now blocked; availability-slot taps carry the job length; booking from a lead collapses the pre-filled customer details',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.106'
+export const APP_VERSION = '1.1.107'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
