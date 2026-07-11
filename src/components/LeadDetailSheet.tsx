@@ -1,8 +1,5 @@
 import { useState } from 'react'
 import {
-  Phone,
-  MessageSquare,
-  Mail,
   MapPin,
   UserPlus,
   Calendar,
@@ -13,6 +10,7 @@ import {
 import BottomSheet from './BottomSheet'
 import LeadPhotos from './LeadPhotos'
 import LeadAddressEditor from './LeadAddressEditor'
+import LeadContactEditor from './LeadContactEditor'
 import LeadContactNote from './LeadContactNote'
 import { LeadRawSource } from './LeadExtractedSummary'
 import { formatLocalityLabelFromAddress } from '../lib/extractSuburb'
@@ -138,43 +136,16 @@ export default function LeadDetailSheet({
           )}
         </div>
 
-        {(lead.phone || lead.email) && (
-          <div className="rounded-lg bg-gray-50 border border-gray-100 p-3 space-y-2">
-            {lead.phone && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-800 flex-1">{lead.phone}</span>
-                <button
-                  type="button"
-                  onClick={() => onCall(lead)}
-                  className="p-2 rounded-lg text-[var(--color-primary)] hover:bg-white transition-colors"
-                  aria-label="Call"
-                >
-                  <Phone size={18} />
-                </button>
-                {smsEnabled && (
-                  <button
-                    type="button"
-                    onClick={() => onSms(lead)}
-                    className="p-2 rounded-lg text-[var(--color-primary)] hover:bg-white transition-colors"
-                    aria-label="Send SMS"
-                  >
-                    <MessageSquare size={18} />
-                  </button>
-                )}
-              </div>
-            )}
-            {lead.email && (
-              <div className="flex items-center gap-2">
-                <Mail size={16} className="text-gray-400 shrink-0" />
-                <a
-                  href={`mailto:${lead.email}`}
-                  className="text-sm text-gray-800 truncate hover:text-[var(--color-primary)]"
-                >
-                  {lead.email}
-                </a>
-              </div>
-            )}
-          </div>
+        {profile?.org_id && (
+          <LeadContactEditor
+            lead={lead}
+            orgId={profile.org_id}
+            actorId={profile.id}
+            smsEnabled={smsEnabled}
+            onCall={() => onCall(lead)}
+            onSms={() => onSms(lead)}
+            onSaved={onRefresh}
+          />
         )}
 
         {profile?.org_id && (

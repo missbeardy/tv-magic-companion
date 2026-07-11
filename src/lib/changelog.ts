@@ -66,11 +66,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Lead photos — private storage bucket with signed URLs (org-scoped access)',
     'Support & Feedback form requires login — server escapes content, verifies attachment ownership, replies route to the reporter',
     'Contact follow-up reminders — in-app bell only; no push, SMS, or WhatsApp to assignee',
+    'Edit lead contact details — fix a wrong name, phone, or email from the lead sheet; future bookings update to match',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.105'
+export const APP_VERSION = '1.1.106'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
