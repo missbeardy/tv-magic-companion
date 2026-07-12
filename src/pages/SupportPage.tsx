@@ -1,12 +1,17 @@
 // src/pages/SupportPage.tsx
 import { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useOrg } from '../context/OrgContext';
+import { isPlatformAdminRole } from '../lib/roles';
 import NavBar from '../components/NavBar';
 import { supabase } from '../lib/supabase';
 import { requireAuthHeaders } from '../lib/apiAuth';
-import { HelpCircle, Lightbulb, Bug, Paperclip, Send, X, Image as ImageIcon, AlertCircle, CheckCircle } from 'lucide-react';
+import MessagesPanel from '../components/messaging/MessagesPanel';
+import PlatformInbox from '../components/messaging/PlatformInbox';
+import { HelpCircle, Lightbulb, Bug, Paperclip, Send, AlertCircle, CheckCircle, MessageSquare, Inbox } from 'lucide-react';
 
 type RequestType = 'feature' | 'issue';
+type SupportTab = 'help' | 'messages' | 'inbox';
 
 const MAX_FILES = 5;
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -14,6 +19,10 @@ const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
 export default function SupportPage() {
   const { profile } = useAuth();
+  const { isFeatureEnabled } = useOrg();
+  const messagingOn = isFeatureEnabled('internal_messaging');
+  const isAdmin = isPlatformAdminRole(profile?.role);
+  const [tab, setTab] = useState<SupportTab>('help');
   const [requestType, setRequestType] = useState<RequestType>('feature');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -129,6 +138,50 @@ export default function SupportPage() {
           </p>
         </div>
 
+        {messagingOn && (
+          <div className="flex gap-1 border-b border-gray-200">
+            <button
+              type="button"
+              onClick={() => setTab('help')}
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${
+                tab === 'help'
+                  ? 'border-[#004B93] text-[#004B93]'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <HelpCircle size={15} /> Help & Feedback
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('messages')}
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${
+                tab === 'messages'
+                  ? 'border-[#004B93] text-[#004B93]'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <MessageSquare size={15} /> Messages
+            </button>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => setTab('inbox')}
+                className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${
+                  tab === 'inbox'
+                    ? 'border-[#004B93] text-[#004B93]'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Inbox size={15} /> Support Inbox
+              </button>
+            )}
+          </div>
+        )}
+
+        {messagingOn && tab === 'messages' && <MessagesPanel />}
+        {messagingOn && isAdmin && tab === 'inbox' && <PlatformInbox />}
+
+        {(!messagingOn || tab === 'help') && (
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Type selector */}
           <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -254,6 +307,7 @@ export default function SupportPage() {
             {loading ? 'Submitting...' : 'Submit Request'}
           </button>
         </form>
+        )}
       </main>
     </div>
   );

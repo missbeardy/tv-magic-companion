@@ -194,6 +194,9 @@ export default function Calendar() {
   const [showModal, setShowModal] = useState(false)
   const [showBlackoutModal, setShowBlackoutModal] = useState(false)
   const [defaultDate, setDefaultDate] = useState('')
+  // Set only when a booking is opened from an availability slot, so the modal
+  // can seed its duration from the availability panel's job length.
+  const [slotDurationMinutes, setSlotDurationMinutes] = useState<number | undefined>(undefined)
   const [employees, setEmployees] = useState<Profile[]>([])
   const [filterEmployee, setFilterEmployee] = useState<string>('all')
   const [isMobile, setIsMobile] = useState(false)
@@ -401,7 +404,7 @@ export default function Calendar() {
     setCurrentDate(new Date())
   }
 
-  function openNewEvent(date: Date, hour?: number) {
+  function openNewEvent(date: Date, hour?: number, durationMinutes?: number) {
     const target = new Date(date)
     if (hour !== undefined) {
       target.setHours(hour, 0, 0, 0)
@@ -410,6 +413,7 @@ export default function Calendar() {
     }
     const iso = toLocalDateTimeInput(target)
     setDefaultDate(iso)
+    setSlotDurationMinutes(durationMinutes)
     setSelectedEvent(null)
     setShowModal(true)
   }
@@ -593,6 +597,7 @@ export default function Calendar() {
         <EventModal
           existingEvent={selectedEvent ?? undefined}
           defaultDate={defaultDate}
+          defaultDurationMinutes={slotDurationMinutes}
           employees={employees}
           defaultAssigneeId={filterEmployee !== 'all' ? filterEmployee : profile?.id}
           onClose={() => setShowModal(false)}
@@ -795,7 +800,7 @@ export default function Calendar() {
                   <div
                     key={hour}
                     className={`flex items-center gap-2 px-2 py-1 rounded border text-xs transition cursor-pointer hover:opacity-80 ${getAvailabilityColor(available)}`}
-                    onClick={() => available && openNewEvent(new Date(currentDate), hour)}
+                    onClick={() => available && openNewEvent(new Date(currentDate), hour, availabilityDuration)}
                     title={available ? `Click to book at ${String(hour).padStart(2, '0')}:00` : 'Slot unavailable'}
                   >
                     <span className="font-mono font-medium w-12">{String(hour).padStart(2, '0')}:00</span>
@@ -832,7 +837,7 @@ export default function Calendar() {
                           <div
                             key={hour}
                             className={`text-[9px] px-1 py-0.5 rounded border text-center cursor-pointer hover:opacity-80 transition ${getAvailabilityColor(available)}`}
-                            onClick={() => available && openNewEvent(new Date(day), hour)}
+                            onClick={() => available && openNewEvent(new Date(day), hour, availabilityDuration)}
                             title={available ? `${String(hour).padStart(2, '0')}:00 - Available` : `${String(hour).padStart(2, '0')}:00 - Busy`}
                           >
                             <span className={`font-medium ${getAvailabilityText(available)}`}>

@@ -45,6 +45,7 @@ describe('featureSwitchCatalog categories', () => {
       'manager_new_lead_alerts',
       'smart_assign_badge',
       'tech_location',
+      'internal_messaging',
     ])
     expect(FEATURE_SWITCHES_BY_CATEGORY.sales_job_completion).toEqual([
       'quote_esign',
