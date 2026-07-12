@@ -37,18 +37,41 @@ async function hashText(text: string): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+/** Local phone match variants (no api/_lib import in frontend): trimmed + digits-only. */
+function phoneMatchCandidates(input: string): string[] {
+  const trimmed = input.trim()
+  const digits = trimmed.replace(/\D/g, '')
+  return [...new Set([trimmed, digits])].filter(Boolean)
+}
+
 async function upsertCustomer(extracted: ExtractedLead, orgId: string): Promise<string | null> {
   if (!extracted.email && !extracted.phone) return null
 
+  // Match by email first (most recent wins; .limit(1) avoids the .maybeSingle()
+  // fail-open on duplicate emails).
   if (extracted.email) {
     const { data: existing } = await supabase
       .from('customers')
       .select('id')
       .eq('org_id', orgId)
-      .eq('email', extracted.email)
-      .maybeSingle()
+      .ilike('email', extracted.email.trim())
+      .order('created_at', { ascending: false })
+      .limit(1)
 
-    if (existing) return existing.id
+    if (existing?.[0]) return existing[0].id
+  }
+
+  // Phone fallback: email-less SMS leads used to always create duplicates.
+  if (extracted.phone) {
+    const { data: existing } = await supabase
+      .from('customers')
+      .select('id')
+      .eq('org_id', orgId)
+      .in('phone', phoneMatchCandidates(extracted.phone))
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (existing?.[0]) return existing[0].id
   }
 
   const { data: created, error } = await supabase

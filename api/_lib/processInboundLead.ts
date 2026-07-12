@@ -7,6 +7,8 @@ import {
   type ExtractedLeadFields,
 } from './rawFirstLead.js'
 import { NOOP_RECORDER, startWorkflowRun, type WorkflowRunRecorder } from './workflowRun.js'
+import { isFeatureEnabledForOrg } from './featureSwitches.js'
+import { linkCustomerForLead } from './customers.js'
 
 export interface SavedLeadRow {
   id?: string
@@ -14,6 +16,8 @@ export interface SavedLeadRow {
   service_type?: string | null
   status?: string | null
   phone?: string | null
+  email?: string | null
+  address?: string | null
 }
 
 export interface ProcessInboundLeadExtractionResult {
@@ -57,7 +61,11 @@ export interface ProcessInboundLeadInput {
   }
   /** Channel-specific extraction; omit for missed-call (no AI step). */
   extract?: ProcessInboundLeadExtractFn
-  /** Columns to select after pipeline. Default: name, service_type, status */
+  /**
+   * Columns to select after pipeline. Default includes the contact fields the
+   * customer linker needs (phone/email/address). Callers that override this
+   * MUST keep those columns for customer linking to work.
+   */
   selectColumns?: string
   buildNotify: (ctx: ProcessInboundLeadContext) => {
     name: string
@@ -89,7 +97,7 @@ export async function processInboundLead(
     insertLead,
     createdEvent,
     extract,
-    selectColumns = 'name, service_type, status',
+    selectColumns = 'name, service_type, status, phone, email, address',
     buildNotify,
     followUp,
     logLabel,
@@ -191,6 +199,49 @@ export async function processInboundLead(
     // row shape; coerce to the known SavedLeadRow.
     savedLead = data as unknown as SavedLeadRow | null
     await recorder.step('fetch_saved_lead', 'succeeded')
+
+    // Link the lead to a customer (match or create), gated by feature switch.
+    // Fail-open: linking never blocks or fails the lead pipeline.
+    try {
+      const linkingEnabled = await isFeatureEnabledForOrg(orgId, 'customer_linking')
+      if (!linkingEnabled) {
+        await recorder.step('link_customer', 'skipped')
+      } else {
+        const link = await linkCustomerForLead({
+          orgId,
+          name: savedLead?.name ?? null,
+          phone: savedLead?.phone ?? null,
+          email: savedLead?.email ?? null,
+          address: savedLead?.address ?? null,
+        })
+        if (link.customerId) {
+          const { error: linkErr } = await supabase
+            .from('leads')
+            .update({ customer_id: link.customerId })
+            .eq('id', leadId)
+          if (linkErr) {
+            // No PII: message only. Do not set partial; linking is best-effort.
+            await recorder.step('link_customer', 'failed', { error: linkErr.message })
+          } else {
+            await recorder.step('link_customer', 'succeeded', {
+              output: { matched: link.matched, created: link.created, customer_id: link.customerId },
+            })
+          }
+        } else {
+          // Nothing to link (no contact info, or swallowed linker error).
+          await recorder.step('link_customer', 'succeeded', {
+            output: { matched: false, created: false, customer_id: null },
+          })
+        }
+      }
+    } catch (linkStepErr) {
+      // Belt-and-braces: the linker swallows its own errors, but never let an
+      // unexpected throw here disturb the rest of the pipeline.
+      console.error(`${logLabel} customer linking failed:`, linkStepErr instanceof Error ? linkStepErr.message : String(linkStepErr))
+      await recorder.step('link_customer', 'failed', {
+        error: linkStepErr instanceof Error ? linkStepErr.message : String(linkStepErr),
+      })
+    }
 
     const ctx: ProcessInboundLeadContext = {
       leadId,

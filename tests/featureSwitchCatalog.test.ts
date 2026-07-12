@@ -34,6 +34,7 @@ describe('featureSwitchCatalog categories', () => {
       'inbound_email',
       'inbound_calls',
       'inbound_messenger',
+      'customer_linking',
     ])
     expect(FEATURE_SWITCHES_BY_CATEGORY.customer_communication).toEqual([
       'missed_call_hookback_sms',

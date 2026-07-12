@@ -51,6 +51,7 @@ export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   quote_chase: false,
   tech_location: false,
   internal_messaging: false,
+  customer_linking: false,
 }
 
 export const FEATURE_SWITCH_DEFINITIONS: Record<
@@ -124,6 +125,10 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   internal_messaging: {
     label: 'Internal Support Messaging',
     description: 'In-app 1:1 messaging with support plus a read-only announcements feed',
+  },
+  customer_linking: {
+    label: 'Customer Linking',
+    description: 'Match or create a customer record for each inbound lead',
   },
 }
 

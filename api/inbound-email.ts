@@ -316,7 +316,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 : undefined,
             }
           },
-          selectColumns: 'id, name, service_type, phone, status',
+          selectColumns: 'id, name, service_type, phone, status, email, address',
           buildNotify: ({ savedLead }) => ({
             name: savedLead?.name || 'Missed Call',
             service_type: savedLead?.service_type || 'General Enquiry',
@@ -440,7 +440,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             },
           }
         },
-        selectColumns: 'name, service_type, status, phone',
+        selectColumns: 'name, service_type, status, phone, email, address',
         buildNotify: ({ savedLead }) => ({
           name: savedLead?.name || senderName,
           service_type: savedLead?.service_type || 'General Enquiry',
