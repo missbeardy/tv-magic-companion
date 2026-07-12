@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { asSupportMessageInsert } from '../../lib/dbTypes'
 import { byCreatedAsc, type SupportMessage } from '../../lib/messaging'
 
 /**
@@ -87,7 +88,7 @@ export function useSupportThread(ownerId: string | null, myUserId: string | null
 
       const { data, error } = await supabase
         .from('support_messages')
-        .insert({ user_id: ownerId, sender_id: myUserId, body })
+        .insert(asSupportMessageInsert({ user_id: ownerId, sender_id: myUserId, body }))
         .select()
         .single()
 

@@ -7,6 +7,7 @@ export type LeadRow = Tables['leads']['Row']
 export type LeadUpdate = Tables['leads']['Update']
 export type EventRow = Tables['events']['Row']
 export type EventUpdate = Tables['events']['Update']
+export type SupportMessageInsert = Tables['support_messages']['Insert']
 
 /**
  * Shared update builders live in `shared/` (also compiled by the API/node
@@ -15,3 +16,11 @@ export type EventUpdate = Tables['events']['Update']
  */
 export const asLeadUpdate = (patch: Record<string, unknown>): LeadUpdate =>
   patch as LeadUpdate
+
+/**
+ * `support_messages.org_id` is populated by a BEFORE INSERT trigger from the
+ * thread owner's profile (never trusted from the client), so the client omits
+ * it. Cast at the seam to satisfy the typed insert, which lists it as required.
+ */
+export const asSupportMessageInsert = (patch: Record<string, unknown>): SupportMessageInsert =>
+  patch as SupportMessageInsert
