@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendEmployeeAlertToPhone } from './sendEmployeeAlert.js'
 
-export type UnroutedChannel = 'sms' | 'call' | 'voicemail' | 'email'
+export type UnroutedChannel = 'sms' | 'call' | 'voicemail' | 'email' | 'facebook_lead'
 export type UnroutedReason = 'no_mapping' | 'unknown_tag' | 'no_tag'
 
 export interface CaptureUnroutedInboundInput {

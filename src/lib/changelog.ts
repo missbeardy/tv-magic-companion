@@ -47,11 +47,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
   title: 'Customer history',
   items: [
     'Previous jobs — the lead detail sheet now shows a read-only history of the customer\'s earlier jobs (service type, status, when, and suburb). Available when Customer Profiles is enabled for your brand; leads with no linked customer are unaffected',
+    'Facebook Messenger leads via Make — POST /api/inbound-facebook-lead creates unassigned leads from Messenger web forms (enable Inbound Meta Messaging in Platform feature switches)',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.110'
+export const APP_VERSION = '1.1.111'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

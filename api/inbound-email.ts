@@ -141,6 +141,12 @@ Body: ${sourceText}`
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const action = typeof req.query.action === 'string' ? req.query.action : undefined
+  if (action === 'facebook-lead') {
+    const { handleInboundFacebookLead } = await import('./_lib/handleInboundFacebookLead.js')
+    return handleInboundFacebookLead(req, res, supabase)
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }

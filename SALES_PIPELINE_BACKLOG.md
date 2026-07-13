@@ -39,9 +39,9 @@
 - [x] 1.2 Enable inbound switches for FieldBourne (`inbound_sms`, `inbound_email`, `inbound_calls`)
 - [x] 1.3 Verify org routing: plus-tag + DID — `DEFAULT_ORG_ID` fallback removed; unmapped inbound → `unrouted_inbound` + alert
 - [ ] 1.4 Platform Admin UI for `org_phone_numbers`
-- [ ] 1.5 `POST /api/inbound-web-form`
-- [ ] 1.6 Facebook Messenger lead insert (`metaWebhook.ts`)
-- [ ] 1.7 **UAT:** SMS, email, missed call, web form → lead &lt;5s, correct org
+- [ ] 1.5 Facebook Messenger lead via Make (`POST /api/inbound-facebook-lead`) — see [docs/MAKE_FACEBOOK_LEAD.md](docs/MAKE_FACEBOOK_LEAD.md)
+- [ ] 1.6 Facebook Messenger direct webhook (`metaWebhook.ts` lead insert) — **deferred**; using Make instead
+- [ ] 1.7 **UAT:** SMS, email, missed call, Facebook Messenger (Make) → lead &lt;5s, correct org
 
 ### Stage 2 — Extraction
 

@@ -74,6 +74,10 @@
       "destination": "/api/create-user?action=simulate-inbound"
     },
     {
+      "source": "/api/inbound-facebook-lead",
+      "destination": "/api/inbound-email?action=facebook-lead"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
