@@ -16,10 +16,17 @@ export async function invokeApiHandler(
   handler: ApiHandler,
   partialReq: Pick<VercelRequest, 'method' | 'url' | 'headers' | 'body' | 'query'>
 ): Promise<HandlerInvokeResult> {
+  const normalizedHeaders: Record<string, string> = {}
+  for (const [key, value] of Object.entries(partialReq.headers ?? {})) {
+    if (typeof value === 'string') {
+      normalizedHeaders[key.toLowerCase()] = value
+    }
+  }
+
   const req = {
     method: partialReq.method,
     url: partialReq.url,
-    headers: partialReq.headers,
+    headers: normalizedHeaders,
     body: partialReq.body,
     query: partialReq.query ?? {},
   } as VercelRequest

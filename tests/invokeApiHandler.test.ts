@@ -20,4 +20,21 @@ describe('invokeApiHandler', () => {
     expect(result.body).toEqual({ lead_id: 'lead-123', ok: true })
     expect(handler).toHaveBeenCalledOnce()
   })
+
+  it('normalizes header keys to lowercase like real HTTP requests', async () => {
+    const handler = vi.fn(async (req: VercelRequest, res: VercelResponse) => {
+      res.status(200).json({ auth: req.headers.authorization ?? null })
+    })
+
+    const result = await invokeApiHandler(handler, {
+      method: 'POST',
+      url: '/api/inbound-email',
+      headers: { Authorization: 'Basic abc123' },
+      body: {},
+      query: {},
+    })
+
+    expect(result.status).toBe(200)
+    expect(result.body).toEqual({ auth: 'Basic abc123' })
+  })
 })
