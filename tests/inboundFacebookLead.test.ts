@@ -15,6 +15,7 @@ vi.mock('../api/_lib/processInboundLead.js', () => ({
 
 import {
   parseFacebookLeadBody,
+  buildFacebookLeadDetails,
   facebookLeadFallbackParse,
   handleInboundFacebookLead,
 } from '../api/_lib/handleInboundFacebookLead'
@@ -81,6 +82,30 @@ describe('parseFacebookLeadBody', () => {
         phone: '0412 345 678',
         message: 'Need a TV aerial',
         email: 'jane@example.com',
+        city: null,
+        website: null,
+      },
+    })
+  })
+
+  it('accepts Facebook Lead Form payload with city and empty message', () => {
+    const result = parseFacebookLeadBody({
+      org: 'fieldbourne',
+      name: 'Jane Doe',
+      phone: '0412 345 678',
+      city: 'Brisbane',
+      message: '',
+      website: '',
+    })
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        org: 'fieldbourne',
+        name: 'Jane Doe',
+        phone: '0412 345 678',
+        message: 'Facebook lead form — Brisbane',
+        city: 'Brisbane',
+        email: null,
         website: null,
       },
     })
@@ -97,11 +122,17 @@ describe('parseFacebookLeadBody', () => {
     expect(result).toEqual({ ok: false, error: 'Invalid submission', status: 400 })
   })
 
-  it('requires org, name, phone, and message', () => {
+  it('requires org, name, and phone', () => {
     expect(parseFacebookLeadBody({ name: 'x', phone: '0', message: 'm' })).toMatchObject({
       ok: false,
       error: 'org is required',
     })
+  })
+})
+
+describe('buildFacebookLeadDetails', () => {
+  it('uses city when message is empty', () => {
+    expect(buildFacebookLeadDetails('', 'Gold Coast')).toBe('Facebook lead form — Gold Coast')
   })
 })
 

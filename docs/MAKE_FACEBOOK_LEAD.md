@@ -23,7 +23,8 @@ Customer → Messenger Web Form → Make scenario → POST /api/inbound-facebook
 | `org` | Yes | Franchise `orgs.slug` (e.g. `fieldbourne`) |
 | `name` | Yes | Customer name |
 | `phone` | Yes | AU phone (normalised to E.164 server-side) |
-| `message` | Yes | Enquiry / job details |
+| `message` | No | Free-text enquiry; if empty, `city` is used to build details |
+| `city` | No | Town/city from Facebook Lead Form (stored as address when no message) |
 | `email` | No | If the form collects it |
 | `website` | No | **Honeypot** — must be empty or request is rejected |
 
@@ -32,13 +33,30 @@ Customer → Messenger Web Form → Make scenario → POST /api/inbound-facebook
 ```json
 {
   "org": "fieldbourne",
-  "name": "Jane Doe",
-  "phone": "0412 345 678",
-  "email": "jane@example.com",
-  "message": "Need a TV aerial installed at 12 Test St, Brisbane",
+  "name": "{{2.data.full_name}}",
+  "phone": "{{2.data.phone_number}}",
+  "city": "{{2.data.`town/city`}}",
+  "message": "",
   "website": ""
 }
 ```
+
+### Make HTTP module — headers (step by step)
+
+In the HTTP module, scroll to the **Headers** section (below Method). Click **+ Add a header** twice:
+
+| Header name (left box) | Header value (right box) |
+|------------------------|--------------------------|
+| `Content-Type` | `application/json` |
+| `x-inbound-secret` | Your `INBOUND_SECRET` from Vercel (Preview env vars) |
+
+**If you do not see “Content-Type” as a preset:** that is normal — you type both name and value yourself in the two boxes after clicking **+ Add a header**. Make does not list common headers in a dropdown.
+
+**Body content type:** in the **Body** section, open the dropdown (often says “Select body content type”) and choose **JSON** or **Raw**. Then paste your JSON in the body field. When Body type is JSON, Make usually sends `Content-Type: application/json` automatically — adding the header explicitly is still fine.
+
+**Authentication** stays **No authentication** — the secret goes in the `x-inbound-secret` header, not in Basic auth.
+
+### Example JSON (with message)
 
 ### Responses
 

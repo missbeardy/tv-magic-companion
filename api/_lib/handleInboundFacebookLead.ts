@@ -16,6 +16,7 @@ export interface FacebookLeadBody {
   name: string
   phone: string
   message: string
+  city?: string | null
   email?: string | null
   website?: string | null
 }
@@ -26,6 +27,13 @@ export type ParseFacebookLeadResult =
 
 function trimString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
+}
+
+/** Build lead details when the Make payload has no free-text message (Facebook Lead Form). */
+export function buildFacebookLeadDetails(message: string, city: string | null): string {
+  if (message) return message.slice(0, 500)
+  if (city) return `Facebook lead form — ${city}`.slice(0, 500)
+  return 'Facebook lead form enquiry'
 }
 
 /** Validate Make / Messenger web-form JSON body. */
@@ -44,21 +52,33 @@ export function parseFacebookLeadBody(body: unknown): ParseFacebookLeadResult {
   const name = trimString(record.name)
   const phone = trimString(record.phone)
   const message = trimString(record.message)
+  const city = trimString(record.city) || null
   const email = trimString(record.email) || null
 
   if (!org) return { ok: false, error: 'org is required', status: 400 }
   if (!name) return { ok: false, error: 'name is required', status: 400 }
   if (!phone) return { ok: false, error: 'phone is required', status: 400 }
-  if (!message) return { ok: false, error: 'message is required', status: 400 }
 
-  return { ok: true, data: { org, name, phone, message, email, website: null } }
+  return {
+    ok: true,
+    data: {
+      org,
+      name,
+      phone,
+      message: buildFacebookLeadDetails(message, city),
+      city,
+      email,
+      website: null,
+    },
+  }
 }
 
 export function facebookLeadFallbackParse(
   name: string,
   phone: string,
   message: string,
-  email: string | null
+  email: string | null,
+  city?: string | null
 ): ExtractedLeadFields {
   const combined = message.toLowerCase()
   let service_type = 'General Enquiry'
@@ -68,6 +88,7 @@ export function facebookLeadFallbackParse(
   else if (combined.includes('automation')) service_type = 'Home Automation'
 
   const addressMatch = message.match(/(?:address|located at)[:\s]*(.+?)(?:\n|$)/i)
+  const address = addressMatch?.[1]?.trim() ?? (city?.trim() || null)
 
   return pickExtractedFields({
     name,
@@ -75,7 +96,7 @@ export function facebookLeadFallbackParse(
     email,
     service_type,
     details: message.slice(0, 500),
-    address: addressMatch?.[1]?.trim() ?? null,
+    address,
   })
 }
 
@@ -162,7 +183,7 @@ export async function handleInboundFacebookLead(
     return
   }
 
-  const { org, name, phone, message, email: rawEmail } = parsed.data
+  const { org, name, phone, message, city, email: rawEmail } = parsed.data
   const email = rawEmail ?? null
   const normalizedPhone = formatAuPhoneForSms(phone)
 
@@ -198,7 +219,13 @@ export async function handleInboundFacebookLead(
     return
   }
 
-  let extractedForAck: ExtractedLeadFields = facebookLeadFallbackParse(name, normalizedPhone, message, email)
+  let extractedForAck: ExtractedLeadFields = facebookLeadFallbackParse(
+    name,
+    normalizedPhone,
+    message,
+    email,
+    city
+  )
 
   try {
     const result = await processInboundLead({
@@ -224,7 +251,7 @@ export async function handleInboundFacebookLead(
       extract: async () => {
         let extracted =
           (await extractFacebookLeadWithClaude(name, normalizedPhone, message, email)) ??
-          facebookLeadFallbackParse(name, normalizedPhone, message, email)
+          facebookLeadFallbackParse(name, normalizedPhone, message, email, city)
         extractedForAck = extracted
         return { updateFields: extracted }
       },
