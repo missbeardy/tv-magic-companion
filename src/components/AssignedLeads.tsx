@@ -54,7 +54,7 @@ export default function AssignedLeads() {
     if (!profile) return
     let query = supabase
       .from('leads')
-      .select('*, profiles(full_name, role)')
+      .select('*, profiles!leads_assigned_to_fkey(full_name, role)')
       .eq('org_id', profile.org_id)
       .eq('status', 'assigned')
       .is('deleted_at', null)

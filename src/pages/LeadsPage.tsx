@@ -255,7 +255,7 @@ export default function LeadsPage() {
 
     let query = supabase
       .from('leads')
-      .select('*, profiles(full_name, avatar_url)')
+      .select('*, profiles!leads_assigned_to_fkey(full_name, avatar_url)')
       .eq('org_id', profile.org_id)
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
