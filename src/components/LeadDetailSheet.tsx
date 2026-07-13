@@ -8,6 +8,7 @@ import {
   ChevronRight,
   History,
   Trash2,
+  RefreshCw,
 } from 'lucide-react'
 import BottomSheet from './BottomSheet'
 import CustomerHistorySheet from './CustomerHistorySheet'
@@ -22,6 +23,7 @@ import { formatLocalityLabelFromAddress } from '../lib/extractSuburb'
 import { getAttemptPhaseLabel, LOST_REASON_UNABLE_TO_CONTACT } from '../lib/contactFollowUp'
 import { getLeadDisplayDetails } from '../lib/leadDisplay'
 import { isManagerRole } from '../lib/roles'
+import { getAuthHeaders } from '../lib/apiAuth'
 import type { KanbanLead } from './LeadCard'
 
 interface Props {
@@ -96,6 +98,8 @@ export default function LeadDetailSheet({
   const [composeOpen, setComposeOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [retrying, setRetrying] = useState(false)
+  const [retryError, setRetryError] = useState('')
 
   const locality = formatLocalityLabelFromAddress(lead.address)
   const attemptPhaseLabel = getAttemptPhaseLabel(lead.contact_attempt_round)
@@ -122,6 +126,53 @@ export default function LeadDetailSheet({
 
   const primary = primaryAction()
 
+  const extractionStatus = lead.extraction_status ?? null
+  const showExtractionBadge =
+    isManagerRole(profile?.role) &&
+    (extractionStatus === 'failed' ||
+      extractionStatus === 'fallback' ||
+      extractionStatus === 'pending')
+  const canRetryExtraction =
+    isManagerRole(profile?.role) &&
+    (lead.raw_sms || lead.raw_email) &&
+    extractionStatus !== 'succeeded'
+
+  async function handleRetryExtraction() {
+    setRetrying(true)
+    setRetryError('')
+    try {
+      const headers = await getAuthHeaders()
+      const res = await fetch('/api/leads?action=retry-extraction', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: lead.id }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setRetryError(data.error ?? 'Retry failed')
+        setRetrying(false)
+        return
+      }
+      onRefresh()
+    } catch {
+      setRetryError('Retry failed')
+    } finally {
+      setRetrying(false)
+    }
+  }
+
+  function extractionBadgeLabel(): string {
+    if (extractionStatus === 'failed') return 'Extraction failed'
+    if (extractionStatus === 'fallback') return 'Fallback extraction'
+    return 'Extraction pending'
+  }
+
+  function extractionBadgeClass(): string {
+    if (extractionStatus === 'failed') return 'bg-red-50 text-red-700 border-red-100'
+    if (extractionStatus === 'fallback') return 'bg-amber-50 text-amber-800 border-amber-100'
+    return 'bg-gray-50 text-gray-600 border-gray-100'
+  }
+
   return (
     <>
     <BottomSheet isOpen={isOpen} onClose={onClose} hideHeader showCloseButton footer={primary ? (
@@ -147,6 +198,13 @@ export default function LeadDetailSheet({
             <p className="text-xs font-semibold text-red-600 mt-1">SMS sent</p>
           )}
           <p className="text-sm text-gray-500 mt-0.5">{lead.service_type || 'No service type'}</p>
+          {showExtractionBadge && (
+            <span
+              className={`inline-block mt-2 text-xs font-semibold px-2 py-0.5 rounded-full border ${extractionBadgeClass()}`}
+            >
+              {extractionBadgeLabel()}
+            </span>
+          )}
           {locality && (
             <p className="text-sm text-gray-500 mt-0.5">📍 {locality}</p>
           )}
@@ -298,6 +356,22 @@ export default function LeadDetailSheet({
                   label="Remove lead"
                   onClick={() => setDeleteOpen(true)}
                 />
+              )}
+              {canRetryExtraction && (
+                <div className="px-1 py-2">
+                  <button
+                    type="button"
+                    disabled={retrying}
+                    onClick={() => void handleRetryExtraction()}
+                    className="w-full flex items-center justify-center gap-2 min-h-[44px] rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <RefreshCw size={16} className={retrying ? 'animate-spin' : ''} />
+                    {retrying ? 'Retrying…' : 'Retry extraction'}
+                  </button>
+                  {retryError && (
+                    <p className="text-xs text-red-600 mt-1 px-1">{retryError}</p>
+                  )}
+                </div>
               )}
             </div>
           </div>

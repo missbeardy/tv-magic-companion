@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { ExtractionStatus } from './extractLead.js'
 import { captureUnroutedInbound } from './captureUnroutedInbound.js'
 import { isFeatureEnabledForOrg } from './featureSwitches.js'
 import { formatAuPhoneForSms } from './phone.js'
@@ -29,14 +30,14 @@ function trimString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-/** Build lead details when the Make payload has no free-text message (Facebook Lead Form). */
+/** Build lead details when the Botpress payload has no free-text message (Facebook Lead Form). */
 export function buildFacebookLeadDetails(message: string, city: string | null): string {
   if (message) return message.slice(0, 500)
   if (city) return `Facebook lead form — ${city}`.slice(0, 500)
   return 'Facebook lead form enquiry'
 }
 
-/** Validate Make / Messenger web-form JSON body. */
+/** Validate Botpress / Messenger web-form JSON body. */
 export function parseFacebookLeadBody(body: unknown): ParseFacebookLeadResult {
   if (!body || typeof body !== 'object') {
     return { ok: false, error: 'Request body must be a JSON object', status: 400 }
@@ -100,7 +101,7 @@ export function facebookLeadFallbackParse(
   })
 }
 
-async function extractFacebookLeadWithClaude(
+export async function extractFacebookLeadWithClaude(
   name: string,
   phone: string,
   message: string,
@@ -161,7 +162,7 @@ function verifyInboundSecret(req: VercelRequest): boolean {
   return safeCompareSecret(incoming, process.env.INBOUND_SECRET)
 }
 
-/** POST /api/inbound-facebook-lead — Make → Messenger web form → lead. */
+/** POST /api/inbound-facebook-lead — Botpress Studio → Messenger web form → lead. */
 export async function handleInboundFacebookLead(
   req: VercelRequest,
   res: VercelResponse,
@@ -245,15 +246,23 @@ export async function handleInboundFacebookLead(
           raw_email: JSON.stringify(req.body),
         }),
       createdEvent: {
-        note: 'Lead captured from Facebook Messenger via Make (raw-first)',
+        note: 'Lead captured from Facebook Messenger via Botpress (raw-first)',
         payload: { source: 'facebook_messenger', org_slug: org },
       },
       extract: async () => {
-        let extracted =
-          (await extractFacebookLeadWithClaude(name, normalizedPhone, message, email)) ??
+        let extractionStatus: ExtractionStatus = 'fallback'
+        const claudeExtracted = await extractFacebookLeadWithClaude(
+          name,
+          normalizedPhone,
+          message,
+          email
+        )
+        const extracted =
+          claudeExtracted ??
           facebookLeadFallbackParse(name, normalizedPhone, message, email, city)
+        extractionStatus = claudeExtracted ? 'succeeded' : 'fallback'
         extractedForAck = extracted
-        return { updateFields: extracted }
+        return { updateFields: extracted, extractionStatus }
       },
       buildNotify: ({ savedLead, extraction }) => ({
         name: savedLead?.name || extraction?.updateFields.name || name,

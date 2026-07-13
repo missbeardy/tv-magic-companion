@@ -26,6 +26,8 @@ export const LEAD_EVENT_TYPES = [
   'invoice_sent',
   'invoice_paid_manual',
   'deleted',
+  'extraction_retried',
+  'voicemail_enriched',
 ] as const
 
 export type LeadEventType = (typeof LEAD_EVENT_TYPES)[number]

@@ -5,16 +5,16 @@
 **Goal:** Stages 1–10 → Completed (fully automatable end-to-end)  
 **Preview:** `https://tv-magic-companion-git-feature-plat-8c5410-missbeardys-projects.vercel.app`  
 **FieldBourne org:** _(set your org id in Supabase)_  
-**Now:** Stage 1, task 1.3 — verify org routing (plus-tag + DID)  
-**Last shipped:** 1.1 raw-first + 1.2 FieldBourne inbound switches (30-06-2026)
+**Now:** Stage 3 — Acknowledgment (task 3.1)  
+**Last shipped:** Stage 2 Extraction complete — live (13-07-2026): 2.2–2.5 extraction status + retry
 
 ## Progress
 
 | Stage | Status |
 |-------|--------|
-| 1 Capture | In progress |
-| 2 Extraction | — |
-| 3 Acknowledgment | — |
+| 1 Capture | Done |
+| 2 Extraction | Done |
+| 3 Acknowledgment | In progress |
 | 4 Quoting | — |
 | 5 Booking | — |
 | 6 Job execution | — |
@@ -27,7 +27,7 @@
 
 ## Now
 
-- [x] **1.3** Verify org routing: plus-tag + DID — `DEFAULT_ORG_ID` fallback removed; unmapped inbound → `unrouted_inbound` + alert
+- [ ] **3.1** Enable `lead_ack_sms` + `manager_new_lead_alerts` for FieldBourne
 
 ---
 
@@ -38,18 +38,16 @@
 - [x] 1.1 Raw-first insert on all webhooks (email, SMS, voicemail paths)
 - [x] 1.2 Enable inbound switches for FieldBourne (`inbound_sms`, `inbound_email`, `inbound_calls`)
 - [x] 1.3 Verify org routing: plus-tag + DID — `DEFAULT_ORG_ID` fallback removed; unmapped inbound → `unrouted_inbound` + alert
-- [ ] 1.4 Platform Admin UI for `org_phone_numbers`
-- [ ] 1.5 Facebook Messenger lead via Make (`POST /api/inbound-facebook-lead`) — see [docs/MAKE_FACEBOOK_LEAD.md](docs/MAKE_FACEBOOK_LEAD.md)
-- [ ] 1.6 Facebook Messenger direct webhook (`metaWebhook.ts` lead insert) — **deferred**; using Make instead
-- [ ] 1.7 **UAT:** SMS, email, missed call, Facebook Messenger (Make) → lead &lt;5s, correct org
+- [x] 1.5 Facebook Messenger lead via Botpress Studio (`POST /api/inbound-facebook-lead`) — see [docs/BOTPRESS_FACEBOOK_LEAD.md](docs/BOTPRESS_FACEBOOK_LEAD.md)
+- [x] 1.7 **UAT:** SMS, email, missed call, Facebook Messenger (Botpress) → lead &lt;5s, correct org — **live**
 
 ### Stage 2 — Extraction
 
-- [ ] 2.1 Centralize → `api/_lib/extractLead.ts`
-- [ ] 2.2 Email + SMS fallback parser if Claude fails — **email done in 1.1**
-- [ ] 2.3 Enrich missed-call leads when transcript available
-- [ ] 2.4 `extraction_status` + manager retry in lead detail
-- [ ] 2.5 **UAT:** Break Claude key → lead still saved
+- [x] 2.1 Centralize → `api/_lib/extractLead.ts`
+- [x] 2.2 Email + SMS fallback parser if Claude fails
+- [x] 2.3 Enrich missed-call leads when transcript available
+- [x] 2.4 `extraction_status` + manager retry in lead detail
+- [x] 2.5 **UAT:** Break Claude key → lead still saved
 
 ### Stage 3 — Acknowledgment
 
@@ -133,6 +131,7 @@
 
 ## Parking lot
 
+- Platform Admin UI for `org_phone_numbers` — **deferred**
 - Xero/MYOB sync
 - Messenger hybrid bot
 - Theme polish beyond nav
@@ -145,6 +144,10 @@
 |------|------|-------|
 | 30-06-2026 | 1.1 Raw-first insert | email/SMS/VM hardened; WhatsApp changes excluded |
 | 30-06-2026 | 1.2 Inbound switches | migration `20250630140000_fieldbourne_inbound_enable.sql` |
+| 13-07-2026 | 1.5 Facebook via Botpress | `inbound_messenger` switch + `POST /api/inbound-facebook-lead` |
+| 13-07-2026 | 1.7 Stage 1 UAT | All capture channels live on FieldBourne |
+| 13-07-2026 | 2.1 Centralized extraction | `api/_lib/extractLead.ts`; removed unused `inbound-calls` (3CX) |
+| 13-07-2026 | Stage 2 Extraction | `extraction_status` column + manager retry; SMS/email fallbacks; voicemail enrich on repeat call |
 
 ---
 
@@ -155,3 +158,11 @@
 1. Send test email to FieldBourne CloudMailin address with invalid/missing Anthropic key temporarily, OR send normal email and confirm lead appears before extraction finishes.
 2. Text Twilio number — lead saved even if Claude slow.
 3. Confirm `raw_email` / `raw_sms` populated on lead row in Supabase.
+
+### Stage 2.5 — Extraction fallback + retry
+
+1. Temporarily unset `ANTHROPIC_API_KEY` on preview (or use invalid key).
+2. Send test SMS to FieldBourne Twilio number — lead saved with `extraction_status = fallback`.
+3. Send test email — lead saved with `extraction_status = fallback`; fields from regex parser.
+4. Restore valid `ANTHROPIC_API_KEY`; open lead detail as manager → **Retry extraction** → status becomes `succeeded`.
+5. Leave voicemail via CloudMailin for a number with an existing `Missed Call` lead — transcript enriches name/details (`voicemail_enriched` event).

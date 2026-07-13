@@ -27,15 +27,23 @@ function readApiSource(relativePath: string): string {
 /** Handlers that use the shared inbound pipeline must import processInboundLead. */
 const INBOUND_PIPELINE_HANDLERS = [
   'api/inbound-sms.ts',
-  'api/inbound-calls.ts',
   'api/inbound-email.ts',
 ] as const
 
 /** Symbols each inbound handler still imports from rawFirstLead directly. */
 const INBOUND_RAW_FIRST_IMPORTS = {
   'api/inbound-sms.ts': ['insertRawFirstLead'],
-  'api/inbound-email.ts': ['emailFallbackParse', 'insertRawFirstLead', 'parseEmailSender'],
-  'api/inbound-calls.ts': ['insertRawFirstLead'],
+  'api/inbound-email.ts': ['insertRawFirstLead', 'parseEmailSender'],
+} as const
+
+const INBOUND_EXTRACT_IMPORTS = {
+  'api/inbound-sms.ts': ['extractFromSms'],
+  'api/inbound-email.ts': [
+    'extractFromEmail',
+    'extractFromVoicemailTranscript',
+    'canEnrichLeadFromVoicemail',
+    'enrichLeadFromVoicemailTranscript',
+  ],
 } as const
 
 describe('inbound raw-first module bundle', () => {
@@ -69,6 +77,21 @@ describe('inbound raw-first module bundle', () => {
         expect(source).toMatch(new RegExp(`\\b${symbol}\\b`))
         expect(rawFirstLead).toHaveProperty(symbol)
         expect(typeof (rawFirstLead as Record<string, unknown>)[symbol]).toBe('function')
+      }
+    })
+  }
+
+  for (const [handlerPath, symbols] of Object.entries(INBOUND_EXTRACT_IMPORTS)) {
+    it(`${handlerPath} imports extraction helpers`, () => {
+      const source = readApiSource(handlerPath)
+      if (handlerPath === 'api/inbound-email.ts') {
+        expect(source).toContain("from './_lib/extractLead.js'")
+        expect(source).toContain("from './_lib/retryLeadExtraction.js'")
+      } else {
+        expect(source).toContain("from './_lib/extractLead.js'")
+      }
+      for (const symbol of symbols) {
+        expect(source).toMatch(new RegExp(`\\b${symbol}\\b`))
       }
     })
   }

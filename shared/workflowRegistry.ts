@@ -6,6 +6,7 @@ export const WORKFLOWS = {
       { id: 'created_event', label: 'Log created event' },
       { id: 'extract', label: 'AI extraction' },
       { id: 'apply_extraction', label: 'Apply extracted fields' },
+      { id: 'extraction_status', label: 'Set extraction status' },
       { id: 'after_extraction', label: 'Post-extraction update' },
       { id: 'fetch_saved_lead', label: 'Fetch saved lead' },
       { id: 'inbound_auto_assign_notify', label: 'Notify auto-assigned tech' },

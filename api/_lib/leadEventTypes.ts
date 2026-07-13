@@ -26,3 +26,5 @@ export type LeadEventType =
   | 'invoice_sent'
   | 'invoice_paid_manual'
   | 'deleted'
+  | 'extraction_retried'
+  | 'voicemail_enriched'

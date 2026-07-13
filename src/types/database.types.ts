@@ -528,6 +528,7 @@ export type Database = {
           details: string | null
           email: string | null
           email_hash: string | null
+          extraction_status: string
           hidden_from_kanban_at: string | null
           id: string
           last_contact_attempted_at: string | null
@@ -559,6 +560,7 @@ export type Database = {
           details?: string | null
           email?: string | null
           email_hash?: string | null
+          extraction_status?: string
           hidden_from_kanban_at?: string | null
           id?: string
           last_contact_attempted_at?: string | null
@@ -590,6 +592,7 @@ export type Database = {
           details?: string | null
           email?: string | null
           email_hash?: string | null
+          extraction_status?: string
           hidden_from_kanban_at?: string | null
           id?: string
           last_contact_attempted_at?: string | null

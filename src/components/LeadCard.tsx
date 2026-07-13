@@ -39,6 +39,7 @@ export interface KanbanLead {
   lead_source?: string | null
   raw_email?: string | null
   raw_sms?: string | null
+  extraction_status?: string | null
   hidden_from_kanban_at?: string | null
   latest_quote_status?: string | null
   latest_quote_accepted_at?: string | null

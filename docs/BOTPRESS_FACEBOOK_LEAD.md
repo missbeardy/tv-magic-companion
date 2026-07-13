@@ -1,11 +1,11 @@
-# Facebook Messenger lead via Make.com
+# Facebook Messenger lead via Botpress Studio
 
-Capture leads from a **Facebook Messenger Web Form** without Meta webhooks or a chatbot. Make.com receives the form submission and POSTs JSON to this app.
+Capture leads from **Facebook Messenger** using a Botpress Studio flow that POSTs JSON directly to this app.
 
 ## Flow
 
 ```
-Customer → Messenger Web Form → Make scenario → POST /api/inbound-facebook-lead → Unassigned lead
+Customer → Messenger (Botpress bot) → POST /api/inbound-facebook-lead → Unassigned lead
 ```
 
 ## API
@@ -24,7 +24,7 @@ Customer → Messenger Web Form → Make scenario → POST /api/inbound-facebook
 | `name` | Yes | Customer name |
 | `phone` | Yes | AU phone (normalised to E.164 server-side) |
 | `message` | No | Free-text enquiry; if empty, `city` is used to build details |
-| `city` | No | Town/city from Facebook Lead Form (stored as address when no message) |
+| `city` | No | Town/city from the form (stored as address when no message) |
 | `email` | No | If the form collects it |
 | `website` | No | **Honeypot** — must be empty or request is rejected |
 
@@ -33,30 +33,27 @@ Customer → Messenger Web Form → Make scenario → POST /api/inbound-facebook
 ```json
 {
   "org": "fieldbourne",
-  "name": "{{2.data.full_name}}",
-  "phone": "{{2.data.phone_number}}",
-  "city": "{{2.data.`town/city`}}",
-  "message": "",
+  "name": "{{event.payload.name}}",
+  "phone": "{{event.payload.phone}}",
+  "city": "{{event.payload.city}}",
+  "message": "{{event.payload.message}}",
   "website": ""
 }
 ```
 
-### Make HTTP module — headers (step by step)
+### Botpress HTTP action
 
-In the HTTP module, scroll to the **Headers** section (below Method). Click **+ Add a header** twice:
+In Botpress Studio, add an **HTTP Request** (or Execute Code + fetch) step after collecting lead fields:
 
-| Header name (left box) | Header value (right box) |
-|------------------------|--------------------------|
-| `Content-Type` | `application/json` |
-| `x-inbound-secret` | Your `INBOUND_SECRET` from Vercel (Preview env vars) |
+| Setting | Value |
+|---------|-------|
+| **URL** | `https://<your-vercel-domain>/api/inbound-facebook-lead` |
+| **Method** | `POST` |
+| **Header** | `Content-Type` → `application/json` |
+| **Header** | `x-inbound-secret` → `<INBOUND_SECRET from Vercel>` |
+| **Body** | JSON (see example above) |
 
-**If you do not see “Content-Type” as a preset:** that is normal — you type both name and value yourself in the two boxes after clicking **+ Add a header**. Make does not list common headers in a dropdown.
-
-**Body content type:** in the **Body** section, open the dropdown (often says “Select body content type”) and choose **JSON** or **Raw**. Then paste your JSON in the body field. When Body type is JSON, Make usually sends `Content-Type: application/json` automatically — adding the header explicitly is still fine.
-
-**Authentication** stays **No authentication** — the secret goes in the `x-inbound-secret` header, not in Basic auth.
-
-### Example JSON (with message)
+Hardcode `org` to the franchise slug for this bot. Map Botpress variables into `name`, `phone`, `message`, and optional `city` / `email`.
 
 ### Responses
 
@@ -68,24 +65,9 @@ In the HTTP module, scroll to the **Headers** section (below Method). Click **+ 
 | `400` | `{ "error": "..." }` | Validation / honeypot |
 | `401` | `{ "error": "Unauthorized" }` | Wrong or missing secret |
 
-## Make.com HTTP module
-
-| Setting | Value |
-|---------|-------|
-| **URL** | `https://<your-vercel-domain>/api/inbound-facebook-lead` |
-| **Method** | `POST` |
-| **Authentication** | No authentication |
-| **Header** | `Content-Type` → `application/json` |
-| **Header** | `x-inbound-secret` → `<INBOUND_SECRET from Vercel>` |
-| **Body type** | Raw / JSON |
-
-Map prior module fields into the JSON body. **Hardcode `org`** to the franchise slug for this scenario (one Make scenario per org).
-
-Optional follow-up step: Facebook Messenger **Send a message** — “Thanks, we’ll be in touch shortly.”
-
 ## Prerequisites (app)
 
-1. **`INBOUND_SECRET`** set on the Vercel environment Make calls.
+1. **`INBOUND_SECRET`** set on the Vercel environment Botpress calls.
 2. Migration `20260713140000_inbound_facebook_lead.sql` applied (adds `inbound_messenger` switch).
 3. **Platform → Feature switches** — enable **Inbound Meta Messaging** for the client brand/org.
 4. Deploy includes `vercel.json` rewrite for `/api/inbound-facebook-lead`.
@@ -118,3 +100,4 @@ Manager notify and customer ack SMS follow existing feature switches (`manager_n
 - `/api/meta-webhook` / `META_APP_SECRET`
 - `org_facebook_pages` / Facebook `page_id`
 - CloudMailin / email plus-tag routing
+- Make.com

@@ -9,11 +9,19 @@ import { findRecentLeadByPhone } from './_lib/inboundLeadDedup.js'
 import { formatAuPhoneForSms } from './_lib/phone.js'
 import { processInboundLead } from './_lib/processInboundLead.js'
 import {
-  emailFallbackParse,
+  extractFromEmail,
+  extractFromVoicemailTranscript,
+  type ExtractionStatus,
+} from './_lib/extractLead.js'
+import {
   insertRawFirstLead,
   parseEmailSender,
   type ExtractedLeadFields,
 } from './_lib/rawFirstLead.js'
+import {
+  canEnrichLeadFromVoicemail,
+  enrichLeadFromVoicemailTranscript,
+} from './_lib/retryLeadExtraction.js'
 import { safeCompareSecret } from './_lib/timingSafeCompare.js'
 
 const supabase = createClient(
@@ -83,61 +91,6 @@ async function transcribeAudio(buffer: Buffer, fileName: string): Promise<string
 
   const data = (await res.json()) as { text: string }
   return data.text || ''
-}
-
-async function extractLeadWithClaude(
-  sourceText: string,
-  subject: string,
-  from: string,
-  context: 'email' | 'voicemail'
-) {
-  const prompt =
-    context === 'voicemail'
-      ? `This is an automated transcript of a voicemail left by a customer who called a TV aerial/satellite installation business and missed reaching anyone. The transcript may contain transcription errors — use your best judgement. Return ONLY a JSON object, no markdown, no code fences.
-
-Fields:
-- name: full name (or null)
-- phone: phone number if mentioned in the transcript (or null)
-- email: email address if mentioned (or null)
-- service_type: type of service requested (e.g. "TV Aerial", "Satellite", "MATV", "General Enquiry")
-- details: brief summary of what they need (1-2 sentences)
-- address: street address if mentioned (or null)
-
-Voicemail transcript: ${sourceText}`
-      : `Extract lead information from this email and return ONLY a JSON object, no markdown, no code fences.
-
-Fields:
-- name: full name (or null)
-- phone: phone number (or null)
-- email: email address
-- service_type: type of service requested (e.g. "TV Aerial", "Satellite", "MATV", "General Enquiry")
-- details: brief summary of their request (1-2 sentences)
-- address: street address if mentioned (or null)
-
-Email From: ${from}
-Subject: ${subject}
-Body: ${sourceText}`
-
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY!,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 500,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  })
-
-  if (!res.ok) throw new Error(`Anthropic API error: ${res.status}`)
-
-  const result = (await res.json()) as { content: Array<{ type: string; text: string }> }
-  const raw = result.content[0]?.type === 'text' ? result.content[0].text : ''
-  const clean = raw.replace(/```json|```/g, '').trim()
-  return JSON.parse(clean)
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -222,15 +175,67 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ? formatAuPhoneForSms(rawPhone)
         : null
 
+      let transcriptionFailed = false
+      let transcript = ''
+
+      if (simulatedTranscript) {
+        transcript = simulatedTranscript
+      } else {
+        try {
+          if (voicemailAttachment.content) {
+            const buffer = Buffer.from(voicemailAttachment.content, 'base64')
+            transcript = await transcribeAudio(buffer, voicemailAttachment.file_name || 'voicemail.wav')
+          } else if (voicemailAttachment.url) {
+            const audioRes = await fetch(voicemailAttachment.url)
+            const buffer = Buffer.from(await audioRes.arrayBuffer())
+            transcript = await transcribeAudio(buffer, voicemailAttachment.file_name || 'voicemail.wav')
+          } else {
+            throw new Error('No attachment content or url present')
+          }
+        } catch (transcribeErr) {
+          console.error('Voicemail transcription failed:', transcribeErr)
+          transcriptionFailed = true
+        }
+      }
+
       if (normalizedPhone) {
         const existingLead = await findRecentLeadByPhone(supabase, normalizedPhone, orgId)
         if (existingLead) {
+          if (
+            !transcriptionFailed &&
+            transcript.trim() &&
+            canEnrichLeadFromVoicemail(existingLead)
+          ) {
+            const enriched = await enrichLeadFromVoicemailTranscript(
+              supabase,
+              {
+                id: existingLead.id,
+                org_id: orgId,
+                source: 'phone',
+                name: existingLead.name,
+                phone: normalizedPhone,
+                raw_sms: null,
+                raw_email: transcript,
+                extraction_status: existingLead.extraction_status,
+              },
+              transcript,
+              { subject, from, callInfo }
+            )
+            return res.status(200).json({
+              success: true,
+              action: 'enriched_existing',
+              lead_id: existingLead.id,
+              extraction_status: enriched.status,
+              type: 'voicemail',
+            })
+          }
+
           await supabase.from('lead_events').insert({
             lead_id: existingLead.id,
             org_id: orgId,
             event_type: 'missed_call_again',
             note: `Another voicemail from ${normalizedPhone}`,
-            payload: { source: 'phone', transcription_failed: false },
+            payload: { source: 'phone', transcription_failed: transcriptionFailed },
           })
           return res.status(200).json({
             success: true,
@@ -240,8 +245,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           })
         }
       }
-
-      let transcriptionFailed = false
 
       let result
       try {
@@ -265,35 +268,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             payload: { source: 'phone' },
           },
           extract: async () => {
-            let transcript = ''
-
-            if (simulatedTranscript) {
-              transcript = simulatedTranscript
-            } else {
-              try {
-                if (voicemailAttachment.content) {
-                  const buffer = Buffer.from(voicemailAttachment.content, 'base64')
-                  transcript = await transcribeAudio(buffer, voicemailAttachment.file_name || 'voicemail.wav')
-                } else if (voicemailAttachment.url) {
-                  const audioRes = await fetch(voicemailAttachment.url)
-                  const buffer = Buffer.from(await audioRes.arrayBuffer())
-                  transcript = await transcribeAudio(buffer, voicemailAttachment.file_name || 'voicemail.wav')
-                } else {
-                  throw new Error('No attachment content or url present')
-                }
-              } catch (transcribeErr) {
-                console.error('Voicemail transcription failed:', transcribeErr)
-                transcriptionFailed = true
-              }
-            }
-
             let extracted: ExtractedLeadFields = {}
+            let extractionStatus: ExtractionStatus = 'failed'
+
             if (!transcriptionFailed && transcript.trim()) {
-              try {
-                extracted = await extractLeadWithClaude(transcript, subject, from, 'voicemail')
-              } catch (claudeErr) {
-                console.error('Claude voicemail extraction failed:', claudeErr)
-              }
+              const runResult = await extractFromVoicemailTranscript(transcript, subject, from)
+              extracted = runResult.fields
+              extractionStatus = runResult.status
             }
 
             const fallbackDetails = transcriptionFailed
@@ -315,6 +296,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 details,
                 address: extracted.address,
               },
+              extractionStatus: transcriptionFailed ? 'failed' : extractionStatus,
               afterUpdate: transcript
                 ? async (leadId) => {
                     await supabase.from('leads').update({ raw_email: transcript }).eq('id', leadId)
@@ -427,13 +409,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           },
         },
         extract: async () => {
-          let extracted: ExtractedLeadFields
-          try {
-            extracted = await extractLeadWithClaude(emailText, subject, from, 'email')
-          } catch (claudeErr) {
-            console.error('Claude email extraction failed:', claudeErr)
-            extracted = emailFallbackParse(emailText, subject, from)
-          }
+          const { fields: extracted, status } = await extractFromEmail(emailText, subject, from)
           extractedForAck = extracted
           return {
             updateFields: {
@@ -444,6 +420,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               details: extracted.details || subject || 'Inbound email enquiry',
               address: extracted.address,
             },
+            extractionStatus: status,
           }
         },
         selectColumns: 'name, service_type, status, phone, email, address',

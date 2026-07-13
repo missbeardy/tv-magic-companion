@@ -1,8 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { ExtractionStatus } from './extractLead.js'
 import { notifyManagersNewLead } from './notifyManagersNewLead.js'
 import { sendLeadAckSmsIfEnabled } from './leadAckSms.js'
 import { sendMissedCallHookbackIfEnabled } from './missedCallHookbackSms.js'
 import {
+  pickExtractedFields,
   updateLeadFromExtraction,
   type ExtractedLeadFields,
 } from './rawFirstLead.js'
@@ -21,10 +23,34 @@ export interface SavedLeadRow {
   address?: string | null
 }
 
+export type LeadExtractionStatusValue = ExtractionStatus | 'pending' | 'skipped'
+
 export interface ProcessInboundLeadExtractionResult {
   updateFields: ExtractedLeadFields
+  extractionStatus?: ExtractionStatus
   /** Runs after updateLeadFromExtraction (e.g. voicemail transcript → raw_email). */
   afterUpdate?: (leadId: string) => Promise<void>
+}
+
+function inferExtractionStatus(fields?: ExtractedLeadFields): ExtractionStatus {
+  if (!fields || Object.keys(pickExtractedFields(fields)).length === 0) return 'failed'
+  return 'succeeded'
+}
+
+/** Persist leads.extraction_status (service-role only; client updates blocked by trigger). */
+export async function setLeadExtractionStatus(
+  supabase: SupabaseClient,
+  leadId: string,
+  status: LeadExtractionStatusValue
+): Promise<void> {
+  const { error } = await supabase
+    .from('leads')
+    .update({ extraction_status: status })
+    .eq('id', leadId)
+  if (error) {
+    console.error('setLeadExtractionStatus failed:', error.message, error.details)
+    throw error
+  }
 }
 
 export type ProcessInboundLeadExtractFn = (
@@ -178,6 +204,17 @@ export async function processInboundLead(
         await recorder.step('apply_extraction', 'skipped')
       }
 
+      const extractionStatus =
+        extraction?.extractionStatus ?? inferExtractionStatus(extraction?.updateFields)
+      try {
+        await setLeadExtractionStatus(supabase, leadId, extractionStatus)
+        await recorder.step('extraction_status', 'succeeded')
+      } catch (statusErr) {
+        console.error(`${logLabel} extraction status update failed:`, statusErr)
+        await recorder.step('extraction_status', 'failed', { error: statusErr })
+        partial = true
+      }
+
       if (extraction?.afterUpdate) {
         try {
           await extraction.afterUpdate(leadId)
@@ -194,6 +231,14 @@ export async function processInboundLead(
       await recorder.step('extract', 'skipped')
       await recorder.step('apply_extraction', 'skipped')
       await recorder.step('after_extraction', 'skipped')
+      try {
+        await setLeadExtractionStatus(supabase, leadId, 'skipped')
+        await recorder.step('extraction_status', 'succeeded')
+      } catch (statusErr) {
+        console.error(`${logLabel} extraction status skipped update failed:`, statusErr)
+        await recorder.step('extraction_status', 'failed', { error: statusErr })
+        partial = true
+      }
     }
 
     const { data } = await supabase

@@ -163,6 +163,16 @@ const EVENT_META: Record<
     iconColour: 'bg-red-500',
     template: (who, lead) => `${who} removed ${lead}`,
   },
+  extraction_retried: {
+    icon: RefreshCw,
+    iconColour: 'bg-purple-500',
+    template: (who, lead) => `${who} retried extraction for ${lead}`,
+  },
+  voicemail_enriched: {
+    icon: PhoneMissed,
+    iconColour: 'bg-indigo-500',
+    template: (_who, lead) => `Voicemail enriched ${lead}`,
+  },
 }
 
 function leadLabel(leadName?: string | null): string {

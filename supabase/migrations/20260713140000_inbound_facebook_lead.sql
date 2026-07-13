@@ -1,10 +1,10 @@
--- Facebook Messenger leads via Make: feature switch + unrouted capture channel.
+-- Facebook Messenger leads via Botpress: feature switch + unrouted capture channel.
 
 INSERT INTO public.feature_flag_catalog (feature_key, label, description, default_enabled, min_tier, category)
 VALUES (
   'inbound_messenger',
   'Inbound Meta Messaging',
-  'Create leads from Facebook Messenger web forms via Make.com',
+  'Create leads from Facebook Messenger via Botpress Studio',
   false,
   'basic',
   'lead_intake'

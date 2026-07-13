@@ -46,6 +46,9 @@ describe('processInboundLead', () => {
 
   it('runs insert → created event → extract → notify → ack', async () => {
     const leadEventsInsert = vi.fn().mockResolvedValue({})
+    const leadsUpdate = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    })
     const leadsSelect = vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({
         single: vi.fn().mockResolvedValue({
@@ -55,7 +58,7 @@ describe('processInboundLead', () => {
     })
     const from = vi.fn((table: string) => {
       if (table === 'lead_events') return { insert: leadEventsInsert }
-      if (table === 'leads') return { select: leadsSelect }
+      if (table === 'leads') return { select: leadsSelect, update: leadsUpdate }
       return {}
     })
     const supabase = { from } as unknown as Parameters<typeof processInboundLead>[0]['supabase']
@@ -72,6 +75,7 @@ describe('processInboundLead', () => {
       },
       extract: async () => ({
         updateFields: { name: 'SMS Lead: Pat', service_type: 'TV Aerial' },
+        extractionStatus: 'succeeded',
       }),
       buildNotify: ({ savedLead }) => ({
         name: savedLead?.name || 'Pat',
@@ -95,6 +99,7 @@ describe('processInboundLead', () => {
       name: 'SMS Lead: Pat',
       service_type: 'TV Aerial',
     })
+    expect(leadsUpdate).toHaveBeenCalledWith({ extraction_status: 'succeeded' })
     expect(notifyManagersNewLead).toHaveBeenCalled()
     expect(sendLeadAckSmsIfEnabled).toHaveBeenCalled()
     expect(sendMissedCallHookbackIfEnabled).not.toHaveBeenCalled()
@@ -102,6 +107,9 @@ describe('processInboundLead', () => {
 
   it('skips extraction and sends hookback for missed-call style input', async () => {
     const leadEventsInsert = vi.fn().mockResolvedValue({})
+    const leadsUpdate = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    })
     const leadsSelect = vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({
         single: vi.fn().mockResolvedValue({
@@ -111,7 +119,7 @@ describe('processInboundLead', () => {
     })
     const from = vi.fn((table: string) => {
       if (table === 'lead_events') return { insert: leadEventsInsert }
-      if (table === 'leads') return { select: leadsSelect }
+      if (table === 'leads') return { select: leadsSelect, update: leadsUpdate }
       return {}
     })
     const supabase = { from } as unknown as Parameters<typeof processInboundLead>[0]['supabase']
@@ -143,12 +151,16 @@ describe('processInboundLead', () => {
     expect(result.leadId).toBe('lead-2')
     expect(result.hookbackSent).toBe(true)
     expect(updateSpy).not.toHaveBeenCalled()
+    expect(leadsUpdate).toHaveBeenCalledWith({ extraction_status: 'skipped' })
     expect(sendMissedCallHookbackIfEnabled).toHaveBeenCalled()
     expect(sendLeadAckSmsIfEnabled).not.toHaveBeenCalled()
   })
 
   it('records workflow run steps when run input is provided', async () => {
     const leadEventsInsert = vi.fn().mockResolvedValue({ error: null })
+    const leadsUpdate = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    })
     const leadsSelect = vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({
         single: vi.fn().mockResolvedValue({
@@ -158,7 +170,7 @@ describe('processInboundLead', () => {
     })
     const from = vi.fn((table: string) => {
       if (table === 'lead_events') return { insert: leadEventsInsert }
-      if (table === 'leads') return { select: leadsSelect }
+      if (table === 'leads') return { select: leadsSelect, update: leadsUpdate }
       return {}
     })
     const supabase = { from } as unknown as Parameters<typeof processInboundLead>[0]['supabase']

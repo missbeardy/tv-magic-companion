@@ -111,31 +111,3 @@ export function parseEmailSender(from: string): { name: string; email: string | 
   }
   return { name: trimmed || 'Unknown Sender', email: null }
 }
-
-/** Regex fallback when Claude email extraction fails. */
-export function emailFallbackParse(
-  emailText: string,
-  subject: string,
-  from: string
-): ExtractedLeadFields {
-  const { name, email } = parseEmailSender(from)
-  const combined = `${subject} ${emailText}`.toLowerCase()
-
-  let service_type = 'General Enquiry'
-  if (combined.includes('aerial') || combined.includes('antenna')) service_type = 'TV Aerial'
-  else if (combined.includes('satellite')) service_type = 'Satellite Dish'
-  else if (combined.includes('cctv')) service_type = 'CCTV'
-
-  const phoneMatch = emailText.match(/(?:phone|mobile|tel|contact)[:\s]*([+\d\s()-]{8,})/i)
-  const addressMatch = emailText.match(/(?:address)[:\s]*(.+?)(?:\n|$)/i)
-  const bodySnippet = emailText.replace(/\s+/g, ' ').trim().slice(0, 300)
-
-  return {
-    name,
-    email,
-    phone: phoneMatch?.[1]?.trim() ?? null,
-    service_type,
-    details: bodySnippet || subject || 'Inbound email enquiry',
-    address: addressMatch?.[1]?.trim() ?? null,
-  }
-}

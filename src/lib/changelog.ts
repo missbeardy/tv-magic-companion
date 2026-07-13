@@ -52,12 +52,15 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Fix leads page load after soft-delete migration (disambiguate assigned technician profile join)',
     'Fix Platform Admin org members panel on production (profiles table has no email column)',
     'Previous jobs — the lead detail sheet now shows a read-only history of the customer\'s earlier jobs (service type, status, when, and suburb). Available when Customer Profiles is enabled for your brand; leads with no linked customer are unaffected',
-    'Facebook Messenger leads via Make — POST /api/inbound-facebook-lead creates unassigned leads from Messenger web forms (enable Inbound Meta Messaging in Platform feature switches)',
+    'Facebook Messenger leads via Botpress Studio — POST /api/inbound-facebook-lead creates unassigned leads from Messenger (enable Inbound Meta Messaging in Platform feature switches)',
+    'Centralized lead extraction — Claude + SMS/email fallbacks in api/_lib/extractLead.ts',
+    'Extraction status on leads — managers see failed/fallback/pending badge and can retry extraction from lead detail',
+    'Removed unused 3CX missed-call webhook (inbound-calls) — frees one Vercel serverless function slot',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.114'
+export const APP_VERSION = '1.1.115'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
