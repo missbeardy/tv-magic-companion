@@ -56,11 +56,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Centralized lead extraction — Claude + SMS/email fallbacks in api/_lib/extractLead.ts',
     'Extraction status on leads — managers see failed/fallback/pending badge and can retry extraction from lead detail',
     'Removed unused 3CX missed-call webhook (inbound-calls) — frees one Vercel serverless function slot',
+    'Fix Platform inbound email simulator auth on Preview (header casing)',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.115'
+export const APP_VERSION = '1.1.116'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
