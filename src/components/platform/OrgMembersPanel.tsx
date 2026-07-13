@@ -10,7 +10,7 @@ interface OrgRow {
 interface MemberRow {
   id: string
   full_name: string
-  email: string | null
+  phone: string | null
   role: string
   is_hidden_test_profile: boolean
 }
@@ -24,6 +24,7 @@ export default function OrgMembersPanel({ orgs, onMessage }: Props) {
   const [selectedOrgId, setSelectedOrgId] = useState('')
   const [members, setMembers] = useState<MemberRow[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState('')
   const [savingId, setSavingId] = useState<string | null>(null)
 
   const loadMembers = useCallback(async (orgId: string) => {
@@ -32,14 +33,15 @@ export default function OrgMembersPanel({ orgs, onMessage }: Props) {
       return
     }
     setLoading(true)
+    setLoadError('')
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, email, role, is_hidden_test_profile')
+      .select('id, full_name, phone, role, is_hidden_test_profile')
       .eq('org_id', orgId)
       .order('full_name')
 
     if (error) {
-      onMessage(error.message, true)
+      setLoadError(error.message)
       setMembers([])
     } else {
       setMembers((data ?? []) as MemberRow[])
@@ -109,6 +111,10 @@ export default function OrgMembersPanel({ orgs, onMessage }: Props) {
         </select>
       </div>
 
+      {loadError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-3 rounded-xl">{loadError}</div>
+      )}
+
       {loading ? (
         <p className="text-sm text-gray-400">Loading members…</p>
       ) : members.length === 0 ? (
@@ -119,7 +125,7 @@ export default function OrgMembersPanel({ orgs, onMessage }: Props) {
             <thead>
               <tr className="bg-gray-50 text-left text-xs text-gray-500">
                 <th className="px-3 py-2 font-medium">Name</th>
-                <th className="px-3 py-2 font-medium">Email</th>
+                <th className="px-3 py-2 font-medium">Phone</th>
                 <th className="px-3 py-2 font-medium">Role</th>
                 <th className="px-3 py-2 font-medium">Hidden test profile</th>
               </tr>
@@ -128,7 +134,7 @@ export default function OrgMembersPanel({ orgs, onMessage }: Props) {
               {members.map((member) => (
                 <tr key={member.id}>
                   <td className="px-3 py-2 text-gray-900">{member.full_name}</td>
-                  <td className="px-3 py-2 text-gray-600">{member.email ?? '—'}</td>
+                  <td className="px-3 py-2 text-gray-600">{member.phone ?? '—'}</td>
                   <td className="px-3 py-2 text-gray-600">{member.role}</td>
                   <td className="px-3 py-2">
                     <button

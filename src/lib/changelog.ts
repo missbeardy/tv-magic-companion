@@ -50,13 +50,14 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Inbound auto-assign — team-mode inbound leads can auto-assign to the best available technician (workload + proximity), gated by the Inbound Auto-Assign feature switch',
     'Hidden test profiles — platform admins can mark org members as hidden test profiles so they stay available for testing but are excluded from assign and auto-assign',
     'Fix leads page load after soft-delete migration (disambiguate assigned technician profile join)',
+    'Fix Platform Admin org members panel on production (profiles table has no email column)',
     'Previous jobs — the lead detail sheet now shows a read-only history of the customer\'s earlier jobs (service type, status, when, and suburb). Available when Customer Profiles is enabled for your brand; leads with no linked customer are unaffected',
     'Facebook Messenger leads via Make — POST /api/inbound-facebook-lead creates unassigned leads from Messenger web forms (enable Inbound Meta Messaging in Platform feature switches)',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.113'
+export const APP_VERSION = '1.1.114'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
