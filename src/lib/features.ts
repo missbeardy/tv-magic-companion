@@ -52,6 +52,7 @@ export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   tech_location: false,
   internal_messaging: false,
   customer_linking: false,
+  customer_profiles: false,
 }
 
 export const FEATURE_SWITCH_DEFINITIONS: Record<
@@ -129,6 +130,10 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   customer_linking: {
     label: 'Customer Linking',
     description: 'Match or create a customer record for each inbound lead',
+  },
+  customer_profiles: {
+    label: 'Customer Profiles',
+    description: 'Show a read-only history of a customer\'s previous jobs in the lead detail sheet',
   },
 }
 

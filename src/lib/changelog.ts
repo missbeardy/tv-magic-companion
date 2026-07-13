@@ -43,38 +43,15 @@ export function formatChangelogDate(date: string): string {
  * after Monday, set `weekStarts` to that Monday (use getCurrentReleaseWeekId()).
  */
 export const WEEKLY_CHANGELOG: WeeklyChangelog = {
-  weekStarts: '06-07-2026',
-  title: 'Assign modal & pipeline polish',
+  weekStarts: '13-07-2026',
+  title: 'Customer history',
   items: [
-    'Lead card SMS: the message icon now opens a free-text composer ("What would you like to SMS?"); a new "Send ETA SMS" action sends the default on-the-way template. Manual sends show "SMS sent" in red on the card and keep the saved text visible when the lead is reopened',
-    'Assign lead modal closes immediately after DB update — notifications and WhatsApp run in background',
-    'Fix assignment WhatsApp/SMS — resolve assignee phone server-side and fire alert before modal closes',
-    'PWA app updates — refresh icon in nav with badge when cache is stale; no more blocking update overlay',
-    'Remove unused Tasks from navigation and routing',
-    'Nav refresh button reloads the app when no PWA update is pending',
-    'Remove DEFAULT_ORG_ID fallback — unmapped inbound captured in unrouted_inbound with platform alert SMS',
-    'Platform simulator: Unrouted option to test capture without curl',
-    'Voicemail via CloudMailin: route org from plus-tag (+default), not 3CX extension',
-    'Platform admin: Workflow Runs trace view — filterable run list, step graph, error payload panel',
-    'Platform admin: accordion sections on Platform page; inbound simulator uses create-user API route locally',
-    'Platform admin: Workflow Runs kanban row — actual lead lifecycle path from lead events, bridged from inbound ack SMS',
-    'Platform admin: Workflow Runs list links each run to its lead (name + service type)',
-    'Overdue invoice chase — scheduled SMS/email reminders at 3/7/14 days past due (off by default, pro+)',
-    'Fix contact-follow-up in-app notifications — rebuild notifications_type_check to include contact_follow_up and legacy types',
-    'Quote follow-up chase — scheduled SMS/email nudges at 48h and 5 days after quote sent (off by default, pro+)',
-    'Fix iPhone lead calls — dialer opens immediately before status update (iOS Safari user-gesture fix)',
-    'Calendar visual redesign — Fergus-style tinted job cards, org-theme colours, today marker and current-time line',
-    'Lead photos — private storage bucket with signed URLs (org-scoped access)',
-    'Support & Feedback form requires login — server escapes content, verifies attachment ownership, replies route to the reporter',
-    'Contact follow-up reminders — in-app bell only; no push, SMS, or WhatsApp to assignee',
-    'Edit lead contact details — fix a wrong name, phone, or email from the lead sheet; future bookings update to match',
-    'Booking form — duration chips (1/1.5/2/3/4 hr) drive the end time; changing the start keeps the duration; end-before-start is now blocked; availability-slot taps carry the job length; booking from a lead collapses the pre-filled customer details',
-    'Internal messaging & notice board — direct support chat with the platform team plus a live announcements feed, on the Support page (off by default, enabled per brand)',
+    'Previous jobs — the lead detail sheet now shows a read-only history of the customer\'s earlier jobs (service type, status, when, and suburb). Available when Customer Profiles is enabled for your brand; leads with no linked customer are unaffected',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.109'
+export const APP_VERSION = '1.1.110'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

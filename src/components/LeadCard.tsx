@@ -33,6 +33,7 @@ export interface KanbanLead {
   contact_attempt_round?: number | null
   lost_reason?: string | null
   assigned_to: string | null
+  customer_id?: string | null
   address: string | undefined
   review_request_sent_at?: string | null
   lead_source?: string | null

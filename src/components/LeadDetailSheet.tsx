@@ -6,8 +6,10 @@ import {
   Navigation,
   FileText,
   ChevronRight,
+  History,
 } from 'lucide-react'
 import BottomSheet from './BottomSheet'
+import CustomerHistorySheet from './CustomerHistorySheet'
 import SmsComposeModal from './SmsComposeModal'
 import LeadPhotos from './LeadPhotos'
 import LeadAddressEditor from './LeadAddressEditor'
@@ -36,6 +38,7 @@ interface Props {
   onSharePhoto: (lead: KanbanLead) => void
   quoteEnabled: boolean
   smsEnabled: boolean
+  customerProfilesEnabled?: boolean
   hideAssignPool?: boolean
   onRefresh: () => void
 }
@@ -80,12 +83,14 @@ export default function LeadDetailSheet({
   onSharePhoto,
   quoteEnabled,
   smsEnabled,
+  customerProfilesEnabled = false,
   hideAssignPool = false,
   onRefresh,
 }: Props) {
   const [summaryExpanded, setSummaryExpanded] = useState(false)
   const [transcriptOpen, setTranscriptOpen] = useState(false)
   const [composeOpen, setComposeOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   const locality = formatLocalityLabelFromAddress(lead.address)
   const attemptPhaseLabel = getAttemptPhaseLabel(lead.contact_attempt_round)
@@ -240,6 +245,13 @@ export default function LeadDetailSheet({
                 label="Book appointment"
                 onClick={() => onBook(lead)}
               />
+              {customerProfilesEnabled && lead.customer_id && (
+                <ActionRow
+                  icon={History}
+                  label="Previous jobs"
+                  onClick={() => setHistoryOpen(true)}
+                />
+              )}
               {quoteEnabled && isManagerRole(profile?.role) && (
                 <ActionRow
                   icon={FileText}
@@ -289,6 +301,15 @@ export default function LeadDetailSheet({
           setComposeOpen(false)
           onSendManualSms(lead, text)
         }}
+      />
+    )}
+
+    {customerProfilesEnabled && lead.customer_id && (
+      <CustomerHistorySheet
+        isOpen={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        customerId={lead.customer_id}
+        currentLeadId={lead.id}
       />
     )}
     </>

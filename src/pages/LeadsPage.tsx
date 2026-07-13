@@ -248,6 +248,7 @@ export default function LeadsPage() {
   const quoteFeatureEnabled = !featureSwitchesLoading && isFeatureEnabled('quote_esign')
   const reviewFeatureEnabled = !featureSwitchesLoading && isFeatureEnabled('review_requests')
   const onTheWayFeatureEnabled = !featureSwitchesLoading && isFeatureEnabled('customer_ontheway_sms')
+  const customerProfilesEnabled = !featureSwitchesLoading && isFeatureEnabled('customer_profiles')
 
   const fetchLeads = useCallback(async () => {
     if (!profile?.org_id) return
@@ -1142,6 +1143,7 @@ export default function LeadsPage() {
           onSharePhoto={handleSharePhoto}
           quoteEnabled={quoteFeatureEnabled}
           smsEnabled={onTheWayFeatureEnabled}
+          customerProfilesEnabled={customerProfilesEnabled}
           hideAssignPool={isSoloMode}
           onRefresh={fetchLeads}
         />
