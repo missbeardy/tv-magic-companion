@@ -9,6 +9,7 @@ import {
 import { NOOP_RECORDER, startWorkflowRun, type WorkflowRunRecorder } from './workflowRun.js'
 import { isFeatureEnabledForOrg } from './featureSwitches.js'
 import { linkCustomerForLead } from './customers.js'
+import { notifyInboundAutoAssign } from './inboundAutoAssignNotify.js'
 
 export interface SavedLeadRow {
   id?: string
@@ -54,7 +55,10 @@ export interface ProcessInboundLeadInput {
   supabase: SupabaseClient
   orgId: string
   /** Perform insert (insertRawFirstLead wrapper or direct supabase insert for calls). */
-  insertLead: () => Promise<{ id: string }>
+  insertLead: () => Promise<{
+    id: string
+    inboundAutoAssign?: { assigneeId: string; assigneeName: string }
+  }>
   createdEvent: {
     note: string
     payload: Record<string, unknown>
@@ -121,9 +125,11 @@ export async function processInboundLead(
   }
 
   let leadId: string
+  let inboundAutoAssign: { assigneeId: string; assigneeName: string } | undefined
   try {
     const insertResult = await insertLead()
     leadId = insertResult.id
+    inboundAutoAssign = insertResult.inboundAutoAssign
     await recorder.step('insert_lead', 'succeeded')
   } catch (insertErr) {
     await recorder.step('insert_lead', 'failed', { error: insertErr })
@@ -199,6 +205,45 @@ export async function processInboundLead(
     // row shape; coerce to the known SavedLeadRow.
     savedLead = data as unknown as SavedLeadRow | null
     await recorder.step('fetch_saved_lead', 'succeeded')
+
+    if (inboundAutoAssign) {
+      try {
+        const { data: orgRow } = await supabase
+          .from('orgs')
+          .select('name, brand_id')
+          .eq('id', orgId)
+          .maybeSingle()
+
+        let smsTemplates: Record<string, string> | null = null
+        if (orgRow?.brand_id) {
+          const { data: brandRow } = await supabase
+            .from('brands')
+            .select('sms_templates')
+            .eq('id', orgRow.brand_id)
+            .maybeSingle()
+          smsTemplates = (brandRow?.sms_templates as Record<string, string>) ?? null
+        }
+
+        await notifyInboundAutoAssign({
+          supabase,
+          orgId,
+          leadId,
+          assigneeId: inboundAutoAssign.assigneeId,
+          assigneeName: inboundAutoAssign.assigneeName,
+          leadName: savedLead?.name ?? 'New lead',
+          serviceType: savedLead?.service_type ?? 'General Enquiry',
+          orgName: orgRow?.name ?? 'Your team',
+          smsTemplates,
+        })
+        await recorder.step('inbound_auto_assign_notify', 'succeeded')
+      } catch (autoAssignErr) {
+        console.error(`${logLabel} inbound auto-assign notify failed:`, autoAssignErr)
+        await recorder.step('inbound_auto_assign_notify', 'failed', { error: autoAssignErr })
+        partial = true
+      }
+    } else {
+      await recorder.step('inbound_auto_assign_notify', 'skipped')
+    }
 
     // Link the lead to a customer (match or create), gated by feature switch.
     // Fail-open: linking never blocks or fails the lead pipeline.

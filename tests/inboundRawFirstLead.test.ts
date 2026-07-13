@@ -3,9 +3,16 @@ import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
 const applySoloInboundAssignment = vi.fn(async (_s: unknown, _o: unknown, payload: unknown) => payload)
+const applyTeamInboundAssignment = vi.fn(async (_s: unknown, _o: unknown, payload: unknown) => ({
+  payload,
+}))
 
 vi.mock('../api/_lib/soloInboundLead.js', () => ({
   applySoloInboundAssignment: (...args: unknown[]) => applySoloInboundAssignment(...args),
+}))
+
+vi.mock('../api/_lib/teamInboundLead.js', () => ({
+  applyTeamInboundAssignment: (...args: unknown[]) => applyTeamInboundAssignment(...args),
 }))
 
 import * as rawFirstLead from '../api/_lib/rawFirstLead'
@@ -28,6 +35,7 @@ const INBOUND_PIPELINE_HANDLERS = [
 const INBOUND_RAW_FIRST_IMPORTS = {
   'api/inbound-sms.ts': ['insertRawFirstLead'],
   'api/inbound-email.ts': ['emailFallbackParse', 'insertRawFirstLead', 'parseEmailSender'],
+  'api/inbound-calls.ts': ['insertRawFirstLead'],
 } as const
 
 describe('inbound raw-first module bundle', () => {

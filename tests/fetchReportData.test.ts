@@ -27,6 +27,11 @@ vi.mock('../src/lib/supabase', () => {
       return this
     }
 
+    is(column: string, value: unknown) {
+      this.filters[`is:${column}`] = value
+      return this
+    }
+
     gte(column: string, value: unknown) {
       this.filters[`gte:${column}`] = value
       return this

@@ -197,6 +197,7 @@ async function fetchLeads(orgId: string, period: ReportPeriod): Promise<LeadRow[
     .from('leads')
     .select('id, source, lead_source, status, created_at, assigned_to')
     .eq('org_id', orgId)
+    .is('deleted_at', null)
     .gte('created_at', period.startIso)
     .lt('created_at', period.endIso)
 

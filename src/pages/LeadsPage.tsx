@@ -257,6 +257,7 @@ export default function LeadsPage() {
       .from('leads')
       .select('*, profiles(full_name, avatar_url)')
       .eq('org_id', profile.org_id)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
 
     if (profile?.role === 'employee') {
@@ -1146,6 +1147,7 @@ export default function LeadsPage() {
           customerProfilesEnabled={customerProfilesEnabled}
           hideAssignPool={isSoloMode}
           onRefresh={fetchLeads}
+          onDeleted={fetchLeads}
         />
       )}
     </div>

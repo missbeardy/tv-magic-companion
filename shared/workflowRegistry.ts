@@ -8,6 +8,7 @@ export const WORKFLOWS = {
       { id: 'apply_extraction', label: 'Apply extracted fields' },
       { id: 'after_extraction', label: 'Post-extraction update' },
       { id: 'fetch_saved_lead', label: 'Fetch saved lead' },
+      { id: 'inbound_auto_assign_notify', label: 'Notify auto-assigned tech' },
       { id: 'link_customer', label: 'Link customer' },
       { id: 'notify_managers', label: 'Notify managers' },
       { id: 'follow_up_sms', label: 'Ack / hookback SMS' },

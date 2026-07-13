@@ -16,6 +16,7 @@ import {
   PhoneMissed,
   CircleDot,
   Receipt,
+  Trash2,
 } from 'lucide-react'
 import type { LeadEventType } from './leadEventPayload'
 
@@ -156,6 +157,11 @@ const EVENT_META: Record<
     icon: Receipt,
     iconColour: 'bg-green-600',
     template: (who, lead) => `${who} marked invoice paid for ${lead}`,
+  },
+  deleted: {
+    icon: Trash2,
+    iconColour: 'bg-red-500',
+    template: (who, lead) => `${who} removed ${lead}`,
   },
 }
 

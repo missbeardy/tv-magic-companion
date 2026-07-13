@@ -522,6 +522,9 @@ export type Database = {
           created_at: string
           customer_id: string | null
           demo_mode: boolean
+          delete_reason: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           details: string | null
           email: string | null
           email_hash: string | null
@@ -550,6 +553,9 @@ export type Database = {
           created_at?: string
           customer_id?: string | null
           demo_mode?: boolean
+          delete_reason?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           details?: string | null
           email?: string | null
           email_hash?: string | null
@@ -578,6 +584,9 @@ export type Database = {
           created_at?: string
           customer_id?: string | null
           demo_mode?: boolean
+          delete_reason?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           details?: string | null
           email?: string | null
           email_hash?: string | null
@@ -627,6 +636,9 @@ export type Database = {
           asset_id: string
           channel: string
           created_at: string
+          delete_reason: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           details: string | null
           expires_at: string
           id: string

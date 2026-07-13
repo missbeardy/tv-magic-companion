@@ -33,6 +33,7 @@ export function useTeamWorkload() {
       .from('leads')
       .select('status, assigned_to')
       .eq('org_id', orgId)
+      .is('deleted_at', null)
 
     const countMaps: Record<string, Record<'assignedCount' | 'contactCount' | 'bookedCount', number>> = {}
 

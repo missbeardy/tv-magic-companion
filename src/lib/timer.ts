@@ -1,11 +1,16 @@
 // src/lib/timer.ts
 
+import { getAssignExpiresAt as getSharedAssignExpiresAt } from '../../shared/leadAssignTimer'
+
+export { LEAD_ASSIGN_TIMER_MS, getAssignExpiresAt } from '../../shared/leadAssignTimer'
+
+/** @deprecated Use LEAD_ASSIGN_TIMER_MS from shared/leadAssignTimer */
 export const PRODUCTION_TIMER_MS = 4 * 60 * 60 * 1000 // 4 hours
 
 export { CONTACT_FOLLOW_UP_MS } from '../../shared/contactFollowUp'
 
 export function getExpiresAt(): string {
-  return new Date(Date.now() + PRODUCTION_TIMER_MS).toISOString()
+  return getSharedAssignExpiresAt()
 }
 
 export function getTimeRemaining(expiresAt: string): {

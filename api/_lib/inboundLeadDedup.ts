@@ -14,6 +14,7 @@ export async function findRecentLeadByPhone(
     .select('id')
     .eq('phone', phone)
     .eq('org_id', orgId)
+    .is('deleted_at', null)
     .gte('created_at', since)
     .maybeSingle()
 

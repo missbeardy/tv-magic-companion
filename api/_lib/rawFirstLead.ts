@@ -1,5 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { applySoloInboundAssignment } from './soloInboundLead.js'
+import { applyTeamInboundAssignment } from './teamInboundLead.js'
+
+export interface InsertRawFirstLeadResult {
+  id: string
+  inboundAutoAssign?: { assigneeId: string; assigneeName: string }
+}
 
 export interface ExtractedLeadFields {
   name?: string | null
@@ -47,12 +53,19 @@ export async function insertRawFirstLead(
   supabase: SupabaseClient,
   orgId: string,
   payload: RawFirstLeadPayload
-): Promise<{ id: string }> {
-  const insertPayload = await applySoloInboundAssignment(supabase, orgId, {
+): Promise<InsertRawFirstLeadResult> {
+  let insertPayload = await applySoloInboundAssignment(supabase, orgId, {
     ...payload,
     org_id: orgId,
     status: 'unassigned',
   })
+
+  let inboundAutoAssign: InsertRawFirstLeadResult['inboundAutoAssign']
+  if (insertPayload.status === 'unassigned') {
+    const teamResult = await applyTeamInboundAssignment(supabase, orgId, insertPayload)
+    insertPayload = teamResult.payload
+    inboundAutoAssign = teamResult.inboundAutoAssign
+  }
 
   const { data, error } = await supabase
     .from('leads')
@@ -65,7 +78,7 @@ export async function insertRawFirstLead(
     throw error
   }
   if (!data?.id) throw new Error('Lead insert returned no id')
-  return { id: data.id }
+  return { id: data.id, inboundAutoAssign }
 }
 
 /** Apply extracted fields to an existing raw-first lead (never overwrites with empty/null). */

@@ -101,6 +101,7 @@ export default function ManagerDashboard() {
       .from('leads')
       .select('status')
       .eq('org_id', profile.org_id)
+      .is('deleted_at', null)
 
     if (leads) {
       const s = { unassigned: 0, assigned: 0, completed: 0, contact_attempted: 0 }

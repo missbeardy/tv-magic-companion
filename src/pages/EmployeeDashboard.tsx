@@ -61,6 +61,7 @@ export default function EmployeeDashboard() {
       .from('leads')
       .select('status, assigned_to')
       .eq('org_id', profile.org_id)
+      .is('deleted_at', null)
 
     if (data) {
       setStats({

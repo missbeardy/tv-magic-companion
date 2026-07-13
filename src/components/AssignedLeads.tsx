@@ -57,6 +57,7 @@ export default function AssignedLeads() {
       .select('*, profiles(full_name, role)')
       .eq('org_id', profile.org_id)
       .eq('status', 'assigned')
+      .is('deleted_at', null)
       .order('timer_expires_at', { ascending: true })
     query = query.eq('assigned_to', profile.id)
     const { data } = await query

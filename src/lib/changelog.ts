@@ -44,15 +44,18 @@ export function formatChangelogDate(date: string): string {
  */
 export const WEEKLY_CHANGELOG: WeeklyChangelog = {
   weekStarts: '13-07-2026',
-  title: 'Customer history',
+  title: 'Lead management',
   items: [
+    'Remove lead — managers and platform admins can soft-delete a lead with a mandatory reason; the lead disappears from kanban and reports but stays in the database for audit',
+    'Inbound auto-assign — team-mode inbound leads can auto-assign to the best available technician (workload + proximity), gated by the Inbound Auto-Assign feature switch',
+    'Hidden test profiles — platform admins can mark org members as hidden test profiles so they stay available for testing but are excluded from assign and auto-assign',
     'Previous jobs — the lead detail sheet now shows a read-only history of the customer\'s earlier jobs (service type, status, when, and suburb). Available when Customer Profiles is enabled for your brand; leads with no linked customer are unaffected',
     'Facebook Messenger leads via Make — POST /api/inbound-facebook-lead creates unassigned leads from Messenger web forms (enable Inbound Meta Messaging in Platform feature switches)',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.111'
+export const APP_VERSION = '1.1.112'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

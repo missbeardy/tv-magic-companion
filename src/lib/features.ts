@@ -35,6 +35,7 @@ export const FEATURES = {
 
 export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   smart_assign_badge: false,
+  inbound_auto_assign: false,
   quote_esign: false,
   review_requests: false,
   customer_ontheway_sms: false,
@@ -62,6 +63,10 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   smart_assign_badge: {
     label: 'Smart Assign Badge',
     description: 'Assign modal recommendation badges and highlighting',
+  },
+  inbound_auto_assign: {
+    label: 'Inbound Auto-Assign',
+    description: 'Automatically assign inbound team leads to the best available technician',
   },
   quote_esign: {
     label: 'Quote Acceptance + E-Sign',

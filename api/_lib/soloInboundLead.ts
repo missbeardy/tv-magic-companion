@@ -11,6 +11,7 @@ export async function getSoloOwnerProfileId(
     .select('id')
     .eq('org_id', orgId)
     .in('role', ['manager', 'platform_admin'])
+    .eq('is_hidden_test_profile', false)
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle()

@@ -45,6 +45,7 @@ describe('featureSwitchCatalog categories', () => {
     expect(FEATURE_SWITCHES_BY_CATEGORY.team_operations).toEqual([
       'manager_new_lead_alerts',
       'smart_assign_badge',
+      'inbound_auto_assign',
       'tech_location',
       'internal_messaging',
       'customer_profiles',

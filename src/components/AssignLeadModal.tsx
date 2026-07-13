@@ -49,6 +49,7 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
         .select('assigned_to')
         .eq('org_id', profile?.org_id ?? '')
         .eq('status', 'assigned')
+        .is('deleted_at', null)
 
       const counts: Record<string, number> = {}
       activeCounts?.forEach((l) => {

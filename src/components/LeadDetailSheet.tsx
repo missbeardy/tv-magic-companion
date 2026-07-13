@@ -7,6 +7,7 @@ import {
   FileText,
   ChevronRight,
   History,
+  Trash2,
 } from 'lucide-react'
 import BottomSheet from './BottomSheet'
 import CustomerHistorySheet from './CustomerHistorySheet'
@@ -15,6 +16,7 @@ import LeadPhotos from './LeadPhotos'
 import LeadAddressEditor from './LeadAddressEditor'
 import LeadContactEditor from './LeadContactEditor'
 import LeadContactNote from './LeadContactNote'
+import DeleteLeadModal from './DeleteLeadModal'
 import { LeadRawSource } from './LeadExtractedSummary'
 import { formatLocalityLabelFromAddress } from '../lib/extractSuburb'
 import { getAttemptPhaseLabel, LOST_REASON_UNABLE_TO_CONTACT } from '../lib/contactFollowUp'
@@ -41,6 +43,7 @@ interface Props {
   customerProfilesEnabled?: boolean
   hideAssignPool?: boolean
   onRefresh: () => void
+  onDeleted?: () => void
 }
 
 function ActionRow({
@@ -86,11 +89,13 @@ export default function LeadDetailSheet({
   customerProfilesEnabled = false,
   hideAssignPool = false,
   onRefresh,
+  onDeleted,
 }: Props) {
   const [summaryExpanded, setSummaryExpanded] = useState(false)
   const [transcriptOpen, setTranscriptOpen] = useState(false)
   const [composeOpen, setComposeOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   const locality = formatLocalityLabelFromAddress(lead.address)
   const attemptPhaseLabel = getAttemptPhaseLabel(lead.contact_attempt_round)
@@ -287,6 +292,13 @@ export default function LeadDetailSheet({
                   )}
                 </div>
               )}
+              {isManagerRole(profile?.role) && (
+                <ActionRow
+                  icon={Trash2}
+                  label="Remove lead"
+                  onClick={() => setDeleteOpen(true)}
+                />
+              )}
             </div>
           </div>
         )}
@@ -310,6 +322,19 @@ export default function LeadDetailSheet({
         onClose={() => setHistoryOpen(false)}
         customerId={lead.customer_id}
         currentLeadId={lead.id}
+      />
+    )}
+
+    {deleteOpen && (
+      <DeleteLeadModal
+        leadId={lead.id}
+        leadName={lead.name || 'Unknown'}
+        onClose={() => setDeleteOpen(false)}
+        onDeleted={() => {
+          setDeleteOpen(false)
+          onClose()
+          onDeleted?.()
+        }}
       />
     )}
     </>

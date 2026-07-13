@@ -4,6 +4,7 @@ export type SubscriptionTier = 'basic' | 'pro' | 'enterprise'
 
 export const FEATURE_SWITCH_KEYS = [
   'smart_assign_badge',
+  'inbound_auto_assign',
   'quote_esign',
   'review_requests',
   'customer_ontheway_sms',
@@ -45,7 +46,7 @@ export const FEATURE_SWITCH_CATEGORY_LABELS: Record<FeatureSwitchCategory, strin
 export const FEATURE_SWITCHES_BY_CATEGORY: Record<FeatureSwitchCategory, readonly FeatureSwitchKey[]> = {
   lead_intake: ['inbound_sms', 'inbound_email', 'inbound_calls', 'inbound_messenger', 'customer_linking'],
   customer_communication: ['missed_call_hookback_sms', 'lead_ack_sms', 'customer_ontheway_sms', 'review_requests'],
-  team_operations: ['manager_new_lead_alerts', 'smart_assign_badge', 'tech_location', 'internal_messaging', 'customer_profiles'],
+  team_operations: ['manager_new_lead_alerts', 'smart_assign_badge', 'inbound_auto_assign', 'tech_location', 'internal_messaging', 'customer_profiles'],
   sales_job_completion: ['quote_esign', 'completion_upsells', 'one_tap_invoice', 'invoice_chase', 'quote_chase'],
 }
 
@@ -61,6 +62,7 @@ export const FEATURE_SWITCH_CATEGORY_BY_KEY: Record<FeatureSwitchKey, FeatureSwi
   review_requests: 'customer_communication',
   manager_new_lead_alerts: 'team_operations',
   smart_assign_badge: 'team_operations',
+  inbound_auto_assign: 'team_operations',
   tech_location: 'team_operations',
   internal_messaging: 'team_operations',
   quote_esign: 'sales_job_completion',
@@ -73,6 +75,7 @@ export const FEATURE_SWITCH_CATEGORY_BY_KEY: Record<FeatureSwitchKey, FeatureSwi
 
 export const FEATURE_SWITCH_MIN_TIERS: Record<FeatureSwitchKey, SubscriptionTier> = {
   smart_assign_badge: 'basic',
+  inbound_auto_assign: 'basic',
   quote_esign: 'pro',
   review_requests: 'basic',
   customer_ontheway_sms: 'basic',

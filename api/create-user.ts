@@ -11,6 +11,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return handlePlatformSimulateInbound(req, res);
   }
 
+  if (action === 'set-test-profile') {
+    const { handleSetTestProfile } = await import('./_lib/platformSetTestProfile.js');
+    return handleSetTestProfile(req, res);
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }

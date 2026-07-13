@@ -13,6 +13,7 @@ export function useLeadsPoolCount(): number {
       .select('*', { count: 'exact', head: true })
       .eq('org_id', profile.org_id)
       .eq('status', 'unassigned')
+      .is('deleted_at', null)
 
     if (!error) setCount(total ?? 0)
   }, [profile?.org_id])

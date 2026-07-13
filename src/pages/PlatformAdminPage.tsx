@@ -10,7 +10,8 @@ import PlatformAdminSection from '../components/platform/PlatformAdminSection'
 import InboundSimulatorPanel from '../components/platform/InboundSimulatorPanel'
 import InboundEmailRoutingPanel from '../components/platform/InboundEmailRoutingPanel'
 import WorkflowRunsPanel from '../components/platform/WorkflowRunsPanel'
-import { Building2, Plus, RefreshCw, ArrowRightLeft, FlaskConical, Mail, GitBranch, Palette, ToggleLeft } from 'lucide-react'
+import OrgMembersPanel from '../components/platform/OrgMembersPanel'
+import { Building2, Plus, RefreshCw, ArrowRightLeft, FlaskConical, Mail, GitBranch, Palette, ToggleLeft, Users } from 'lucide-react'
 import {
   FEATURE_SWITCH_DEFINITIONS,
   FEATURE_SWITCH_KEYS,
@@ -359,6 +360,21 @@ export default function PlatformAdminPage() {
         {success && (
           <div className="bg-green-50 border border-green-200 text-green-700 text-sm p-3 rounded-xl">{success}</div>
         )}
+
+        <PlatformAdminSection id="org-members" title="Org members" icon={Users}>
+          <OrgMembersPanel
+            orgs={orgs}
+            onMessage={(message, isError) => {
+              if (isError) {
+                setError(message)
+                setSuccess('')
+              } else {
+                setSuccess(message)
+                setError('')
+              }
+            }}
+          />
+        </PlatformAdminSection>
 
         <PlatformAdminSection id="workflow-runs" title="Workflow Runs" icon={GitBranch} defaultOpen>
           <WorkflowRunsPanel />

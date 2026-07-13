@@ -25,3 +25,4 @@ export type LeadEventType =
   | 'sms_sent'
   | 'invoice_sent'
   | 'invoice_paid_manual'
+  | 'deleted'

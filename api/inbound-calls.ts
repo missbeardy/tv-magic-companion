@@ -5,6 +5,7 @@ import { resolveOrgIdFromDid } from './_lib/resolveOrgFromDid.js'
 import { captureUnroutedInbound } from './_lib/captureUnroutedInbound.js'
 import { findRecentLeadByPhone } from './_lib/inboundLeadDedup.js'
 import { processInboundLead } from './_lib/processInboundLead.js'
+import { insertRawFirstLead } from './_lib/rawFirstLead.js'
 import { safeCompareSecret } from './_lib/timingSafeCompare.js'
 
 const supabase = createClient(
@@ -105,29 +106,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       result = await processInboundLead({
         supabase,
         orgId,
-        insertLead: async () => {
-          const { data: newLead, error: insertError } = await supabase
-            .from('leads')
-            .insert({
-              name: 'Missed Call',
-              phone: normalizedPhone,
-              service_type: 'Other',
-              details: `Missed call from ${normalizedPhone}. Call type: ${payload.callType}. Duration: ${payload.duration || 0}s`,
-              status: 'unassigned',
-              source: '3cx_missed_call',
-              raw_sms: JSON.stringify(payload),
-              org_id: orgId,
-              created_at: payload.timestamp || new Date().toISOString(),
-            })
-            .select('id')
-            .single()
-
-          if (insertError) {
-            console.error('Failed to create lead from missed call:', insertError)
-            throw insertError
-          }
-          return { id: newLead.id }
-        },
+        insertLead: async () =>
+          insertRawFirstLead(supabase, orgId, {
+            org_id: orgId,
+            name: 'Missed Call',
+            phone: normalizedPhone,
+            service_type: 'Other',
+            details: `Missed call from ${normalizedPhone}. Call type: ${payload.callType}. Duration: ${payload.duration || 0}s`,
+            source: '3cx_missed_call',
+            raw_sms: JSON.stringify(payload),
+            created_at: payload.timestamp || new Date().toISOString(),
+          }),
         createdEvent: {
           note: 'Lead created from missed call',
           payload: {
@@ -136,10 +125,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             source: '3cx_missed_call',
           },
         },
-        buildNotify: () => ({
-          name: 'Missed Call',
-          service_type: 'Other',
-          status: 'unassigned',
+        buildNotify: (ctx) => ({
+          name: ctx.savedLead?.name ?? 'Missed Call',
+          service_type: ctx.savedLead?.service_type ?? 'Other',
+          status: ctx.savedLead?.status ?? 'unassigned',
         }),
         followUp: {
           type: 'hookback',
