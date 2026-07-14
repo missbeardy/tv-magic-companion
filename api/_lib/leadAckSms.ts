@@ -1,9 +1,7 @@
 import { isFeatureEnabledForOrg } from './featureSwitches.js'
 import { sendBrandedSms } from './sendBrandedSms.js'
 import { formatAuPhoneForSms } from './phone.js'
-
-const LEAD_ACK_FALLBACK =
-  "Hi {{customerName}}, thanks for contacting {{org.name}}. We've received your enquiry and will be in touch soon.{{orgPhoneLine}}"
+import { LEAD_ACK_CALLBACK_WINDOW, LEAD_ACK_SMS_FALLBACK } from '../../shared/leadAckCopy.js'
 
 export interface LeadAckSmsInput {
   orgId: string
@@ -26,8 +24,8 @@ export async function sendLeadAckSmsIfEnabled(input: LeadAckSmsInput): Promise<b
     orgId: input.orgId,
     toPhone: formatAuPhoneForSms(rawPhone),
     templateKey: 'lead_ack_sms',
-    vars: { customerName },
-    fallbackMessage: LEAD_ACK_FALLBACK,
+    vars: { customerName, callbackWindow: LEAD_ACK_CALLBACK_WINDOW },
+    fallbackMessage: LEAD_ACK_SMS_FALLBACK,
     leadId: input.leadId,
     eventType: 'sms_sent',
     eventNote: 'Lead acknowledgement SMS sent',

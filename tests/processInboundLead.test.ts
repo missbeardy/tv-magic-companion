@@ -8,6 +8,10 @@ vi.mock('../api/_lib/leadAckSms.js', () => ({
   sendLeadAckSmsIfEnabled: vi.fn(),
 }))
 
+vi.mock('../api/_lib/leadAckEmail.js', () => ({
+  sendLeadAckEmailIfEnabled: vi.fn(),
+}))
+
 vi.mock('../api/_lib/missedCallHookbackSms.js', () => ({
   sendMissedCallHookbackIfEnabled: vi.fn().mockResolvedValue(true),
 }))
@@ -32,6 +36,7 @@ vi.mock('../api/_lib/workflowRun.js', () => ({
 import { processInboundLead } from '../api/_lib/processInboundLead'
 import { notifyManagersNewLead } from '../api/_lib/notifyManagersNewLead'
 import { sendLeadAckSmsIfEnabled } from '../api/_lib/leadAckSms'
+import { sendLeadAckEmailIfEnabled } from '../api/_lib/leadAckEmail'
 import { sendMissedCallHookbackIfEnabled } from '../api/_lib/missedCallHookbackSms'
 import { startWorkflowRun } from '../api/_lib/workflowRun'
 import * as rawFirstLead from '../api/_lib/rawFirstLead'
@@ -196,5 +201,67 @@ describe('processInboundLead', () => {
     expect(mockRecorder.attachLead).toHaveBeenCalledWith('lead-1')
     expect(mockRecorder.step).toHaveBeenCalledWith('insert_lead', 'succeeded')
     expect(mockRecorder.finish).toHaveBeenCalledWith('succeeded')
+  })
+
+  it('sends email ack when ack has no phone but resolveEmail returns address', async () => {
+    const leadEventsInsert = vi.fn().mockResolvedValue({})
+    const leadsUpdate = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    })
+    const leadsSelect = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue({
+          data: {
+            name: 'Email Lead',
+            service_type: 'General Enquiry',
+            status: 'unassigned',
+            email: 'pat@example.com',
+          },
+        }),
+      }),
+    })
+    const from = vi.fn((table: string) => {
+      if (table === 'lead_events') return { insert: leadEventsInsert }
+      if (table === 'leads') return { select: leadsSelect, update: leadsUpdate }
+      return {}
+    })
+    const supabase = { from } as unknown as Parameters<typeof processInboundLead>[0]['supabase']
+
+    vi.spyOn(rawFirstLead, 'updateLeadFromExtraction').mockResolvedValue()
+    vi.mocked(sendLeadAckEmailIfEnabled).mockResolvedValue(true)
+
+    await processInboundLead({
+      supabase,
+      orgId: 'org-1',
+      insertLead: async () => ({ id: 'lead-3' }),
+      createdEvent: { note: 'created', payload: { source: 'email' } },
+      extract: async () => ({
+        updateFields: { name: 'Email Lead', email: 'pat@example.com' },
+        extractionStatus: 'succeeded',
+      }),
+      buildNotify: () => ({
+        name: 'Email Lead',
+        service_type: 'General Enquiry',
+        status: 'unassigned',
+      }),
+      followUp: {
+        type: 'ack',
+        source: 'email',
+        resolvePhone: () => null,
+        resolveEmail: () => 'pat@example.com',
+        resolveCustomerName: () => 'Pat',
+      },
+      logLabel: 'inbound email',
+    })
+
+    expect(sendLeadAckSmsIfEnabled).not.toHaveBeenCalled()
+    expect(sendLeadAckEmailIfEnabled).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orgId: 'org-1',
+        leadId: 'lead-3',
+        toEmail: 'pat@example.com',
+        source: 'email',
+      })
+    )
   })
 })

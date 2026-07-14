@@ -2,6 +2,7 @@ import { getSupabaseAdmin } from './supabaseAdmin.js'
 import { buildSmsFromBrand } from './smsTemplates.js'
 import { formatAuPhoneForSms } from './phone.js'
 import type { LeadEventType } from './leadEventTypes.js'
+import { LEAD_ACK_CALLBACK_WINDOW } from '../../shared/leadAckCopy.js'
 
 export interface SendBrandedSmsOptions {
   orgId: string
@@ -65,6 +66,7 @@ export async function sendBrandedSms(
       'org.name': org?.name ?? 'Your organisation',
       'org.support_phone': supportPhone,
       orgPhoneLine,
+      callbackWindow: options.vars.callbackWindow ?? LEAD_ACK_CALLBACK_WINDOW,
       ...options.vars,
     },
     options.fallbackMessage

@@ -37,7 +37,7 @@ export function getDefaultSmsTemplates(orgName: string): Record<string, string> 
     tech_assignment: `${orgName}: You've been assigned {{leadName}} — {{serviceType}}`,
     customer_ontheway: `{{techName}} from {{org.name}} is on their way. Thank you.`,
     missed_call_hookback: `Hi, {{customerName}} — hands full on-site at {{org.name}}. Your missed call has been assigned to one of our technicians who will call you as soon as possible.`,
-    lead_ack_sms: `Hi {{customerName}}, thanks for contacting {{org.name}}. We've received your enquiry and will be in touch soon.{{orgPhoneLine}}`,
+    lead_ack_sms: `Hi {{customerName}}, thanks for contacting {{org.name}}. We've received your enquiry and we'll call you {{callbackWindow}}.{{orgPhoneLine}}`,
     customer_review_request: `Hi {{customerName}}, thanks for choosing ${orgName}! We'd love your feedback: {{reviewUrl}}`,
     booking_scheduled: `${orgName}: {{managerName}} scheduled "{{leadName}}" on your calendar — {{dateTime}}. Open: {{appUrl}}`,
     receipt_footer: `— ${orgName} Team`,
@@ -63,6 +63,13 @@ export function getDefaultEmailTemplates(): Record<string, string> {
   <p><strong>Amount:</strong> {{totalAmount}}</p>
   <p><strong>Scope:</strong><br/>{{scopeHtml}}</p>
   {{termsBlock}}{{senderBlock}}
+</div>`,
+    lead_ack_email_subject: 'We received your enquiry — {{org.name}}',
+    lead_ack_email_html: `<div style="font-family:Inter,Arial,sans-serif;line-height:1.5;color:#1f2937;max-width:560px">
+  <p>Hi {{customerName}},</p>
+  <p>Thanks for contacting {{org.name}}. We've received your enquiry and will call you {{callbackWindow}}.</p>
+  {{orgPhoneBlock}}
+  <p>— {{org.name}}</p>
 </div>`,
   }
 }

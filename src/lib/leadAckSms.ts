@@ -1,15 +1,14 @@
 import { getDefaultSmsTemplates, interpolateTemplate } from './brandTemplates'
+import {
+  LEAD_ACK_CALLBACK_WINDOW,
+  LEAD_ACK_SMS_FALLBACK,
+  LEAD_ACK_TEMPLATE_KEY,
+  buildOrgPhoneLine,
+} from '../../shared/leadAckCopy'
 
-export const LEAD_ACK_TEMPLATE_KEY = 'lead_ack_sms'
+export { LEAD_ACK_TEMPLATE_KEY, LEAD_ACK_SMS_FALLBACK as LEAD_ACK_FALLBACK }
 
-export const LEAD_ACK_FALLBACK =
-  "Hi {{customerName}}, thanks for contacting {{org.name}}. We've received your enquiry and will be in touch soon.{{orgPhoneLine}}"
-
-export function buildOrgPhoneLine(supportPhone?: string | null): string {
-  const phone = supportPhone?.trim()
-  if (!phone) return ''
-  return ` Need us urgently? Call ${phone}.`
-}
+export { buildOrgPhoneLine }
 
 export function buildLeadAckMessage(
   orgName: string,
@@ -20,12 +19,13 @@ export function buildLeadAckMessage(
   const template =
     brandTemplate ??
     getDefaultSmsTemplates(orgName)[LEAD_ACK_TEMPLATE_KEY] ??
-    LEAD_ACK_FALLBACK
+    LEAD_ACK_SMS_FALLBACK
 
   return interpolateTemplate(template, {
     'org.name': orgName,
     customerName: customerName?.trim() || 'there',
     'org.support_phone': supportPhone?.trim() ?? '',
     orgPhoneLine: buildOrgPhoneLine(supportPhone),
+    callbackWindow: LEAD_ACK_CALLBACK_WINDOW,
   })
 }

@@ -434,6 +434,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           source: 'email',
           resolvePhone: ({ savedLead }) =>
             extractedForAck.phone?.trim() || savedLead?.phone?.trim() || null,
+          resolveEmail: ({ savedLead }) =>
+            extractedForAck.email?.trim() || savedLead?.email?.trim() || senderEmail || null,
           resolveCustomerName: ({ savedLead }) => savedLead?.name || senderName,
         },
         logLabel: 'inbound email',

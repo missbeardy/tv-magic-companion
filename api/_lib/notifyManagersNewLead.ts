@@ -74,6 +74,37 @@ export async function notifyManagersNewLead(
     throw new Error('Failed to record notifications')
   }
 
+  const title = 'New Unassigned Lead'
+  const alertMessage = `${leadName} needs assigning (${serviceType}).`
+  const leadsUrl = `${platformUrl}/leads`
+
+  const appId = process.env.ONESIGNAL_APP_ID
+  const apiKey = process.env.ONESIGNAL_API_KEY
+  if (appId && apiKey) {
+    const pushUrl = lead.id ? `${leadsUrl}?highlight=${lead.id}` : leadsUrl
+    for (const manager of managers) {
+      try {
+        await fetch('https://onesignal.com/api/v1/notifications', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Basic ${apiKey}`,
+          },
+          body: JSON.stringify({
+            app_id: appId,
+            target_channel: 'push',
+            include_aliases: { external_id: [manager.id] },
+            headings: { en: title },
+            contents: { en: alertMessage },
+            url: pushUrl,
+          }),
+        })
+      } catch (err) {
+        console.error(`OneSignal new-lead push failed for ${manager.id} (non-fatal):`, err)
+      }
+    }
+  }
+
   const sid = process.env.TWILIO_ACCOUNT_SID
   const token = process.env.TWILIO_AUTH_TOKEN
   const smsEnabled = await isFeatureEnabledForOrg(lead.org_id, 'manager_new_lead_alerts')
