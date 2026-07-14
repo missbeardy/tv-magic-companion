@@ -4,7 +4,7 @@ import { useOrg } from '../context/OrgContext'
 import { useAuth } from '../context/AuthContext'
 import { buildBrandTransferPayload } from '../lib/brandTransfer'
 import NavBar from '../components/NavBar'
-import BrandQuoteEmailEditor from '../components/BrandQuoteEmailEditor'
+import BrandTemplatesEditor from '../components/BrandTemplatesEditor'
 import PlatformFeatureSwitches from '../components/platform/PlatformFeatureSwitches'
 import PlatformAdminSection from '../components/platform/PlatformAdminSection'
 import InboundSimulatorPanel from '../components/platform/InboundSimulatorPanel'
@@ -28,6 +28,7 @@ interface BrandRow {
   primary_color: string
   secondary_color: string
   email_templates: Record<string, string>
+  sms_templates: Record<string, string>
 }
 
 interface OrgRow {
@@ -86,7 +87,7 @@ export default function PlatformAdminPage() {
     const [brandsRes, orgsRes] = await Promise.all([
       supabase
         .from('brands')
-        .select('id, name, slug, vertical, is_active, primary_color, secondary_color, email_templates')
+        .select('id, name, slug, vertical, is_active, primary_color, secondary_color, email_templates, sms_templates')
         .order('name'),
       supabase.from('orgs').select('id, name, slug, subscription_tier, brand_id, operation_mode, inbound_email_tag').order('name'),
     ])
@@ -98,6 +99,7 @@ export default function PlatformAdminPage() {
           primary_color: (row.primary_color as string) || '#004B93',
           secondary_color: (row.secondary_color as string) || '#00B4C5',
           email_templates: (row.email_templates as Record<string, string>) ?? {},
+          sms_templates: (row.sms_templates as Record<string, string>) ?? {},
         }))
       )
     }
@@ -382,17 +384,15 @@ export default function PlatformAdminPage() {
 
         <PlatformAdminSection id="brand-templates" title="Brand templates" icon={Palette}>
           <p className="text-xs text-gray-500">
-            SMS and email templates live on the brand and are used at runtime (quote emails use{' '}
-            <code className="text-[10px]">customer_quote_request_subject</code> /{' '}
-            <code className="text-[10px]">customer_quote_request_html</code>). Colors and upsells are copied to each
-            franchisee on transfer.
+            Quote email, lead ack email, and SMS templates live on the brand and are used at runtime. Colors and
+            upsells are copied to each franchisee on transfer.
           </p>
           {loading ? (
             <p className="text-sm text-gray-400">Loading…</p>
           ) : (
             <ul className="divide-y divide-gray-100">
               {brands.map((b) => (
-                <BrandQuoteEmailEditor
+                <BrandTemplatesEditor
                   key={b.id}
                   brandId={b.id}
                   brandName={b.name}
@@ -400,6 +400,7 @@ export default function PlatformAdminPage() {
                   vertical={b.vertical}
                   primaryColor={b.primary_color}
                   emailTemplates={b.email_templates}
+                  smsTemplates={b.sms_templates}
                   onSaved={async (message) => {
                     setSuccess(message)
                     setError('')

@@ -59,11 +59,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Fix Platform inbound email simulator auth on Preview (header casing)',
     'Stage 3 Acknowledgment — instant customer ack SMS (with callback SLA copy) and email ack for email-only leads; OneSignal push to managers on new unassigned lead; enabled for FieldBourne',
     'Lead acknowledgement email is a separate feature switch (lead_ack_email) — independent of SMS ack',
+    'Platform Admin brand template editor — edit SMS and lead ack email copy per brand (SLA, manager alerts, etc.)',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.118'
+export const APP_VERSION = '1.1.119'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
