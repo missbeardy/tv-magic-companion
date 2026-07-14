@@ -46,6 +46,7 @@ export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   inbound_messenger: false,
   missed_call_hookback_sms: false,
   lead_ack_sms: false,
+  lead_ack_email: false,
   completion_upsells: false,
   one_tap_invoice: false,
   invoice_chase: false,
@@ -107,6 +108,10 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   lead_ack_sms: {
     label: 'Lead Acknowledgement SMS',
     description: 'Instant branded thank-you SMS to customers when a new inbound lead is created',
+  },
+  lead_ack_email: {
+    label: 'Lead Acknowledgement Email',
+    description: 'Instant branded thank-you email when a new inbound lead has no phone number',
   },
   completion_upsells: {
     label: 'Completion Upsell Checklist',

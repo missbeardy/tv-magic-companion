@@ -58,11 +58,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Removed unused 3CX missed-call webhook (inbound-calls) — frees one Vercel serverless function slot',
     'Fix Platform inbound email simulator auth on Preview (header casing)',
     'Stage 3 Acknowledgment — instant customer ack SMS (with callback SLA copy) and email ack for email-only leads; OneSignal push to managers on new unassigned lead; enabled for FieldBourne',
+    'Lead acknowledgement email is a separate feature switch (lead_ack_email) — independent of SMS ack',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.117'
+export const APP_VERSION = '1.1.118'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

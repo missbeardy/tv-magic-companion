@@ -19,7 +19,7 @@ function buildOrgPhoneBlock(supportPhone: string): string {
 
 /** Send instant lead acknowledgement email when the feature switch is on (email-only leads). */
 export async function sendLeadAckEmailIfEnabled(input: LeadAckEmailInput): Promise<boolean> {
-  const ackEnabled = await isFeatureEnabledForOrg(input.orgId, 'lead_ack_sms')
+  const ackEnabled = await isFeatureEnabledForOrg(input.orgId, 'lead_ack_email')
   if (!ackEnabled) return false
 
   const rawEmail = input.toEmail?.trim()

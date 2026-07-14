@@ -57,7 +57,7 @@ describe('sendLeadAckEmailIfEnabled', () => {
     sendTransactionalEmail.mockResolvedValue({ sent: true, message: 'ok' })
   })
 
-  it('does not send when feature switch is off', async () => {
+  it('does not send when lead_ack_email switch is off', async () => {
     const { sendLeadAckEmailIfEnabled } = await import('../api/_lib/leadAckEmail.js')
 
     const sent = await sendLeadAckEmailIfEnabled({
@@ -71,7 +71,7 @@ describe('sendLeadAckEmailIfEnabled', () => {
     expect(sendTransactionalEmail).not.toHaveBeenCalled()
   })
 
-  it('sends branded ack email when switch is on', async () => {
+  it('sends branded ack email when lead_ack_email switch is on', async () => {
     isFeatureEnabledForOrg.mockResolvedValue(true)
     const { sendLeadAckEmailIfEnabled } = await import('../api/_lib/leadAckEmail.js')
 
@@ -84,6 +84,7 @@ describe('sendLeadAckEmailIfEnabled', () => {
     })
 
     expect(sent).toBe(true)
+    expect(isFeatureEnabledForOrg).toHaveBeenCalledWith('org-1', 'lead_ack_email')
     expect(sendTransactionalEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: 'pat@example.com',

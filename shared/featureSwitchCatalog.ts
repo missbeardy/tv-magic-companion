@@ -15,6 +15,7 @@ export const FEATURE_SWITCH_KEYS = [
   'inbound_messenger',
   'missed_call_hookback_sms',
   'lead_ack_sms',
+  'lead_ack_email',
   'completion_upsells',
   'one_tap_invoice',
   'invoice_chase',
@@ -45,7 +46,7 @@ export const FEATURE_SWITCH_CATEGORY_LABELS: Record<FeatureSwitchCategory, strin
 
 export const FEATURE_SWITCHES_BY_CATEGORY: Record<FeatureSwitchCategory, readonly FeatureSwitchKey[]> = {
   lead_intake: ['inbound_sms', 'inbound_email', 'inbound_calls', 'inbound_messenger', 'customer_linking'],
-  customer_communication: ['missed_call_hookback_sms', 'lead_ack_sms', 'customer_ontheway_sms', 'review_requests'],
+  customer_communication: ['missed_call_hookback_sms', 'lead_ack_sms', 'lead_ack_email', 'customer_ontheway_sms', 'review_requests'],
   team_operations: ['manager_new_lead_alerts', 'smart_assign_badge', 'inbound_auto_assign', 'tech_location', 'internal_messaging', 'customer_profiles'],
   sales_job_completion: ['quote_esign', 'completion_upsells', 'one_tap_invoice', 'invoice_chase', 'quote_chase'],
 }
@@ -58,6 +59,7 @@ export const FEATURE_SWITCH_CATEGORY_BY_KEY: Record<FeatureSwitchKey, FeatureSwi
   customer_linking: 'lead_intake',
   missed_call_hookback_sms: 'customer_communication',
   lead_ack_sms: 'customer_communication',
+  lead_ack_email: 'customer_communication',
   customer_ontheway_sms: 'customer_communication',
   review_requests: 'customer_communication',
   manager_new_lead_alerts: 'team_operations',
@@ -86,6 +88,7 @@ export const FEATURE_SWITCH_MIN_TIERS: Record<FeatureSwitchKey, SubscriptionTier
   inbound_messenger: 'basic',
   missed_call_hookback_sms: 'basic',
   lead_ack_sms: 'basic',
+  lead_ack_email: 'basic',
   completion_upsells: 'basic',
   one_tap_invoice: 'pro',
   invoice_chase: 'pro',
