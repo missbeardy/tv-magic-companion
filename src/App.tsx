@@ -26,6 +26,7 @@ import { useTechLocation } from './hooks/useTechLocation'
 import { initOneSignal, setOneSignalUser, clearOneSignalUser } from './lib/oneSignal'
 import { isManagerRole } from './lib/roles'
 import PwaUpdateLayer from './components/PwaUpdateLayer'
+import OfflineBanner from './components/OfflineBanner'
 
 function Dashboard() {
   const { profile, loading } = useAuth()
@@ -66,6 +67,7 @@ function App() {
         <OrgProvider>
           <ThemeProvider>
           <PwaUpdateLayer>
+          <OfflineBanner />
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

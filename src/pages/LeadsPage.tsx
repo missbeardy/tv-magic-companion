@@ -47,7 +47,7 @@ import {
   shouldPoolPickup,
   type PoolPickupSource,
 } from '../lib/leadPoolPickup'
-import { isReviewRequestEligible, sendReviewRequestSms } from '../lib/reviewRequest'
+import { sendReviewRequestSms } from '../lib/reviewRequest'
 import { getOnTheWayBlockReason, buildOnTheWayMessage, openOnTheWaySms, openDeviceSms } from '../lib/onTheWaySms'
 import { logLeadEvent as recordLeadEvent } from '../lib/leadEvents'
 import { formatAuPhoneForSms, formatAuPhoneForTel } from '../lib/phone'
@@ -60,6 +60,8 @@ import {
   sortLeadsForKanbanColumn,
   LOST_REASON_UNABLE_TO_CONTACT,
 } from '../lib/contactFollowUp'
+import { dismissLeadsPoolCoach, isLeadsPoolCoachDismissed } from '../lib/leadsPoolCoach'
+import { enqueueContactAttempt } from '../lib/offlineQueue'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -78,6 +80,7 @@ interface LeadQuoteSummary {
   status: string
   accepted_at: string | null
   created_at: string
+  total_amount: number | null
 }
 
 // ── Drag-and-drop: Droppable Column Wrapper (desktop only) ───────────────
@@ -229,6 +232,7 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [showAddLead, setShowAddLead] = useState(false)
+  const [showPoolCoach, setShowPoolCoach] = useState(false)
   const [showPasteEnquiry, setShowPasteEnquiry] = useState(false)
   const [assigningLead, setAssigningLead] = useState<Lead | null>(null)
   const [bookingLead, setBookingLead] = useState<Lead | null>(null)
@@ -285,7 +289,7 @@ export default function LeadsPage() {
       try {
         const quotesRes = await supabase
           .from('quotes')
-          .select('lead_id, status, accepted_at, created_at')
+          .select('lead_id, status, accepted_at, created_at, total_amount')
           .in('lead_id', leadIds)
           .order('created_at', { ascending: false })
         if (!quotesRes.error && quotesRes.data) {
@@ -355,6 +359,7 @@ export default function LeadsPage() {
           ...lead,
           latest_quote_status: latestQuote?.status ?? null,
           latest_quote_accepted_at: latestQuote?.accepted_at ?? null,
+          latest_quote_total_amount: latestQuote?.total_amount ?? null,
           latest_invoice_status: latestInvoice?.status ?? null,
           latest_invoice_id: latestInvoice?.id ?? null,
           latest_invoice_number: latestInvoice?.invoice_number ?? null,
@@ -436,6 +441,12 @@ export default function LeadsPage() {
     const lead      = leads.find(l => l.id === leadId)
     if (!lead || lead.status === newStatus) return
 
+    // Completions must go through CompletionChecklist (invoice / review).
+    if (newStatus === 'completed') {
+      handleMarkComplete(lead)
+      return
+    }
+
     const updatePayload: Record<string, unknown> = { status: newStatus }
 
     if (newStatus === 'unassigned') {
@@ -491,7 +502,6 @@ export default function LeadsPage() {
           : newStatus === 'contact_attempted' ||
           newStatus === 'booked' ||
           newStatus === 'lost' ||
-          newStatus === 'completed' ||
           newStatus === 'expired'
           ? (newStatus as LeadEventType)
           : 'status_change',
@@ -505,12 +515,6 @@ export default function LeadsPage() {
           ...(updatePayload.lost_reason ? { reason: updatePayload.lost_reason } : {}),
         }
       )
-      if (newStatus === 'completed') {
-        const eligible = await isReviewRequestEligible(org, lead, profile?.org_id, reviewFeatureEnabled)
-        if (eligible) {
-          setReviewModalLead(lead)
-        }
-      }
       if (shouldPoolPickup(lead.status, newStatus, profile?.id)) {
         focusMobileTabForStatus(newStatus)
       }
@@ -605,6 +609,35 @@ export default function LeadsPage() {
   }, [checklistLead, logLeadEvent, fetchLeads])
 
   const handleCall = useCallback(async (lead: Lead) => {
+    if (!navigator.onLine) {
+      if (!profile?.id || !profile.org_id) {
+        alert('You must be signed in to queue a call offline.')
+        return
+      }
+      const confirmed = window.confirm(
+        `You're offline. Queue a call attempt for ${lead.name}? It will sync when you're back online.`
+      )
+      if (!confirmed) return
+      try {
+        await enqueueContactAttempt({
+          leadId: lead.id,
+          orgId: profile.org_id,
+          actorId: profile.id,
+          kind: 'call',
+          leadStatus: lead.status,
+          contactAttemptRound: lead.contact_attempt_round ?? null,
+          leadName: lead.name,
+          leadPhone: lead.phone ?? null,
+        })
+        if (lead.phone) window.location.href = `tel:${formatAuPhoneForTel(lead.phone)}`
+        alert('Call queued — will sync when online.')
+        closeSheet()
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Failed to queue call')
+      }
+      return
+    }
+
     const attempt = buildContactAttemptUpdate(lead)
 
     if (attempt.kind === 'unable_to_contact') {
@@ -667,11 +700,42 @@ export default function LeadsPage() {
       focusMobileTabForStatus(toStatus)
       fetchLeads()
     })()
-  }, [logLeadEvent, logPoolPickup, closeSheet, fetchLeads, focusMobileTabForStatus, profile?.id])
+  }, [logLeadEvent, logPoolPickup, closeSheet, fetchLeads, focusMobileTabForStatus, profile?.id, profile?.org_id])
 
   const handleSMS = useCallback(async (lead: Lead) => {
     if (!lead.phone?.trim()) {
       alert('No phone number saved for this lead.')
+      return
+    }
+
+    if (!navigator.onLine) {
+      if (!profile?.id || !profile.org_id) {
+        alert('You must be signed in to queue an SMS offline.')
+        return
+      }
+      const confirmed = window.confirm(
+        `You're offline. Queue an SMS attempt for ${lead.name}? You can still open your phone SMS app; the lead update will sync later.`
+      )
+      if (!confirmed) return
+      try {
+        await enqueueContactAttempt({
+          leadId: lead.id,
+          orgId: profile.org_id,
+          actorId: profile.id,
+          kind: 'sms',
+          leadStatus: lead.status,
+          contactAttemptRound: lead.contact_attempt_round ?? null,
+          leadName: lead.name,
+          leadPhone: lead.phone ?? null,
+        })
+        const techName = profile.full_name ?? 'Your technician'
+        const message = buildOnTheWayMessage(lead, techName, org, brand)
+        openOnTheWaySms(lead.phone, message)
+        alert('SMS attempt queued — will sync when online.')
+        closeSheet()
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Failed to queue SMS')
+      }
       return
     }
 
@@ -862,6 +926,14 @@ export default function LeadsPage() {
   }, [isSoloMode, org?.id])
 
   useEffect(() => {
+    if (!profile?.id || isSoloMode) {
+      setShowPoolCoach(false)
+      return
+    }
+    setShowPoolCoach(!isLeadsPoolCoachDismissed(profile.id))
+  }, [profile?.id, isSoloMode])
+
+  useEffect(() => {
     if (loading) return
 
     const statusParam = searchParams.get('status')
@@ -986,6 +1058,10 @@ export default function LeadsPage() {
             details: bookingLead.details,
             service_type: bookingLead.service_type,
             assigned_to: bookingLead.assigned_to ?? undefined,
+            job_quote:
+              bookingLead.latest_quote_status === 'accepted'
+                ? bookingLead.latest_quote_total_amount ?? undefined
+                : undefined,
           }}
           onClose={() => setBookingLead(null)}
           onSaved={fetchLeads}
@@ -995,6 +1071,26 @@ export default function LeadsPage() {
       <NavBar />
 
       <main className="p-4 md:p-6">
+        {showPoolCoach && !isSoloMode && (
+          <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 flex items-start gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-sky-900">Pick up leads from the pool</p>
+              <p className="text-xs text-sky-800/90 mt-0.5">
+                Call or SMS from Unassigned to claim the lead. Assigned jobs return to the pool if you don&apos;t respond in time.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (profile?.id) dismissLeadsPoolCoach(profile.id)
+                setShowPoolCoach(false)
+              }}
+              className="shrink-0 text-xs font-semibold text-sky-800 hover:text-sky-950 px-2 py-1 rounded-lg hover:bg-sky-100"
+            >
+              Got it
+            </button>
+          </div>
+        )}
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <div>
             <h2 className="text-2xl font-bold text-gray-800">Leads</h2>

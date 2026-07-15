@@ -45,6 +45,8 @@ interface Lead {
   email?: string
   details?: string
   assigned_to?: string
+  /** Prefill job quote amount (e.g. from accepted quote). */
+  job_quote?: number | string | null
 }
 
 interface LeadSearchResult {
@@ -231,11 +233,15 @@ export default function EventModal({
   const [clientEmail, setClientEmail] = useState(existingEvent?.client_email ?? prefillLead?.email ?? '')
   const [clientAddress, setClientAddress] = useState(existingEvent?.client_address ?? prefillLead?.address ?? '')
   const [clientJob, setClientJob] = useState(existingEvent?.client_job ?? prefillLead?.details ?? prefillLead?.service_type ?? '')
-  const [jobQuote, setJobQuote] = useState(
-    existingEvent?.job_quote !== undefined && existingEvent?.job_quote !== null
-      ? String(existingEvent.job_quote)
-      : ''
-  )
+  const [jobQuote, setJobQuote] = useState(() => {
+    if (existingEvent?.job_quote !== undefined && existingEvent?.job_quote !== null) {
+      return String(existingEvent.job_quote)
+    }
+    if (prefillLead?.job_quote !== undefined && prefillLead?.job_quote !== null) {
+      return String(prefillLead.job_quote)
+    }
+    return ''
+  })
 
   const [linkedLeadId, setLinkedLeadId] = useState<string | null>(
     prefillLead?.id ?? existingEvent?.lead_id ?? null
@@ -837,6 +843,41 @@ export default function EventModal({
       await notifyManager('scheduled')
       if (isManager && bookingAssigneeId !== profile?.id) {
         await notifyAssignees([bookingAssigneeId], startISO)
+      }
+    }
+
+    // Customer booking confirmation (SMS + optional email/.ics) — non-blocking
+    const confirmCustomer =
+      (clientPhone.trim() || clientEmail.trim()) &&
+      (leadIdToUse || customerName)
+    if (confirmCustomer) {
+      try {
+        const techProfile = memberList.find((m) => m.id === bookingAssigneeId)
+        const headers = await getAuthHeaders()
+        const confirmRes = await fetch('/api/send-sms?action=booking-confirm', {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            leadId: leadIdToUse,
+            customerName: customerName || resolveBookingCustomerName(clientName, title),
+            customerPhone: clientPhone || null,
+            customerEmail: clientEmail || null,
+            serviceType: clientJob.trim() || title.trim(),
+            startTimeIso: startISO,
+            endTimeIso: endISO,
+            techName: techProfile?.full_name ?? null,
+            address: clientAddress || null,
+          }),
+        })
+        const confirmData = (await confirmRes.json().catch(() => ({}))) as {
+          smsSent?: boolean
+          smsMessage?: string
+        }
+        if (clientPhone.trim() && (!confirmRes.ok || confirmData.smsSent === false)) {
+          window.alert('Booked — customer SMS failed. You may want to text them manually.')
+        }
+      } catch (err) {
+        console.warn('Booking confirm request failed (non-fatal):', err)
       }
     }
 

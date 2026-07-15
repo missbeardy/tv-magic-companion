@@ -76,6 +76,41 @@ export function getDefaultInvoiceEmailTemplates(): Record<string, string> {
   }
 }
 
+export const LEAD_ACK_EMAIL_TEMPLATE_KEYS = {
+  subject: 'lead_ack_email_subject',
+  html: 'lead_ack_email_html',
+} as const
+
+export function getDefaultLeadAckEmailTemplates(): Record<string, string> {
+  return {
+    [LEAD_ACK_EMAIL_TEMPLATE_KEYS.subject]: 'We received your enquiry — {{org.name}}',
+    [LEAD_ACK_EMAIL_TEMPLATE_KEYS.html]: `<div style="font-family:Inter,Arial,sans-serif;line-height:1.5;color:#1f2937;max-width:560px">
+  <p>Hi {{customerName}},</p>
+  <p>Thanks for contacting {{org.name}}. We've received your enquiry and will call you {{callbackWindow}}.</p>
+  {{orgPhoneBlock}}
+  <p>— {{org.name}}</p>
+</div>`,
+  }
+}
+
+export function buildLeadAckEmailFromBrand(
+  templates: Record<string, string> | null | undefined,
+  vars: TemplateVars,
+  fallbackTemplates: Record<string, string> = getDefaultLeadAckEmailTemplates()
+): QuoteEmailContent {
+  const subjectTemplate =
+    templates?.[LEAD_ACK_EMAIL_TEMPLATE_KEYS.subject] ??
+    fallbackTemplates[LEAD_ACK_EMAIL_TEMPLATE_KEYS.subject]
+  const htmlTemplate =
+    templates?.[LEAD_ACK_EMAIL_TEMPLATE_KEYS.html] ??
+    fallbackTemplates[LEAD_ACK_EMAIL_TEMPLATE_KEYS.html]
+
+  return {
+    subject: interpolateTemplate(subjectTemplate, vars),
+    html: interpolateTemplate(htmlTemplate, vars),
+  }
+}
+
 export function buildInvoiceEmailFromOrg(
   templates: Record<string, string> | null | undefined,
   vars: TemplateVars,

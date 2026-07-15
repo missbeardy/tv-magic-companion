@@ -45,20 +45,25 @@ describe('buildLeadAckMessage', () => {
 
   it('matches approved fallback copy', () => {
     expect(LEAD_ACK_FALLBACK).toContain('thanks for contacting')
-    expect(LEAD_ACK_FALLBACK).toContain('will be in touch soon')
+    expect(LEAD_ACK_FALLBACK).toContain('{{callbackWindow}}')
     expect(LEAD_ACK_FALLBACK).toContain('{{orgPhoneLine}}')
+  })
+
+  it('includes callback window in rendered message', () => {
+    const message = buildLeadAckMessage('TVMagic Sydney', 'Jane')
+    expect(message).toContain('within 2 business hours')
   })
 
   it('includes urgent call line when support phone is set', () => {
     const message = buildLeadAckMessage('TVMagic Sydney', 'Jane', null, '0412 345 678')
     expect(message).toContain('Need us urgently? Call 0412 345 678.')
-    expect(message).toMatch(/will be in touch soon\. Need us urgently/)
+    expect(message).toMatch(/within 2 business hours\. Need us urgently/)
   })
 
   it('omits urgent call line when support phone is missing', () => {
     const message = buildLeadAckMessage('TVMagic Sydney', 'Jane')
     expect(message).not.toContain('Need us urgently')
-    expect(message).toMatch(/will be in touch soon\.$/)
+    expect(message).toMatch(/within 2 business hours\.$/)
   })
 
   it('buildOrgPhoneLine returns empty string for blank phone', () => {
@@ -125,7 +130,7 @@ describe('sendLeadAckSmsIfEnabled', () => {
         leadId: 'lead-1',
         templateKey: 'lead_ack_sms',
         toPhone: '+61412345678',
-        vars: { customerName: 'Jane' },
+        vars: { customerName: 'Jane', callbackWindow: 'within 2 business hours' },
         eventNote: 'Lead acknowledgement SMS sent',
         eventPayload: { source: 'email' },
       })

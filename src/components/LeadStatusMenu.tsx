@@ -4,15 +4,8 @@ import { supabase } from '../lib/supabase'
 import { asLeadUpdate } from '../lib/dbTypes'
 import { sendPushNotification } from '../lib/sendPush'
 import { useAuth } from '../context/AuthContext'
-import { useOrg } from '../context/OrgContext'
-import ReviewRequestModal from './ReviewRequestModal'
 import { logLeadEvent } from '../lib/leadEvents'
 import type { LeadEventType } from '../lib/leadEventPayload'
-import {
-  isReviewRequestEligible,
-  sendReviewRequestSms,
-  type ReviewRequestLead,
-} from '../lib/reviewRequest'
 import {
   ASSIGNMENT_REQUIRED_MESSAGE,
   blocksUnassignedStatusChange,
@@ -68,32 +61,17 @@ export default function LeadStatusMenu({
   currentStatus,
   assignedTo,
   leadName,
-  leadPhone,
-  reviewRequestSentAt,
   serviceType,
   onUpdated,
-  logEvent,
   onCompleteRequested,
   variant = 'badge',
   contactAttemptRound = 0,
 }: Props) {
   const { profile } = useAuth()
-  const { isFeatureEnabled, featureSwitchesLoading } = useOrg()
-  const reviewFeatureEnabled = !featureSwitchesLoading && isFeatureEnabled('review_requests')
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [dropUp, setDropUp] = useState(false)
-  const [showReviewModal, setShowReviewModal] = useState(false)
-  const [reviewSending, setReviewSending] = useState(false)
-  const [reviewError, setReviewError] = useState<string | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
-
-  const lead: ReviewRequestLead = {
-    id: leadId,
-    name: leadName,
-    phone: leadPhone,
-    review_request_sent_at: reviewRequestSentAt,
-  }
 
   const current = STATUSES.find(s => s.value === currentStatus) ?? STATUSES[0]
 
@@ -217,43 +195,15 @@ export default function LeadStatusMenu({
         onCompleteRequested()
         return
       }
-
-      const eligible = await isReviewRequestEligible(null, lead, profile?.org_id, reviewFeatureEnabled)
-      if (eligible && leadPhone?.trim()) {
-        setShowReviewModal(true)
-        return
-      }
+      // Completions must go through CompletionChecklist — never update status alone.
+      console.warn('LeadStatusMenu: completed requires onCompleteRequested')
+      return
     }
 
     setSaving(true)
     const ok = await applyStatusUpdate(currentStatus, newStatus)
     setSaving(false)
     if (ok) onUpdated()
-  }
-
-  async function finalizeCompleted(sendReview: boolean) {
-    setSaving(true)
-    const ok = await applyStatusUpdate(currentStatus, 'completed')
-    if (!ok) {
-      setShowReviewModal(false)
-      setSaving(false)
-      return
-    }
-    if (sendReview) {
-      setReviewSending(true)
-      setReviewError(null)
-      const result = await sendReviewRequestSms(lead, logEvent)
-      setReviewSending(false)
-      if (!result.ok) {
-        setReviewError(result.error)
-        setSaving(false)
-        onUpdated()
-        return
-      }
-    }
-    setShowReviewModal(false)
-    setSaving(false)
-    onUpdated()
   }
 
   return (
@@ -296,17 +246,6 @@ export default function LeadStatusMenu({
             </button>
           ))}
         </div>
-      )}
-
-      {showReviewModal && leadPhone?.trim() && (
-        <ReviewRequestModal
-          customerName={leadName}
-          customerPhone={leadPhone.trim()}
-          sending={reviewSending}
-          error={reviewError}
-          onSend={() => finalizeCompleted(true)}
-          onSkip={() => finalizeCompleted(false)}
-        />
       )}
     </div>
   )

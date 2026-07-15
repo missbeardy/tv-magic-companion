@@ -58,11 +58,20 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Removed unused 3CX missed-call webhook (inbound-calls) — frees one Vercel serverless function slot',
     'Fix Platform inbound email simulator auth on Preview (header casing)',
     'Inbound auto-assign now skips managers — leads auto-assign only to technicians (employees); if no technician is available the lead stays unassigned and managers are notified',
+    'Stage 3 Acknowledgment — instant customer ack SMS (with callback SLA copy) and email ack for email-only leads, manager push on new unassigned lead; shipped dark (lead_ack_sms, lead_ack_email, manager_new_lead_alerts all off by default, enable per brand when ready)',
+    'Lead acknowledgement email is a separate feature switch (lead_ack_email) — independent of SMS ack',
+    'Platform Admin brand template editor — edit SMS and lead ack email copy per brand (SLA, manager alerts, etc.)',
+    'Phone-first quoting — SMS quote link by default, Total incl. GST, mobile bottom-sheet composer',
+    'Next-action CTAs on lead cards/sheets by status (Call / Quote / Book / Complete)',
+    'Completions only via checklist — drag or status menu cannot skip invoice/review flow',
+    'Branded quote accept page with decline; accept notifies managers and opens Book with quote amount',
+    'Customer booking confirmation SMS + email with .ics calendar invite',
+    'Offline queue for call/SMS attempts and lead photos; mobile nav focuses Dashboard / Leads / Calendar',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.117'
+export const APP_VERSION = '1.1.121'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

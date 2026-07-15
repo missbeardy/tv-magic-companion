@@ -7,7 +7,14 @@ import { getPlatformUrl } from './_lib/platformUrl.js'
 import { notifyManagersNewLead } from './_lib/notifyManagersNewLead.js'
 import { formatAuPhoneForSms, phoneCandidates } from './_lib/phone.js'
 import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
-import { acceptQuoteByToken, createQuote, getQuoteByToken } from './_lib/quotes.js'
+import {
+  acceptQuoteByToken,
+  createQuote,
+  declineQuoteByToken,
+  getQuoteByToken,
+  getQuotePublicBrand,
+} from './_lib/quotes.js'
+import { sendBookingConfirmations } from './_lib/bookingConfirm.js'
 import { createAndSendInvoice, markInvoicePaid } from './_lib/invoices.js'
 import { runContactFollowUpCron } from './_lib/runContactFollowUpCron.js'
 import { runInvoiceChaseSweep } from './_lib/invoiceChase.js'
@@ -226,6 +233,57 @@ async function assertQuoteInOrg(quoteId: string, orgId: string): Promise<boolean
   return !!data && data.org_id === orgId
 }
 
+async function handleBookingConfirm(req: VercelRequest, res: VercelResponse, auth: AuthContext) {
+  const {
+    leadId,
+    customerName,
+    customerPhone,
+    customerEmail,
+    serviceType,
+    startTimeIso,
+    endTimeIso,
+    techName,
+    address,
+  } = (req.body ?? {}) as {
+    leadId?: string
+    customerName?: string
+    customerPhone?: string
+    customerEmail?: string
+    serviceType?: string
+    startTimeIso?: string
+    endTimeIso?: string
+    techName?: string
+    address?: string
+  }
+
+  if (!customerName?.trim() || !startTimeIso || !endTimeIso) {
+    return res.status(400).json({ error: 'Missing booking confirm fields' })
+  }
+
+  if (leadId && !(await assertLeadInOrg(leadId, auth.orgId))) {
+    return res.status(403).json({ error: 'Lead is outside your organisation' })
+  }
+
+  try {
+    const result = await sendBookingConfirmations({
+      orgId: auth.orgId,
+      leadId,
+      customerName: customerName.trim(),
+      customerPhone,
+      customerEmail,
+      serviceType,
+      startTimeIso,
+      endTimeIso,
+      techName,
+      address,
+    })
+    return res.status(200).json({ success: true, ...result })
+  } catch (err) {
+    console.error('Booking confirm failed:', err)
+    return res.status(500).json({ error: err instanceof Error ? err.message : 'Booking confirm failed' })
+  }
+}
+
 async function handleQuoteCreate(req: VercelRequest, res: VercelResponse, auth: AuthContext) {
   if (!['manager', 'platform_admin'].includes(auth.role)) {
     return res.status(403).json({ error: 'Only managers can send quotes' })
@@ -309,6 +367,7 @@ async function handleQuotePublicGet(req: VercelRequest, res: VercelResponse) {
     }
 
     const isExpired = quote.token_expires_at && new Date(quote.token_expires_at).getTime() < Date.now()
+    const brand = await getQuotePublicBrand(quote.org_id)
     return res.status(200).json({
       quote: {
         id: quote.id,
@@ -324,11 +383,49 @@ async function handleQuotePublicGet(req: VercelRequest, res: VercelResponse) {
         token_expires_at: quote.token_expires_at,
         accepted_at: quote.accepted_at,
         sent_at: quote.sent_at,
+        org_name: brand.org_name,
+        primary_color: brand.primary_color,
+        logo_url: brand.logo_url,
       },
     })
   } catch (err) {
     console.error('Quote public get failed:', err)
     return res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to load quote' })
+  }
+}
+
+async function handleQuotePublicDecline(req: VercelRequest, res: VercelResponse) {
+  const { token, reason } = (req.body ?? {}) as { token?: string; reason?: string }
+  if (!token?.trim()) {
+    return res.status(400).json({ error: 'Missing required field: token' })
+  }
+
+  try {
+    const quote = await getQuoteByToken(token.trim())
+    if (!quote) {
+      return res.status(404).json({ error: 'Quote not found' })
+    }
+
+    const featureEnabled = await isFeatureEnabledForOrg(quote.org_id, 'quote_esign')
+    if (!featureEnabled) {
+      return res.status(403).json({ error: 'Quote acceptance is not available right now' })
+    }
+
+    const result = await declineQuoteByToken({ token: token.trim(), reason })
+    if (result.status === 'not_found') return res.status(404).json({ error: 'Quote not found' })
+    if (result.status === 'expired') return res.status(410).json({ error: 'Quote has expired' })
+    if (result.status === 'invalid_status') {
+      return res.status(409).json({ error: 'Quote cannot be declined in its current status' })
+    }
+
+    return res.status(200).json({
+      success: true,
+      status: result.status,
+      quote: result.quote,
+    })
+  } catch (err) {
+    console.error('Quote public decline failed:', err)
+    return res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to decline quote' })
   }
 }
 
@@ -568,6 +665,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
     return handleQuotePublicAccept(req, res)
   }
+  if (action === 'quote-public-decline') {
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+    return handleQuotePublicDecline(req, res)
+  }
 
   // CRON_SECRET — consolidated to stay under Hobby 12-function limit (see vercel.json).
   if (action === 'contact-follow-up') {
@@ -598,6 +699,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   if (action === 'quote-create') {
     return handleQuoteCreate(req, res, auth)
+  }
+  if (action === 'booking-confirm') {
+    return handleBookingConfirm(req, res, auth)
   }
   if (action === 'invoice-send-email') {
     return handleInvoiceSendEmail(req, res, auth)

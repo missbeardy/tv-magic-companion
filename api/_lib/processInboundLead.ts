@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ExtractionStatus } from './extractLead.js'
 import { notifyManagersNewLead } from './notifyManagersNewLead.js'
 import { sendLeadAckSmsIfEnabled } from './leadAckSms.js'
+import { sendLeadAckEmailIfEnabled } from './leadAckEmail.js'
 import { sendMissedCallHookbackIfEnabled } from './missedCallHookbackSms.js'
 import {
   pickExtractedFields,
@@ -62,6 +63,8 @@ export interface ProcessInboundLeadFollowUp {
   source: string
   resolvePhone: (ctx: ProcessInboundLeadContext) => string | null | undefined
   resolveCustomerName: (ctx: ProcessInboundLeadContext) => string
+  /** Used for email ack when no phone is available (ack type only). */
+  resolveEmail?: (ctx: ProcessInboundLeadContext) => string | null | undefined
 }
 
 export interface ProcessInboundLeadContext {
@@ -380,15 +383,40 @@ export async function processInboundLead(
             sent = hookbackSent
           }
           await recorder.step('follow_up_sms', 'succeeded', {
-            output: { type: followUp.type, sent },
+            output: { type: followUp.type, channel: 'sms', sent },
           })
         } catch (followUpErr) {
           console.error(`${logLabel} follow-up SMS failed:`, followUpErr)
           await recorder.step('follow_up_sms', 'failed', {
             error: followUpErr,
-            output: { type: followUp.type, sent: false },
+            output: { type: followUp.type, channel: 'sms', sent: false },
           })
           partial = true
+        }
+      } else if (followUp.type === 'ack' && followUp.resolveEmail) {
+        const toEmail = followUp.resolveEmail(ctx)
+        if (toEmail) {
+          try {
+            const sent = await sendLeadAckEmailIfEnabled({
+              orgId,
+              leadId,
+              toEmail,
+              customerName: followUp.resolveCustomerName(ctx),
+              source: followUp.source,
+            })
+            await recorder.step('follow_up_sms', 'succeeded', {
+              output: { type: followUp.type, channel: 'email', sent },
+            })
+          } catch (followUpErr) {
+            console.error(`${logLabel} follow-up email ack failed:`, followUpErr)
+            await recorder.step('follow_up_sms', 'failed', {
+              error: followUpErr,
+              output: { type: followUp.type, channel: 'email', sent: false },
+            })
+            partial = true
+          }
+        } else {
+          await recorder.step('follow_up_sms', 'skipped')
         }
       } else {
         await recorder.step('follow_up_sms', 'skipped')

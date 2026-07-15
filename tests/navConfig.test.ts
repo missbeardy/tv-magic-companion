@@ -47,7 +47,10 @@ describe('filterNavLinks', () => {
     expect(links.map((l) => l.label)).toContain('Platform')
   })
 
-  it('marks exactly four primary mobile tabs', () => {
-    expect(NAV_LINKS.filter((l) => l.primaryMobile)).toHaveLength(4)
+  it('marks exactly three primary mobile tabs (Activity in drawer)', () => {
+    const primary = NAV_LINKS.filter((l) => l.primaryMobile)
+    expect(primary).toHaveLength(3)
+    expect(primary.map((l) => l.to)).toEqual(['/', '/leads', '/calendar'])
+    expect(NAV_LINKS.find((l) => l.to === '/activity')?.primaryMobile).toBe(false)
   })
 })

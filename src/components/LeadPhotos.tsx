@@ -2,6 +2,12 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { signLeadPhotoPath, signLeadPhotoPaths } from '../lib/leadPhotoStorage'
+import {
+  enqueueLeadPhoto,
+  listPendingPhotosForLead,
+  subscribeOfflineQueue,
+  type OfflineLeadPhotoItem,
+} from '../lib/offlineQueue'
 
 interface Photo {
   id: string
@@ -19,9 +25,25 @@ export default function LeadPhotos({ leadId, canUpload = true, onShare }: Props)
   const { profile } = useAuth()
   const [photos, setPhotos] = useState<Photo[]>([])
   const [signedUrls, setSignedUrls] = useState<Map<string, string>>(new Map())
+  const [pending, setPending] = useState<OfflineLeadPhotoItem[]>([])
+  const [pendingUrls, setPendingUrls] = useState<Map<string, string>>(new Map())
   const [uploading, setUploading] = useState(false)
   const [lightbox, setLightbox] = useState<string | null>(null)
+  const [error, setError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
+
+  async function fetchPending() {
+    const rows = await listPendingPhotosForLead(leadId)
+    setPending(rows)
+    const urls = new Map<string, string>()
+    for (const row of rows) {
+      urls.set(row.id, URL.createObjectURL(row.blob))
+    }
+    setPendingUrls((prev) => {
+      prev.forEach((url) => URL.revokeObjectURL(url))
+      return urls
+    })
+  }
 
   async function fetchPhotos() {
     const { data } = await supabase
@@ -33,22 +55,57 @@ export default function LeadPhotos({ leadId, canUpload = true, onShare }: Props)
     if (!data) return
 
     setPhotos(data)
-    const paths = data.map(p => p.storage_path).filter(Boolean)
+    const paths = data.map((p) => p.storage_path).filter(Boolean)
     const urls = await signLeadPhotoPaths(paths)
     setSignedUrls(urls)
   }
 
-  useEffect(() => { fetchPhotos() }, [leadId])
+  useEffect(() => {
+    void fetchPhotos()
+    void fetchPending()
+    return subscribeOfflineQueue(() => {
+      void fetchPending()
+      if (navigator.onLine) void fetchPhotos()
+    })
+  }, [leadId])
+
+  useEffect(() => {
+    return () => {
+      pendingUrls.forEach((url) => URL.revokeObjectURL(url))
+    }
+  }, [pendingUrls])
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || [])
-    if (!files.length || !profile?.org_id) return
+    if (!files.length || !profile?.org_id || !profile.id) return
+    setError('')
 
-    const remaining = 3 - photos.length
+    const remaining = 3 - photos.length - pending.length
     if (remaining <= 0) return
 
     const toUpload = files.slice(0, remaining)
     setUploading(true)
+
+    if (!navigator.onLine) {
+      try {
+        for (const file of toUpload) {
+          await enqueueLeadPhoto({
+            leadId,
+            orgId: profile.org_id,
+            actorId: profile.id,
+            fileName: file.name || 'photo.jpg',
+            mimeType: file.type || 'image/jpeg',
+            blob: file,
+          })
+        }
+        await fetchPending()
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to queue photo')
+      }
+      setUploading(false)
+      if (fileRef.current) fileRef.current.value = ''
+      return
+    }
 
     for (const file of toUpload) {
       const ext = file.name.split('.').pop()
@@ -80,13 +137,13 @@ export default function LeadPhotos({ leadId, canUpload = true, onShare }: Props)
   }
 
   async function openLightbox(storagePath: string) {
-    const signed = signedUrls.get(storagePath) ?? await signLeadPhotoPath(storagePath)
+    const signed = signedUrls.get(storagePath) ?? (await signLeadPhotoPath(storagePath))
     if (signed) setLightbox(signed)
   }
 
   async function sharePhoto(storagePath: string) {
     if (!onShare) return
-    const signed = signedUrls.get(storagePath) ?? await signLeadPhotoPath(storagePath)
+    const signed = signedUrls.get(storagePath) ?? (await signLeadPhotoPath(storagePath))
     if (signed) onShare(signed)
   }
 
@@ -101,8 +158,10 @@ export default function LeadPhotos({ leadId, canUpload = true, onShare }: Props)
         </div>
       )}
 
+      {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
+
       <div className="flex gap-2 flex-wrap">
-        {photos.map(photo => {
+        {photos.map((photo) => {
           const src = signedUrls.get(photo.storage_path)
           if (!src) return null
 
@@ -134,7 +193,24 @@ export default function LeadPhotos({ leadId, canUpload = true, onShare }: Props)
           )
         })}
 
-        {canUpload && photos.length < 3 && (
+        {pending.map((row) => {
+          const src = pendingUrls.get(row.id)
+          if (!src) return null
+          return (
+            <div key={row.id} className="relative">
+              <img
+                src={src}
+                className="w-20 h-20 object-cover rounded-lg border border-amber-300 opacity-90"
+                alt=""
+              />
+              <span className="absolute bottom-0 inset-x-0 bg-amber-500 text-white text-[10px] font-semibold text-center py-0.5 rounded-b-lg">
+                Queued
+              </span>
+            </div>
+          )
+        })}
+
+        {canUpload && photos.length + pending.length < 3 && (
           <button
             onClick={() => fileRef.current?.click()}
             disabled={uploading}
