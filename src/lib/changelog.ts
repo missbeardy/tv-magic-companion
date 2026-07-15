@@ -57,11 +57,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Extraction status on leads — managers see failed/fallback/pending badge and can retry extraction from lead detail',
     'Removed unused 3CX missed-call webhook (inbound-calls) — frees one Vercel serverless function slot',
     'Fix Platform inbound email simulator auth on Preview (header casing)',
+    'Inbound auto-assign now skips managers — leads auto-assign only to technicians (employees); if no technician is available the lead stays unassigned and managers are notified',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.116'
+export const APP_VERSION = '1.1.117'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
