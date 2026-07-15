@@ -24,6 +24,7 @@ import { getAttemptPhaseLabel, LOST_REASON_UNABLE_TO_CONTACT } from '../lib/cont
 import { getLeadDisplayDetails } from '../lib/leadDisplay'
 import { isManagerRole } from '../lib/roles'
 import { getAuthHeaders } from '../lib/apiAuth'
+import { resolveLeadNextAction } from '../lib/leadNextAction'
 import type { KanbanLead } from './LeadCard'
 
 interface Props {
@@ -110,21 +111,40 @@ export default function LeadDetailSheet({
   const isCompleted = lead.status === 'completed'
   const isUnassigned = lead.status === 'unassigned'
 
-  function primaryAction() {
-    if (isCompleted) return null
-    if (isUnassigned) {
-      if (hideAssignPool) return null
-      if (isManagerRole(profile?.role)) {
-        return { label: 'Assign to Technician', onClick: () => onAssign(lead), className: 'bg-brand text-white' }
-      }
-      if (profile?.role === 'employee') {
-        return { label: 'Self-Assign This Lead', onClick: () => onAssign(lead), className: 'bg-brand text-white' }
-      }
+  const nextAction = resolveLeadNextAction({
+    status: lead.status,
+    latestQuoteStatus: lead.latest_quote_status,
+    quoteEnabled,
+    hideAssignPool,
+    isManager: isManagerRole(profile?.role),
+    isEmployee: profile?.role === 'employee',
+  })
+
+  function runNextAction() {
+    if (!nextAction) return
+    switch (nextAction.kind) {
+      case 'assign':
+      case 'self_assign':
+        onAssign(lead)
+        break
+      case 'call':
+        onCall(lead)
+        break
+      case 'quote':
+        onQuote(lead)
+        break
+      case 'book':
+        onBook(lead)
+        break
+      case 'complete':
+        onComplete(lead)
+        break
     }
-    return { label: 'Complete Job', onClick: () => onComplete(lead), className: 'bg-green-600 text-white' }
   }
 
-  const primary = primaryAction()
+  const primary = nextAction
+    ? { label: nextAction.label, onClick: runNextAction, className: nextAction.className }
+    : null
 
   const extractionStatus = lead.extraction_status ?? null
   const showExtractionBadge =

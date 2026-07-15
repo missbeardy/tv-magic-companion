@@ -2,8 +2,8 @@
 
 | Field | Value |
 |-------|-------|
-| **Document version** | `1.1.0` |
-| **Last updated** | 13-07-2026 |
+| **Document version** | `1.2.0` |
+| **Last updated** | 15-07-2026 |
 | **Maintained by** | Update in the same PR as any pipeline behaviour change |
 
 > **Living document.** This file must stay in sync with production behaviour. See [Maintenance policy](#maintenance-policy) and [Version history](#version-history).
@@ -73,7 +73,7 @@ flowchart TB
     C2[Ack or hookback SMS]
     C3[On-the-way SMS]
     C4[Quote e-sign]
-    C5[Booking confirm - partial]
+    C5[Booking confirm SMS/email]
     C6[Invoice email - optional]
     C7[Review SMS - optional]
   end
@@ -123,9 +123,9 @@ flowchart TB
 | **1 Capture** | Sends enquiry | Lead appears in Unassigned (team) or Inbox (solo) | `inbound-*` → `processInboundLead` → `leads` insert |
 | **2 Extraction** | — | Structured fields populate on card; managers see extraction status + retry | Claude extraction via `extractLead.ts`; `extraction_status` on `leads` |
 | **3 Acknowledgment** | Receives ack / hookback SMS | Manager bell (+ WhatsApp if enabled) | `leadAckSms`, `missedCallHookbackSms`, `notifyManagersNewLead` |
-| **4 Quoting** | E-sign on `/quote/:token` | Manager sends quote from kanban | `QuoteComposerModal` → `quotes` table |
-| **5 Booking** | No auto confirm yet | Book via `EventModal` → calendar | `events` row; lead → `booked` |
-| **6 Execution** | On-the-way SMS optional | Complete via `CompletionChecklist` | Lead → `completed`; photos optional |
+| **4 Quoting** | SMS link + e-sign / decline on `/quote/:token` | Manager sends quote (SMS preferred); Book CTA after accept | `QuoteComposerModal` → `quotes`; accept notifies managers |
+| **5 Booking** | Booking confirm SMS + email/.ics | Book via `EventModal` → calendar | `booking-confirm` action; lead → `booked` |
+| **6 Execution** | On-the-way SMS optional | Complete via `CompletionChecklist` only (no drag bypass) | Lead → `completed`; photos optional (offline queue supported) |
 | **7 Invoicing** | Invoice email if sent | Send/skip in completion flow | `one_tap_invoice` feature |
 | **8 Payment** | Manual pay instructions | Manager mark paid | `markInvoicePaid` — Stripe customer pay not built |
 | **9 Reconciliation** | — | Manual only | No payment webhook for job invoices |
@@ -188,7 +188,7 @@ stateDiagram-v2
 | `contact_attempted` | `lost` | 6th contact action; cron after 6h on 5th attempt | `lost_reason=unable_to_contact` | Confirm dialog (UI) or cron (server) |
 | any | `unassigned` | Manager unassign / drag to Unassigned | Clears assignee, timer, rounds | `unassigned` event |
 | any | `booked` | `EventModal` | Status `booked`; may set assignee | Calendar `events` row; booking WhatsApp |
-| any | `completed` | `CompletionChecklist` or drag | Status `completed` | Optional invoice + review modals |
+| any | `completed` | `CompletionChecklist` only (drag/menu open checklist) | Status `completed` | Optional invoice + review modals |
 | `booked` | `booking_cancelled` | Cancel booking flow | Status change | `booking_cancelled` event |
 
 ### Documented regression: contact attempted → assigned → unassigned
@@ -312,7 +312,9 @@ flowchart TD
 | Invoice email | Completion checklist | `one_tap_invoice` | Off (FieldBourne may override) |
 | Review SMS | Completion checklist | `review_requests` | Off |
 
-Quote accept does **not** yet chain to booking or notify manager (manual bridge).
+Quote accept notifies managers (in-app + OneSignal) and sets `latest_quote_status=accepted` so the lead card/sheet shows **Book Job**. Customer decline is supported on the public page. Completions only via `CompletionChecklist` (drag/menu to `completed` opens checklist, does not set status alone).
+
+Offline (PWA): call/SMS contact attempts and lead photos can enqueue to IndexedDB (`src/lib/offlineQueue.ts`) and flush when back online. Book/assign/complete are online-only.
 
 ---
 
@@ -489,6 +491,7 @@ Logged to `lead_events` for audit and reporting (`api/_lib/leadEventTypes.ts`):
 
 | Version | Date | Summary |
 |---------|------|---------|
+| `1.2.0` | 15-07-2026 | Point 1 UX: next-action CTAs, quote SMS + brand accept/decline, booking confirm SMS/.ics, checklist-only complete, offline contact/photo queue, mobile nav density |
 | `1.1.0` | 13-07-2026 | Stage 2 Extraction: `extraction_status` on leads, SMS/email fallbacks, voicemail enrich on repeat call, manager retry in lead detail |
 | `1.0.3` | 07-07-2026 | Retired dead Mailgun `POST /api/inbound-voicemail`; voicemail only via CloudMailin branch in `inbound-email.ts` |
 | `1.0.2` | 07-07-2026 | Document platform Workflow Runs kanban row (lead_events-derived actual path, bridge from inbound ack SMS); no pipeline behaviour change |

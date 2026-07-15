@@ -17,6 +17,9 @@ import {
   CircleDot,
   Receipt,
   Trash2,
+  FileCheck,
+  FileX,
+  FileSignature,
 } from 'lucide-react'
 import type { LeadEventType } from './leadEventPayload'
 
@@ -172,6 +175,26 @@ const EVENT_META: Record<
     icon: PhoneMissed,
     iconColour: 'bg-indigo-500',
     template: (_who, lead) => `Voicemail enriched ${lead}`,
+  },
+  quote_sms_sent: {
+    icon: FileSignature,
+    iconColour: 'bg-sky-600',
+    template: (_who, lead) => `Quote SMS sent for ${lead}`,
+  },
+  quote_accepted: {
+    icon: FileCheck,
+    iconColour: 'bg-emerald-600',
+    template: (_who, lead) => `Quote accepted for ${lead}`,
+  },
+  quote_declined: {
+    icon: FileX,
+    iconColour: 'bg-amber-600',
+    template: (_who, lead) => `Quote declined for ${lead}`,
+  },
+  booking_confirm_sms: {
+    icon: CalendarCheck,
+    iconColour: 'bg-green-600',
+    template: (_who, lead) => `Booking confirmation SMS sent for ${lead}`,
   },
 }
 

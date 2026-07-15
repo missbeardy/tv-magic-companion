@@ -47,7 +47,7 @@ export async function applyTeamInboundAssignment(
     .from('profiles')
     .select('id, full_name, lat, lng, created_at')
     .eq('org_id', orgId)
-    .in('role', ['employee', 'manager'])
+    .in('role', ['employee'])
     .eq('is_hidden_test_profile', false)
     .order('created_at', { ascending: true })
 

@@ -16,6 +16,11 @@ export interface QuoteRecord {
   accepted_at?: string | null
   email_sent?: boolean
   email_message?: string
+  sms_sent?: boolean
+  sms_message?: string
+  org_name?: string
+  primary_color?: string
+  logo_url?: string | null
 }
 
 export interface CreateQuotePayload {
@@ -30,14 +35,31 @@ export interface CreateQuotePayload {
   expiryDays?: number
 }
 
-export async function createQuote(payload: CreateQuotePayload): Promise<{ quote: QuoteRecord & { acceptance_url: string; email_sent?: boolean; email_message?: string } }> {
+export async function createQuote(payload: CreateQuotePayload): Promise<{
+  quote: QuoteRecord & {
+    acceptance_url: string
+    email_sent?: boolean
+    email_message?: string
+    sms_sent?: boolean
+    sms_message?: string
+  }
+}> {
   const headers = await requireAuthHeaders()
   const res = await fetch('/api/send-sms?action=quote-create', {
     method: 'POST',
     headers,
     body: JSON.stringify(payload),
   })
-  const data = (await res.json().catch(() => ({}))) as { error?: string; quote?: QuoteRecord & { acceptance_url: string } }
+  const data = (await res.json().catch(() => ({}))) as {
+    error?: string
+    quote?: QuoteRecord & {
+      acceptance_url: string
+      email_sent?: boolean
+      email_message?: string
+      sms_sent?: boolean
+      sms_message?: string
+    }
+  }
   if (!res.ok || !data.quote) {
     throw new Error(data.error ?? 'Failed to create quote')
   }
@@ -64,5 +86,19 @@ export async function acceptPublicQuote(payload: {
   })
   const data = (await res.json().catch(() => ({}))) as { error?: string; quote?: QuoteRecord }
   if (!res.ok || !data.quote) throw new Error(data.error ?? 'Failed to accept quote')
+  return data.quote
+}
+
+export async function declinePublicQuote(payload: {
+  token: string
+  reason?: string | null
+}): Promise<QuoteRecord> {
+  const res = await fetch('/api/send-sms?action=quote-public-decline', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const data = (await res.json().catch(() => ({}))) as { error?: string; quote?: QuoteRecord }
+  if (!res.ok || !data.quote) throw new Error(data.error ?? 'Failed to decline quote')
   return data.quote
 }

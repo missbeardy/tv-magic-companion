@@ -15,6 +15,7 @@ import { getAttemptPhaseLabel, LOST_REASON_UNABLE_TO_CONTACT } from '../lib/cont
 import { isManagerRole } from '../lib/roles'
 import { markInvoicePaid } from '../lib/invoices'
 import type { LeadEventType } from '../lib/leadEventPayload'
+import { resolveLeadNextAction } from '../lib/leadNextAction'
 
 export interface KanbanLead {
   id: string
@@ -43,6 +44,7 @@ export interface KanbanLead {
   hidden_from_kanban_at?: string | null
   latest_quote_status?: string | null
   latest_quote_accepted_at?: string | null
+  latest_quote_total_amount?: number | null
   latest_invoice_status?: string | null
   latest_invoice_id?: string | null
   latest_invoice_number?: string | null
@@ -99,6 +101,38 @@ export default function LeadCard({
     lead.status === 'lost' && lead.lost_reason === LOST_REASON_UNABLE_TO_CONTACT
   const [markingPaid, setMarkingPaid] = useState(false)
   const [events, setEvents] = useState<LeadEvent[]>([])
+
+  const nextAction = resolveLeadNextAction({
+    status: lead.status,
+    latestQuoteStatus: lead.latest_quote_status,
+    quoteEnabled,
+    hideAssignPool,
+    isManager: isManagerRole(profile?.role),
+    isEmployee: profile?.role === 'employee',
+  })
+
+  function runNextAction(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!nextAction) return
+    switch (nextAction.kind) {
+      case 'assign':
+      case 'self_assign':
+        onAssign(lead)
+        break
+      case 'call':
+        onCall(lead)
+        break
+      case 'quote':
+        onCreateQuote(lead)
+        break
+      case 'book':
+        onBook(lead)
+        break
+      case 'complete':
+        onComplete(lead)
+        break
+    }
+  }
 
   const assignees =
     lead.status !== 'unassigned' && lead.profiles && lead.assigned_to
@@ -245,15 +279,26 @@ export default function LeadCard({
 
         {lead.timer_expires_at && lead.status === 'assigned' && (
           <div className="mt-2">
-            <CountdownTimer expiresAt={lead.timer_expires_at} />
+            <CountdownTimer expiresAt={lead.timer_expires_at} showPoolHint />
           </div>
         )}
 
-        {lead.lead_source && (
-          <span className="inline-block text-xs bg-blue-50 text-blue-700 rounded-full px-2 py-0.5 mt-2">
-            {lead.lead_source}
-          </span>
-        )}
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {nextAction && (
+            <button
+              type="button"
+              onClick={runNextAction}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition opacity-95 hover:opacity-100 ${nextAction.className}`}
+            >
+              {nextAction.label}
+            </button>
+          )}
+          {lead.lead_source && (
+            <span className="inline-block text-xs bg-blue-50 text-blue-700 rounded-full px-2 py-0.5">
+              {lead.lead_source}
+            </span>
+          )}
+        </div>
 
         <button
           onClick={(e) => { e.stopPropagation(); onToggleExpand(isExpanded ? null : lead.id) }}

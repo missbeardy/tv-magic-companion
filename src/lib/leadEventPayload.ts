@@ -28,6 +28,10 @@ export const LEAD_EVENT_TYPES = [
   'deleted',
   'extraction_retried',
   'voicemail_enriched',
+  'quote_sms_sent',
+  'quote_accepted',
+  'quote_declined',
+  'booking_confirm_sms',
 ] as const
 
 export type LeadEventType = (typeof LEAD_EVENT_TYPES)[number]

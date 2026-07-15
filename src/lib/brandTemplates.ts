@@ -1,4 +1,6 @@
 import { LEAD_ACK_CALLBACK_WINDOW, buildOrgPhoneLine } from '../../shared/leadAckCopy'
+import type { Org } from '../context/OrgContext'
+import type { Brand } from './theme'
 
 type TemplateVars = Record<string, string | undefined>
 
@@ -45,6 +47,8 @@ export function getDefaultSmsTemplates(orgName: string): Record<string, string> 
     invoice_chase_stage_3: 'Hi {{firstName}}, invoice {{invoiceNumber}} for {{amount}} from {{org.name}} is now {{daysOverdue}} days overdue. Please reply or call us so we can help resolve this.',
     quote_chase_stage_1: "Hi {{firstName}}, {{org.name}} here — just checking you got the quote for {{jobService}}. View or accept it here: {{link}}. Any questions, reply and I'll sort it.",
     quote_chase_stage_2: "Hi {{firstName}}, that quote for {{jobService}} is still open if you'd like it: {{link}}. If the timing's not right, no worries — reply and let me know either way.",
+    customer_quote_link: `Hi {{customerName}}, here's your quote from {{org.name}} for {{serviceType}}: {{acceptanceUrl}}`,
+    customer_booking_confirm: `Hi {{customerName}}, {{org.name}} booked you in for {{dateTime}}.{{techLine}} See you then!`,
     manager_alert: `${orgName}: A new lead has been submitted — {{leadName}} ({{serviceType}}). Please review and assign a technician: {{appUrl}}`,
   }
 }

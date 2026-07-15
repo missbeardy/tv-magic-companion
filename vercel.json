@@ -78,7 +78,7 @@
       "destination": "/api/inbound-email?action=facebook-lead"
     },
     {
-      "source": "/((?!api/).*)",
+      "source": "/((?!api/|@|.*\\.).*)",
       "destination": "/index.html"
     }
   ]

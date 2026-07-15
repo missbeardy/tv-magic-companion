@@ -74,13 +74,15 @@ export async function notifyManagersNewLead(
     throw new Error('Failed to record notifications')
   }
 
+  const alertsEnabled = await isFeatureEnabledForOrg(lead.org_id, 'manager_new_lead_alerts')
+
   const title = 'New Unassigned Lead'
   const alertMessage = `${leadName} needs assigning (${serviceType}).`
   const leadsUrl = `${platformUrl}/leads`
 
   const appId = process.env.ONESIGNAL_APP_ID
   const apiKey = process.env.ONESIGNAL_API_KEY
-  if (appId && apiKey) {
+  if (appId && apiKey && alertsEnabled) {
     const pushUrl = lead.id ? `${leadsUrl}?highlight=${lead.id}` : leadsUrl
     for (const manager of managers) {
       try {
@@ -107,8 +109,7 @@ export async function notifyManagersNewLead(
 
   const sid = process.env.TWILIO_ACCOUNT_SID
   const token = process.env.TWILIO_AUTH_TOKEN
-  const smsEnabled = await isFeatureEnabledForOrg(lead.org_id, 'manager_new_lead_alerts')
-  if (sid && token && smsEnabled) {
+  if (sid && token && alertsEnabled) {
     const message = buildSmsFromBrand(
       smsTemplates,
       'manager_alert',

@@ -162,7 +162,7 @@ export default function AssignedLeads() {
                     Book
                   </button>
                   {lead.timer_expires_at && (
-                    <CountdownTimer expiresAt={lead.timer_expires_at} onExpire={fetchLeads} />
+                    <CountdownTimer expiresAt={lead.timer_expires_at} onExpire={fetchLeads} showPoolHint />
                   )}
                 </div>
               </div>

@@ -28,3 +28,7 @@ export type LeadEventType =
   | 'deleted'
   | 'extraction_retried'
   | 'voicemail_enriched'
+  | 'quote_sms_sent'
+  | 'quote_accepted'
+  | 'quote_declined'
+  | 'booking_confirm_sms'
