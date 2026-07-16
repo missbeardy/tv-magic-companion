@@ -49,6 +49,7 @@ export function getDefaultSmsTemplates(orgName: string): Record<string, string> 
     quote_chase_stage_2: "Hi {{firstName}}, that quote for {{jobService}} is still open if you'd like it: {{link}}. If the timing's not right, no worries — reply and let me know either way.",
     customer_quote_link: `Hi {{customerName}}, here's your quote from {{org.name}} for {{serviceType}}: {{acceptanceUrl}}`,
     customer_booking_confirm: `Hi {{customerName}}, {{org.name}} booked you in for {{dateTime}}.{{techLine}} See you then!`,
+    customer_booking_reminder: `Hi {{customerName}}, just a reminder — your {{serviceType}} appointment with {{org.name}} is tomorrow, {{dateTime}}.{{techLine}} See you then!`,
     manager_alert: `${orgName}: A new lead has been submitted — {{leadName}} ({{serviceType}}). Please review and assign a technician: {{appUrl}}`,
   }
 }
@@ -60,6 +61,7 @@ export const EDITABLE_SMS_TEMPLATE_KEYS = [
   'manager_alert',
   'customer_ontheway',
   'customer_review_request',
+  'customer_booking_reminder',
 ] as const
 
 export type EditableSmsTemplateKey = (typeof EDITABLE_SMS_TEMPLATE_KEYS)[number]
@@ -93,6 +95,11 @@ export const SMS_TEMPLATE_META: Record<
     description: 'Post-job review link SMS (requires Review Requests switch + Google Review URL in org settings).',
     placeholders: ['{{customerName}}', '{{org.name}}', '{{reviewUrl}}'],
   },
+  customer_booking_reminder: {
+    label: 'Day-before booking reminder SMS',
+    description: 'Automatic SMS sent roughly 24 hours before a booked appointment (requires Day-Before Booking Reminder switch).',
+    placeholders: ['{{customerName}}', '{{org.name}}', '{{dateTime}}', '{{techLine}}', '{{serviceType}}'],
+  },
 }
 
 const SMS_PREVIEW_SAMPLE = {
@@ -106,6 +113,8 @@ const SMS_PREVIEW_SAMPLE = {
   techName: 'Alex',
   reviewUrl: 'https://g.page/r/example/review',
   firstName: 'Jane',
+  dateTime: 'Thu 17 Jul, 9:00am',
+  techLine: ' Your technician is Alex.',
 } as const
 
 export function buildSmsTemplatePreview(

@@ -73,11 +73,13 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Card / Pay Now on invoice — connect your own Stripe account in Franchise Settings, then invoice emails and overdue reminders include a Pay Now button; payment is captured directly on your Stripe account and the invoice marks itself paid automatically (Invoice Card Payments feature switch)',
     'Fix: the public invoice status page and Stripe Connect onboarding endpoint now correctly respect the Invoice Card Payments feature switch server-side — previously the switch only hid the buttons in the UI, not the underlying endpoints',
     'Accounting CSV export — Franchise Settings can download a Xero-compatible sales invoice CSV (Tax Inclusive) for a date range; BSB/PayID instructions remain in Invoice templates (Accounting CSV Export feature switch)',
+    'Day-before booking reminder SMS — automatic reminder sent to the customer roughly 24 hours before a booked appointment, editable per brand, quiet-hours aware (Day-Before Booking Reminder feature switch, off by default)',
+    'Fix: the booking confirmation .ics calendar invite now uses the org\'s real support email as organizer instead of a hard-coded placeholder',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.127'
+export const APP_VERSION = '1.1.128'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

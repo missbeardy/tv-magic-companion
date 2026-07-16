@@ -32,6 +32,7 @@ export const LEAD_EVENT_TYPES = [
   'quote_accepted',
   'quote_declined',
   'booking_confirm_sms',
+  'booking_reminder_sent',
 ] as const
 
 export type LeadEventType = (typeof LEAD_EVENT_TYPES)[number]

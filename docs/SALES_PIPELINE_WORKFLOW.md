@@ -2,8 +2,8 @@
 
 | Field | Value |
 |-------|-------|
-| **Document version** | `1.6.1` |
-| **Last updated** | 15-07-2026 |
+| **Document version** | `1.7.0` |
+| **Last updated** | 16-07-2026 |
 | **Maintained by** | Update in the same PR as any pipeline behaviour change |
 
 > **Living document.** This file must stay in sync with production behaviour. See [Maintenance policy](#maintenance-policy) and [Version history](#version-history).
@@ -124,7 +124,7 @@ flowchart TB
 | **2 Extraction** | — | Structured fields populate on card; managers see extraction status + retry | Claude extraction via `extractLead.ts`; `extraction_status` on `leads` |
 | **3 Acknowledgment** | Receives ack / hookback SMS | Manager bell (+ WhatsApp if enabled) | `leadAckSms`, `missedCallHookbackSms`, `notifyManagersNewLead` |
 | **4 Quoting** | SMS link + e-sign / decline on `/quote/:token`; sees real GST component when org is GST-registered; sees itemised line items when the quote used the price list | Manager sends quote (SMS preferred), optionally via price-list quick-add chips; Book CTA after accept | `QuoteComposerModal` → `quotes` (`gst_amount` via `shared/gst.ts`, `line_items` via `price_list` feature); accept notifies managers |
-| **5 Booking** | Booking confirm SMS + email/.ics (if `booking_confirm` enabled) | Book via `EventModal` → calendar | `booking-confirm` action gated by `booking_confirm` feature switch (default ON); lead → `booked` |
+| **5 Booking** | Booking confirm SMS + email/.ics (if `booking_confirm` enabled); day-before reminder SMS ~24h before the appointment (if `booking_reminder_sms` enabled) | Book via `EventModal` → calendar | `booking-confirm` action gated by `booking_confirm` feature switch (default ON); lead → `booked`; `runBookingReminderSweep` in the consolidated cron chain gated by `booking_reminder_sms` (default OFF), dedupes on `events.reminder_sent_at`, quiet-hours aware (`orgs.timezone`, 8am-8pm local) |
 | **6 Execution** | On-the-way SMS optional | Complete via `CompletionChecklist` only (no drag bypass) | Lead → `completed`; photos optional (offline queue supported) |
 | **7 Invoicing** | Invoice email if sent — titled "Tax Invoice" with org ABN + GST line when the org is GST-registered, else plain "Invoice"; itemised line items when the accepted quote or invoice used the price list | Send/skip in completion flow; price-list quick-add chips carry the accepted quote's line items forward automatically | `one_tap_invoice` feature; `invoices.gst_amount` via `shared/gst.ts`; `price_list` feature for chips (multi-line editing always available) |
 | **8 Payment** | "Pay Now" button in invoice email/chase (if `invoice_card_payments` enabled + org connected Stripe) → Stripe Checkout on the org's own connected account; BSB/PayID instructions always shown as fallback | Manager can still mark paid manually at any time | `POST/GET /api/stripe?action=invoice-pay` (public, token-based, redirects to Stripe) |
@@ -310,6 +310,7 @@ flowchart TD
 | On-the-way SMS | Employee taps SMS on card | `customer_ontheway_sms` | Off |
 | Quote e-sign | Manager sends quote | `quote_esign` | Off |
 | Booking confirm SMS + email/.ics | Book via `EventModal` | `booking_confirm` | **On** |
+| Day-before booking reminder SMS | `runBookingReminderSweep` cron chain, ~24h before appointment | `booking_reminder_sms` | Off |
 | Invoice email | Completion checklist | `one_tap_invoice` | Off (FieldBourne may override) |
 | Review SMS | Completion checklist | `review_requests` | Off |
 
@@ -431,7 +432,7 @@ Realtime: `postgres_changes` on `leads` refreshes UI when cron expires timers or
 
 Logged to `lead_events` for audit and reporting (`api/_lib/leadEventTypes.ts`):
 
-`created`, `duplicate_blocked`, `missed_call_again`, `assigned`, `status_change`, `contact_attempted`, `contact_note`, `call_attempted`, `sms_attempted`, `second_attempt_started` … `sixth_attempt_started`, `booked`, `booking_cancelled`, `completed`, `lost`, `expired`, `unassigned`, `review_request`, `sms_sent`, `invoice_sent`, `invoice_paid_manual`
+`created`, `duplicate_blocked`, `missed_call_again`, `assigned`, `status_change`, `contact_attempted`, `contact_note`, `call_attempted`, `sms_attempted`, `second_attempt_started` … `sixth_attempt_started`, `booked`, `booking_cancelled`, `completed`, `lost`, `expired`, `unassigned`, `review_request`, `sms_sent`, `invoice_sent`, `invoice_paid_manual`, `booking_confirm_sms`, `booking_reminder_sent`
 
 ---
 
@@ -443,7 +444,7 @@ Logged to `lead_events` for audit and reporting (`api/_lib/leadEventTypes.ts`):
 | Feature switches default off | Stages 3–10 may be inactive until enabled per org |
 | Quote accept → booking not chained | Status may not reflect quote acceptance |
 | Review on complete, not paid | Payment changes do not affect review |
-| Vercel cron schedule for contact-follow-up | May be dashboard-only (rewrite exists in `vercel.json`) |
+| External cron trigger | `vercel.json` only defines the `/api/cron/contact-follow-up` pretty-URL rewrite (Vercel's own native `crons` array is not configured — Hobby plan crons are daily-only). The actual 15-minute trigger is `.github/workflows/contact-follow-up-cron.yml`, which POSTs to that URL with `CRON_SECRET`. It self-skips silently if the `PLATFORM_URL`/`CRON_SECRET` repo secrets aren't set in GitHub — verify Actions run history shows recent green runs |
 
 ---
 
@@ -477,10 +478,13 @@ Logged to `lead_events` for audit and reporting (`api/_lib/leadEventTypes.ts`):
 - `api/send-sms.ts` — customer + employee messaging hub
 - `api/stripe.ts` — SaaS billing (checkout/portal/webhook) + Connect (connect-onboard/invoice-pay/connect-webhook), single Hobby-plan function
 - `api/_lib/invoiceStripe.ts` — pure payability/idempotency logic + Checkout Session builder for card payments
+- `api/_lib/bookingConfirm.ts` — booking confirmation SMS + email/.ics on booking save
+- `api/_lib/bookingReminder.ts`, `bookingReminderPolicy.ts` — day-before reminder sweep + pure window/dedupe/quiet-hours policy
 
 ### Tests (behaviour contracts)
 - `tests/contactFollowUp.test.ts`, `tests/contactFollowUpCron.test.ts`
 - `tests/leadPoolPickup.test.ts`, `tests/processInboundLead.test.ts`
+- `tests/bookingReminderPolicy.test.ts` — window/dedupe/quiet-hours boundaries
 
 ### Platform operator trace (`/platform` → Workflow Runs)
 - **Row 1:** `workflow_runs` / `workflow_run_steps` for the `inbound_lead` pipeline (save lead → ack SMS).
@@ -494,6 +498,7 @@ Logged to `lead_events` for audit and reporting (`api/_lib/leadEventTypes.ts`):
 
 | Version | Date | Summary |
 |---------|------|---------|
+| `1.7.0` | 16-07-2026 | Package 5: day-before booking reminder. New `runBookingReminderSweep` (`api/_lib/bookingReminder.ts`) joins the consolidated cron chain in `api/send-sms.ts`, sending a reminder SMS in a `[start+20h, start+28h]` window, deduped via new `events.reminder_sent_at`, gated by new `booking_reminder_sms` switch (basic tier, off by default), quiet-hours aware via new `orgs.timezone` (8am-8pm local). New `customer_booking_reminder` SMS template (editable in Platform Admin), new `booking_reminder_sent` lead event, new `cron_heartbeats` table surfaced in Platform Admin Workflow Runs. Also fixed the booking-confirm `.ics` invite's `ORGANIZER` field, previously hard-coded to `noreply@example.com`, to use the org's real support email. Corrected this doc's stale claim that no external cron scheduler exists — `.github/workflows/contact-follow-up-cron.yml` already triggers the chain every 15 minutes. |
 | `1.6.1` | 15-07-2026 | Fix: `invoice_card_payments` switch was UI-only — `handleConnectOnboard` and the public invoice-get endpoint (`action=invoice-public-get`) had no server-side gate, so a disabled org's public invoice page and Connect endpoint were still reachable directly. Both now check `isFeatureEnabledForOrg(...,'invoice_card_payments')` and return 403 when off, mirroring the existing `quote_esign` pattern on `handleQuotePublicGet`. |
 | `1.6.0` | 15-07-2026 | Card / Pay Now on invoice: stages 8–9 (Payment/Reconciliation) go from "manual only" to real. Stripe Connect Standard, direct charges — each org connects/owns its own Stripe account (`StripeConnectPanel` in Settings, `action=connect-onboard`). Invoice emails and overdue-chase messages get a Pay Now button (`action=invoice-pay`, lazy Checkout Session on the connected account) when `invoice_card_payments` is enabled and the org is connected. A separate Connect webhook (`STRIPE_CONNECT_WEBHOOK_SECRET`, `action=connect-webhook`) idempotently marks the invoice paid (`paid_via='stripe'`). New public `/invoice/:token` status page. New `invoice_card_payments` feature switch (pro tier, off by default). BSB/PayID instructions remain as the always-shown fallback. |
 | `1.5.0` | 15-07-2026 | Booking confirmation was previously unconditional (no way to turn off). Added `booking_confirm` feature switch, catalog default **ON** so existing behaviour is unchanged, gating `handleBookingConfirm` in `api/send-sms.ts`. Closes a gap against the "every automated customer-facing feature needs a toggle" policy. |

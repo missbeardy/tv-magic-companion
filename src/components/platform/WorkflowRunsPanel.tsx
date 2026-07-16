@@ -5,6 +5,7 @@ import { WORKFLOWS } from '../../../shared/workflowRegistry'
 import { formatWorkflowDuration, parseLeadIdFromTriggerSummary, type WorkflowStepRow } from '../../../shared/workflowGraph'
 import { buildKanbanPathFromEvents, type KanbanPathNode, type LeadEventRow } from '../../../shared/kanbanLifecycle'
 import { supabase } from '../../lib/supabase'
+import { timeAgo } from '../../lib/timeAgo'
 import WorkflowRunGraph, { findGraphNode } from './WorkflowRunGraph'
 import WorkflowRunStepDetail from './WorkflowRunStepDetail'
 import { WorkflowRunStatusPill } from './WorkflowRunStatusPill'
@@ -82,6 +83,7 @@ export default function WorkflowRunsPanel() {
   const [kanbanLoading, setKanbanLoading] = useState(false)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [leadById, setLeadById] = useState<Record<string, LeadSummary>>({})
+  const [cronHeartbeat, setCronHeartbeat] = useState<string | null>(null)
 
   const orgOptions = useMemo(() => {
     const map = new Map<string, string>()
@@ -228,6 +230,20 @@ export default function WorkflowRunsPanel() {
   }, [loadRuns])
 
   useEffect(() => {
+    const loadHeartbeat = async () => {
+      const { data } = await supabase
+        .from('cron_heartbeats')
+        .select('last_run_at')
+        .eq('cron_key', 'contact_follow_up_chain')
+        .maybeSingle()
+      setCronHeartbeat((data?.last_run_at as string | undefined) ?? null)
+    }
+    void loadHeartbeat()
+    const id = window.setInterval(() => void loadHeartbeat(), POLL_MS)
+    return () => window.clearInterval(id)
+  }, [])
+
+  useEffect(() => {
     const id = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
         void loadRuns()
@@ -259,6 +275,14 @@ export default function WorkflowRunsPanel() {
       <p className="text-xs text-gray-500">
         Read-only trace of inbound workflow runs and kanban lifecycle (from lead events). List refreshes every 30
         seconds while this tab is visible.
+      </p>
+      <p className="text-xs text-gray-500">
+        Contact-follow-up cron chain last ran:{' '}
+        {cronHeartbeat ? (
+          <span className="font-medium text-gray-700">{timeAgo(cronHeartbeat)}</span>
+        ) : (
+          <span className="font-medium text-red-600">never recorded</span>
+        )}
       </p>
 
       <div className="flex flex-wrap items-end gap-3">

@@ -109,6 +109,13 @@ vi.mock('../src/lib/supabase', () => {
     ),
   }
 
+  const cronHeartbeatsQuery = {
+    eq: vi.fn().mockReturnThis(),
+    maybeSingle: vi.fn().mockImplementation(() =>
+      Promise.resolve({ data: { last_run_at: '2026-07-16T09:00:00.000Z' }, error: null })
+    ),
+  }
+
   return {
     supabase: {
       from: vi.fn((table: string) => {
@@ -130,6 +137,11 @@ vi.mock('../src/lib/supabase', () => {
         if (table === 'leads') {
           return {
             select: vi.fn(() => leadsQuery),
+          }
+        }
+        if (table === 'cron_heartbeats') {
+          return {
+            select: vi.fn(() => cronHeartbeatsQuery),
           }
         }
         throw new Error(`Unexpected table ${table}`)

@@ -32,3 +32,4 @@ export type LeadEventType =
   | 'quote_accepted'
   | 'quote_declined'
   | 'booking_confirm_sms'
+  | 'booking_reminder_sent'

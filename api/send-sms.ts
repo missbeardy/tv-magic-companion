@@ -19,6 +19,7 @@ import { createAndSendInvoice, getInvoiceByToken, markInvoicePaid } from './_lib
 import { runContactFollowUpCron } from './_lib/runContactFollowUpCron.js'
 import { runInvoiceChaseSweep } from './_lib/invoiceChase.js'
 import { runQuoteChaseSweep } from './_lib/quoteChase.js'
+import { runBookingReminderSweep } from './_lib/bookingReminder.js'
 import { purgeOldWorkflowRuns } from './_lib/workflowRun.js'
 import { loadLocalEnvIfNeeded } from './_lib/loadLocalEnv.js'
 import { notifyOrgUser } from './_lib/notifyUser.js'
@@ -716,7 +717,22 @@ async function handleContactFollowUpCron(req: VercelRequest, res: VercelResponse
     } catch (chaseErr) {
       console.error('[QUOTE_CHASE_SWEEP_FAILED]', chaseErr)
     }
-    return res.status(200).json({ ok: true, ...result, workflowPurge, invoiceChase, quoteChase })
+    let bookingReminder = { orgs: 0, checked: 0, sent: 0 }
+    try {
+      bookingReminder = await runBookingReminderSweep(supabase)
+    } catch (reminderErr) {
+      console.error('[BOOKING_REMINDER_SWEEP_FAILED]', reminderErr)
+    }
+    try {
+      await supabase.from('cron_heartbeats').upsert({
+        cron_key: 'contact_follow_up_chain',
+        last_run_at: new Date().toISOString(),
+        last_result: { ...result, workflowPurge, invoiceChase, quoteChase, bookingReminder },
+      })
+    } catch (heartbeatErr) {
+      console.error('[CRON_HEARTBEAT_FAILED]', heartbeatErr)
+    }
+    return res.status(200).json({ ok: true, ...result, workflowPurge, invoiceChase, quoteChase, bookingReminder })
   } catch (err) {
     console.error('contact-follow-up cron failed:', err)
     return res.status(500).json({

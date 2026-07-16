@@ -196,6 +196,11 @@ const EVENT_META: Record<
     iconColour: 'bg-green-600',
     template: (_who, lead) => `Booking confirmation SMS sent for ${lead}`,
   },
+  booking_reminder_sent: {
+    icon: Clock,
+    iconColour: 'bg-amber-600',
+    template: (_who, lead) => `Day-before reminder SMS sent for ${lead}`,
+  },
 }
 
 function leadLabel(leadName?: string | null): string {

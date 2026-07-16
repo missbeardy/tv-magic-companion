@@ -44,6 +44,12 @@ function escapeIcsText(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n')
 }
 
+/** Strip a `"Name <email>"` wrapper (Resend "from" format) down to the bare address. */
+function bareEmailAddress(value: string): string {
+  const match = value.match(/<([^>]+)>/)
+  return (match ? match[1] : value).trim()
+}
+
 function buildIcs(params: {
   uid: string
   summary: string
@@ -52,6 +58,7 @@ function buildIcs(params: {
   startIso: string
   endIso: string
   orgName: string
+  organizerEmail: string
 }): string {
   const lines = [
     'BEGIN:VCALENDAR',
@@ -67,7 +74,7 @@ function buildIcs(params: {
     `SUMMARY:${escapeIcsText(params.summary)}`,
     `DESCRIPTION:${escapeIcsText(params.description)}`,
     `LOCATION:${escapeIcsText(params.location)}`,
-    `ORGANIZER;CN=${escapeIcsText(params.orgName)}:MAILTO:noreply@example.com`,
+    `ORGANIZER;CN=${escapeIcsText(params.orgName)}:MAILTO:${params.organizerEmail}`,
     'END:VEVENT',
     'END:VCALENDAR',
   ]
@@ -79,10 +86,13 @@ export async function sendBookingConfirmations(
 ): Promise<{ smsSent: boolean; smsMessage: string; emailSent: boolean; emailMessage: string }> {
   const supabase = getSupabaseAdmin()
   const { data: org } = supabase
-    ? await supabase.from('orgs').select('name').eq('id', input.orgId).maybeSingle()
+    ? await supabase.from('orgs').select('name, support_email').eq('id', input.orgId).maybeSingle()
     : { data: null }
 
   const orgName = (org?.name as string) || 'Your organisation'
+  const organizerEmail = bareEmailAddress(
+    (org?.support_email as string) || process.env.BOOKING_EMAIL_FROM || process.env.EMAIL_FROM || 'noreply@example.com'
+  )
   const dateTime = formatAuDateTime(input.startTimeIso)
   const techName = input.techName?.trim() || ''
   const techLine = techName ? ` Your technician is ${techName}.` : ''
@@ -124,6 +134,7 @@ export async function sendBookingConfirmations(
       startIso: input.startTimeIso,
       endIso: input.endTimeIso,
       orgName,
+      organizerEmail,
     })
     const html = `<div style="font-family:Inter,Arial,sans-serif;line-height:1.5;color:#1f2937;max-width:560px">
   <h2>Booking confirmed</h2>

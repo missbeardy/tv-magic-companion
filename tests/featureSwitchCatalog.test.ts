@@ -42,6 +42,7 @@ describe('featureSwitchCatalog categories', () => {
       'lead_ack_email',
       'customer_ontheway_sms',
       'booking_confirm',
+      'booking_reminder_sms',
       'review_requests',
     ])
     expect(FEATURE_SWITCHES_BY_CATEGORY.team_operations).toEqual([

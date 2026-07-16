@@ -171,6 +171,24 @@ export type Database = {
           },
         ]
       }
+      cron_heartbeats: {
+        Row: {
+          cron_key: string
+          last_result: Json | null
+          last_run_at: string
+        }
+        Insert: {
+          cron_key: string
+          last_result?: Json | null
+          last_run_at: string
+        }
+        Update: {
+          cron_key?: string
+          last_result?: Json | null
+          last_run_at?: string
+        }
+        Relationships: []
+      }
       events: {
         Row: {
           booking_group_id: string | null
@@ -189,6 +207,7 @@ export type Database = {
           lead_id: string | null
           notes: string | null
           org_id: string | null
+          reminder_sent_at: string | null
           start_time: string
           title: string
           updated_at: string
@@ -211,6 +230,7 @@ export type Database = {
           lead_id?: string | null
           notes?: string | null
           org_id?: string | null
+          reminder_sent_at?: string | null
           start_time: string
           title: string
           updated_at?: string
@@ -233,6 +253,7 @@ export type Database = {
           lead_id?: string | null
           notes?: string | null
           org_id?: string | null
+          reminder_sent_at?: string | null
           start_time?: string
           title?: string
           updated_at?: string
@@ -1064,6 +1085,7 @@ export type Database = {
           subscription_tier: string
           support_email: string | null
           support_phone: string | null
+          timezone: string
           upsell_items: Json
         }
         Insert: {
@@ -1096,6 +1118,7 @@ export type Database = {
           subscription_tier?: string
           support_email?: string | null
           support_phone?: string | null
+          timezone?: string
           upsell_items?: Json
         }
         Update: {
@@ -1128,6 +1151,7 @@ export type Database = {
           subscription_tier?: string
           support_email?: string | null
           support_phone?: string | null
+          timezone?: string
           upsell_items?: Json
         }
         Relationships: [

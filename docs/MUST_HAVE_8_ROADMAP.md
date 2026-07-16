@@ -4,7 +4,7 @@
 |-------|-------|
 | **Purpose** | Table-stakes feature roadmap to make this product sellable to small Aussie trade teams (2–10 people) |
 | **Execution model** | One package per session, strictly in order, by Claude Sonnet |
-| **Last updated** | 16-07-2026 — Package 4 shipped |
+| **Last updated** | 16-07-2026 — Package 5 shipped |
 
 ## Owner intent (verbatim items)
 
@@ -33,7 +33,7 @@
 ## Global constraints
 
 - **Vercel Hobby 12-function limit — 11 of 12 already used.** Never add a new file under `api/` root. Add actions to existing hubs (`api/stripe.ts`, `api/send-sms.ts`) plus `vercel.json` rewrites for pretty URLs. Keep the 12th slot free.
-- **The external cron scheduler is not in this repo.** `/api/cron/contact-follow-up` (rewrite → `send-sms?action=contact-follow-up`, auth via `CRON_SECRET`) runs the consolidated sweeps: contact follow-up reminders, invoice chase, quote chase, workflow-run purge. Verify externally that something actually calls this URL on a schedule before building anything that depends on a sweep (see Package 5, Step 0) — if it isn't configured, invoice/quote chase have likely never fired either.
+- **The external cron scheduler lives in `.github/workflows/contact-follow-up-cron.yml`, not `vercel.json`.** `/api/cron/contact-follow-up` (rewrite → `send-sms?action=contact-follow-up`, auth via `CRON_SECRET`) runs the consolidated sweeps: contact follow-up reminders, invoice chase, quote chase, booking reminder (Package 5), workflow-run purge. The GitHub Actions workflow POSTs to this URL every 15 minutes but self-skips silently if the `PLATFORM_URL`/`CRON_SECRET` repo secrets aren't set — confirm via Actions run history that it's actually firing green; a new `cron_heartbeats` row (surfaced in Platform Admin → Workflow Runs) gives an ongoing health signal.
 - **RLS**: every new table copies the org-scoped policy pattern from `supabase/migrations/20250704120000_invoices.sql`. Public token pages (quote accept, invoice pay) go through server actions only — never client-side Supabase queries against org data.
 - **Conventions**:
   - New feature switch → migration into `feature_flag_catalog` + entry in `shared/featureSwitchCatalog.ts` (key, category, min_tier).
@@ -47,7 +47,7 @@
 - [x] Package 2 — Price list / favourites + line items (Item 7, M)
 - [x] Package 3 — Card / Pay Now on invoice (Item 1, L)
 - [x] Package 4 — Xero-compatible CSV export + BSB story (Item 2, S/M)
-- [ ] Package 5 — Booking confirmation + day-before reminder (Item 5, S/M) — **note:** the `booking_confirm` toggle prerequisite already shipped as an out-of-sequence fix (see `docs/SALES_PIPELINE_WORKFLOW.md` v1.5.0); this package's remaining scope is the day-before reminder sweep only
+- [x] Package 5 — Booking confirmation + day-before reminder (Item 5, S/M)
 - [ ] Package 6 — Closed-loop quote→book→invoice→pay→review (Item 3, M)
 - [ ] Package 7 — True mobile field day / offline extension (Item 4, M)
 - [ ] Package 8 — In-app onboarding: pool timer + contact rounds (Item 8, S)
@@ -231,7 +231,7 @@ ALTER TABLE orgs ADD COLUMN stripe_connect_status text;
 
 **Item 5 · Size S/M**
 
-**Step 0 (blocking — do this first).** Verify that something external actually calls `/api/cron/contact-follow-up` on a schedule (check for a cron-job.org config, a GitHub Actions scheduled workflow, or ask the owner). If nothing is configured, **set one up** before writing any code — this same gap means invoice chase and quote chase may never have fired either, and this package's reminder sweep would be equally dead on arrival.
+**Step 0 (done).** `.github/workflows/contact-follow-up-cron.yml` already POSTs to `/api/cron/contact-follow-up` every 15 minutes with the `CRON_SECRET` bearer token — the scheduler exists in-repo (this doc previously claimed otherwise). It self-skips silently if the `PLATFORM_URL`/`CRON_SECRET` repo secrets aren't set in GitHub, so still confirm via Actions run history that it's firing green before relying on any sweep. A new `cron_heartbeats` table (upserted once per chain run, surfaced in Platform Admin → Workflow Runs) now gives an ongoing observable signal instead of silent failure.
 
 **Goal.** Booking confirmation already exists — verify and polish it. Add an automatic day-before SMS reminder, which does not exist at all today.
 

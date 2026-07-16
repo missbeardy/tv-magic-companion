@@ -40,6 +40,7 @@ export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   review_requests: false,
   customer_ontheway_sms: false,
   booking_confirm: true,
+  booking_reminder_sms: false,
   manager_new_lead_alerts: false,
   inbound_sms: false,
   inbound_email: false,
@@ -88,6 +89,10 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   booking_confirm: {
     label: 'Customer Booking Confirmation',
     description: 'SMS + email with .ics calendar invite sent to the customer when a job is booked',
+  },
+  booking_reminder_sms: {
+    label: 'Day-Before Booking Reminder',
+    description: 'Automatic SMS reminder sent to the customer roughly 24 hours before a booked appointment',
   },
   manager_new_lead_alerts: {
     label: 'Manager New-Lead Alert SMS',

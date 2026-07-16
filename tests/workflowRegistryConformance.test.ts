@@ -1,7 +1,13 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { INBOUND_LEAD_STEP_IDS, INVOICE_CHASE_STEP_IDS, QUOTE_CHASE_STEP_IDS, WORKFLOWS } from '../shared/workflowRegistry'
+import {
+  BOOKING_REMINDER_STEP_IDS,
+  INBOUND_LEAD_STEP_IDS,
+  INVOICE_CHASE_STEP_IDS,
+  QUOTE_CHASE_STEP_IDS,
+  WORKFLOWS,
+} from '../shared/workflowRegistry'
 
 const PIPELINE_SOURCE = readFileSync(
   resolve(__dirname, '../api/_lib/processInboundLead.ts'),
@@ -15,6 +21,11 @@ const INVOICE_CHASE_SOURCE = readFileSync(
 
 const QUOTE_CHASE_SOURCE = readFileSync(
   resolve(__dirname, '../api/_lib/quoteChase.ts'),
+  'utf8'
+)
+
+const BOOKING_REMINDER_SOURCE = readFileSync(
+  resolve(__dirname, '../api/_lib/bookingReminder.ts'),
   'utf8'
 )
 
@@ -68,6 +79,22 @@ describe('workflow registry conformance', () => {
   it('registry lists every step id used by quoteChase', () => {
     const pipelineIds = new Set(recordedStepIds(QUOTE_CHASE_SOURCE))
     for (const nodeId of QUOTE_CHASE_STEP_IDS) {
+      expect(pipelineIds.has(nodeId)).toBe(true)
+    }
+  })
+
+  it('every step recorded by bookingReminder exists in WORKFLOWS.booking_reminder.steps', () => {
+    const registryIds = new Set(WORKFLOWS.booking_reminder.steps.map((s) => s.id))
+    const pipelineIds = recordedStepIds(BOOKING_REMINDER_SOURCE)
+
+    for (const nodeId of pipelineIds) {
+      expect(registryIds.has(nodeId as (typeof BOOKING_REMINDER_STEP_IDS)[number])).toBe(true)
+    }
+  })
+
+  it('registry lists every step id used by bookingReminder', () => {
+    const pipelineIds = new Set(recordedStepIds(BOOKING_REMINDER_SOURCE))
+    for (const nodeId of BOOKING_REMINDER_STEP_IDS) {
       expect(pipelineIds.has(nodeId)).toBe(true)
     }
   })
