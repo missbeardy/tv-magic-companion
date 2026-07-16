@@ -67,11 +67,17 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Branded quote accept page with decline; accept notifies managers and opens Book with quote amount',
     'Customer booking confirmation SMS + email with .ics calendar invite',
     'Offline queue for call/SMS attempts and lead photos; mobile nav focuses Dashboard / Leads / Calendar',
+    'GST-aware quotes and invoices — real GST component (divide-by-11) shown on quote accept page and invoice emails; org ABN and GST-registered setting in Franchise Settings; invoices are titled "Tax Invoice" with ABN when GST-registered',
+    'Price list / favourites — save 10-20 common priced jobs in Franchise Settings and quick-add them as chips when composing a quote or invoice; quote line items carry through to the invoice automatically (Price List feature switch)',
+    'Booking confirmation SMS/email is now toggleable per brand (booking_confirm feature switch, on by default) — previously always sent with no way to turn it off',
+    'Card / Pay Now on invoice — connect your own Stripe account in Franchise Settings, then invoice emails and overdue reminders include a Pay Now button; payment is captured directly on your Stripe account and the invoice marks itself paid automatically (Invoice Card Payments feature switch)',
+    'Fix: the public invoice status page and Stripe Connect onboarding endpoint now correctly respect the Invoice Card Payments feature switch server-side — previously the switch only hid the buttons in the UI, not the underlying endpoints',
+    'Accounting CSV export — Franchise Settings can download a Xero-compatible sales invoice CSV (Tax Inclusive) for a date range; BSB/PayID instructions remain in Invoice templates (Accounting CSV Export feature switch)',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.121'
+export const APP_VERSION = '1.1.127'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

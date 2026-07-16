@@ -8,9 +8,13 @@ export const INVOICE_TEMPLATE_PLACEHOLDERS = [
   '{{customerName}}',
   '{{customerEmail}}',
   '{{invoiceNumber}}',
+  '{{documentTitle}}',
+  '{{abnLine}}',
   '{{totalAmount}}',
+  '{{gstLine}}',
   '{{dueDate}}',
   '{{lineItemsHtml}}',
+  '{{payButton}}',
   '{{paymentInstructions}}',
   '{{serviceType}}',
   '{{jobDate}}',
@@ -22,12 +26,15 @@ export function getDefaultInvoiceEmailTemplates(): Record<string, string> {
   return {
     [INVOICE_EMAIL_TEMPLATE_KEY_SUBJECT]: 'Invoice {{invoiceNumber}} from {{org.name}}',
     [INVOICE_EMAIL_TEMPLATE_KEY_HTML]: `<div style="font-family:Inter,Arial,sans-serif;line-height:1.5;color:#1f2937;max-width:560px">
-  <h2 style="color:{{primaryColor}}">Invoice {{invoiceNumber}}</h2>
+  <h2 style="color:{{primaryColor}}">{{documentTitle}} {{invoiceNumber}}</h2>
+  {{abnLine}}
   <p>Hi {{customerName}},</p>
   <p>Thank you for choosing {{org.name}}. Please find your invoice details below.</p>
   <p><strong>Amount due:</strong> {{totalAmount}}</p>
+  {{gstLine}}
   <p><strong>Due date:</strong> {{dueDate}}</p>
   {{lineItemsHtml}}
+  {{payButton}}
   <p><strong>How to pay:</strong><br/>{{paymentInstructions}}</p>
   {{senderBlock}}
 </div>`,
@@ -39,9 +46,14 @@ export const INVOICE_EMAIL_PREVIEW_VARS = {
   customerName: 'Jane Smith',
   customerEmail: 'jane@example.com',
   invoiceNumber: 'INV-2026-0001',
+  documentTitle: 'Tax Invoice',
+  abnLine: '<p style="font-size:12px;color:#6b7280">ABN: 12 345 678 901</p>',
   totalAmount: 'AUD 450.00',
+  gstLine: '<p style="font-size:12px;color:#6b7280">Total includes GST of AUD 40.91</p>',
   dueDate: '14 July 2026',
   lineItemsHtml: '<p><strong>Line items:</strong><br/>TV wall mount — AUD 450.00</p>',
+  payButton:
+    '<p style="margin:20px 0"><a href="#" style="background:#004B93;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">Pay Now</a></p>',
   paymentInstructions: 'Bank transfer: BSB 000-000 Acc 12345678<br/>Reference: INV-2026-0001',
   serviceType: 'TV Aerial',
   jobDate: '30 June 2026',

@@ -41,6 +41,7 @@ describe('featureSwitchCatalog categories', () => {
       'lead_ack_sms',
       'lead_ack_email',
       'customer_ontheway_sms',
+      'booking_confirm',
       'review_requests',
     ])
     expect(FEATURE_SWITCHES_BY_CATEGORY.team_operations).toEqual([
@@ -57,6 +58,9 @@ describe('featureSwitchCatalog categories', () => {
       'one_tap_invoice',
       'invoice_chase',
       'quote_chase',
+      'price_list',
+      'invoice_card_payments',
+      'accounting_export',
     ])
   })
 })

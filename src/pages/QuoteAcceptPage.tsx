@@ -158,7 +158,8 @@ export default function QuoteAcceptPage() {
             </div>
           </div>
           <p className="text-sm text-white/85 mt-2">
-            Review the details below and sign to accept. Total incl. GST.
+            Review the details below and sign to accept.
+            {quote.gst_amount != null ? ' Total incl. GST.' : ''}
           </p>
         </header>
 
@@ -193,11 +194,28 @@ export default function QuoteAcceptPage() {
 
           <section className="rounded-xl border border-gray-200 p-4 space-y-3">
             <div className="flex items-center justify-between gap-4">
-              <p className="text-sm font-semibold text-gray-700">Total incl. GST</p>
+              <p className="text-sm font-semibold text-gray-700">
+                {quote.gst_amount != null ? 'Total incl. GST' : 'Total'}
+              </p>
               <p className="text-xl font-bold text-gray-900" style={{ color: primary }}>
                 {money(Number(quote.total_amount), quote.currency)}
               </p>
             </div>
+            {quote.gst_amount != null && (
+              <p className="text-xs text-gray-400 -mt-2">
+                Includes GST of {money(Number(quote.gst_amount), quote.currency)}
+              </p>
+            )}
+            {quote.line_items && quote.line_items.length > 0 && (
+              <div className="border-t border-gray-100 pt-2 space-y-1">
+                {quote.line_items.map((item, index) => (
+                  <div key={index} className="flex items-center justify-between gap-4 text-sm text-gray-600">
+                    <span>{item.label}</span>
+                    <span>{money(Number(item.amount), quote.currency)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             <div>
               <p className="text-sm font-semibold text-gray-700">Scope</p>
               <p className="text-sm text-gray-600 whitespace-pre-wrap mt-1">{quote.scope}</p>

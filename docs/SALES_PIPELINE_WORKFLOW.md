@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Document version** | `1.2.0` |
+| **Document version** | `1.6.1` |
 | **Last updated** | 15-07-2026 |
 | **Maintained by** | Update in the same PR as any pipeline behaviour change |
 
@@ -123,12 +123,12 @@ flowchart TB
 | **1 Capture** | Sends enquiry | Lead appears in Unassigned (team) or Inbox (solo) | `inbound-*` → `processInboundLead` → `leads` insert |
 | **2 Extraction** | — | Structured fields populate on card; managers see extraction status + retry | Claude extraction via `extractLead.ts`; `extraction_status` on `leads` |
 | **3 Acknowledgment** | Receives ack / hookback SMS | Manager bell (+ WhatsApp if enabled) | `leadAckSms`, `missedCallHookbackSms`, `notifyManagersNewLead` |
-| **4 Quoting** | SMS link + e-sign / decline on `/quote/:token` | Manager sends quote (SMS preferred); Book CTA after accept | `QuoteComposerModal` → `quotes`; accept notifies managers |
-| **5 Booking** | Booking confirm SMS + email/.ics | Book via `EventModal` → calendar | `booking-confirm` action; lead → `booked` |
+| **4 Quoting** | SMS link + e-sign / decline on `/quote/:token`; sees real GST component when org is GST-registered; sees itemised line items when the quote used the price list | Manager sends quote (SMS preferred), optionally via price-list quick-add chips; Book CTA after accept | `QuoteComposerModal` → `quotes` (`gst_amount` via `shared/gst.ts`, `line_items` via `price_list` feature); accept notifies managers |
+| **5 Booking** | Booking confirm SMS + email/.ics (if `booking_confirm` enabled) | Book via `EventModal` → calendar | `booking-confirm` action gated by `booking_confirm` feature switch (default ON); lead → `booked` |
 | **6 Execution** | On-the-way SMS optional | Complete via `CompletionChecklist` only (no drag bypass) | Lead → `completed`; photos optional (offline queue supported) |
-| **7 Invoicing** | Invoice email if sent | Send/skip in completion flow | `one_tap_invoice` feature |
-| **8 Payment** | Manual pay instructions | Manager mark paid | `markInvoicePaid` — Stripe customer pay not built |
-| **9 Reconciliation** | — | Manual only | No payment webhook for job invoices |
+| **7 Invoicing** | Invoice email if sent — titled "Tax Invoice" with org ABN + GST line when the org is GST-registered, else plain "Invoice"; itemised line items when the accepted quote or invoice used the price list | Send/skip in completion flow; price-list quick-add chips carry the accepted quote's line items forward automatically | `one_tap_invoice` feature; `invoices.gst_amount` via `shared/gst.ts`; `price_list` feature for chips (multi-line editing always available) |
+| **8 Payment** | "Pay Now" button in invoice email/chase (if `invoice_card_payments` enabled + org connected Stripe) → Stripe Checkout on the org's own connected account; BSB/PayID instructions always shown as fallback | Manager can still mark paid manually at any time | `POST/GET /api/stripe?action=invoice-pay` (public, token-based, redirects to Stripe) |
+| **9 Reconciliation** | Redirected to `/invoice/:token` status page after paying | Invoice flips to `paid`/`paid_via='stripe'` automatically; manual mark-paid still available for cash/bank | Stripe Connect webhook (`action=connect-webhook`) → idempotent `markInvoicePaid(id, orgId, 'stripe', ...)` |
 | **10 Review** | Review SMS if sent | Send/skip in completion | `review_requests` on complete, not on paid |
 
 ---
@@ -309,6 +309,7 @@ flowchart TD
 | Missed-call hookback | Inbound call/voicemail | `missed_call_hookback_sms` | Off |
 | On-the-way SMS | Employee taps SMS on card | `customer_ontheway_sms` | Off |
 | Quote e-sign | Manager sends quote | `quote_esign` | Off |
+| Booking confirm SMS + email/.ics | Book via `EventModal` | `booking_confirm` | **On** |
 | Invoice email | Completion checklist | `one_tap_invoice` | Off (FieldBourne may override) |
 | Review SMS | Completion checklist | `review_requests` | Off |
 
@@ -474,6 +475,8 @@ Logged to `lead_events` for audit and reporting (`api/_lib/leadEventTypes.ts`):
 - `api/_lib/notifyManagersNewLead.ts`, `leadAckSms.ts`, `missedCallHookbackSms.ts`
 - `api/_lib/employeeWhatsAppTemplates.ts`
 - `api/send-sms.ts` — customer + employee messaging hub
+- `api/stripe.ts` — SaaS billing (checkout/portal/webhook) + Connect (connect-onboard/invoice-pay/connect-webhook), single Hobby-plan function
+- `api/_lib/invoiceStripe.ts` — pure payability/idempotency logic + Checkout Session builder for card payments
 
 ### Tests (behaviour contracts)
 - `tests/contactFollowUp.test.ts`, `tests/contactFollowUpCron.test.ts`
@@ -491,6 +494,11 @@ Logged to `lead_events` for audit and reporting (`api/_lib/leadEventTypes.ts`):
 
 | Version | Date | Summary |
 |---------|------|---------|
+| `1.6.1` | 15-07-2026 | Fix: `invoice_card_payments` switch was UI-only — `handleConnectOnboard` and the public invoice-get endpoint (`action=invoice-public-get`) had no server-side gate, so a disabled org's public invoice page and Connect endpoint were still reachable directly. Both now check `isFeatureEnabledForOrg(...,'invoice_card_payments')` and return 403 when off, mirroring the existing `quote_esign` pattern on `handleQuotePublicGet`. |
+| `1.6.0` | 15-07-2026 | Card / Pay Now on invoice: stages 8–9 (Payment/Reconciliation) go from "manual only" to real. Stripe Connect Standard, direct charges — each org connects/owns its own Stripe account (`StripeConnectPanel` in Settings, `action=connect-onboard`). Invoice emails and overdue-chase messages get a Pay Now button (`action=invoice-pay`, lazy Checkout Session on the connected account) when `invoice_card_payments` is enabled and the org is connected. A separate Connect webhook (`STRIPE_CONNECT_WEBHOOK_SECRET`, `action=connect-webhook`) idempotently marks the invoice paid (`paid_via='stripe'`). New public `/invoice/:token` status page. New `invoice_card_payments` feature switch (pro tier, off by default). BSB/PayID instructions remain as the always-shown fallback. |
+| `1.5.0` | 15-07-2026 | Booking confirmation was previously unconditional (no way to turn off). Added `booking_confirm` feature switch, catalog default **ON** so existing behaviour is unchanged, gating `handleBookingConfirm` in `api/send-sms.ts`. Closes a gap against the "every automated customer-facing feature needs a toggle" policy. |
+| `1.4.0` | 15-07-2026 | Price list / favourites: new `price_list_items` table + `quotes.line_items`; quick-add chips and an editable line-item list in `QuoteComposerModal`/`InvoiceStep` (`src/components/LineItemsEditor.tsx`); accepted quote's line items carry through to the invoice automatically; itemised breakdown on the public quote accept page. New `price_list` feature switch (basic tier) gates the chips only — manual multi-line editing is always available. |
+| `1.3.0` | 15-07-2026 | GST-aware quotes/invoices: real GST component (`shared/gst.ts`, divide-by-11) on quote accept page and invoice emails; `orgs.abn` + `orgs.gst_registered` in Franchise Settings; invoices titled "Tax Invoice" with ABN when GST-registered. No new feature switch — compliance behaviour, always on. |
 | `1.2.0` | 15-07-2026 | Point 1 UX: next-action CTAs, quote SMS + brand accept/decline, booking confirm SMS/.ics, checklist-only complete, offline contact/photo queue, mobile nav density |
 | `1.1.0` | 13-07-2026 | Stage 2 Extraction: `extraction_status` on leads, SMS/email fallbacks, voicemail enrich on repeat call, manager retry in lead detail |
 | `1.0.3` | 07-07-2026 | Retired dead Mailgun `POST /api/inbound-voicemail`; voicemail only via CloudMailin branch in `inbound-email.ts` |

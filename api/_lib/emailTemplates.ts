@@ -33,6 +33,7 @@ export function getDefaultQuoteEmailTemplates(): Record<string, string> {
   <p>{{org.name}} has prepared a quote{{serviceTypeLine}} for you to review and sign online.</p>
   <p style="margin:24px 0"><a href="{{acceptanceUrl}}" style="background:{{primaryColor}};color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block">Review &amp; sign quote</a></p>
   <p><strong>Amount:</strong> {{totalAmount}}</p>
+  {{gstLine}}
   <p><strong>Scope:</strong><br/>{{scopeHtml}}</p>
   {{termsBlock}}{{senderBlock}}
 </div>`,
@@ -64,12 +65,15 @@ export function getDefaultInvoiceEmailTemplates(): Record<string, string> {
   return {
     [INVOICE_EMAIL_TEMPLATE_KEYS.subject]: 'Invoice {{invoiceNumber}} from {{org.name}}',
     [INVOICE_EMAIL_TEMPLATE_KEYS.html]: `<div style="font-family:Inter,Arial,sans-serif;line-height:1.5;color:#1f2937;max-width:560px">
-  <h2 style="color:{{primaryColor}}">Invoice {{invoiceNumber}}</h2>
+  <h2 style="color:{{primaryColor}}">{{documentTitle}} {{invoiceNumber}}</h2>
+  {{abnLine}}
   <p>Hi {{customerName}},</p>
   <p>Thank you for choosing {{org.name}}. Please find your invoice details below.</p>
   <p><strong>Amount due:</strong> {{totalAmount}}</p>
+  {{gstLine}}
   <p><strong>Due date:</strong> {{dueDate}}</p>
   {{lineItemsHtml}}
+  {{payButton}}
   <p><strong>How to pay:</strong><br/>{{paymentInstructions}}</p>
   {{senderBlock}}
 </div>`,

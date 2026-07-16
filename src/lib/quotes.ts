@@ -1,4 +1,5 @@
 import { requireAuthHeaders } from './apiAuth'
+import type { LineItem } from './lineItems'
 
 export interface QuoteRecord {
   id: string
@@ -10,6 +11,8 @@ export interface QuoteRecord {
   scope: string
   terms: string | null
   total_amount: number
+  gst_amount?: number | null
+  line_items?: LineItem[] | null
   currency: string
   token_expires_at: string
   sent_at: string | null
@@ -32,6 +35,7 @@ export interface CreateQuotePayload {
   scope: string
   terms?: string | null
   totalAmount: number
+  lineItems?: LineItem[]
   expiryDays?: number
 }
 

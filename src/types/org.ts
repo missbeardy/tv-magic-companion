@@ -20,6 +20,10 @@ export interface Org {
   brand_id?: string | null
   google_review_url?: string | null
   review_requests_enabled?: boolean
+  abn?: string | null
+  gst_registered?: boolean
+  accounting_account_code?: string | null
+  stripe_connect_status?: string | null
 }
 
 interface OrgContextType {

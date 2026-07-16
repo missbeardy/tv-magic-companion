@@ -39,6 +39,7 @@ export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   quote_esign: false,
   review_requests: false,
   customer_ontheway_sms: false,
+  booking_confirm: true,
   manager_new_lead_alerts: false,
   inbound_sms: false,
   inbound_email: false,
@@ -51,6 +52,9 @@ export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   one_tap_invoice: false,
   invoice_chase: false,
   quote_chase: false,
+  price_list: false,
+  invoice_card_payments: false,
+  accounting_export: false,
   tech_location: false,
   internal_messaging: false,
   customer_linking: false,
@@ -80,6 +84,10 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   customer_ontheway_sms: {
     label: 'Customer On The Way SMS',
     description: 'ETA SMS button opens the technician\'s phone with a branded message',
+  },
+  booking_confirm: {
+    label: 'Customer Booking Confirmation',
+    description: 'SMS + email with .ics calendar invite sent to the customer when a job is booked',
   },
   manager_new_lead_alerts: {
     label: 'Manager New-Lead Alert SMS',
@@ -128,6 +136,18 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   quote_chase: {
     label: 'Quote Follow-Up Chase',
     description: 'Automated SMS/email nudges for sent quotes awaiting customer response',
+  },
+  price_list: {
+    label: 'Price List / Favourites',
+    description: 'Quick-add chips for 10-20 common priced jobs when composing quotes and invoices',
+  },
+  invoice_card_payments: {
+    label: 'Card / Pay Now on Invoice',
+    description: 'Adds a Pay Now button to invoice emails; customer pays by card via the org\'s connected Stripe account',
+  },
+  accounting_export: {
+    label: 'Accounting CSV Export',
+    description: 'Export invoices as a Xero-compatible sales invoice CSV (Tax Inclusive)',
   },
   tech_location: {
     label: 'Tech Location Tracking',

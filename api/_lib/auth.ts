@@ -18,6 +18,10 @@ export interface AuthContext {
     brand_id: string | null
     google_review_url?: string | null
     review_requests_enabled?: boolean
+    abn: string | null
+    gst_registered: boolean
+    stripe_connect_account_id: string | null
+    stripe_connect_status: string | null
   }
   brand: {
     sms_templates: Record<string, string>
@@ -62,7 +66,9 @@ export async function authenticateRequestDetailed(
 
   const { data: org, error: orgError } = await supabase
     .from('orgs')
-    .select('id, name, slug, subscription_tier, support_phone, stripe_customer_id, brand_id')
+    .select(
+      'id, name, slug, subscription_tier, support_phone, stripe_customer_id, brand_id, abn, gst_registered, stripe_connect_account_id, stripe_connect_status'
+    )
     .eq('id', profile.org_id)
     .single()
 
@@ -99,6 +105,10 @@ export async function authenticateRequestDetailed(
         support_phone: org.support_phone,
         stripe_customer_id: org.stripe_customer_id,
         brand_id: org.brand_id,
+        abn: (org.abn as string | null) ?? null,
+        gst_registered: (org.gst_registered as boolean | null) ?? true,
+        stripe_connect_account_id: (org.stripe_connect_account_id as string | null) ?? null,
+        stripe_connect_status: (org.stripe_connect_status as string | null) ?? null,
       },
       brand,
     },

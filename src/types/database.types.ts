@@ -302,6 +302,7 @@ export type Database = {
           customer_email: string | null
           customer_name: string
           delivery_method: string
+          gst_amount: number | null
           id: string
           invoice_number: string
           last_chased_at: string | null
@@ -311,9 +312,13 @@ export type Database = {
           paid_at: string | null
           paid_via: string | null
           pdf_storage_path: string | null
+          public_token: string | null
           quote_id: string | null
           sent_at: string | null
           status: string
+          stripe_checkout_session_id: string | null
+          stripe_payment_intent_id: string | null
+          token_expires_at: string | null
           total_amount: number
           updated_at: string
         }
@@ -326,6 +331,7 @@ export type Database = {
           customer_email?: string | null
           customer_name: string
           delivery_method?: string
+          gst_amount?: number | null
           id?: string
           invoice_number: string
           last_chased_at?: string | null
@@ -335,9 +341,13 @@ export type Database = {
           paid_at?: string | null
           paid_via?: string | null
           pdf_storage_path?: string | null
+          public_token?: string | null
           quote_id?: string | null
           sent_at?: string | null
           status?: string
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          token_expires_at?: string | null
           total_amount: number
           updated_at?: string
         }
@@ -350,6 +360,7 @@ export type Database = {
           customer_email?: string | null
           customer_name?: string
           delivery_method?: string
+          gst_amount?: number | null
           id?: string
           invoice_number?: string
           last_chased_at?: string | null
@@ -359,9 +370,13 @@ export type Database = {
           paid_at?: string | null
           paid_via?: string | null
           pdf_storage_path?: string | null
+          public_token?: string | null
           quote_id?: string | null
           sent_at?: string | null
           status?: string
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          token_expires_at?: string | null
           total_amount?: number
           updated_at?: string
         }
@@ -1020,12 +1035,15 @@ export type Database = {
       }
       orgs: {
         Row: {
+          abn: string | null
+          accounting_account_code: string | null
           avg_job_value: number
           billing_status: string
           brand_id: string | null
           created_at: string
           email_templates: Json
           google_review_url: string | null
+          gst_registered: boolean
           id: string
           inbound_email_tag: string
           invoice_payment_instructions: string | null
@@ -1038,6 +1056,8 @@ export type Database = {
           review_requests_enabled: boolean
           secondary_color: string
           slug: string
+          stripe_connect_account_id: string | null
+          stripe_connect_status: string | null
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
           subscription_expires_at: string | null
@@ -1047,12 +1067,15 @@ export type Database = {
           upsell_items: Json
         }
         Insert: {
+          abn?: string | null
+          accounting_account_code?: string | null
           avg_job_value?: number
           billing_status?: string
           brand_id?: string | null
           created_at?: string
           email_templates?: Json
           google_review_url?: string | null
+          gst_registered?: boolean
           id?: string
           inbound_email_tag: string
           invoice_payment_instructions?: string | null
@@ -1065,6 +1088,8 @@ export type Database = {
           review_requests_enabled?: boolean
           secondary_color?: string
           slug: string
+          stripe_connect_account_id?: string | null
+          stripe_connect_status?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           subscription_expires_at?: string | null
@@ -1074,12 +1099,15 @@ export type Database = {
           upsell_items?: Json
         }
         Update: {
+          abn?: string | null
+          accounting_account_code?: string | null
           avg_job_value?: number
           billing_status?: string
           brand_id?: string | null
           created_at?: string
           email_templates?: Json
           google_review_url?: string | null
+          gst_registered?: boolean
           id?: string
           inbound_email_tag?: string
           invoice_payment_instructions?: string | null
@@ -1092,6 +1120,8 @@ export type Database = {
           review_requests_enabled?: boolean
           secondary_color?: string
           slug?: string
+          stripe_connect_account_id?: string | null
+          stripe_connect_status?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           subscription_expires_at?: string | null
@@ -1130,6 +1160,53 @@ export type Database = {
           sender_id?: string
         }
         Relationships: []
+      }
+      price_list_items: {
+        Row: {
+          active: boolean
+          amount: number
+          created_at: string
+          description: string | null
+          id: string
+          label: string
+          last_used_at: string | null
+          org_id: string
+          sort_order: number
+          usage_count: number
+        }
+        Insert: {
+          active?: boolean
+          amount: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          label: string
+          last_used_at?: string | null
+          org_id: string
+          sort_order?: number
+          usage_count?: number
+        }
+        Update: {
+          active?: boolean
+          amount?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          label?: string
+          last_used_at?: string | null
+          org_id?: string
+          sort_order?: number
+          usage_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_list_items_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -1323,6 +1400,7 @@ export type Database = {
           id: string
           last_followed_up_at: string | null
           lead_id: string
+          line_items: Json | null
           org_id: string
           public_token: string
           scope: string
@@ -1348,6 +1426,7 @@ export type Database = {
           id?: string
           last_followed_up_at?: string | null
           lead_id: string
+          line_items?: Json | null
           org_id: string
           public_token: string
           scope: string
@@ -1373,6 +1452,7 @@ export type Database = {
           id?: string
           last_followed_up_at?: string | null
           lead_id?: string
+          line_items?: Json | null
           org_id?: string
           public_token?: string
           scope?: string

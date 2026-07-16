@@ -1,4 +1,6 @@
-export const INVOICE_DUE_DAYS = 14
+import { INVOICE_DUE_DAYS } from '../../shared/invoiceDue'
+
+export { INVOICE_DUE_DAYS }
 export const CHASE_LADDER_DAYS = [3, 7, 14] as const
 export const MAX_CHASE_COUNT = 3
 

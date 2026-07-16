@@ -6,7 +6,11 @@ import { buildBrandTransferPayload } from '../lib/brandTransfer';
 import NavBar from '../components/NavBar';
 import UpsellSettingsPanel from '../components/settings/UpsellSettingsPanel';
 import InvoiceTemplateEditor from '../components/settings/InvoiceTemplateEditor';
+import PriceListSettingsPanel from '../components/settings/PriceListSettingsPanel';
+import AccountingExportPanel from '../components/settings/AccountingExportPanel';
+import StripeConnectPanel from '../components/settings/StripeConnectPanel';
 import BillingPanel from '../components/BillingPanel';
+import { formatAbn, isValidAbnFormat } from '../../shared/gst';
 
 export default function OrgSettingsPage() {
   const { org, brand, refreshOrg, isFeatureEnabled, featureSwitchesLoading } = useOrg();
@@ -21,6 +25,8 @@ export default function OrgSettingsPage() {
   const [supportEmail, setSupportEmail] = useState('');
   const [avgJobValue, setAvgJobValue] = useState<number>(180);
   const [googleReviewUrl, setGoogleReviewUrl] = useState('');
+  const [abn, setAbn] = useState('');
+  const [gstRegistered, setGstRegistered] = useState(true);
   // Image upload states
   const [imageUrl, setImageUrl] = useState<string>('');
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -55,6 +61,8 @@ export default function OrgSettingsPage() {
             setSupportEmail(org.support_email || '');
             setAvgJobValue(org.avg_job_value ?? 180);
             setGoogleReviewUrl(org.google_review_url || '');
+            setAbn(org.abn || '');
+            setGstRegistered(org.gst_registered !== false);
             setImageUrl(org.logo_url || ''); // Match this key to your database column
           }
         }
@@ -137,6 +145,12 @@ export default function OrgSettingsPage() {
       return;
     }
 
+    const trimmedAbn = abn.trim();
+    if (trimmedAbn && !isValidAbnFormat(trimmedAbn)) {
+      setError('ABN must be 11 digits.');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -151,6 +165,8 @@ export default function OrgSettingsPage() {
           support_email: supportEmail,
           avg_job_value: avgJobValue,
           google_review_url: googleReviewUrl.trim() || null,
+          abn: trimmedAbn ? formatAbn(trimmedAbn) : null,
+          gst_registered: gstRegistered,
           logo_url: imageUrl, // Saves public asset string path reference to DB
         })
         .eq('id', orgId);
@@ -345,6 +361,36 @@ export default function OrgSettingsPage() {
           </div>
         </div>
 
+        {/* Tax Details */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+          <p className="text-sm font-semibold text-gray-700">🧾 Tax Details (ABN &amp; GST)</p>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">ABN</label>
+            <input
+              type="text"
+              value={abn}
+              onChange={(e) => setAbn(e.target.value)}
+              onBlur={() => setAbn((v) => (isValidAbnFormat(v) ? formatAbn(v) : v))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
+              placeholder="12 345 678 901"
+            />
+            <p className="text-xs text-gray-400 mt-1">Shown on tax invoices sent to customers</p>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={gstRegistered}
+              onChange={(e) => setGstRegistered(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-[#004B93] focus:ring-[#004B93]"
+            />
+            Registered for GST
+          </label>
+          <p className="text-xs text-gray-400">
+            When on, quotes and invoices show the GST component and are titled "Tax Invoice".
+            Turn off if you're not GST-registered (e.g. under the $75k threshold).
+          </p>
+        </div>
+
         {/* Contact Information */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
           <p className="text-sm font-semibold text-gray-700">📞 Contact Information</p>
@@ -375,6 +421,18 @@ export default function OrgSettingsPage() {
 
         {orgId && !featureSwitchesLoading && isFeatureEnabled('one_tap_invoice') && (
           <InvoiceTemplateEditor orgId={orgId} primaryColor={primaryColor} />
+        )}
+
+        {orgId && !featureSwitchesLoading && isFeatureEnabled('accounting_export') && (
+          <AccountingExportPanel orgId={orgId} />
+        )}
+
+        {orgId && !featureSwitchesLoading && isFeatureEnabled('price_list') && (
+          <PriceListSettingsPanel orgId={orgId} />
+        )}
+
+        {orgId && !featureSwitchesLoading && isFeatureEnabled('invoice_card_payments') && (
+          <StripeConnectPanel />
         )}
 
         <BillingPanel />

@@ -15,7 +15,7 @@ import {
   getQuotePublicBrand,
 } from './_lib/quotes.js'
 import { sendBookingConfirmations } from './_lib/bookingConfirm.js'
-import { createAndSendInvoice, markInvoicePaid } from './_lib/invoices.js'
+import { createAndSendInvoice, getInvoiceByToken, markInvoicePaid } from './_lib/invoices.js'
 import { runContactFollowUpCron } from './_lib/runContactFollowUpCron.js'
 import { runInvoiceChaseSweep } from './_lib/invoiceChase.js'
 import { runQuoteChaseSweep } from './_lib/quoteChase.js'
@@ -264,6 +264,17 @@ async function handleBookingConfirm(req: VercelRequest, res: VercelResponse, aut
     return res.status(403).json({ error: 'Lead is outside your organisation' })
   }
 
+  const bookingConfirmEnabled = await isFeatureEnabledForOrg(auth.orgId, 'booking_confirm')
+  if (!bookingConfirmEnabled) {
+    return res.status(200).json({
+      success: true,
+      smsSent: false,
+      smsMessage: 'Booking confirmation is disabled for this franchise.',
+      emailSent: false,
+      emailMessage: 'Booking confirmation is disabled for this franchise.',
+    })
+  }
+
   try {
     const result = await sendBookingConfirmations({
       orgId: auth.orgId,
@@ -303,6 +314,7 @@ async function handleQuoteCreate(req: VercelRequest, res: VercelResponse, auth: 
     scope,
     terms,
     totalAmount,
+    lineItems,
     expiryDays,
   } = (req.body ?? {}) as {
     leadId?: string
@@ -313,6 +325,7 @@ async function handleQuoteCreate(req: VercelRequest, res: VercelResponse, auth: 
     scope?: string
     terms?: string
     totalAmount?: number
+    lineItems?: Array<{ label: string; amount: number }>
     expiryDays?: number
   }
 
@@ -336,11 +349,13 @@ async function handleQuoteCreate(req: VercelRequest, res: VercelResponse, auth: 
       scope,
       terms,
       totalAmount,
+      lineItems,
       expiryDays,
       baseUrl: getRequestBaseUrl(req),
       orgName: auth.org.name,
       emailTemplates: auth.brand?.email_templates ?? null,
       primaryColor: auth.brand?.primary_color,
+      gstRegistered: auth.org.gst_registered,
     })
     return res.status(200).json({ success: true, quote })
   } catch (err) {
@@ -379,6 +394,8 @@ async function handleQuotePublicGet(req: VercelRequest, res: VercelResponse) {
         scope: quote.scope,
         terms: quote.terms,
         total_amount: quote.total_amount,
+        gst_amount: quote.gst_amount,
+        line_items: quote.line_items,
         currency: quote.currency,
         token_expires_at: quote.token_expires_at,
         accepted_at: quote.accepted_at,
@@ -489,7 +506,9 @@ async function loadOrgInvoiceSettings(orgId: string) {
   if (!supabase) return null
   const { data, error } = await supabase
     .from('orgs')
-    .select('email_templates, invoice_payment_instructions, invoice_pdf_template_path, primary_color')
+    .select(
+      'email_templates, invoice_payment_instructions, invoice_pdf_template_path, primary_color, abn, gst_registered, stripe_connect_status'
+    )
     .eq('id', orgId)
     .maybeSingle()
   if (error || !data) return null
@@ -498,6 +517,9 @@ async function loadOrgInvoiceSettings(orgId: string) {
     invoice_payment_instructions: (data.invoice_payment_instructions as string) ?? null,
     invoice_pdf_template_path: (data.invoice_pdf_template_path as string) ?? null,
     primary_color: (data.primary_color as string) || '#004B93',
+    abn: (data.abn as string | null) ?? null,
+    gst_registered: (data.gst_registered as boolean | null) ?? true,
+    stripe_connect_status: (data.stripe_connect_status as string | null) ?? null,
   }
 }
 
@@ -551,6 +573,9 @@ async function handleInvoiceSendEmail(req: VercelRequest, res: VercelResponse, a
     return res.status(500).json({ error: 'Could not load org invoice settings' })
   }
 
+  const cardPaymentsEnabled = await isFeatureEnabledForOrg(auth.orgId, 'invoice_card_payments')
+  const showPayButton = cardPaymentsEnabled && orgSettings.stripe_connect_status === 'connected'
+
   try {
     const invoice = await createAndSendInvoice({
       orgId: auth.orgId,
@@ -569,6 +594,10 @@ async function handleInvoiceSendEmail(req: VercelRequest, res: VercelResponse, a
       paymentInstructions: orgSettings.invoice_payment_instructions,
       orgPdfTemplatePath: orgSettings.invoice_pdf_template_path,
       primaryColor: orgSettings.primary_color || auth.brand?.primary_color,
+      gstRegistered: orgSettings.gst_registered,
+      abn: orgSettings.abn,
+      baseUrl: getRequestBaseUrl(req),
+      showPayButton,
     })
     return res.status(200).json({ success: true, invoice })
   } catch (err) {
@@ -593,6 +622,49 @@ async function handleInvoiceMarkPaid(req: VercelRequest, res: VercelResponse, au
   } catch (err) {
     console.error('Invoice mark paid failed:', err)
     return res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to mark invoice paid' })
+  }
+}
+
+async function handleInvoicePublicGet(req: VercelRequest, res: VercelResponse) {
+  const token = String(req.query.token ?? '').trim()
+  if (!token) {
+    return res.status(400).json({ error: 'Missing invoice token' })
+  }
+
+  try {
+    const invoice = await getInvoiceByToken(token)
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found' })
+    }
+
+    const cardPaymentsEnabled = await isFeatureEnabledForOrg(invoice.org_id, 'invoice_card_payments')
+    if (!cardPaymentsEnabled) {
+      return res.status(403).json({ error: 'Card payments on invoices is disabled for this franchise' })
+    }
+
+    const brand = await getQuotePublicBrand(invoice.org_id)
+
+    return res.status(200).json({
+      invoice: {
+        id: invoice.id,
+        invoice_number: invoice.invoice_number,
+        status: invoice.status,
+        total_amount: invoice.total_amount,
+        gst_amount: invoice.gst_amount,
+        line_items: invoice.line_items,
+        currency: invoice.currency,
+        customer_name: invoice.customer_name,
+        paid_at: invoice.paid_at,
+        token_expires_at: invoice.token_expires_at,
+        card_payments_enabled: cardPaymentsEnabled,
+        org_name: brand.org_name,
+        primary_color: brand.primary_color,
+        logo_url: brand.logo_url,
+      },
+    })
+  } catch (err) {
+    console.error('Invoice public get failed:', err)
+    return res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to load invoice' })
   }
 }
 
@@ -668,6 +740,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (action === 'quote-public-decline') {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
     return handleQuotePublicDecline(req, res)
+  }
+  if (action === 'invoice-public-get') {
+    if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
+    return handleInvoicePublicGet(req, res)
   }
 
   // CRON_SECRET — consolidated to stay under Hobby 12-function limit (see vercel.json).

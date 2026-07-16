@@ -66,6 +66,10 @@
       "destination": "/api/stripe?action=webhook"
     },
     {
+      "source": "/api/stripe-connect-webhook",
+      "destination": "/api/stripe?action=connect-webhook"
+    },
+    {
       "source": "/api/places-autocomplete",
       "destination": "/api/geocode?action=autocomplete"
     },

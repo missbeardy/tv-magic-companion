@@ -20,6 +20,7 @@ import ReportsPage from './pages/ReportsPage'
 import OrgSettingsPage from './pages/OrgSettingsPage'
 import PlatformAdminPage from './pages/PlatformAdminPage'
 import QuoteAcceptPage from './pages/QuoteAcceptPage'
+import InvoiceStatusPage from './pages/InvoiceStatusPage'
 import TeamActivityPage from './pages/TeamActivityPage'
 import { useEffect } from 'react'
 import { useTechLocation } from './hooks/useTechLocation'
@@ -73,6 +74,7 @@ function App() {
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/login" element={<Login />} />
               <Route path="/quote/:token" element={<QuoteAcceptPage />} />
+              <Route path="/invoice/:token" element={<InvoiceStatusPage />} />
               <Route path="/set-password" element={<SetPasswordPage />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/support" element={<ProtectedRoute> <SupportPage /> </ProtectedRoute> }/>

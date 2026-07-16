@@ -1,4 +1,5 @@
 import { clearFormDraft, loadFormDraft, saveFormDraft } from './formDraft'
+import type { LineItem } from './lineItems'
 
 export const QUOTE_FORM_ID = 'quote'
 
@@ -12,6 +13,7 @@ export interface QuoteDraft {
   terms: string
   totalAmount: string
   expiryDays: string
+  lineItems?: LineItem[]
 }
 
 export function loadQuoteDraft(userId: string): QuoteDraft | null {
@@ -38,7 +40,8 @@ export function quoteDraftHasContent(draft: QuoteDraft): boolean {
     draft.scope.trim() !== defaultScope.trim()
     || draft.terms.trim() !== defaultTerms.trim()
     || draft.totalAmount.trim() !== '180'
-    || draft.expiryDays.trim() !== '7',
+    || draft.expiryDays.trim() !== '7'
+    || (draft.lineItems && draft.lineItems.length > 0),
   )
 }
 

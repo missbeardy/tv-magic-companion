@@ -5,6 +5,7 @@ import { getPlatformUrl } from './platformUrl.js'
 import { sendBrandedSms } from './sendBrandedSms.js'
 import { notifyOrgUser } from './notifyUser.js'
 import { OPERATIONAL_MANAGER_ROLES } from './managerRoles.js'
+import { gstComponentOf } from '../../shared/gst.js'
 
 export interface QuotePublicBrand {
   org_name: string
@@ -94,6 +95,11 @@ async function notifyManagersQuoteAccepted(quote: {
   }
 }
 
+export interface QuoteLineItem {
+  label: string
+  amount: number
+}
+
 export interface QuoteCreateInput {
   orgId: string
   createdBy: string
@@ -105,12 +111,14 @@ export interface QuoteCreateInput {
   scope: string
   terms?: string | null
   totalAmount: number
+  lineItems?: QuoteLineItem[]
   expiryDays?: number
   baseUrl?: string | null
   orgName?: string
   senderName?: string
   emailTemplates?: Record<string, string> | null
   primaryColor?: string
+  gstRegistered?: boolean
 }
 
 export interface QuoteAcceptInput {
@@ -143,6 +151,7 @@ async function sendQuoteEmail(params: {
   customerName: string
   acceptanceUrl: string
   totalAmount: number
+  gstAmount?: number | null
   scope: string
   terms?: string | null
   serviceType?: string | null
@@ -161,11 +170,16 @@ async function sendQuoteEmail(params: {
     const { Resend } = await import('resend')
     const resend = new Resend(apiKey)
     const serviceType = params.serviceType?.trim() ?? ''
+    const gstLine =
+      params.gstAmount != null
+        ? `<p style="font-size:12px;color:#6b7280">Total includes GST of AUD ${params.gstAmount.toFixed(2)}</p>`
+        : ''
     const { subject, html } = buildQuoteEmailFromBrand(params.emailTemplates, {
       'org.name': params.orgName?.trim() ?? '',
       customerName: params.customerName,
       acceptanceUrl: params.acceptanceUrl,
       totalAmount: `AUD ${Number(params.totalAmount).toFixed(2)}`,
+      gstLine,
       serviceType,
       serviceTypeLine: serviceType ? ` for ${serviceType}` : '',
       scopeHtml: nl2brHtml(params.scope),
@@ -199,6 +213,8 @@ export async function createQuote(input: QuoteCreateInput) {
   const expiryDays = normalizeExpiryDays(input.expiryDays)
   const expiresAt = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000).toISOString()
   const token = buildQuoteToken()
+  const gstAmount = input.gstRegistered !== false ? gstComponentOf(input.totalAmount) : null
+  const lineItems = input.lineItems && input.lineItems.length ? input.lineItems : null
 
   const { data, error } = await supabase
     .from('quotes')
@@ -214,13 +230,15 @@ export async function createQuote(input: QuoteCreateInput) {
       scope: input.scope.trim(),
       terms: input.terms?.trim() || null,
       total_amount: input.totalAmount,
+      gst_amount: gstAmount,
+      line_items: lineItems,
       currency: 'AUD',
       public_token: token,
       token_expires_at: expiresAt,
       sent_at: new Date().toISOString(),
     })
     .select(
-      'id, org_id, lead_id, status, customer_name, customer_email, customer_phone, service_type, scope, terms, total_amount, currency, token_expires_at, sent_at, created_at, public_token'
+      'id, org_id, lead_id, status, customer_name, customer_email, customer_phone, service_type, scope, terms, total_amount, gst_amount, line_items, currency, token_expires_at, sent_at, created_at, public_token'
     )
     .single()
 
@@ -238,6 +256,7 @@ export async function createQuote(input: QuoteCreateInput) {
       customerName: input.customerName,
       acceptanceUrl,
       totalAmount: input.totalAmount,
+      gstAmount,
       scope: input.scope,
       terms: input.terms,
       serviceType: input.serviceType,
@@ -297,7 +316,7 @@ export async function getQuoteByToken(token: string) {
   const { data, error } = await supabase
     .from('quotes')
     .select(
-      'id, org_id, lead_id, status, customer_name, customer_email, customer_phone, service_type, scope, terms, total_amount, currency, token_expires_at, sent_at, accepted_at, created_at, public_token'
+      'id, org_id, lead_id, status, customer_name, customer_email, customer_phone, service_type, scope, terms, total_amount, gst_amount, line_items, currency, token_expires_at, sent_at, accepted_at, created_at, public_token'
     )
     .eq('public_token', token)
     .maybeSingle()

@@ -8,6 +8,7 @@ export const FEATURE_SWITCH_KEYS = [
   'quote_esign',
   'review_requests',
   'customer_ontheway_sms',
+  'booking_confirm',
   'manager_new_lead_alerts',
   'inbound_sms',
   'inbound_email',
@@ -20,6 +21,9 @@ export const FEATURE_SWITCH_KEYS = [
   'one_tap_invoice',
   'invoice_chase',
   'quote_chase',
+  'price_list',
+  'invoice_card_payments',
+  'accounting_export',
   'tech_location',
   'internal_messaging',
   'customer_linking',
@@ -46,9 +50,9 @@ export const FEATURE_SWITCH_CATEGORY_LABELS: Record<FeatureSwitchCategory, strin
 
 export const FEATURE_SWITCHES_BY_CATEGORY: Record<FeatureSwitchCategory, readonly FeatureSwitchKey[]> = {
   lead_intake: ['inbound_sms', 'inbound_email', 'inbound_calls', 'inbound_messenger', 'customer_linking'],
-  customer_communication: ['missed_call_hookback_sms', 'lead_ack_sms', 'lead_ack_email', 'customer_ontheway_sms', 'review_requests'],
+  customer_communication: ['missed_call_hookback_sms', 'lead_ack_sms', 'lead_ack_email', 'customer_ontheway_sms', 'booking_confirm', 'review_requests'],
   team_operations: ['manager_new_lead_alerts', 'smart_assign_badge', 'inbound_auto_assign', 'tech_location', 'internal_messaging', 'customer_profiles'],
-  sales_job_completion: ['quote_esign', 'completion_upsells', 'one_tap_invoice', 'invoice_chase', 'quote_chase'],
+  sales_job_completion: ['quote_esign', 'completion_upsells', 'one_tap_invoice', 'invoice_chase', 'quote_chase', 'price_list', 'invoice_card_payments', 'accounting_export'],
 }
 
 export const FEATURE_SWITCH_CATEGORY_BY_KEY: Record<FeatureSwitchKey, FeatureSwitchCategory> = {
@@ -61,6 +65,7 @@ export const FEATURE_SWITCH_CATEGORY_BY_KEY: Record<FeatureSwitchKey, FeatureSwi
   lead_ack_sms: 'customer_communication',
   lead_ack_email: 'customer_communication',
   customer_ontheway_sms: 'customer_communication',
+  booking_confirm: 'customer_communication',
   review_requests: 'customer_communication',
   manager_new_lead_alerts: 'team_operations',
   smart_assign_badge: 'team_operations',
@@ -72,6 +77,9 @@ export const FEATURE_SWITCH_CATEGORY_BY_KEY: Record<FeatureSwitchKey, FeatureSwi
   one_tap_invoice: 'sales_job_completion',
   invoice_chase: 'sales_job_completion',
   quote_chase: 'sales_job_completion',
+  price_list: 'sales_job_completion',
+  invoice_card_payments: 'sales_job_completion',
+  accounting_export: 'sales_job_completion',
   customer_profiles: 'team_operations',
 }
 
@@ -81,6 +89,7 @@ export const FEATURE_SWITCH_MIN_TIERS: Record<FeatureSwitchKey, SubscriptionTier
   quote_esign: 'pro',
   review_requests: 'basic',
   customer_ontheway_sms: 'basic',
+  booking_confirm: 'basic',
   manager_new_lead_alerts: 'basic',
   inbound_sms: 'basic',
   inbound_email: 'basic',
@@ -93,6 +102,9 @@ export const FEATURE_SWITCH_MIN_TIERS: Record<FeatureSwitchKey, SubscriptionTier
   one_tap_invoice: 'pro',
   invoice_chase: 'pro',
   quote_chase: 'pro',
+  price_list: 'basic',
+  invoice_card_payments: 'pro',
+  accounting_export: 'basic',
   tech_location: 'basic',
   internal_messaging: 'basic',
   customer_linking: 'basic',

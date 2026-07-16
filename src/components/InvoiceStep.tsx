@@ -1,8 +1,13 @@
 import { useEffect, useState, type ChangeEvent } from 'react'
 import { supabase } from '../lib/supabase'
-import { sendInvoiceEmail, type InvoiceLineItem } from '../lib/invoices'
+import { sendInvoiceEmail } from '../lib/invoices'
 import { resolveInvoiceAmountFromSources } from '../lib/resolveInvoiceAmount'
 import type { ReviewRequestLead } from '../lib/reviewRequest'
+import { useOrg } from '../context/OrgContext'
+import { gstComponentOf } from '../../shared/gst'
+import { nonEmptyLineItems, sumLineItems, type LineItem } from '../lib/lineItems'
+import { fetchActivePriceListItems, recordPriceListItemUsage, type PriceListItem } from '../lib/priceList'
+import LineItemsEditor from './LineItemsEditor'
 
 interface Props {
   lead: ReviewRequestLead & {
@@ -14,10 +19,14 @@ interface Props {
 }
 
 export default function InvoiceStep({ lead, onDone, onCancel }: Props) {
+  const { org, isFeatureEnabled } = useOrg()
+  const gstRegistered = org?.gst_registered !== false
+  const priceListEnabled = isFeatureEnabled('price_list')
   const [amount, setAmount] = useState('')
   const [customerEmail, setCustomerEmail] = useState(lead.email?.trim() ?? '')
   const [quoteId, setQuoteId] = useState<string | null>(null)
-  const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([])
+  const [lineItems, setLineItems] = useState<LineItem[]>([])
+  const [priceListItems, setPriceListItems] = useState<PriceListItem[]>([])
   const [pdfPath, setPdfPath] = useState<string | null>(null)
   const [pdfFileName, setPdfFileName] = useState<string | null>(null)
   const [loadingAmount, setLoadingAmount] = useState(true)
@@ -34,7 +43,7 @@ export default function InvoiceStep({ lead, onDone, onCancel }: Props) {
 
       const { data: quote } = await supabase
         .from('quotes')
-        .select('id, total_amount')
+        .select('id, total_amount, line_items')
         .eq('lead_id', lead.id)
         .eq('status', 'accepted')
         .order('accepted_at', { ascending: false })
@@ -44,6 +53,8 @@ export default function InvoiceStep({ lead, onDone, onCancel }: Props) {
       if (quote) {
         acceptedQuoteAmount = Number(quote.total_amount)
         acceptedQuoteId = quote.id
+        const quoteLineItems = quote.line_items as unknown as LineItem[] | null
+        if (quoteLineItems && quoteLineItems.length > 0) setLineItems(quoteLineItems)
       }
 
       const { data: event } = await supabase
@@ -66,6 +77,27 @@ export default function InvoiceStep({ lead, onDone, onCancel }: Props) {
     }
     loadAmount()
   }, [lead.id])
+
+  useEffect(() => {
+    if (!priceListEnabled || !org?.id) return
+    let cancelled = false
+    fetchActivePriceListItems(org.id)
+      .then((items) => {
+        if (!cancelled) setPriceListItems(items)
+      })
+      .catch((err) => console.error('Failed to load price list:', err))
+    return () => {
+      cancelled = true
+    }
+  }, [priceListEnabled, org?.id])
+
+  useEffect(() => {
+    if (lineItems.length > 0) setAmount(String(sumLineItems(lineItems)))
+  }, [lineItems])
+
+  function handleUseChip(item: PriceListItem) {
+    recordPriceListItemUsage(item)
+  }
 
   async function handlePerJobPdfUpload(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -119,7 +151,7 @@ export default function InvoiceStep({ lead, onDone, onCancel }: Props) {
         customerEmail: customerEmail.trim(),
         serviceType: lead.service_type ?? null,
         totalAmount: total,
-        lineItems: lineItems.filter((item) => item.label.trim()),
+        lineItems: nonEmptyLineItems(lineItems),
         pdfStoragePath: pdfPath,
       })
       await onDone({ sent: true })
@@ -155,6 +187,14 @@ export default function InvoiceStep({ lead, onDone, onCancel }: Props) {
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
           placeholder={loadingAmount ? 'Loading…' : '0.00'}
         />
+        {lineItems.length > 0 && (
+          <p className="text-[11px] text-gray-400 mt-1">Sum of line items below</p>
+        )}
+        {gstRegistered && Number(amount) > 0 && (
+          <p className="text-[11px] text-gray-400 mt-1">
+            Includes GST of ${gstComponentOf(Number(amount)).toFixed(2)}
+          </p>
+        )}
       </div>
 
       <div>
@@ -170,16 +210,13 @@ export default function InvoiceStep({ lead, onDone, onCancel }: Props) {
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-500 mb-1">Optional line item label</label>
-        <input
-          type="text"
-          value={lineItems[0]?.label ?? lead.service_type ?? ''}
-          onChange={(e) =>
-            setLineItems([{ label: e.target.value, amount: Number(amount) || 0 }])
-          }
+        <label className="block text-xs font-medium text-gray-500 mb-1">Line items (optional)</label>
+        <LineItemsEditor
+          items={lineItems}
+          onChange={setLineItems}
+          priceListItems={priceListEnabled ? priceListItems : undefined}
+          onUseChip={handleUseChip}
           disabled={sending}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-          placeholder="TV wall mount installation"
         />
       </div>
 

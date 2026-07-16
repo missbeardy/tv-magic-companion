@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { X, FileSignature } from 'lucide-react'
 import { createQuote } from '../lib/quotes'
 import { useAuth } from '../context/AuthContext'
+import { useOrg } from '../context/OrgContext'
 import {
   clearQuoteDraft,
   loadQuoteDraft,
@@ -10,6 +11,10 @@ import {
 } from '../lib/quoteDraft'
 import { openDeviceSms } from '../lib/onTheWaySms'
 import { formatAuPhoneForSms } from '../lib/phone'
+import { gstComponentOf } from '../../shared/gst'
+import { nonEmptyLineItems, sumLineItems, type LineItem } from '../lib/lineItems'
+import { fetchActivePriceListItems, recordPriceListItemUsage, type PriceListItem } from '../lib/priceList'
+import LineItemsEditor from './LineItemsEditor'
 
 interface LeadLite {
   id: string
@@ -31,10 +36,15 @@ function defaultScope(serviceType?: string | null) {
 
 export default function QuoteComposerModal({ lead, onClose, onSent }: Props) {
   const { profile } = useAuth()
+  const { org, isFeatureEnabled } = useOrg()
+  const gstRegistered = org?.gst_registered !== false
+  const priceListEnabled = isFeatureEnabled('price_list')
   const [scope, setScope] = useState(defaultScope(lead.service_type))
   const [terms, setTerms] = useState('Payment due on completion unless agreed otherwise.')
   const [totalAmount, setTotalAmount] = useState('180')
   const [expiryDays, setExpiryDays] = useState('7')
+  const [lineItems, setLineItems] = useState<LineItem[]>([])
+  const [priceListItems, setPriceListItems] = useState<PriceListItem[]>([])
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [acceptanceUrl, setAcceptanceUrl] = useState('')
@@ -51,6 +61,27 @@ export default function QuoteComposerModal({ lead, onClose, onSent }: Props) {
   }
 
   useEffect(() => {
+    if (!priceListEnabled || !org?.id) return
+    let cancelled = false
+    fetchActivePriceListItems(org.id)
+      .then((items) => {
+        if (!cancelled) setPriceListItems(items)
+      })
+      .catch((err) => console.error('Failed to load price list:', err))
+    return () => {
+      cancelled = true
+    }
+  }, [priceListEnabled, org?.id])
+
+  useEffect(() => {
+    if (lineItems.length > 0) setTotalAmount(String(sumLineItems(lineItems)))
+  }, [lineItems])
+
+  function handleUseChip(item: PriceListItem) {
+    recordPriceListItemUsage(item)
+  }
+
+  useEffect(() => {
     if (!profile?.id || draftRestoredRef.current) return
     const draft = loadQuoteDraft(profile.id)
     if (!draft || draft.leadId !== lead.id || !quoteDraftHasContent(draft)) return
@@ -59,6 +90,7 @@ export default function QuoteComposerModal({ lead, onClose, onSent }: Props) {
     setTerms(draft.terms)
     setTotalAmount(draft.totalAmount)
     setExpiryDays(draft.expiryDays)
+    setLineItems(draft.lineItems ?? [])
     skipDraftSaveRef.current = false
   }, [profile?.id, lead.id])
 
@@ -78,6 +110,7 @@ export default function QuoteComposerModal({ lead, onClose, onSent }: Props) {
       terms,
       totalAmount,
       expiryDays,
+      lineItems,
     }
 
     if (!quoteDraftHasContent(draft)) {
@@ -101,6 +134,7 @@ export default function QuoteComposerModal({ lead, onClose, onSent }: Props) {
     terms,
     totalAmount,
     expiryDays,
+    lineItems,
     acceptanceUrl,
   ])
 
@@ -128,6 +162,7 @@ export default function QuoteComposerModal({ lead, onClose, onSent }: Props) {
         scope,
         terms,
         totalAmount: amount,
+        lineItems: nonEmptyLineItems(lineItems),
         expiryDays: Number.isFinite(days) ? days : 7,
       })
       setAcceptanceUrl(quote.acceptance_url)
@@ -250,10 +285,20 @@ export default function QuoteComposerModal({ lead, onClose, onSent }: Props) {
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Line items (optional)</label>
+                <LineItemsEditor
+                  items={lineItems}
+                  onChange={setLineItems}
+                  priceListItems={priceListEnabled ? priceListItems : undefined}
+                  onUseChip={handleUseChip}
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">
-                    Total incl. GST (AUD)
+                    Total {gstRegistered ? 'incl. GST ' : ''}(AUD)
                   </label>
                   <input
                     type="number"
@@ -264,6 +309,14 @@ export default function QuoteComposerModal({ lead, onClose, onSent }: Props) {
                     step="0.01"
                     inputMode="decimal"
                   />
+                  {lineItems.length > 0 && (
+                    <p className="text-[11px] text-gray-400 mt-1">Sum of line items above</p>
+                  )}
+                  {gstRegistered && Number(totalAmount) > 0 && (
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      Includes GST of ${gstComponentOf(Number(totalAmount)).toFixed(2)}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Expiry (days)</label>

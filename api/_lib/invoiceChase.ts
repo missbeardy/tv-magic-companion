@@ -15,6 +15,7 @@ import { sendBrandedSms } from './sendBrandedSms.js'
 import { sendTransactionalEmail } from './sendTransactionalEmail.js'
 import { formatAuPhoneForSms } from './phone.js'
 import { startWorkflowRun } from './workflowRun.js'
+import { getPlatformUrl } from './platformUrl.js'
 
 export interface InvoiceChaseSweepResult {
   orgs: number
@@ -36,6 +37,7 @@ interface InvoiceCandidate {
   chase_count: number
   last_chased_at: string | null
   chase_paused: boolean
+  public_token: string | null
   leads: { phone: string | null } | { phone: string | null }[] | null
 }
 
@@ -81,7 +83,7 @@ export async function runInvoiceChaseSweep(
   const { data: rows, error } = await supabase
     .from('invoices')
     .select(
-      'id, org_id, lead_id, invoice_number, status, total_amount, currency, customer_name, customer_email, sent_at, chase_count, last_chased_at, chase_paused, leads(phone)'
+      'id, org_id, lead_id, invoice_number, status, total_amount, currency, customer_name, customer_email, sent_at, chase_count, last_chased_at, chase_paused, public_token, leads(phone)'
     )
     .eq('status', 'sent')
     .eq('chase_paused', false)
@@ -134,7 +136,7 @@ export async function runInvoiceChaseForInvoice(
     const { data: invoice, error: loadError } = await supabase
       .from('invoices')
       .select(
-        'id, org_id, lead_id, invoice_number, status, total_amount, currency, customer_name, customer_email, sent_at, chase_count, last_chased_at, chase_paused, leads(phone)'
+        'id, org_id, lead_id, invoice_number, status, total_amount, currency, customer_name, customer_email, sent_at, chase_count, last_chased_at, chase_paused, public_token, leads(phone)'
       )
       .eq('id', candidate.id)
       .eq('org_id', candidate.org_id)
@@ -181,9 +183,20 @@ export async function runInvoiceChaseForInvoice(
 
     const { data: org } = await supabase
       .from('orgs')
-      .select('name')
+      .select('name, stripe_connect_status')
       .eq('id', loaded.org_id)
       .single()
+
+    let payLine = ''
+    let payButton = ''
+    if (loaded.public_token && org?.stripe_connect_status === 'connected') {
+      const cardPaymentsEnabled = await isFeatureEnabledForOrg(loaded.org_id, 'invoice_card_payments')
+      if (cardPaymentsEnabled) {
+        const payUrl = `${getPlatformUrl()}/api/stripe?action=invoice-pay&token=${loaded.public_token}`
+        payLine = ` Pay now: ${payUrl}`
+        payButton = `<p style="margin:16px 0"><a href="${payUrl}" style="background:#004B93;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">Pay Now</a></p>`
+      }
+    }
 
     const messageVars = {
       firstName: firstName(loaded.customer_name),
@@ -192,6 +205,8 @@ export async function runInvoiceChaseForInvoice(
       dueDate: formatDueDateEnAu(sentAt),
       daysOverdue: String(currentOverdue),
       'org.name': org?.name?.trim() || 'Your organisation',
+      payLine,
+      payButton,
     }
 
     let channel: 'sms' | 'email' | null = null
