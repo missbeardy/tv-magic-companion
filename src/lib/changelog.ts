@@ -75,11 +75,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Accounting CSV export — Franchise Settings can download a Xero-compatible sales invoice CSV (Tax Inclusive) for a date range; BSB/PayID instructions remain in Invoice templates (Accounting CSV Export feature switch)',
     'Day-before booking reminder SMS — automatic reminder sent to the customer roughly 24 hours before a booked appointment, editable per brand, quiet-hours aware (Day-Before Booking Reminder feature switch, off by default)',
     'Fix: the booking confirmation .ics calendar invite now uses the org\'s real support email as organizer instead of a hard-coded placeholder',
+    'Fix: resolved server errors affecting customer messaging, booking confirmations, and the quote-accept page immediately after the v1.1.128 release (a relative import was missing its file extension)',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.128'
+export const APP_VERSION = '1.1.129'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

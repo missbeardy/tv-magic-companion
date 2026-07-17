@@ -1,4 +1,4 @@
-import { INVOICE_DUE_DAYS } from '../../shared/invoiceDue'
+import { INVOICE_DUE_DAYS } from '../../shared/invoiceDue.js'
 
 export { INVOICE_DUE_DAYS }
 export const CHASE_LADDER_DAYS = [3, 7, 14] as const
