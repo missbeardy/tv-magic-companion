@@ -1,4 +1,5 @@
 import { requireAuthHeaders } from './apiAuth'
+import { fetchWithTimeout } from './fetchWithTimeout'
 import type { LineItem } from './lineItems'
 
 export interface PublicInvoiceRecord {
@@ -19,7 +20,7 @@ export interface PublicInvoiceRecord {
 }
 
 export async function getPublicInvoice(token: string): Promise<PublicInvoiceRecord> {
-  const res = await fetch(`/api/send-sms?action=invoice-public-get&token=${encodeURIComponent(token)}`)
+  const res = await fetchWithTimeout(`/api/send-sms?action=invoice-public-get&token=${encodeURIComponent(token)}`)
   const data = (await res.json().catch(() => ({}))) as { error?: string; invoice?: PublicInvoiceRecord }
   if (!res.ok || !data.invoice) throw new Error(data.error ?? 'Failed to load invoice')
   return data.invoice
@@ -62,7 +63,7 @@ export interface SendInvoicePayload {
 
 export async function sendInvoiceEmail(payload: SendInvoicePayload): Promise<{ invoice: InvoiceRecord }> {
   const headers = await requireAuthHeaders()
-  const res = await fetch('/api/send-sms?action=invoice-send-email', {
+  const res = await fetchWithTimeout('/api/send-sms?action=invoice-send-email', {
     method: 'POST',
     headers,
     body: JSON.stringify(payload),
@@ -76,7 +77,7 @@ export async function sendInvoiceEmail(payload: SendInvoicePayload): Promise<{ i
 
 export async function markInvoicePaid(invoiceId: string): Promise<{ invoice: InvoiceRecord }> {
   const headers = await requireAuthHeaders()
-  const res = await fetch('/api/send-sms?action=invoice-mark-paid', {
+  const res = await fetchWithTimeout('/api/send-sms?action=invoice-mark-paid', {
     method: 'POST',
     headers,
     body: JSON.stringify({ invoiceId }),

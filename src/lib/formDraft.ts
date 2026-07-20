@@ -1,4 +1,5 @@
-const PREFIX = 'tvmagic:draft'
+const PREFIX = 'fieldbourne:draft'
+const LEGACY_PREFIX = 'tvmagic:draft'
 const TTL_MS = 24 * 60 * 60 * 1000
 
 export interface StoredDraft<T> {
@@ -10,10 +11,15 @@ export function draftStorageKey(userId: string, formId: string): string {
   return `${PREFIX}:${userId}:${formId}`
 }
 
+function legacyDraftStorageKey(userId: string, formId: string): string {
+  return `${LEGACY_PREFIX}:${userId}:${formId}`
+}
+
 export function saveFormDraft<T>(userId: string, formId: string, data: T): void {
   try {
     const payload: StoredDraft<T> = { data, savedAt: Date.now() }
     localStorage.setItem(draftStorageKey(userId, formId), JSON.stringify(payload))
+    localStorage.removeItem(legacyDraftStorageKey(userId, formId))
   } catch {
     // private browsing / quota
   }
@@ -21,7 +27,16 @@ export function saveFormDraft<T>(userId: string, formId: string, data: T): void 
 
 export function loadFormDraft<T>(userId: string, formId: string): T | null {
   try {
-    const raw = localStorage.getItem(draftStorageKey(userId, formId))
+    const key = draftStorageKey(userId, formId)
+    let raw = localStorage.getItem(key)
+    if (!raw) {
+      const legacyKey = legacyDraftStorageKey(userId, formId)
+      raw = localStorage.getItem(legacyKey)
+      if (raw) {
+        localStorage.setItem(key, raw)
+        localStorage.removeItem(legacyKey)
+      }
+    }
     if (!raw) return null
     const parsed = JSON.parse(raw) as StoredDraft<T>
     if (!parsed?.data || Date.now() - parsed.savedAt > TTL_MS) {
@@ -41,6 +56,7 @@ export function hasFormDraft(userId: string, formId: string): boolean {
 export function clearFormDraft(userId: string, formId: string): void {
   try {
     localStorage.removeItem(draftStorageKey(userId, formId))
+    localStorage.removeItem(legacyDraftStorageKey(userId, formId))
   } catch {
     // ignore
   }

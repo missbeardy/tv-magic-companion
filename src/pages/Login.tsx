@@ -94,8 +94,8 @@ export default function Login() {
         <div className="text-center mb-8">
           <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg p-2 border border-gray-100">
             <img 
-              src="/tvmagic-logo.png" 
-              alt="TVMagic Logo" 
+              src="/fieldbourne-logo.png"
+              alt="FieldBourne"
               className="max-w-full max-h-full object-contain"
             />
           </div>

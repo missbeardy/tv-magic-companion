@@ -1,8 +1,8 @@
 // src/components/LeadStatusMenu.tsx
 import { useState, useRef, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
-import { asLeadUpdate } from '../lib/dbTypes'
-import { sendPushNotification } from '../lib/sendPush'
+import { runLeadUpdate } from '../lib/offlineWrites'
+import { showToast } from '../lib/toast'
+import { sendNotification } from '../lib/notify'
 import { useAuth } from '../context/AuthContext'
 import { logLeadEvent } from '../lib/leadEvents'
 import type { LeadEventType } from '../lib/leadEventPayload'
@@ -77,8 +77,8 @@ export default function LeadStatusMenu({
 
   const buttonClass =
     variant === 'pill'
-      ? 'text-xs border border-gray-300 bg-white hover:bg-gray-50 py-1 px-3 rounded-full text-gray-700 font-normal flex items-center gap-1'
-      : `text-xs px-2 py-1 rounded-full font-medium capitalize flex items-center gap-1 ${current.color}`
+      ? 'text-xs border border-gray-300 bg-white hover:bg-gray-50 min-h-[44px] py-1 px-3 rounded-full text-gray-700 font-normal inline-flex items-center gap-1'
+      : `text-xs min-h-[44px] px-3 py-1 rounded-full font-medium capitalize inline-flex items-center gap-1 ${current.color}`
 
   useEffect(() => {
     if (!open || !buttonRef.current) return
@@ -137,7 +137,17 @@ export default function LeadStatusMenu({
       return false
     }
 
-    await supabase.from('leads').update(asLeadUpdate(updatePayload)).eq('id', leadId)
+    const writeResult = await runLeadUpdate(leadId, updatePayload)
+    if (!writeResult.ok) {
+      showToast({
+        variant: 'error',
+        message: writeResult.network
+          ? "Couldn't reach the server — status not saved. Check your signal and retry."
+          : "Couldn't update the status. Tap retry.",
+        action: { label: 'Retry', onClick: () => { void updateStatus(newStatus) } },
+      })
+      return false
+    }
 
     if (shouldPoolPickup(fromStatus, newStatus, profile?.id)) {
       await logLeadEvent({
@@ -176,11 +186,12 @@ export default function LeadStatusMenu({
 
     if ((effectiveStatus === 'completed' || effectiveStatus === 'lost') && notifyAssignee) {
       const statusLabel = effectiveStatus === 'completed' ? 'Completed' : 'Lost'
-      await sendPushNotification(
+      await sendNotification(
         notifyAssignee,
         `Job ${statusLabel}`,
         `${leadName} — ${serviceType}`,
-        `/leads?leadId=${leadId}`
+        `/leads?leadId=${leadId}`,
+        'lead_status'
       )
     }
 
@@ -198,6 +209,12 @@ export default function LeadStatusMenu({
       // Completions must go through CompletionChecklist — never update status alone.
       console.warn('LeadStatusMenu: completed requires onCompleteRequested')
       return
+    }
+
+    // Guard destructive transitions against a mis-tap in the dropdown.
+    if ((newStatus === 'lost' || newStatus === 'booking_cancelled') && newStatus !== currentStatus) {
+      const label = newStatus === 'lost' ? 'Lost' : 'Booking Cancelled'
+      if (!window.confirm(`Mark "${leadName}" as ${label}?`)) return
     }
 
     setSaving(true)
@@ -224,7 +241,7 @@ export default function LeadStatusMenu({
           style={{
             top: buttonRef.current
               ? dropUp
-                ? buttonRef.current.getBoundingClientRect().top - (STATUSES.length * 40)
+                ? buttonRef.current.getBoundingClientRect().top - (STATUSES.length * 44)
                 : buttonRef.current.getBoundingClientRect().bottom + 4
               : 0,
             left: buttonRef.current
@@ -236,7 +253,7 @@ export default function LeadStatusMenu({
             <button
               key={s.value}
               onClick={() => updateStatus(s.value)}
-              className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition capitalize ${s.value === currentStatus ? 'font-semibold bg-gray-50' : ''}`}
+              className={`w-full text-left px-3 min-h-[44px] flex items-center text-sm hover:bg-gray-50 transition capitalize ${s.value === currentStatus ? 'font-semibold bg-gray-50' : ''}`}
             >
               <span className={`inline-block w-2 h-2 rounded-full mr-2 ${s.color.split(' ')[0]}`} />
               {s.label}

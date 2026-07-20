@@ -1,7 +1,7 @@
 {
   "name": "tv-magic-companion",
   "private": true,
-  "version": "1.1.129",
+  "version": "1.1.140",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.tests.json",
     "lint": "eslint .",
     "verify:changelog": "node scripts/verify-changelog.mjs",
     "prebuild": "node scripts/verify-changelog.mjs && npm run typecheck",
@@ -32,8 +32,7 @@
     "recharts": "^3.9.0",
     "resend": "^6.12.4",
     "stripe": "^17.7.0",
-    "svix": "^1.95.2",
-    "web-push": "^3.6.7"
+    "svix": "^1.95.2"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

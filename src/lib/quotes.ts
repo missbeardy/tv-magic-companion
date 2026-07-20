@@ -1,4 +1,5 @@
 import { requireAuthHeaders } from './apiAuth'
+import { fetchWithTimeout } from './fetchWithTimeout'
 import type { LineItem } from './lineItems'
 
 export interface QuoteRecord {
@@ -49,7 +50,7 @@ export async function createQuote(payload: CreateQuotePayload): Promise<{
   }
 }> {
   const headers = await requireAuthHeaders()
-  const res = await fetch('/api/send-sms?action=quote-create', {
+  const res = await fetchWithTimeout('/api/send-sms?action=quote-create', {
     method: 'POST',
     headers,
     body: JSON.stringify(payload),
@@ -71,7 +72,7 @@ export async function createQuote(payload: CreateQuotePayload): Promise<{
 }
 
 export async function getPublicQuote(token: string): Promise<QuoteRecord> {
-  const res = await fetch(`/api/send-sms?action=quote-public-get&token=${encodeURIComponent(token)}`)
+  const res = await fetchWithTimeout(`/api/send-sms?action=quote-public-get&token=${encodeURIComponent(token)}`)
   const data = (await res.json().catch(() => ({}))) as { error?: string; quote?: QuoteRecord }
   if (!res.ok || !data.quote) throw new Error(data.error ?? 'Failed to load quote')
   return data.quote
@@ -83,7 +84,7 @@ export async function acceptPublicQuote(payload: {
   signerEmail?: string | null
   signatureText: string
 }): Promise<QuoteRecord> {
-  const res = await fetch('/api/send-sms?action=quote-public-accept', {
+  const res = await fetchWithTimeout('/api/send-sms?action=quote-public-accept', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -97,7 +98,7 @@ export async function declinePublicQuote(payload: {
   token: string
   reason?: string | null
 }): Promise<QuoteRecord> {
-  const res = await fetch('/api/send-sms?action=quote-public-decline', {
+  const res = await fetchWithTimeout('/api/send-sms?action=quote-public-decline', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

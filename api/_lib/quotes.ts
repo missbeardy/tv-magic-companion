@@ -75,7 +75,7 @@ async function notifyManagersQuoteAccepted(quote: {
     : String(quote.total_amount)
   const title = 'Quote accepted'
   const message = `${quote.customer_name} accepted a quote (${money}) — ${quote.service_type || 'Service'}. Ready to book.`
-  const url = `${getPlatformUrl()}/leads?highlight=${quote.lead_id}`
+  const url = `${getPlatformUrl()}/calendar?bookLead=${quote.lead_id}`
 
   for (const manager of managers ?? []) {
     try {

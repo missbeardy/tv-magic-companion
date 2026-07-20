@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { saveEventsCache, loadEventsCache } from '../lib/scheduleCache';
 
 export interface CalendarEvent {
   id: string;
@@ -19,6 +20,7 @@ export function useCalendarEvents() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [staleSince, setStaleSince] = useState<number | null>(null);
   const { user, profile } = useAuth();
 
   const fetchEvents = useCallback(async () => {
@@ -38,9 +40,21 @@ export function useCalendarEvents() {
 
       const { data, error: fetchError } = await query;
       if (fetchError) throw fetchError;
-      setEvents((data ?? []) as CalendarEvent[]);
+      const rows = (data ?? []) as CalendarEvent[];
+      setEvents(rows);
+      setError(null);
+      setStaleSince(null);
+      void saveEventsCache(user.id, rows);
     } catch (err: any) {
-      setError(err.message);
+      // Fall back to the last good copy so the schedule stays visible offline.
+      const cached = await loadEventsCache(user.id);
+      if (cached) {
+        setEvents(cached.events as CalendarEvent[]);
+        setStaleSince(cached.cachedAt);
+        setError(null);
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -159,5 +173,5 @@ export function useCalendarEvents() {
     }
   };
 
-  return { events, loading, error, createEvent, updateEvent, deleteEvent, refreshEvents: fetchEvents };
+  return { events, loading, error, staleSince, createEvent, updateEvent, deleteEvent, refreshEvents: fetchEvents };
 }

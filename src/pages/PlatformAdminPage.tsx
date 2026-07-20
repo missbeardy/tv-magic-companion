@@ -76,7 +76,8 @@ export default function PlatformAdminPage() {
   const [newOrgSlug, setNewOrgSlug] = useState('')
   const [newOrgBrandId, setNewOrgBrandId] = useState('')
   const [newOrgTier, setNewOrgTier] = useState<'basic' | 'pro' | 'enterprise'>('basic')
-  const [newOrgOperationMode, setNewOrgOperationMode] = useState<'solo' | 'team'>('team')
+  const [newOrgOperationMode, setNewOrgOperationMode] = useState<'solo' | 'team'>('solo')
+  const [applySoloPreset, setApplySoloPreset] = useState(true)
   const [creating, setCreating] = useState(false)
 
   async function loadData() {
@@ -261,7 +262,25 @@ export default function PlatformAdminPage() {
 
       if (insertError) throw insertError
 
-      setSuccess(`Created franchisee "${newOrgName}" under ${brand?.name ?? 'brand'} with brand template applied.`)
+      if (applySoloPreset && newOrgBrandId) {
+        const { getAuthHeaders } = await import('../lib/apiAuth')
+        const headers = await getAuthHeaders()
+        const presetRes = await fetch('/api/leads?action=apply-solo-preset', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ brandId: newOrgBrandId }),
+        })
+        if (!presetRes.ok) {
+          const body = (await presetRes.json().catch(() => ({}))) as { error?: string }
+          throw new Error(body.error ?? 'Org created but solo tradie preset failed')
+        }
+      }
+
+      setSuccess(
+        `Created franchisee "${newOrgName}" under ${brand?.name ?? 'brand'}${
+          applySoloPreset ? ' with solo-tradie wedge switches ON' : ' with brand template applied'
+        }.`
+      )
       setNewOrgName('')
       setNewOrgSlug('')
       await loadData()
@@ -457,7 +476,7 @@ export default function PlatformAdminPage() {
               <input
                 value={newOrgName}
                 onChange={(e) => setNewOrgName(e.target.value)}
-                placeholder="TV Magic South Brisbane"
+                placeholder="Acme Antennas Pty Ltd"
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
                 required
               />
@@ -467,7 +486,7 @@ export default function PlatformAdminPage() {
               <input
                 value={newOrgSlug}
                 onChange={(e) => setNewOrgSlug(e.target.value)}
-                placeholder="tv-magic-south-brisbane"
+                placeholder="acme-antennas"
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
                 required
               />
@@ -507,6 +526,21 @@ export default function PlatformAdminPage() {
                 <option value="pro">Pro</option>
                 <option value="enterprise">Enterprise</option>
               </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="flex items-start gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={applySoloPreset}
+                  onChange={(e) => setApplySoloPreset(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  Apply <strong>solo tradie wedge preset</strong> to this brand (inbound, ack SMS, quotes,
+                  booking confirm/reminder, invoice, review, price list, import, tips). Recommended for new
+                  customers.
+                </span>
+              </label>
             </div>
             <div className="sm:col-span-2">
               <button

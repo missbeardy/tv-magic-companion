@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "noEmit": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": false,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "strict": true,
+    "jsx": "react-jsx",
+    "types": ["node", "vite/client", "vitest/globals"]
+  },
+  "include": ["tests/**/*.ts", "api/**/*.ts", "shared/**/*.ts", "src/lib/**/*.ts", "src/types/**/*.ts"]
+}

@@ -3,6 +3,15 @@ import './_lib/loadLocalEnv.js'
 import { authenticateRequest } from './_lib/auth.js'
 import { getSupabaseAdmin } from './_lib/supabaseAdmin.js'
 import { applyLeadExtractionRetry } from './_lib/retryLeadExtraction.js'
+import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
+import {
+  guessColumnMap,
+  importCustomersForOrg,
+  parseCsv,
+  rowsFromMappedCsv,
+  type CustomerImportColumn,
+} from './_lib/customerImport.js'
+import { applySoloTradiePresetToBrand } from './_lib/soloTradiePreset.js'
 
 const MIN_REASON_LENGTH = 3
 
@@ -171,5 +180,76 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return handleRetryExtraction(req, res)
   }
 
+  if (action === 'customer-import') {
+    if (req.method !== 'POST') {
+      return res.status(405).json({ error: 'Method not allowed' })
+    }
+    return handleCustomerImport(req, res)
+  }
+
+  if (action === 'apply-solo-preset') {
+    if (req.method !== 'POST') {
+      return res.status(405).json({ error: 'Method not allowed' })
+    }
+    return handleApplySoloPreset(req, res)
+  }
+
   return res.status(404).json({ error: 'Unknown action' })
+}
+
+async function handleCustomerImport(req: VercelRequest, res: VercelResponse) {
+  const auth = await authenticateRequest(req)
+  if (!auth) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+  if (!isManagerRole(auth.role)) {
+    return res.status(403).json({ error: 'Only managers can import customers' })
+  }
+
+  const enabled = await isFeatureEnabledForOrg(auth.orgId, 'customer_import')
+  if (!enabled) {
+    return res.status(403).json({ error: 'Customer CSV import is disabled for this franchise' })
+  }
+
+  const body = req.body as {
+    csvText?: string
+    columnMap?: CustomerImportColumn[]
+    hasHeader?: boolean
+  }
+  if (!body.csvText?.trim()) {
+    return res.status(400).json({ error: 'Missing csvText' })
+  }
+
+  const table = parseCsv(body.csvText)
+  if (table.length === 0) {
+    return res.status(400).json({ error: 'CSV is empty' })
+  }
+
+  const hasHeader = body.hasHeader !== false
+  const columnMap =
+    Array.isArray(body.columnMap) && body.columnMap.length > 0
+      ? body.columnMap
+      : guessColumnMap(table[0] ?? [])
+
+  const rows = rowsFromMappedCsv(table, columnMap, hasHeader)
+  const report = await importCustomersForOrg(auth.orgId, rows)
+  return res.status(200).json({ success: true, report, columnMap, previewHeaders: table[0] ?? [] })
+}
+
+async function handleApplySoloPreset(req: VercelRequest, res: VercelResponse) {
+  const auth = await authenticateRequest(req)
+  if (!auth) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+  if (auth.role !== 'platform_admin') {
+    return res.status(403).json({ error: 'Platform admin only' })
+  }
+
+  const { brandId } = req.body as { brandId?: string }
+  if (!brandId?.trim()) {
+    return res.status(400).json({ error: 'Missing brandId' })
+  }
+
+  const result = await applySoloTradiePresetToBrand(brandId.trim(), auth.userId)
+  return res.status(200).json({ success: true, ...result })
 }

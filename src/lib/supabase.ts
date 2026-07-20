@@ -32,7 +32,7 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   },
   global: {
     headers: {
-      'x-application-name': 'tv-magic-companion',
+      'x-application-name': 'fieldbourne',
     },
   },
 })

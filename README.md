@@ -1,73 +1,46 @@
-# React + TypeScript + Vite
+# FieldBourne
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Multi-tenant field-service CRM PWA for Australian trade businesses.
+Repo folder is still `tv-magic-companion` (rename deferred — see ROADMAP T2.3).
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- React 19 + Vite + Tailwind + installable PWA
+- Supabase (Postgres + RLS) + Vercel serverless (`api/`)
+- Twilio SMS, Resend email, Stripe (SaaS billing + Connect invoice pay), OneSignal push
 
-## React Compiler
+## Docs map
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Doc | Purpose |
+|-----|---------|
+| [ROADMAP.md](ROADMAP.md) | **Governing** build order — read before coding |
+| [docs/PROJECT.md](docs/PROJECT.md) | Tech overview |
+| [docs/SALES_PIPELINE_WORKFLOW.md](docs/SALES_PIPELINE_WORKFLOW.md) | Pipeline behaviour (versioned) |
+| [docs/DEMO_RUNBOOK.md](docs/DEMO_RUNBOOK.md) | 60-second sales demo |
+| [docs/ONBOARDING_RUNBOOK.md](docs/ONBOARDING_RUNBOOK.md) | Founder-led new-org setup |
+| [DEV_SETUP.md](DEV_SETUP.md) | Local / preview env |
+| [supabase/RECONCILIATION.md](supabase/RECONCILIATION.md) | Prod schema reconcile |
+| [supabase/MIGRATION_ORDER.md](supabase/MIGRATION_ORDER.md) | Migration timestamp hazard |
 
-## Expanding the ESLint configuration
+## Develop
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm test
+npm run typecheck
+npm run build
 ```
+
+Preview: `vercel deploy --yes`. Prod: `vercel deploy --prod` from `main` only after owner approval.
+
+## Conventions
+
+1. Anything not on ROADMAP → confirm with owner and add it first.
+2. Feature switches gate **server** endpoints, not just UI.
+3. Bump `src/lib/changelog.ts` + `package.json` together.
+4. Pipeline behaviour changes bump `docs/SALES_PIPELINE_WORKFLOW.md`.
+5. Never add a new file under `api/` root (Vercel Hobby 12-function cap) — add `?action=` on an existing hub.

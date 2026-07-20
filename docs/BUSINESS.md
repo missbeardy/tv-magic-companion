@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Purpose** | The commercial side: model, cost base, pricing inputs, metrics, sales assets, risk register |
-| **Status** | Working notes for the founder — pricing itself is an open decision (roadmap **T2.9**) |
+| **Status** | Working notes — **T2.9 decided 20-07-2026:** front-door add-on; target solo **$69/mo AUD GST-inc** messaging-included (fair-use SMS); founding discounts OK for reviews |
 | **Related** | [MARKETING.md](MARKETING.md) · [ONBOARDING_RUNBOOK.md](ONBOARDING_RUNBOOK.md) · [ROADMAP.md](../ROADMAP.md) |
 
 ## Business model
@@ -29,7 +29,8 @@ Per-org variable costs are dominated by SMS. Approximate AUD figures as of knowl
 
 - **Anchors:** ServiceM8 $29 AUD GST-inc unlimited users (free tier exists); Tradify $48–62/user ex-GST. You cannot win a price war; don't enter one.
 - **Value frame:** one recovered job = $300–$1,500. "One saved job pays for a year" holds at $49–$99/mo; it weakens above that for solos.
-- **Suggested shape to evaluate (not decided):** single flat solo price in the $59–79/mo range GST-inc, *all messaging included* (SMS cost is yours — cap with a fair-use clause), 14–30 day trial or founding-customer discount for reviews. Team pricing per-org (not per-user — differentiates against Tradify) at a higher flat tier. Enterprise/white-label: custom.
+- **Decided (T2.9, 20-07-2026):** Position as a **front-door add-on** (not a ServiceM8 replacement). Solo target **$69/mo AUD GST-inc**, all messaging included with a fair-use SMS clause (Twilio cost sits with the platform). Team = higher **flat per-org** tier (not per-user). Founding customers may be discounted in exchange for reviews/testimonials. Xero live sync stays Tier 3.
+- **Suggested shape (superseded by decision above):** single flat solo price in the $59–79/mo range GST-inc…
 - Whatever is chosen: record it in ROADMAP.md T2.9 and align `FEATURE_SWITCH_MIN_TIERS` so the sellable wedge (inbound channels, ack, quote e-sign, one-tap invoice, chases, Pay Now) is actually in the tier you sell.
 
 ## Metrics that matter (most are already in the data model)

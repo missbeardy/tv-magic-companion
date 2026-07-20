@@ -1,6 +1,10 @@
 -- =============================================================================
+-- HISTORICAL — superseded by supabase/migrations/ (T2.7).
+-- Do NOT run this for new environments. See supabase/RECONCILIATION.md and
+-- supabase/MIGRATION_ORDER.md. Kept for audit of how prod was first stood up.
+-- =============================================================================
 -- PRODUCTION CUTOVER — TV Magic (abnheynzugpicikxwwmv)
--- Run ONCE in Production Supabase → SQL Editor (not dev).
+-- Originally: run ONCE in Production Supabase → SQL Editor (not dev).
 -- Idempotent where possible. Skip any statement that errors "already exists".
 -- =============================================================================
 

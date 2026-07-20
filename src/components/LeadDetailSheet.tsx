@@ -14,6 +14,7 @@ import BottomSheet from './BottomSheet'
 import CustomerHistorySheet from './CustomerHistorySheet'
 import SmsComposeModal from './SmsComposeModal'
 import LeadPhotos from './LeadPhotos'
+import { canAddLeadPhotos } from '../lib/leadPhotoStorage'
 import LeadAddressEditor from './LeadAddressEditor'
 import LeadContactEditor from './LeadContactEditor'
 import LeadContactNote from './LeadContactNote'
@@ -394,6 +395,13 @@ export default function LeadDetailSheet({
                 </div>
               )}
             </div>
+
+            {canAddLeadPhotos(lead.status) && (
+              <div className="mt-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-400 mb-1">Photos</p>
+                <LeadPhotos leadId={lead.id} canUpload={true} />
+              </div>
+            )}
           </div>
         )}
       </div>

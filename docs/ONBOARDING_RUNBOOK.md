@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Purpose** | Founder-led steps to stand a new paying business up to demo-quality in one sitting |
-| **Status** | **Draft** — roadmap **T2.6** formalises this (incl. a one-tap switch preset). Verify each step the first time through and correct this doc as you go |
+| **Status** | Current — T2.6 solo-tradie preset shipped; self-serve signup still Tier 3 |
 | **Time budget** | ~60–90 min including comms plumbing; ~15 min for the in-app part once practised |
 
 ## Before the session (owner, ~30 min)
@@ -19,10 +19,7 @@
 
 ### 1. Provision (Platform Admin, `/platform`)
 - Create the org under the right **brand** (or create a brand first if this is a new look), set **tier**, set **operation_mode = solo** (or team).
-- **Feature switches** (Platform Admin → Feature switches; per-brand + org overrides — most default OFF). Solo-tradie wedge preset, until T2.6 automates it:
-  - ON: `inbound_sms`, `inbound_email`, `inbound_calls`, `lead_ack_sms`, `lead_ack_email`, `missed_call_hookback_sms`, `manager_new_lead_alerts`, `booking_confirm`, `booking_reminder_sms`, `quote_esign`, `one_tap_invoice`, `invoice_chase`, `quote_chase`, `review_requests`, `price_list`, `accounting_export`, `customer_ontheway_sms`
-  - ON if using: `inbound_messenger` (needs the Botpress/Make hookup), `invoice_card_payments` (Stripe Connect below)
-  - Leave OFF for solos: `inbound_auto_assign`, `smart_assign_badge`, `tech_location`, `internal_messaging`, `customer_linking`/`customer_profiles` (enable later if wanted)
+- Tick **Apply solo tradie wedge preset** on create (turns on inbound, ack, quotes, booking, invoice, review, price list, import, tips on the brand). Or apply later via Platform feature switches.
 - **Brand templates** (Platform Admin → template editor): walk every SMS/email template with them — ack copy + callback SLA, booking confirm, day-before reminder, chase ladders, review request. This copy *is* their customer experience; don't ship defaults unread.
 
 ### 2. Business settings (Franchise Settings, as the customer)
@@ -45,9 +42,10 @@ Run the pipeline once with their real number before you leave:
 4. Complete the job → invoice email arrives (Tax Invoice correctness: ABN/GST) → Pay Now if Connect was set up → review-request SMS.
 5. Check Platform Admin → Workflow Runs shows the runs green.
 
-### 5. Teach the two bespoke mechanics (until T2.4 ships in-app tips)
-- **Pool timer / countdown** (team mode) and **contact rounds → auto-lost**: two minutes with the actual screen. These fail without explanation — the roadmap says so, believe it.
+### 5. Teach the two bespoke mechanics
+- Team mode: in-app tips (T2.4) cover pool timer, contact rounds, and next-action CTA — still walk them once live.
 - Show the **offline story honestly**: what queues (calls, SMS, photos, completions, notes), what needs signal (sending quotes/invoices).
+- Optional: Franchise Settings → **Customer CSV import** if they have an existing list.
 
 ## After the session
 - [ ] Add them to your support channel expectation (in-app support messaging reaches you).

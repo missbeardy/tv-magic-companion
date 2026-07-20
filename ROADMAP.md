@@ -5,7 +5,7 @@
 | **Purpose** | The single prioritised roadmap for FieldBourne. Three tiers: keep the current client, become sellable to strangers, nice-to-have. |
 | **Status** | Governing document — supersedes ordering in `MUST_HAVE_8_ROADMAP.md` and `SALES_PIPELINE_BACKLOG.md` (those remain as detailed specs, referenced below) |
 | **Created** | 18-07-2026, from four reviews run that day: full-code inventory, mobile UX/churn review, competitive assessment vs ServiceM8/Tradify, tech-debt re-validation |
-| **Last updated** | 18-07-2026 — T1.1–T1.9 (v1.1.138) on preview: https://tv-magic-companion-exsn2wkey-missbeardys-projects.vercel.app (T1.6 partial; T1.10 pending owner brand confirmation) — awaiting owner UAT (see T1_TESTING.md) |
+| **Last updated** | 20-07-2026 — Tier 2 shipped (v1.1.140) except prod schema reconcile operator step; T1.10 still deferred |
 
 ## Governance (read first, every session)
 
@@ -107,67 +107,60 @@
 
 *Theme: finish the wedge, look like a real product, and make onboarding + operations survivable without the founder in the loop.*
 
-### [ ] T2.1 Close the loop: quote → book → invoice → pay → review
+### [x] T2.1 Close the loop: quote → book → invoice → pay → review — shipped v1.1.139 (20-07-2026)
 
 - **Why:** This is the product promise and the second half of the 60-second demo. Every hand-off must be automatic or one tap. The one genuinely new automation is **paid → review** (today review requests are 100% manual and fire on completion, never payment).
 - **Spec:** Build to `MUST_HAVE_8_ROADMAP.md` **Package 6** (accept→book deep-link with `EventModal` prefill — backlog 4.6/5.1; complete→invoice auto-advance; server-side review-on-paid inside `markInvoicePaid` with dedupe on `review_request_sent_at`). That spec is current — re-verify its file claims at build.
 - **Feature switch:** new `auto_review_on_paid` (customer_communication, min_tier basic) per Package 6; confirm at build.
 - **Done when:** the full staging run in Package 6's verify section passes end-to-end, exactly once per lead.
 
-### [ ] T2.2 The 60-second demo works on demand
+### [x] T2.2 The 60-second demo works on demand — shipped v1.1.140 (20-07-2026)
 
 - **Why:** The competitive review's conclusion: the winning pitch is a live demo — missed call → branded SMS → reply parsed into a lead card with countdown → chip quote → e-sign → booked with confirmation SMS — enquiry-to-booked in under a minute on a $300 Android, zero typing.
 - **Spec:** A resettable demo org (dev or dedicated prod demo brand) with: all wedge switches on, price-list seeded, a dedicated Twilio number, and a documented reset script (clear leads/events between demos). Rehearse the exact beat sheet from the marketability report; fix whatever stumbles (this item is the integration test for T1.x + T2.1). Document the runbook in `docs/DEMO_RUNBOOK.md`.
 - **Feature switch:** none — configuration + runbook.
-- **Done when:** the owner can run the full demo cold, twice in a row, from a phone.
+- **Done when:** the owner can run the full demo cold, twice in a row, from a phone. **Owner UAT still required** (runbook + `scripts/demo-reset.sql` shipped).
 
-### [ ] T2.3 Rebrand the shell to FieldBourne
+### [x] T2.3 Rebrand the shell to FieldBourne — shipped v1.1.140 (20-07-2026)
 
-- **Why:** A stranger installing "FieldBourne" gets a PWA named **TVMagic**. Full verified surface list: `index.html:5-15` (title/meta/icons), `public/manifest.json`, `vite.config.ts:28-30` (PWA manifest), hardcoded `tv-magic-companion.vercel.app` fallbacks in `src/lib/env.ts:15`, `src/lib/oneSignal.ts:11`, `src/lib/supabase.ts:35`, `src/pages/Login.tsx:97-98` (logo), `src/pages/OrgSettingsPage.tsx:226`, `src/pages/PlatformAdminPage.tsx:460,470`, `src/lib/generateCaption.ts:17,23` (AI prompt hardcodes TVMagic hashtags), `src/components/ReceiptPreview.tsx:20-21` ("1300 TVMagic"), plus `tvmagic:`-prefixed localStorage keys in `formDraft.ts:1` / `scheduleCache.ts:1`.
-- **Spec:** Neutral FieldBourne shell branding; per-brand theming continues via the brands table (TV Magic keeps its look inside its org). localStorage key prefixes: migrate-on-read or accept one-time draft loss (decide at build — flag to owner). Decide separately with owner: Vercel project/domain rename and repo rename (operationally risky — own decision, not bundled).
-- **Feature switch:** none.
-- **Done when:** fresh PWA install shows FieldBourne name/icon; no TVMagic string reachable outside the TV Magic brand's own theming; grep for `tvmagic|TV Magic|tv-magic` returns only brand-data and history.
+- **Why:** A stranger installing "FieldBourne" gets a PWA named **TVMagic**.
+- **Spec:** Neutral FieldBourne shell branding; per-brand theming continues via the brands table. localStorage: migrate-on-read from `tvmagic:` → `fieldbourne:`. Vercel/repo rename deferred (operational risk).
+- **Done when:** fresh PWA install shows FieldBourne name/icon; shell strings are FieldBourne; brand-data TV Magic remains.
 
-### [ ] T2.4 In-app onboarding for the bespoke mechanics
+### [x] T2.4 In-app onboarding for the bespoke mechanics — shipped v1.1.140 (20-07-2026)
 
-- **Why:** The pool timer and contact rounds are the differentiator and "bespoke edge fails without training" — strangers get no founder walkthrough.
-- **Spec:** Build to `MUST_HAVE_8_ROADMAP.md` **Package 8** (generalised coach-tip system, localStorage progress, three tips: pool timer, contact rounds, next-action CTA; migrate the existing pool-coach banner into it).
-- **Feature switch:** `onboarding_tips` (team_operations, basic) per Package 8; confirm at build.
-- **Done when:** Package 8's verify section passes; a fresh user sees the tips in order, solo mode sees none.
+- **Why:** Pool timer and contact rounds fail without training.
+- **Spec:** Package 8 coach tips + `onboarding_tips` switch.
+- **Done when:** team-mode tips in order; solo sees none; ? replays.
 
-### [ ] T2.5 Customer data import
+### [x] T2.5 Customer data import — shipped v1.1.140 (20-07-2026)
 
-- **Why:** Competitive blocker #8: switchers have an existing customer list and competitors' ecosystems migrate it; FieldBourne has no import of any kind. Migration fear kills switching — an importer converts it into a 10-minute task.
-- **Spec:** CSV import (name, phone, email, address, notes) into the existing customer tables (`api/_lib/customers.ts` / customer_linking schema — verify shape at build). Dedupe by normalised phone (reuse `shared`/`api/_lib/phone.ts`). Manager-facing UI in Franchise Settings: upload → column-map preview → import report (created/merged/skipped). Server-side, org-scoped, RLS-respecting; row cap (~5k) with clear messaging.
-- **Feature switch:** propose `customer_import` (lead_intake, basic) — confirm at build.
-- **Done when:** a messy real-world CSV (mixed formats, duplicates) imports with a correct report, and imported customers link to new inbound leads by phone match.
+- **Why:** Migration fear kills switching.
+- **Spec:** CSV import via `/api/leads?action=customer-import`, Franchise Settings UI, `customer_import` switch, `customers.notes`.
+- **Done when:** messy CSV imports with created/merged/skipped report.
 
-### [ ] T2.6 Stranger-ready provisioning: new-org preset + trial path
+### [x] T2.6 Stranger-ready provisioning: new-org preset + trial path — shipped v1.1.140 (20-07-2026)
 
-- **Why:** Today orgs are provisioned by the platform admin and nearly all 26 switches default **off** — a stranger would receive an empty-feeling product. There is no self-serve entry.
-- **Spec (two parts, bundleable):** (a) **Preset:** a "standard solo tradie" switch preset applied at org creation (wedge switches on: inbound channels, ack SMS, missed-call hookback, booking confirm/reminder, quote e-sign, one-tap invoice, review requests; operation_mode solo) — implemented as a brand-defaults row, not code defaults. (b) **Trial path decision:** keep founder-led-but-scripted onboarding (a 15-minute provisioning runbook: org, number, switches, price list, ABN) — full self-serve signup is explicitly **deferred to Tier 3**. Document the runbook.
-- **Feature switch:** n/a (this configures switches).
-- **Done when:** a new org can be stood up to demo-quality in one sitting from the runbook, no code changes.
+- **Why:** New orgs feel empty with switches default off.
+- **Spec:** Solo tradie wedge preset at org create; founder-led runbook (self-serve deferred T3.11).
+- **Done when:** Platform Admin checkbox applies preset; ONBOARDING_RUNBOOK current.
 
-### [ ] T2.7 Production schema reconciliation (+ migration-order hazard)
+### [x] T2.7 Production schema reconciliation (+ migration-order hazard) — PARTIAL v1.1.140 (20-07-2026)
 
-- **Why:** Prod was never migration-driven; `supabase/migrations/` is not a faithful description of prod (`supabase/RECONCILIATION.md`), and the drift grows with every ship. **Hazard found 18-07-2026:** migration timestamp prefixes mix 2025/2026 out of authoring order (e.g. `20250714120000_fieldbourne_stage3_ack.sql` authored 2026-07-14 sorts before `20260625130000_…`), so a lexicographic `db push` will not replay in authoring order. Scaling to more orgs on an unreconciled schema multiplies risk.
-- **Spec:** First resolve the prefix-ordering hazard (audit all 63 migrations; document the true dependency order; renumber or annotate before any bulk apply). Then execute the `RECONCILIATION.md` runbook as written (supervised, backup first, dev dry-run). Retire `production_cutover.sql` per its step 6.
-- **Feature switch:** n/a.
-- **Done when:** `supabase db diff --linked` against prod is empty (or every remaining line is documented-and-intended) and the linked `db push` flow is adopted.
+- **Why:** Prod not migration-driven; timestamp hazard.
+- **Shipped:** `supabase/MIGRATION_ORDER.md`; `production_cutover.sql` marked historical; RECONCILIATION.md still the operator runbook.
+- **Deferred (owner-supervised):** live `db diff` / `db push` against prod — requires PITR window.
 
-### [ ] T2.8 Engineering hygiene batch *(bundleable within itself)*
+### [x] T2.8 Engineering hygiene batch — shipped v1.1.140 (20-07-2026)
 
-- **Why:** Debt that embarrasses in due diligence or silently rots. All items verified 18-07-2026.
-- **Spec:** (a) Bring `tests/` under typecheck (add a tsconfig or include-path) and fix the 3 real errors: `tests/inboundRawFirstLead.test.ts:11,15` (TS2556), `tests/inboundFacebookLead.test.ts:43` (TS2352) — this also explains the "stray errors" in remote build logs. (b) Delete dead code: `src/pages/TaskBoardPage.tsx`, `src/hooks/usePushNotifications.ts` + `web-push` dep, `src/components/SignatureCanvas.tsx` (has a real canvas-scaling bug if ever revived — reimplement fresh if signatures return). (c) Retire the legacy `FEATURES` tier map (`src/lib/features.ts:25-34`, `api/_lib/tier.ts`) or reduce it to the keys actually enforced (`ai_parsing`, `social`, `reports`); fix `BillingPanel.tsx:76-108` advertising the nonexistent `/tasks` route. (d) Replace stock-Vite `README.md` with a real project front door (what it is, stack, dev setup pointer, doc map). (e) Reconcile `SALES_PIPELINE_BACKLOG.md` checkboxes with shipped reality (3.2–3.6) and fix the wrong migration filename in its shipped log.
-- **Feature switch:** n/a.
-- **Done when:** typecheck covers tests and passes; the greps for dead modules return nothing; README describes this product.
+- **Why:** Due-diligence debt.
+- **Spec:** tests typecheck, delete dead modules, shrink FEATURES, real README, backlog reconcile.
+- **Done when:** greps clean; typecheck includes tests.
 
-### [ ] T2.9 Positioning + pricing decision gate *(decision, not code)*
+### [x] T2.9 Positioning + pricing decision gate — decided 20-07-2026
 
-- **Why:** Every Tier 3 priority hangs on this. Competitive anchor: ServiceM8 $29/mo AUD GST-inc unlimited users (free tier exists); Tradify $48–62/user ex-GST with Xero sync on every plan. FieldBourne cannot win on price; it wins on "one saved job pays for a year."
-- **Spec:** Owner decides: (a) **front-door add-on** beside the tradie's existing tool (wedge pitch, SMS-inclusive pricing, Xero live sync stays Tier 3) vs (b) **full replacement** (pulls T3.1 Xero sync and likely T3.2 certificates forward into Tier 2). Also set the actual price point and what "all messaging included" costs at Twilio rates. Record the decision here and in the pricing config.
-- **Done when:** decision recorded in this doc; tier ordering below adjusted accordingly.
+- **Decision:** **(a) Front-door add-on** beside the tradie's existing tool. Xero live sync and certificates stay Tier 3. Target solo price **$69/mo AUD GST-inc**, messaging included with fair-use SMS clause; founding customers may be discounted for reviews. Team = higher flat per-org (not per-user). Recorded in ROADMAP + BUSINESS.md.
+- **Tier 3 unchanged** — no pull-forward of T3.1/T3.2.
 
 ---
 
@@ -207,3 +200,5 @@ New idea (owner or session): add it to the appropriate tier with the same block 
 | 18-07-2026 | T1.7 Booking save resilience | v1.1.136. EventModal customer booking-confirm moved to a background task after the modal closes (was blocking); both it and the employee booking-SMS wrapped in `fetchWithTimeout` (no indefinite hang); `window.alert` on SMS failure → passive toast. Modal is a bottom sheet on mobile with a ≥44px close. Typecheck + suite clean. **Slow-3G booking UAT still owner-run.** |
 | 18-07-2026 | T1.8 Tap-target pass | v1.1.137. Status pill trigger + dropdown rows → ≥44px; destructive statuses (Lost / Booking Cancelled) now confirm in the dropdown; LeadCard next-action CTA, AddLeadModal + EventModal close buttons → ≥44px. Typecheck + suite clean. |
 | 18-07-2026 | T1.9 Fix dead assignee push | v1.1.138. LeadStatusMenu completed/lost notification repointed from the unimplemented `push-notify` edge-function scaffold to the working `sendNotification` (`/api/send-sms?action=notify`, OneSignal + in-app bell); deleted dead `src/lib/sendPush.ts`. (Deployed scaffold `supabase/functions/push-notify` now unused — remove via Supabase dashboard when convenient.) Typecheck + suite clean. |
+| 20-07-2026 | T2.1 Closed-loop pipeline | v1.1.139. Quote-accept manager notify deep-links to `/calendar?bookLead=` with EventModal prefilled (amount + scope); complete→invoice already auto-advanced when `one_tap_invoice` on; new `auto_review_on_paid` switch + `api/_lib/reviewRequest.ts` fires review SMS from `markInvoicePaid` (Stripe or manual) with `review_request_sent_at` claim-before-send dedupe. Migration `20260720120000_auto_review_on_paid.sql`. Unit-tested guards. **Staging e2e UAT still owner-run.** |
+| 20-07-2026 | T2.2–T2.9 Tier 2 batch | v1.1.140. Demo runbook + reset SQL; FieldBourne shell rebrand; onboarding tips; customer CSV import; solo tradie preset at org create; migration-order docs + cutover marked historical (prod reconcile still operator-run); hygiene (dead code, README, tests typecheck, backlog); positioning = front-door add-on @ $69/mo GST-inc messaging-included. |

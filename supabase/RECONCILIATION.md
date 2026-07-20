@@ -12,6 +12,7 @@ operator present.
 - `SUPABASE_ACCESS_TOKEN` for an account with access to the prod project
 - A maintenance / low-traffic window (index creation briefly locks writes)
 - A fresh prod backup / PITR checkpoint before applying anything
+- Read [MIGRATION_ORDER.md](MIGRATION_ORDER.md) first — lexicographic `db push` is **not** safe until the timestamp hazard is understood
 
 ## Steps
 

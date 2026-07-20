@@ -4,7 +4,7 @@
 |-------|-------|
 | **Product** | FieldBourne — multi-tenant field service CRM PWA for Australian trade businesses |
 | **Status** | MVP in production with one paying client (TV Magic South Brisbane); polish phase before marketing |
-| **Version** | v1.1.138 (18-07-2026) — T1.1–T1.9 on preview awaiting UAT |
+| **Version** | v1.1.140 (20-07-2026) — Tier 2 shipped (prod schema reconcile still operator-run); T1.10 deferred |
 | **Repo** | `tv-magic-companion` (rename pending — roadmap T2.3) |
 | **Related docs** | [ROADMAP.md](../ROADMAP.md) (governing) · [T1_TESTING.md](../T1_TESTING.md) · [MUST_HAVE_8_ROADMAP.md](MUST_HAVE_8_ROADMAP.md) · [SALES_PIPELINE_WORKFLOW.md](SALES_PIPELINE_WORKFLOW.md) · [SALES_PIPELINE_BACKLOG.md](../SALES_PIPELINE_BACKLOG.md) · [MARKETING.md](MARKETING.md) · [BUSINESS.md](BUSINESS.md) · [ONBOARDING_RUNBOOK.md](ONBOARDING_RUNBOOK.md) · Branding: owner's separate guide |
 
@@ -57,8 +57,8 @@
 
 Governing doc: [ROADMAP.md](../ROADMAP.md). Three tiers:
 
-- **Tier 1 — client retention (field reliability):** T1.1–T1.9 **built, on preview, awaiting owner UAT** (T1.6 partial: org-configurable checklist + SMS-invoice-without-email deferred). T1.10 (enable Stage-3 ack switches in prod) pending owner brand confirmation.
-- **Tier 2 — stranger-ready:** closed-loop pipeline (Package 6), 60-second demo environment, FieldBourne shell rebrand, onboarding tips (Package 8), customer CSV import, new-org switch preset + provisioning runbook, prod schema reconciliation, engineering hygiene batch, positioning/pricing decision gate.
+- **Tier 1 — client retention (field reliability):** T1.1–T1.9 **built, on preview, awaiting owner UAT** (T1.6 partial: org-configurable checklist + SMS-invoice-without-email deferred). T1.10 (enable Stage-3 ack switches in prod) **deferred** pending manager approval.
+- **Tier 2 — stranger-ready:** **T2.1 closed-loop shipped** (Package 6). Remaining: 60-second demo environment, FieldBourne shell rebrand, onboarding tips (Package 8), customer CSV import, new-org switch preset + provisioning runbook, prod schema reconciliation, engineering hygiene batch, positioning/pricing decision gate.
 - **Tier 3 — positioning-dependent:** Xero live sync, compliance certificates, recurring jobs, timesheets/costing, native Meta bot, social revive-or-remove, POs, live tracking, MYOB, cross-device drafts, self-serve signup, card surcharge.
 
 ## Known debt (validated 18-07-2026)

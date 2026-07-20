@@ -25,9 +25,9 @@ export default defineConfig({
         globIgnores: ['OneSignalSDKWorker.js'],
       },
       manifest: {
-        name: 'TVMagic Companion',
-        short_name: 'TVMagic',
-        description: 'Field service CRM for TVMagic technicians',
+        name: 'FieldBourne',
+        short_name: 'FieldBourne',
+        description: 'Field service CRM for Australian trade businesses',
         start_url: '/',
         display: 'standalone',
         background_color: '#ffffff',
@@ -35,13 +35,13 @@ export default defineConfig({
         orientation: 'portrait',
         icons: [
           {
-            src: '/tvmagic-logo.png',
+            src: '/fieldbourne-logo.png',
             sizes: '192x192',
             type: 'image/png',
             purpose: 'any',
           },
           {
-            src: '/tvmagic-logo.png',
+            src: '/fieldbourne-logo.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',

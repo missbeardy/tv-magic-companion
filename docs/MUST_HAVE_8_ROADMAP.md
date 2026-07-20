@@ -4,7 +4,7 @@
 |-------|-------|
 | **Purpose** | Table-stakes feature roadmap to make this product sellable to small Aussie trade teams (2–10 people) |
 | **Execution model** | One package per session, strictly in order, by Claude Sonnet |
-| **Last updated** | 16-07-2026 — Package 5 shipped |
+| **Last updated** | 20-07-2026 — Packages 1–8 complete (Package 7 via Tier 1) |
 
 ## Owner intent (verbatim items)
 
@@ -48,9 +48,9 @@
 - [x] Package 3 — Card / Pay Now on invoice (Item 1, L)
 - [x] Package 4 — Xero-compatible CSV export + BSB story (Item 2, S/M)
 - [x] Package 5 — Booking confirmation + day-before reminder (Item 5, S/M)
-- [ ] Package 6 — Closed-loop quote→book→invoice→pay→review (Item 3, M)
-- [ ] Package 7 — True mobile field day / offline extension (Item 4, M)
-- [ ] Package 8 — In-app onboarding: pool timer + contact rounds (Item 8, S)
+- [x] Package 6 — Closed-loop quote→book→invoice→pay→review (Item 3, M)
+- [x] Package 7 — True mobile field day / offline extension (Item 4, M) — core landed as T1.1–T1.8
+- [x] Package 8 — In-app onboarding: pool timer + contact rounds (Item 8, S)
 
 ---
 

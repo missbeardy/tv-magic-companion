@@ -1,6 +1,7 @@
 const DB_NAME = 'tvm-offline-queue'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const STORE = 'items'
+const STORE_CACHE = 'cache'
 export const MAX_OFFLINE_PHOTOS = 10
 
 export type OfflineContactKind = 'call' | 'sms'
@@ -31,7 +32,32 @@ export interface OfflineLeadPhotoItem {
   blob: Blob
 }
 
-export type OfflineQueueItem = OfflineContactAttemptItem | OfflineLeadPhotoItem
+export interface OfflineCompletionItem {
+  id: string
+  type: 'completion'
+  createdAt: string
+  leadId: string
+  orgId: string
+  actorId: string
+  fromStatus: string
+  leadName: string
+}
+
+export interface OfflineLeadNoteItem {
+  id: string
+  type: 'lead_note'
+  createdAt: string
+  leadId: string
+  orgId: string
+  actorId: string
+  note: string
+}
+
+export type OfflineQueueItem =
+  | OfflineContactAttemptItem
+  | OfflineLeadPhotoItem
+  | OfflineCompletionItem
+  | OfflineLeadNoteItem
 
 type Listener = () => void
 const listeners = new Set<Listener>()
@@ -58,6 +84,9 @@ function openDb(): Promise<IDBDatabase> {
       const db = req.result
       if (!db.objectStoreNames.contains(STORE)) {
         db.createObjectStore(STORE, { keyPath: 'id' })
+      }
+      if (!db.objectStoreNames.contains(STORE_CACHE)) {
+        db.createObjectStore(STORE_CACHE, { keyPath: 'key' })
       }
     }
     req.onsuccess = () => resolve(req.result)
@@ -125,6 +154,38 @@ export async function enqueueLeadPhoto(
   return row
 }
 
+export async function enqueueCompletion(
+  item: Omit<OfflineCompletionItem, 'id' | 'type' | 'createdAt'>
+): Promise<OfflineCompletionItem> {
+  const row: OfflineCompletionItem = {
+    ...item,
+    id: crypto.randomUUID(),
+    type: 'completion',
+    createdAt: new Date().toISOString(),
+  }
+  const db = await openDb()
+  const tx = db.transaction(STORE, 'readwrite')
+  await reqToPromise(tx.objectStore(STORE).put(row))
+  notify()
+  return row
+}
+
+export async function enqueueLeadNote(
+  item: Omit<OfflineLeadNoteItem, 'id' | 'type' | 'createdAt'>
+): Promise<OfflineLeadNoteItem> {
+  const row: OfflineLeadNoteItem = {
+    ...item,
+    id: crypto.randomUUID(),
+    type: 'lead_note',
+    createdAt: new Date().toISOString(),
+  }
+  const db = await openDb()
+  const tx = db.transaction(STORE, 'readwrite')
+  await reqToPromise(tx.objectStore(STORE).put(row))
+  notify()
+  return row
+}
+
 export async function removeOfflineQueueItem(id: string): Promise<void> {
   const db = await openDb()
   const tx = db.transaction(STORE, 'readwrite')
@@ -135,4 +196,41 @@ export async function removeOfflineQueueItem(id: string): Promise<void> {
 export async function listPendingPhotosForLead(leadId: string): Promise<OfflineLeadPhotoItem[]> {
   const items = await listOfflineQueue()
   return items.filter((i): i is OfflineLeadPhotoItem => i.type === 'lead_photo' && i.leadId === leadId)
+}
+
+// --- Generic read-through cache (separate store, shares the queue DB) ---
+// Used to keep the last successful leads/schedule fetch available when a later
+// fetch fails offline. Best-effort: all reads/writes swallow errors.
+
+export async function cachePut(key: string, value: unknown): Promise<void> {
+  try {
+    const db = await openDb()
+    const tx = db.transaction(STORE_CACHE, 'readwrite')
+    await reqToPromise(tx.objectStore(STORE_CACHE).put({ key, value }))
+  } catch {
+    // caching is best-effort — never let it break the caller
+  }
+}
+
+export async function cacheGet<T = unknown>(key: string): Promise<T | null> {
+  try {
+    const db = await openDb()
+    const tx = db.transaction(STORE_CACHE, 'readonly')
+    const row = (await reqToPromise(tx.objectStore(STORE_CACHE).get(key))) as
+      | { key: string; value: T }
+      | undefined
+    return row?.value ?? null
+  } catch {
+    return null
+  }
+}
+
+export async function cacheDelete(key: string): Promise<void> {
+  try {
+    const db = await openDb()
+    const tx = db.transaction(STORE_CACHE, 'readwrite')
+    await reqToPromise(tx.objectStore(STORE_CACHE).delete(key))
+  } catch {
+    // best-effort
+  }
 }

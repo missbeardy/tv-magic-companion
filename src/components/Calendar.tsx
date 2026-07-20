@@ -186,12 +186,23 @@ export default function Calendar() {
   const { profile } = useAuth()
   const theme = useTheme()
   const { fetchOrgProfiles } = useOrgProfiles()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [events, setEvents] = useState<Event[]>([])
   const [view, setView] = useState<ViewMode>('week')
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const [showModal, setShowModal] = useState(false)
+  const [prefillLead, setPrefillLead] = useState<{
+    id: string
+    name: string
+    service_type: string
+    address?: string
+    phone?: string
+    email?: string
+    details?: string
+    assigned_to?: string
+    job_quote?: number | string | null
+  } | null>(null)
   const [showBlackoutModal, setShowBlackoutModal] = useState(false)
   const [defaultDate, setDefaultDate] = useState('')
   // Set only when a booking is opened from an availability slot, so the modal
@@ -238,6 +249,70 @@ export default function Calendar() {
       setFilterEmployee(employeeParam)
     }
   }, [searchParams, profile?.role])
+
+  // Package 6 / T2.1: quote-accept notify deep-links here with ?bookLead=<id>
+  useEffect(() => {
+    const bookLeadId = searchParams.get('bookLead')
+    if (!bookLeadId || !profile?.org_id) return
+
+    let cancelled = false
+    ;(async () => {
+      const { data: lead, error } = await supabase
+        .from('leads')
+        .select('id, name, phone, email, address, details, service_type, assigned_to')
+        .eq('id', bookLeadId)
+        .eq('org_id', profile.org_id)
+        .maybeSingle()
+
+      if (cancelled) return
+      if (error || !lead) {
+        console.warn('bookLead deep-link: lead not found', error?.message)
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev)
+          next.delete('bookLead')
+          return next
+        }, { replace: true })
+        return
+      }
+
+      const { data: quote } = await supabase
+        .from('quotes')
+        .select('total_amount, scope, status')
+        .eq('lead_id', lead.id)
+        .eq('status', 'accepted')
+        .order('accepted_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (cancelled) return
+
+      const scope = typeof quote?.scope === 'string' ? quote.scope.trim() : ''
+      setPrefillLead({
+        id: lead.id,
+        name: lead.name,
+        phone: lead.phone ?? undefined,
+        email: lead.email ?? undefined,
+        address: lead.address ?? undefined,
+        details: scope || lead.details || undefined,
+        service_type: lead.service_type,
+        assigned_to: lead.assigned_to ?? undefined,
+        job_quote: quote?.total_amount ?? undefined,
+      })
+      setSelectedEvent(null)
+      setDefaultDate('')
+      setSlotDurationMinutes(undefined)
+      setShowModal(true)
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete('bookLead')
+        return next
+      }, { replace: true })
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [searchParams, profile?.org_id, setSearchParams])
 
   useEffect(() => {
     if (!profile?.id || showModal) return
@@ -414,11 +489,13 @@ export default function Calendar() {
     const iso = toLocalDateTimeInput(target)
     setDefaultDate(iso)
     setSlotDurationMinutes(durationMinutes)
+    setPrefillLead(null)
     setSelectedEvent(null)
     setShowModal(true)
   }
 
   function openEditEvent(event: Event) {
+    setPrefillLead(null)
     setSelectedEvent(event)
     setDefaultDate('')
     setShowModal(true)
@@ -596,12 +673,20 @@ export default function Calendar() {
       {showModal && (
         <EventModal
           existingEvent={selectedEvent ?? undefined}
+          prefillLead={prefillLead}
           defaultDate={defaultDate}
           defaultDurationMinutes={slotDurationMinutes}
           employees={employees}
           defaultAssigneeId={filterEmployee !== 'all' ? filterEmployee : profile?.id}
-          onClose={() => setShowModal(false)}
-          onSaved={fetchEvents}
+          onClose={() => {
+            setShowModal(false)
+            setPrefillLead(null)
+            setSelectedEvent(null)
+          }}
+          onSaved={() => {
+            setPrefillLead(null)
+            fetchEvents()
+          }}
         />
       )}
 

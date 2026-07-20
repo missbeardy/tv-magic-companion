@@ -4,10 +4,13 @@ import { buildContactAttemptUpdate } from './contactFollowUp'
 import { buildPoolPickupUpdate, shouldPoolPickup } from './leadPoolPickup'
 import { logLeadEvent } from './leadEvents'
 import { LEAD_PHOTOS_BUCKET } from './leadPhotoStorage'
+import { shouldApplyQueuedCompletion } from './offlineWrites'
 import {
   listOfflineQueue,
   removeOfflineQueueItem,
   type OfflineContactAttemptItem,
+  type OfflineCompletionItem,
+  type OfflineLeadNoteItem,
   type OfflineLeadPhotoItem,
   type OfflineQueueItem,
 } from './offlineQueue'
@@ -97,11 +100,73 @@ async function flushLeadPhoto(item: OfflineLeadPhotoItem): Promise<void> {
   if (insertError) throw new Error(insertError.message)
 }
 
+async function flushCompletion(item: OfflineCompletionItem): Promise<void> {
+  // Conflict guard: re-read the lead's current status before replaying, so a
+  // completion queued offline can't overwrite a lead that was already completed
+  // or lost from another device in the meantime.
+  const { data, error } = await supabase
+    .from('leads')
+    .select('status')
+    .eq('id', item.leadId)
+    .maybeSingle()
+
+  if (error) throw new Error(error.message)
+
+  const currentStatus = (data?.status as string | undefined) ?? ''
+  if (!shouldApplyQueuedCompletion(currentStatus)) {
+    console.warn(
+      `Skipping queued completion for lead ${item.leadId}: already "${currentStatus}"`
+    )
+    return
+  }
+
+  const { error: updateError } = await supabase
+    .from('leads')
+    .update(asLeadUpdate({ status: 'completed' }))
+    .eq('id', item.leadId)
+
+  if (updateError) throw new Error(updateError.message)
+
+  await logLeadEvent({
+    leadId: item.leadId,
+    orgId: item.orgId,
+    eventType: 'completed',
+    note: 'Job marked complete via checklist (synced offline)',
+    actorId: item.actorId,
+    payload: {
+      from_status: item.fromStatus,
+      to_status: 'completed',
+      source: 'offline_queue',
+    },
+  })
+}
+
+async function flushLeadNote(item: OfflineLeadNoteItem): Promise<void> {
+  const { error } = await logLeadEvent({
+    leadId: item.leadId,
+    orgId: item.orgId,
+    eventType: 'contact_note',
+    note: item.note,
+    actorId: item.actorId,
+    payload: { source: 'offline_queue', original_created_at: item.createdAt },
+  })
+  if (error) throw new Error(error.message)
+}
+
 async function flushOne(item: OfflineQueueItem): Promise<void> {
-  if (item.type === 'contact_attempt') {
-    await flushContactAttempt(item)
-  } else {
-    await flushLeadPhoto(item)
+  switch (item.type) {
+    case 'contact_attempt':
+      await flushContactAttempt(item)
+      break
+    case 'lead_photo':
+      await flushLeadPhoto(item)
+      break
+    case 'completion':
+      await flushCompletion(item)
+      break
+    case 'lead_note':
+      await flushLeadNote(item)
+      break
   }
   await removeOfflineQueueItem(item.id)
 }

@@ -14,13 +14,13 @@ export async function generateCaption(
       messages: [
         {
           role: 'user',
-          content: `You are a professional social media copywriter for a premium TV aerial, satellite, and smart home installation business called TVMagic.
+          content: `You are a professional social media copywriter for a local Australian trade business.
 
 Write a social media caption based on the technician's notes below. Rules:
 - 2-3 sentences maximum
 - Warm, professional, and slightly proud tone
 - Inject exactly 2 relevant emojis naturally into the sentences (not at the end)
-- End with exactly these 4 hashtags on a new line: #TVMagic #TVAerial #SmartHome #LocalTech
+- End with exactly 4 relevant hashtags on a new line (trade + local + service, no brand-specific tags unless the job notes name the brand)
 
 Job context: ${jobContext}
 Technician's notes: ${userInput}

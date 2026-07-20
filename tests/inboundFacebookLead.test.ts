@@ -40,7 +40,7 @@ function mockRes() {
       return res
     },
   }
-  return res as VercelResponse & { statusCode: number; body: unknown }
+  return res as unknown as VercelResponse & { statusCode: number; body: unknown }
 }
 
 function mockReq(

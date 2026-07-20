@@ -7,6 +7,7 @@ import { getSupabaseAdmin } from './supabaseAdmin.js'
 import { sendTransactionalEmail, type TransactionalEmailAttachment } from './sendTransactionalEmail.js'
 import { formatAbn, gstComponentOf } from '../../shared/gst.js'
 import { getPlatformUrl } from './platformUrl.js'
+import { maybeSendReviewOnInvoicePaid } from './reviewRequest.js'
 
 const INVOICE_TOKEN_VALID_DAYS = 90
 
@@ -276,6 +277,14 @@ export async function markInvoicePaid(
 
   if (error) throw new Error(error.message)
   if (!data) throw new Error('Invoice not found or cannot be marked paid')
+
+  // Paid → review (Package 6 / T2.1). Non-blocking: never fail mark-paid if SMS fails.
+  if (data.lead_id) {
+    void maybeSendReviewOnInvoicePaid(orgId, data.lead_id).catch((err) => {
+      console.error('auto_review_on_paid failed (non-fatal):', err)
+    })
+  }
+
   return data
 }
 

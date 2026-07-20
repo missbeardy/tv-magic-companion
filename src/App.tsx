@@ -28,6 +28,7 @@ import { initOneSignal, setOneSignalUser, clearOneSignalUser } from './lib/oneSi
 import { isManagerRole } from './lib/roles'
 import PwaUpdateLayer from './components/PwaUpdateLayer'
 import OfflineBanner from './components/OfflineBanner'
+import ToastHost from './components/ToastHost'
 
 function Dashboard() {
   const { profile, loading } = useAuth()
@@ -69,6 +70,7 @@ function App() {
           <ThemeProvider>
           <PwaUpdateLayer>
           <OfflineBanner />
+          <ToastHost />
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

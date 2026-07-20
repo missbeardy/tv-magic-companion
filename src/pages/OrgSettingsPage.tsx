@@ -9,6 +9,7 @@ import InvoiceTemplateEditor from '../components/settings/InvoiceTemplateEditor'
 import PriceListSettingsPanel from '../components/settings/PriceListSettingsPanel';
 import AccountingExportPanel from '../components/settings/AccountingExportPanel';
 import StripeConnectPanel from '../components/settings/StripeConnectPanel';
+import CustomerImportPanel from '../components/CustomerImportPanel';
 import BillingPanel from '../components/BillingPanel';
 import { formatAbn, isValidAbnFormat } from '../../shared/gst';
 
@@ -223,7 +224,7 @@ export default function OrgSettingsPage() {
               value={orgName}
               onChange={(e) => setOrgName(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
-              placeholder="e.g., TVMagic Brisbane"
+              placeholder="e.g., Acme Antennas Brisbane"
             />
             <p className="text-xs text-gray-400 mt-1">This appears throughout the app and on customer communications</p>
           </div>
@@ -434,6 +435,8 @@ export default function OrgSettingsPage() {
         {orgId && !featureSwitchesLoading && isFeatureEnabled('invoice_card_payments') && (
           <StripeConnectPanel />
         )}
+
+        <CustomerImportPanel />
 
         <BillingPanel />
 

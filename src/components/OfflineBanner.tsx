@@ -8,10 +8,10 @@ export default function OfflineBanner() {
   if (!online) {
     return (
       <div className="bg-amber-500 text-white text-sm text-center py-2 px-4 font-semibold">
-        You&apos;re offline — showing cached schedule.
+        You&apos;re offline — showing your last saved leads &amp; schedule.
         {pendingCount > 0
-          ? ` ${pendingCount} action${pendingCount === 1 ? '' : 's'} queued (calls/SMS/photos).`
-          : ' Some actions are unavailable.'}
+          ? ` ${pendingCount} action${pendingCount === 1 ? '' : 's'} queued (calls, SMS, photos, completions, notes).`
+          : ''}
       </div>
     )
   }

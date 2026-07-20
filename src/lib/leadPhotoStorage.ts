@@ -2,6 +2,17 @@ import { supabase } from './supabase'
 
 export const LEAD_PHOTOS_BUCKET = 'lead-photos'
 
+/**
+ * Statuses on which a technician can attach photos. Includes active states so
+ * "before"/mid-job shots are possible, not just post-completion evidence.
+ * Excludes unassigned (no one working it), lost, and booking_cancelled.
+ */
+export const PHOTO_ELIGIBLE_STATUSES = ['assigned', 'contact_attempted', 'booked', 'completed'] as const
+
+export function canAddLeadPhotos(status: string | null | undefined): boolean {
+  return !!status && (PHOTO_ELIGIBLE_STATUSES as readonly string[]).includes(status)
+}
+
 /** Default TTL for in-app display (1 hour). */
 export const LEAD_PHOTO_DISPLAY_TTL = 3600
 

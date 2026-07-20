@@ -134,8 +134,8 @@ export default function AddLeadModal({ onClose, onCreated }: Props) {
             </div>
             <h3 className="font-display font-semibold text-gray-900 text-base">Add Lead</h3>
           </div>
-          <button onClick={handleClose} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
-            <X size={16} />
+          <button onClick={handleClose} aria-label="Close" className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+            <X size={18} />
           </button>
         </div>
 

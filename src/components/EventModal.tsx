@@ -16,6 +16,8 @@ import { logLeadEvent } from '../lib/leadEvents'
 import { sendNotification } from '../lib/notify'
 import { getPlatformUrl } from '../lib/env'
 import { getAuthHeaders } from '../lib/apiAuth'
+import { fetchWithTimeout } from '../lib/fetchWithTimeout'
+import { showToast } from '../lib/toast'
 import { isManagerRole } from '../lib/roles'
 import {
   clearEventModalDraft,
@@ -418,6 +420,9 @@ export default function EventModal({
       setClientEmail(prefillLead.email ?? '')
       setClientAddress(prefillLead.address ?? '')
       setClientJob(prefillLead.details ?? prefillLead.service_type)
+      if (prefillLead.job_quote !== undefined && prefillLead.job_quote !== null) {
+        setJobQuote(String(prefillLead.job_quote))
+      }
       setLinkedLeadId(prefillLead.id)
       setLinkedLeadName(`${prefillLead.name} — ${prefillLead.service_type}`)
     }
@@ -548,7 +553,7 @@ export default function EventModal({
       if (!emp?.phone) continue
       try {
         const headers = await getAuthHeaders()
-        await fetch('/api/send-sms', {
+        await fetchWithTimeout('/api/send-sms', {
           method: 'POST',
           headers,
           body: JSON.stringify({
@@ -846,43 +851,52 @@ export default function EventModal({
       }
     }
 
-    // Customer booking confirmation (SMS + optional email/.ics) — non-blocking
+    // Booking is persisted — close immediately. The customer confirmation
+    // (SMS + optional email/.ics, generated server-side) runs in the background so
+    // a slow round-trip never holds the modal open, and it can't hang (timeout).
     const confirmCustomer =
       (clientPhone.trim() || clientEmail.trim()) &&
       (leadIdToUse || customerName)
-    if (confirmCustomer) {
-      try {
-        const techProfile = memberList.find((m) => m.id === bookingAssigneeId)
-        const headers = await getAuthHeaders()
-        const confirmRes = await fetch('/api/send-sms?action=booking-confirm', {
-          method: 'POST',
-          headers: { ...headers, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            leadId: leadIdToUse,
-            customerName: customerName || resolveBookingCustomerName(clientName, title),
-            customerPhone: clientPhone || null,
-            customerEmail: clientEmail || null,
-            serviceType: clientJob.trim() || title.trim(),
-            startTimeIso: startISO,
-            endTimeIso: endISO,
-            techName: techProfile?.full_name ?? null,
-            address: clientAddress || null,
-          }),
-        })
-        const confirmData = (await confirmRes.json().catch(() => ({}))) as {
-          smsSent?: boolean
-          smsMessage?: string
+    const confirmPayload = confirmCustomer
+      ? {
+          leadId: leadIdToUse,
+          customerName: customerName || resolveBookingCustomerName(clientName, title),
+          customerPhone: clientPhone || null,
+          customerEmail: clientEmail || null,
+          serviceType: clientJob.trim() || title.trim(),
+          startTimeIso: startISO,
+          endTimeIso: endISO,
+          techName: memberList.find((m) => m.id === bookingAssigneeId)?.full_name ?? null,
+          address: clientAddress || null,
         }
-        if (clientPhone.trim() && (!confirmRes.ok || confirmData.smsSent === false)) {
-          window.alert('Booked — customer SMS failed. You may want to text them manually.')
-        }
-      } catch (err) {
-        console.warn('Booking confirm request failed (non-fatal):', err)
-      }
-    }
+      : null
+    const hadPhone = clientPhone.trim().length > 0
 
     onSaved()
     handleClose()
+
+    if (confirmPayload) {
+      void (async () => {
+        try {
+          const headers = await getAuthHeaders()
+          const confirmRes = await fetchWithTimeout(
+            '/api/send-sms?action=booking-confirm',
+            {
+              method: 'POST',
+              headers: { ...headers, 'Content-Type': 'application/json' },
+              body: JSON.stringify(confirmPayload),
+            },
+            15000
+          )
+          const confirmData = (await confirmRes.json().catch(() => ({}))) as { smsSent?: boolean }
+          if (hadPhone && (!confirmRes.ok || confirmData.smsSent === false)) {
+            showToast({ variant: 'info', message: "Booked — the customer confirmation SMS didn't send. You may want to text them." })
+          }
+        } catch {
+          showToast({ variant: 'info', message: "Booked — couldn't send the customer confirmation. Check your signal." })
+        }
+      })()
+    }
   }
 
   async function handleCancelBooking() {
@@ -918,8 +932,8 @@ export default function EventModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 sm:p-4 animate-fade-in">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md overflow-hidden max-h-[92vh] sm:max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
@@ -936,9 +950,10 @@ export default function EventModal({
           </div>
           <button
             onClick={handleClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            aria-label="Close"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
           >
-            <X size={16} />
+            <X size={18} />
           </button>
         </div>
 

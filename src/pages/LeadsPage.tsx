@@ -60,8 +60,13 @@ import {
   sortLeadsForKanbanColumn,
   LOST_REASON_UNABLE_TO_CONTACT,
 } from '../lib/contactFollowUp'
-import { dismissLeadsPoolCoach, isLeadsPoolCoachDismissed } from '../lib/leadsPoolCoach'
+import { dismissOnboardingTip, loadOnboardingTipsState, replayOnboardingTips, resolveNextTip, type OnboardingTipDef } from '../lib/onboardingTips'
+import OnboardingTip from '../components/OnboardingTip'
 import { enqueueContactAttempt } from '../lib/offlineQueue'
+import { completeLeadOrEnqueue, runLeadUpdate } from '../lib/offlineWrites'
+import { showToast } from '../lib/toast'
+import { saveLeadsCache, loadLeadsCache } from '../lib/scheduleCache'
+import { loadCompletionDraft, clearCompletionDraft } from '../lib/completionDraft'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -81,6 +86,7 @@ interface LeadQuoteSummary {
   accepted_at: string | null
   created_at: string
   total_amount: number | null
+  scope: string | null
 }
 
 // ── Drag-and-drop: Droppable Column Wrapper (desktop only) ───────────────
@@ -231,8 +237,9 @@ export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [staleSince, setStaleSince] = useState<number | null>(null)
   const [showAddLead, setShowAddLead] = useState(false)
-  const [showPoolCoach, setShowPoolCoach] = useState(false)
+  const [activeTip, setActiveTip] = useState<OnboardingTipDef | null>(null)
   const [showPasteEnquiry, setShowPasteEnquiry] = useState(false)
   const [assigningLead, setAssigningLead] = useState<Lead | null>(null)
   const [bookingLead, setBookingLead] = useState<Lead | null>(null)
@@ -271,15 +278,30 @@ export default function LeadsPage() {
     const { data, error } = await query
     if (error) {
       console.error('fetchLeads failed:', error.message)
-      setFetchError('Could not load leads. Please refresh the page.')
+      // Fall back to the last good copy so today's jobs stay visible offline.
+      const cached = profile?.id ? await loadLeadsCache(profile.id) : null
+      if (cached) {
+        setLeads(cached.leads as Lead[])
+        setStaleSince(cached.cachedAt)
+        setFetchError(null)
+      } else {
+        setStaleSince(null)
+        setFetchError(
+          typeof navigator !== 'undefined' && !navigator.onLine
+            ? "You're offline and there's no saved copy yet — reconnect to load your leads."
+            : 'Could not load leads. Check your connection and try again.'
+        )
+      }
       setLoading(false)
       return
     }
     setFetchError(null)
+    setStaleSince(null)
     if (data) {
       const baseLeads = data as Lead[]
       if (baseLeads.length === 0) {
         setLeads([])
+        if (profile?.id) void saveLeadsCache(profile.id, [])
         setLoading(false)
         return
       }
@@ -289,7 +311,7 @@ export default function LeadsPage() {
       try {
         const quotesRes = await supabase
           .from('quotes')
-          .select('lead_id, status, accepted_at, created_at, total_amount')
+          .select('lead_id, status, accepted_at, created_at, total_amount, scope')
           .in('lead_id', leadIds)
           .order('created_at', { ascending: false })
         if (!quotesRes.error && quotesRes.data) {
@@ -360,6 +382,7 @@ export default function LeadsPage() {
           latest_quote_status: latestQuote?.status ?? null,
           latest_quote_accepted_at: latestQuote?.accepted_at ?? null,
           latest_quote_total_amount: latestQuote?.total_amount ?? null,
+          latest_quote_scope: latestQuote?.scope ?? null,
           latest_invoice_status: latestInvoice?.status ?? null,
           latest_invoice_id: latestInvoice?.id ?? null,
           latest_invoice_number: latestInvoice?.invoice_number ?? null,
@@ -390,6 +413,7 @@ export default function LeadsPage() {
       }
 
       setLeads(withFollowUp)
+      if (profile?.id) void saveLeadsCache(profile.id, withFollowUp)
     }
     setLoading(false)
   }, [profile?.org_id, profile?.role, profile?.id])
@@ -585,7 +609,10 @@ export default function LeadsPage() {
     closeSheet()
   }, [closeSheet])
 
-  // Checklist confirmed → mark complete directly, no signature or receipt
+  // Checklist confirmed → mark complete directly, no signature or receipt.
+  // Writes through the offline-aware helper: on connection loss the completion is
+  // queued and this still resolves, so the success UI is shown. If it can't even be
+  // queued it throws, and the checklist keeps itself open to surface the failure.
   const confirmComplete = useCallback(async () => {
     if (!checklistLead) return
     const lead = checklistLead
@@ -593,31 +620,28 @@ export default function LeadsPage() {
       alert(ASSIGNMENT_REQUIRED_MESSAGE)
       return
     }
+    if (!profile?.org_id) return
+    await completeLeadOrEnqueue({
+      leadId: lead.id,
+      orgId: profile.org_id,
+      actorId: profile.id ?? null,
+      fromStatus: lead.status,
+      leadName: lead.name,
+    })
+    if (profile.id) clearCompletionDraft(profile.id)
     setShowChecklist(false)
-    await supabase
-      .from('leads')
-      .update({ status: 'completed' })
-      .eq('id', lead.id)
-    await logLeadEvent(
-      lead.id,
-      'completed',
-      'Job marked complete via checklist',
-      { from_status: lead.status, to_status: 'completed', source: 'completion_checklist' }
-    )
     setChecklistLead(null)
     fetchLeads()
-  }, [checklistLead, logLeadEvent, fetchLeads])
+  }, [checklistLead, profile?.id, profile?.org_id, fetchLeads])
 
   const handleCall = useCallback(async (lead: Lead) => {
     if (!navigator.onLine) {
+      // Call is the priority — open the dialer straight away, then log passively.
+      if (lead.phone) window.location.href = `tel:${formatAuPhoneForTel(lead.phone)}`
       if (!profile?.id || !profile.org_id) {
-        alert('You must be signed in to queue a call offline.')
+        showToast({ variant: 'error', message: 'Sign in to log this call for later sync.' })
         return
       }
-      const confirmed = window.confirm(
-        `You're offline. Queue a call attempt for ${lead.name}? It will sync when you're back online.`
-      )
-      if (!confirmed) return
       try {
         await enqueueContactAttempt({
           leadId: lead.id,
@@ -629,12 +653,11 @@ export default function LeadsPage() {
           leadName: lead.name,
           leadPhone: lead.phone ?? null,
         })
-        if (lead.phone) window.location.href = `tel:${formatAuPhoneForTel(lead.phone)}`
-        alert('Call queued — will sync when online.')
-        closeSheet()
-      } catch (err) {
-        alert(err instanceof Error ? err.message : 'Failed to queue call')
+        showToast({ variant: 'info', message: 'Offline — call logged, will sync when back online.' })
+      } catch {
+        showToast({ variant: 'error', message: "Offline queue is full — this call wasn't logged." })
       }
+      closeSheet()
       return
     }
 
@@ -645,7 +668,17 @@ export default function LeadsPage() {
         `${lead.name} has had 5 contact attempts.\n\nMark as lost (unable to contact)?`
       )
       if (!confirmed) return
-      await supabase.from('leads').update(asLeadUpdate(attempt.update)).eq('id', lead.id)
+      const lostRes = await runLeadUpdate(lead.id, attempt.update)
+      if (!lostRes.ok) {
+        showToast({
+          variant: 'error',
+          message: lostRes.network
+            ? "Couldn't reach the server — the lead wasn't marked lost. Retry when you have signal."
+            : "Couldn't mark the lead lost. Tap retry.",
+          action: { label: 'Retry', onClick: () => { void handleCall(lead) } },
+        })
+        return
+      }
       await logLeadEvent(lead.id, 'lost', 'Unable to contact', {
         from_status: lead.status,
         to_status: 'lost',
@@ -659,12 +692,6 @@ export default function LeadsPage() {
 
     const toStatus = 'contact_attempted'
     const poolPickup = shouldPoolPickup(lead.status, toStatus, profile?.id)
-    const confirmed = window.confirm(
-      poolPickup
-        ? `Call ${lead.name}?\n\nThis will assign the lead to you and mark it Contact Attempted.`
-        : `Call ${lead.name}?\n\nThis will update the lead status to "Contact Attempted".`
-    )
-    if (!confirmed) return
 
     const updatePayload = {
       ...attempt.update,
@@ -675,15 +702,48 @@ export default function LeadsPage() {
       ? (updatePayload.assigned_to as string | null)
       : lead.assigned_to
     if (blocksUnassignedStatusChange(toStatus, effectiveAssignedTo)) {
-      alert(ASSIGNMENT_REQUIRED_MESSAGE)
+      showToast({ variant: 'error', message: ASSIGNMENT_REQUIRED_MESSAGE })
       return
     }
 
+    // Snapshot the fields this action mutates so the status bump can be undone.
+    const undoSnapshot: Record<string, unknown> = {
+      status: lead.status,
+      contact_attempt_round: lead.contact_attempt_round ?? 0,
+      assigned_to: lead.assigned_to,
+      assigned_at: lead.assigned_at ?? null,
+      last_contact_attempted_at: lead.last_contact_attempted_at ?? null,
+      timer_expires_at: lead.timer_expires_at ?? null,
+    }
+
+    // Dialer opens immediately — no confirm. The status bump is optimistic, with
+    // an Undo affordance instead of a blocking prompt.
     window.location.href = `tel:${formatAuPhoneForTel(lead.phone ?? '')}`
     setTimeout(() => closeSheet(), 300)
 
+    // Dialer opens immediately; the status write follows. If it fails on weak
+    // signal we queue the contact attempt (it re-applies on sync) rather than
+    // letting the status change silently evaporate.
     void (async () => {
-      await supabase.from('leads').update(asLeadUpdate(updatePayload)).eq('id', lead.id)
+      const res = await runLeadUpdate(lead.id, updatePayload)
+      if (!res.ok) {
+        if (res.network && profile?.id && profile.org_id) {
+          await enqueueContactAttempt({
+            leadId: lead.id,
+            orgId: profile.org_id,
+            actorId: profile.id,
+            kind: 'call',
+            leadStatus: lead.status,
+            contactAttemptRound: lead.contact_attempt_round ?? null,
+            leadName: lead.name,
+            leadPhone: lead.phone ?? null,
+          })
+          showToast({ variant: 'info', message: 'Call logged offline — will sync when back online.' })
+        } else {
+          showToast({ variant: 'error', message: "Couldn't save the call update — the lead may not have moved to Contact Attempted." })
+        }
+        return
+      }
       if (poolPickup) {
         await logPoolPickup(lead.id, 'call_auto_assign')
       }
@@ -699,6 +759,23 @@ export default function LeadsPage() {
       )
       focusMobileTabForStatus(toStatus)
       fetchLeads()
+      showToast({
+        message: poolPickup ? 'Assigned to you · Contact attempted' : 'Marked contact attempted',
+        action: {
+          label: 'Undo',
+          onClick: () => {
+            void (async () => {
+              const undoRes = await runLeadUpdate(lead.id, undoSnapshot)
+              if (undoRes.ok) {
+                fetchLeads()
+              } else {
+                showToast({ variant: 'error', message: "Couldn't undo — refresh and check the lead." })
+              }
+            })()
+          },
+        },
+        durationMs: 8000,
+      })
     })()
   }, [logLeadEvent, logPoolPickup, closeSheet, fetchLeads, focusMobileTabForStatus, profile?.id, profile?.org_id])
 
@@ -709,14 +786,14 @@ export default function LeadsPage() {
     }
 
     if (!navigator.onLine) {
+      // Open the SMS app straight away; log passively (no blocking prompts).
+      const techName = profile?.full_name ?? 'Your technician'
+      const message = buildOnTheWayMessage(lead, techName, org, brand)
+      openOnTheWaySms(lead.phone, message)
       if (!profile?.id || !profile.org_id) {
-        alert('You must be signed in to queue an SMS offline.')
+        showToast({ variant: 'error', message: 'Sign in to log this SMS for later sync.' })
         return
       }
-      const confirmed = window.confirm(
-        `You're offline. Queue an SMS attempt for ${lead.name}? You can still open your phone SMS app; the lead update will sync later.`
-      )
-      if (!confirmed) return
       try {
         await enqueueContactAttempt({
           leadId: lead.id,
@@ -728,14 +805,11 @@ export default function LeadsPage() {
           leadName: lead.name,
           leadPhone: lead.phone ?? null,
         })
-        const techName = profile.full_name ?? 'Your technician'
-        const message = buildOnTheWayMessage(lead, techName, org, brand)
-        openOnTheWaySms(lead.phone, message)
-        alert('SMS attempt queued — will sync when online.')
-        closeSheet()
-      } catch (err) {
-        alert(err instanceof Error ? err.message : 'Failed to queue SMS')
+        showToast({ variant: 'info', message: 'Offline — SMS logged, will sync when back online.' })
+      } catch {
+        showToast({ variant: 'error', message: "Offline queue is full — this SMS wasn't logged." })
       }
+      closeSheet()
       return
     }
 
@@ -752,7 +826,17 @@ export default function LeadsPage() {
         `${lead.name} has had 5 contact attempts.\n\nMark as lost (unable to contact)?`
       )
       if (!confirmed) return
-      await supabase.from('leads').update(asLeadUpdate(attempt.update)).eq('id', lead.id)
+      const lostRes = await runLeadUpdate(lead.id, attempt.update)
+      if (!lostRes.ok) {
+        showToast({
+          variant: 'error',
+          message: lostRes.network
+            ? "Couldn't reach the server — the lead wasn't marked lost. Retry when you have signal."
+            : "Couldn't mark the lead lost. Tap retry.",
+          action: { label: 'Retry', onClick: () => { void handleSMS(lead) } },
+        })
+        return
+      }
       await logLeadEvent(lead.id, 'lost', 'Unable to contact', {
         from_status: lead.status,
         to_status: 'lost',
@@ -784,16 +868,35 @@ export default function LeadsPage() {
     openOnTheWaySms(lead.phone, message)
     setTimeout(() => closeSheet(), 300)
 
+    // SMS app opens immediately; the status write follows. On weak-signal failure
+    // queue the contact attempt so the status change isn't lost.
     void (async () => {
-      if (poolPickup) {
-        const updatePayload = {
-          ...attempt.update,
-          ...buildPoolPickupUpdate(lead.status, toStatus, profile?.id),
+      if (shouldUpdateStatus) {
+        const updatePayload = poolPickup
+          ? { ...attempt.update, ...buildPoolPickupUpdate(lead.status, toStatus, profile?.id) }
+          : attempt.update
+        const res = await runLeadUpdate(lead.id, updatePayload)
+        if (!res.ok) {
+          if (res.network && profile?.id && profile.org_id) {
+            await enqueueContactAttempt({
+              leadId: lead.id,
+              orgId: profile.org_id,
+              actorId: profile.id,
+              kind: 'sms',
+              leadStatus: lead.status,
+              contactAttemptRound: lead.contact_attempt_round ?? null,
+              leadName: lead.name,
+              leadPhone: lead.phone ?? null,
+            })
+            showToast({ variant: 'info', message: 'SMS attempt logged offline — will sync when back online.' })
+          } else {
+            showToast({ variant: 'error', message: "Couldn't save the SMS update — the lead may not have moved to Contact Attempted." })
+          }
+          return
         }
-        await supabase.from('leads').update(asLeadUpdate(updatePayload)).eq('id', lead.id)
-        await logPoolPickup(lead.id, 'sms_auto_assign')
-      } else if (lead.status === 'assigned' || lead.status === 'contact_attempted') {
-        await supabase.from('leads').update(asLeadUpdate(attempt.update)).eq('id', lead.id)
+        if (poolPickup) {
+          await logPoolPickup(lead.id, 'sms_auto_assign')
+        }
       }
 
       await logLeadEvent(
@@ -815,7 +918,7 @@ export default function LeadsPage() {
         fetchLeads()
       }
     })()
-  }, [brand, closeSheet, fetchLeads, focusMobileTabForStatus, logLeadEvent, logPoolPickup, onTheWayFeatureEnabled, org, profile?.full_name, profile?.id])
+  }, [brand, closeSheet, fetchLeads, focusMobileTabForStatus, logLeadEvent, logPoolPickup, onTheWayFeatureEnabled, org, profile?.full_name, profile?.id, profile?.org_id])
 
   const handleSharePhoto = useCallback(async (lead: Lead) => {
     if (navigator.share) {
@@ -863,18 +966,25 @@ export default function LeadsPage() {
       `Unassign "${lead.name}" from ${lead.profiles?.full_name ?? 'this employee'}?\n\nThe lead will return to the unassigned pool.`
     )
     if (!confirmed) return
-    await supabase
-      .from('leads')
-      .update({
-        status: 'unassigned',
-        assigned_to: null,
-        assigned_at: null,
-        timer_expires_at: null,
-        contact_attempt_round: 0,
-        last_contact_attempted_at: null,
-        lost_reason: null,
+    const res = await runLeadUpdate(lead.id, {
+      status: 'unassigned',
+      assigned_to: null,
+      assigned_at: null,
+      timer_expires_at: null,
+      contact_attempt_round: 0,
+      last_contact_attempted_at: null,
+      lost_reason: null,
+    })
+    if (!res.ok) {
+      showToast({
+        variant: 'error',
+        message: res.network
+          ? "Couldn't reach the server — unassign not saved. Check your signal and retry."
+          : "Couldn't unassign the lead. Tap retry.",
+        action: { label: 'Retry', onClick: () => { void handleUnassign(lead) } },
       })
-      .eq('id', lead.id)
+      return
+    }
     await logLeadEvent(
       lead.id,
       'unassigned',
@@ -915,6 +1025,22 @@ export default function LeadsPage() {
     setQuoteLead(quoteDraftToLead(draft) as Lead)
   }, [profile?.id, quoteFeatureEnabled, quoteLead])
 
+  // Resume an interrupted job-completion ceremony (T1.6): reopen the checklist
+  // for the drafted lead once leads have loaded.
+  useEffect(() => {
+    if (!profile?.id || showChecklist || checklistLead) return
+    const draft = loadCompletionDraft(profile.id)
+    if (!draft) return
+    const lead = leads.find((l) => l.id === draft.leadId)
+    if (!lead) return
+    if (lead.status === 'completed' || lead.status === 'lost') {
+      clearCompletionDraft(profile.id)
+      return
+    }
+    setChecklistLead(lead)
+    setShowChecklist(true)
+  }, [profile?.id, leads, showChecklist, checklistLead])
+
   useEffect(() => {
     if (!sheetLead) return
     const fresh = leads.find((l) => l.id === sheetLead.id)
@@ -926,12 +1052,19 @@ export default function LeadsPage() {
   }, [isSoloMode, org?.id])
 
   useEffect(() => {
-    if (!profile?.id || isSoloMode) {
-      setShowPoolCoach(false)
+    if (!profile?.id || isSoloMode || featureSwitchesLoading || !isFeatureEnabled('onboarding_tips')) {
+      setActiveTip(null)
       return
     }
-    setShowPoolCoach(!isLeadsPoolCoachDismissed(profile.id))
-  }, [profile?.id, isSoloMode])
+    const state = loadOnboardingTipsState(profile.id)
+    const tip = resolveNextTip(state, {
+      isSoloMode,
+      hasPooledLead: leads.some((l) => l.status === 'unassigned'),
+      hasContactAttemptedLead: leads.some((l) => l.status === 'contact_attempted'),
+      hasAnyLead: leads.length > 0,
+    })
+    setActiveTip(tip)
+  }, [profile?.id, isSoloMode, featureSwitchesLoading, isFeatureEnabled, leads])
 
   useEffect(() => {
     if (loading) return
@@ -1015,7 +1148,7 @@ export default function LeadsPage() {
         <CompletionChecklist
           lead={checklistLead}
           onComplete={confirmComplete}
-          onCancel={() => { setShowChecklist(false); setChecklistLead(null) }}
+          onCancel={() => { if (profile?.id) clearCompletionDraft(profile.id); setShowChecklist(false); setChecklistLead(null) }}
           logEvent={async (id, note, eventType) => {
             await logLeadEvent(id, (eventType ?? 'review_request') as LeadEventType, note)
           }}
@@ -1055,7 +1188,10 @@ export default function LeadsPage() {
             phone: bookingLead.phone,
             email: bookingLead.email,
             address: bookingLead.address,
-            details: bookingLead.details,
+            details:
+              bookingLead.latest_quote_status === 'accepted' && bookingLead.latest_quote_scope?.trim()
+                ? bookingLead.latest_quote_scope.trim()
+                : bookingLead.details,
             service_type: bookingLead.service_type,
             assigned_to: bookingLead.assigned_to ?? undefined,
             job_quote:
@@ -1071,25 +1207,23 @@ export default function LeadsPage() {
       <NavBar />
 
       <main className="p-4 md:p-6">
-        {showPoolCoach && !isSoloMode && (
-          <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 flex items-start gap-3">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-sky-900">Pick up leads from the pool</p>
-              <p className="text-xs text-sky-800/90 mt-0.5">
-                Call or SMS from Unassigned to claim the lead. Assigned jobs return to the pool if you don&apos;t respond in time.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                if (profile?.id) dismissLeadsPoolCoach(profile.id)
-                setShowPoolCoach(false)
-              }}
-              className="shrink-0 text-xs font-semibold text-sky-800 hover:text-sky-950 px-2 py-1 rounded-lg hover:bg-sky-100"
-            >
-              Got it
-            </button>
-          </div>
+        {activeTip && (
+          <OnboardingTip
+            tip={activeTip}
+            onGotIt={() => {
+              if (!profile?.id) return
+              dismissOnboardingTip(profile.id, activeTip.id)
+              const state = loadOnboardingTipsState(profile.id)
+              setActiveTip(
+                resolveNextTip(state, {
+                  isSoloMode,
+                  hasPooledLead: leads.some((l) => l.status === 'unassigned'),
+                  hasContactAttemptedLead: leads.some((l) => l.status === 'contact_attempted'),
+                  hasAnyLead: leads.length > 0,
+                })
+              )
+            }}
+          />
         )}
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <div>
@@ -1101,6 +1235,28 @@ export default function LeadsPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
+            {!isSoloMode && isFeatureEnabled('onboarding_tips') && (
+              <button
+                type="button"
+                title="Replay tips"
+                onClick={() => {
+                  if (!profile?.id) return
+                  const state = replayOnboardingTips(profile.id)
+                  setActiveTip(
+                    resolveNextTip(state, {
+                      isSoloMode,
+                      hasPooledLead: leads.some((l) => l.status === 'unassigned'),
+                      hasContactAttemptedLead: leads.some((l) => l.status === 'contact_attempted'),
+                      hasAnyLead: leads.length > 0,
+                    })
+                  )
+                }}
+                className="p-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50"
+                aria-label="Replay onboarding tips"
+              >
+                ?
+              </button>
+            )}
             <button
               onClick={() => setShowPasteEnquiry(true)}
               className="hidden md:flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-[#004B93] border border-[#004B93]/30 hover:bg-[#004B93]/5 transition"
@@ -1142,6 +1298,12 @@ export default function LeadsPage() {
 
         {fetchError && !loading && (
           <p className="text-red-600 text-sm mb-3">{fetchError}</p>
+        )}
+
+        {staleSince && !loading && (
+          <p className="text-amber-700 bg-amber-50 border border-amber-200 rounded-lg text-xs px-3 py-2 mb-3">
+            Showing your saved copy from {new Date(staleSince).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} — reconnect to refresh.
+          </p>
         )}
 
         {!loading && (

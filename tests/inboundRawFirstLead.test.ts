@@ -8,11 +8,13 @@ const applyTeamInboundAssignment = vi.fn(async (_s: unknown, _o: unknown, payloa
 }))
 
 vi.mock('../api/_lib/soloInboundLead.js', () => ({
-  applySoloInboundAssignment: (...args: unknown[]) => applySoloInboundAssignment(...args),
+  applySoloInboundAssignment: (...args: [unknown, unknown, unknown]) =>
+    applySoloInboundAssignment(...args),
 }))
 
 vi.mock('../api/_lib/teamInboundLead.js', () => ({
-  applyTeamInboundAssignment: (...args: unknown[]) => applyTeamInboundAssignment(...args),
+  applyTeamInboundAssignment: (...args: [unknown, unknown, unknown]) =>
+    applyTeamInboundAssignment(...args),
 }))
 
 import * as rawFirstLead from '../api/_lib/rawFirstLead'

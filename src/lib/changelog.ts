@@ -43,44 +43,22 @@ export function formatChangelogDate(date: string): string {
  * after Monday, set `weekStarts` to that Monday (use getCurrentReleaseWeekId()).
  */
 export const WEEKLY_CHANGELOG: WeeklyChangelog = {
-  weekStarts: '13-07-2026',
-  title: 'Lead management',
+  weekStarts: '20-07-2026',
+  title: 'Stranger-ready Tier 2',
   items: [
-    'Remove lead — managers and platform admins can soft-delete a lead with a mandatory reason; the lead disappears from kanban and reports but stays in the database for audit',
-    'Inbound auto-assign — team-mode inbound leads can auto-assign to the best available technician (workload + proximity), gated by the Inbound Auto-Assign feature switch',
-    'Hidden test profiles — platform admins can mark org members as hidden test profiles so they stay available for testing but are excluded from assign and auto-assign',
-    'Fix leads page load after soft-delete migration (disambiguate assigned technician profile join)',
-    'Fix Platform Admin org members panel on production (profiles table has no email column)',
-    'Previous jobs — the lead detail sheet now shows a read-only history of the customer\'s earlier jobs (service type, status, when, and suburb). Available when Customer Profiles is enabled for your brand; leads with no linked customer are unaffected',
-    'Facebook Messenger leads via Botpress Studio — POST /api/inbound-facebook-lead creates unassigned leads from Messenger (enable Inbound Meta Messaging in Platform feature switches)',
-    'Centralized lead extraction — Claude + SMS/email fallbacks in api/_lib/extractLead.ts',
-    'Extraction status on leads — managers see failed/fallback/pending badge and can retry extraction from lead detail',
-    'Removed unused 3CX missed-call webhook (inbound-calls) — frees one Vercel serverless function slot',
-    'Fix Platform inbound email simulator auth on Preview (header casing)',
-    'Inbound auto-assign now skips managers — leads auto-assign only to technicians (employees); if no technician is available the lead stays unassigned and managers are notified',
-    'Stage 3 Acknowledgment — instant customer ack SMS (with callback SLA copy) and email ack for email-only leads, manager push on new unassigned lead; shipped dark (lead_ack_sms, lead_ack_email, manager_new_lead_alerts all off by default, enable per brand when ready)',
-    'Lead acknowledgement email is a separate feature switch (lead_ack_email) — independent of SMS ack',
-    'Platform Admin brand template editor — edit SMS and lead ack email copy per brand (SLA, manager alerts, etc.)',
-    'Phone-first quoting — SMS quote link by default, Total incl. GST, mobile bottom-sheet composer',
-    'Next-action CTAs on lead cards/sheets by status (Call / Quote / Book / Complete)',
-    'Completions only via checklist — drag or status menu cannot skip invoice/review flow',
-    'Branded quote accept page with decline; accept notifies managers and opens Book with quote amount',
-    'Customer booking confirmation SMS + email with .ics calendar invite',
-    'Offline queue for call/SMS attempts and lead photos; mobile nav focuses Dashboard / Leads / Calendar',
-    'GST-aware quotes and invoices — real GST component (divide-by-11) shown on quote accept page and invoice emails; org ABN and GST-registered setting in Franchise Settings; invoices are titled "Tax Invoice" with ABN when GST-registered',
-    'Price list / favourites — save 10-20 common priced jobs in Franchise Settings and quick-add them as chips when composing a quote or invoice; quote line items carry through to the invoice automatically (Price List feature switch)',
-    'Booking confirmation SMS/email is now toggleable per brand (booking_confirm feature switch, on by default) — previously always sent with no way to turn it off',
-    'Card / Pay Now on invoice — connect your own Stripe account in Franchise Settings, then invoice emails and overdue reminders include a Pay Now button; payment is captured directly on your Stripe account and the invoice marks itself paid automatically (Invoice Card Payments feature switch)',
-    'Fix: the public invoice status page and Stripe Connect onboarding endpoint now correctly respect the Invoice Card Payments feature switch server-side — previously the switch only hid the buttons in the UI, not the underlying endpoints',
-    'Accounting CSV export — Franchise Settings can download a Xero-compatible sales invoice CSV (Tax Inclusive) for a date range; BSB/PayID instructions remain in Invoice templates (Accounting CSV Export feature switch)',
-    'Day-before booking reminder SMS — automatic reminder sent to the customer roughly 24 hours before a booked appointment, editable per brand, quiet-hours aware (Day-Before Booking Reminder feature switch, off by default)',
-    'Fix: the booking confirmation .ics calendar invite now uses the org\'s real support email as organizer instead of a hard-coded placeholder',
-    'Fix: resolved server errors affecting customer messaging, booking confirmations, and the quote-accept page immediately after the v1.1.128 release (a relative import was missing its file extension)',
+    'Closed-loop quote → book → invoice → pay → review — accepting a quote deep-links managers into Book on the calendar with amount and scope pre-filled; when an invoice is marked paid, Auto Review Request on Paid can SMS the Google review link once per lead',
+    'FieldBourne shell rebrand — PWA name/icon/manifest, login, captions, and receipts no longer say TVMagic outside the TV Magic brand\'s own data; draft keys migrate from tvmagic: to fieldbourne:',
+    'In-app onboarding tips — team-mode coach tips for the pool timer, contact rounds, and next-action button (replay via ? on Leads); solo mode stays quiet',
+    'Customer CSV import — Franchise Settings can upload a customer list (name/phone/email/address/notes), map columns, and merge duplicates by phone',
+    'Solo tradie wedge preset — Platform Admin can create a new org with inbound, ack, quote, booking, invoice, review, price list, import, and tips switches turned on in one tick',
+    'Demo + onboarding runbooks — docs/DEMO_RUNBOOK.md and scripts/demo-reset.sql for the 60-second pitch; founder provisioning runbook updated for the preset',
+    'Engineering hygiene — removed dead Tasks board / web-push / SignatureCanvas; real README; tests under typecheck; sales pipeline backlog reconciled; migration-order hazard documented',
+    'Positioning decision — FieldBourne stays a front-door add-on beside the tradie\'s existing tool; target solo price $69/mo GST-inc messaging-included (founding customers may differ); Xero live sync stays Tier 3',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.129'
+export const APP_VERSION = '1.1.140'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

@@ -25,10 +25,8 @@ export {
 export const FEATURES = {
   leads: { tier: 'basic', nav: '/leads', label: 'Leads' },
   calendar: { tier: 'basic', nav: '/calendar', label: 'Calendar' },
-  tasks: { tier: 'pro', nav: '/tasks', label: 'Tasks' },
   social: { tier: 'pro', nav: '/social', label: 'Social' },
   ai_parsing: { tier: 'pro', nav: null, label: 'AI Lead Parsing' },
-  task_board: { tier: 'pro', nav: '/tasks', label: 'Task Board' },
   reports: { tier: 'pro', nav: '/reports', label: 'Reports' },
   api_access: { tier: 'enterprise', nav: null, label: 'API Access' },
 } as const
@@ -38,6 +36,7 @@ export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   inbound_auto_assign: false,
   quote_esign: false,
   review_requests: false,
+  auto_review_on_paid: false,
   customer_ontheway_sms: false,
   booking_confirm: true,
   booking_reminder_sms: false,
@@ -60,6 +59,8 @@ export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   internal_messaging: false,
   customer_linking: false,
   customer_profiles: false,
+  customer_import: false,
+  onboarding_tips: true,
 }
 
 export const FEATURE_SWITCH_DEFINITIONS: Record<
@@ -81,6 +82,11 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   review_requests: {
     label: 'Google Review Request SMS',
     description: 'Post-job review link SMS to customers',
+  },
+  auto_review_on_paid: {
+    label: 'Auto Review Request on Paid',
+    description:
+      'When an invoice is marked paid (card or manual), automatically SMS the Google review link if review requests are enabled and one has not already been sent',
   },
   customer_ontheway_sms: {
     label: 'Customer On The Way SMS',
@@ -168,7 +174,15 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   },
   customer_profiles: {
     label: 'Customer Profiles',
-    description: 'Show a read-only history of a customer\'s previous jobs in the lead detail sheet',
+    description: 'Show previous-jobs history on the lead detail sheet for linked customers',
+  },
+  customer_import: {
+    label: 'Customer CSV Import',
+    description: 'Import an existing customer list from CSV in Franchise Settings',
+  },
+  onboarding_tips: {
+    label: 'In-App Onboarding Tips',
+    description: 'Coach tips for pool timer, contact rounds, and next-action CTAs (team mode)',
   },
 }
 

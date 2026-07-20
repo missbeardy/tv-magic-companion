@@ -1,13 +1,18 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { signLeadPhotoPath, signLeadPhotoPaths } from '../lib/leadPhotoStorage'
+import { signLeadPhotoPath, signLeadPhotoPaths, LEAD_PHOTOS_BUCKET } from '../lib/leadPhotoStorage'
+import { compressImage } from '../lib/imageCompression'
 import {
   enqueueLeadPhoto,
   listPendingPhotosForLead,
   subscribeOfflineQueue,
+  MAX_OFFLINE_PHOTOS,
   type OfflineLeadPhotoItem,
 } from '../lib/offlineQueue'
+
+/** Total photos (uploaded + queued) shown/allowed per lead — matches the offline queue cap. */
+const MAX_LEAD_PHOTOS = MAX_OFFLINE_PHOTOS
 
 interface Photo {
   id: string
@@ -30,6 +35,7 @@ export default function LeadPhotos({ leadId, canUpload = true, onShare }: Props)
   const [uploading, setUploading] = useState(false)
   const [lightbox, setLightbox] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
   async function fetchPending() {
@@ -75,63 +81,96 @@ export default function LeadPhotos({ leadId, canUpload = true, onShare }: Props)
     }
   }, [pendingUrls])
 
+  /** Queue a photo for later sync. Returns false only if it couldn't be stored (cap full). */
+  async function queuePhoto(file: File): Promise<boolean> {
+    if (!profile?.org_id || !profile.id) return false
+    try {
+      await enqueueLeadPhoto({
+        leadId,
+        orgId: profile.org_id,
+        actorId: profile.id,
+        fileName: file.name || 'photo.jpg',
+        mimeType: file.type || 'image/jpeg',
+        blob: file,
+      })
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /** Upload a single photo now. Returns false on storage or DB failure. */
+  async function uploadOne(file: File): Promise<boolean> {
+    if (!profile?.org_id || !profile.id) return false
+    const path = `${profile.org_id}/leads/${leadId}/${Date.now()}-${Math.random().toString(16).slice(2, 8)}.jpg`
+
+    const { error: uploadError } = await supabase.storage
+      .from(LEAD_PHOTOS_BUCKET)
+      .upload(path, file, { upsert: false, contentType: file.type || 'image/jpeg' })
+    if (uploadError) return false
+
+    const { error: insertError } = await supabase.from('lead_photos').insert({
+      lead_id: leadId,
+      org_id: profile.org_id,
+      uploaded_by: profile.id,
+      storage_path: path,
+    })
+    return !insertError
+  }
+
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || [])
     if (!files.length || !profile?.org_id || !profile.id) return
     setError('')
+    setNotice('')
 
-    const remaining = 3 - photos.length - pending.length
-    if (remaining <= 0) return
-
-    const toUpload = files.slice(0, remaining)
-    setUploading(true)
-
-    if (!navigator.onLine) {
-      try {
-        for (const file of toUpload) {
-          await enqueueLeadPhoto({
-            leadId,
-            orgId: profile.org_id,
-            actorId: profile.id,
-            fileName: file.name || 'photo.jpg',
-            mimeType: file.type || 'image/jpeg',
-            blob: file,
-          })
-        }
-        await fetchPending()
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to queue photo')
-      }
-      setUploading(false)
+    const remaining = MAX_LEAD_PHOTOS - photos.length - pending.length
+    if (remaining <= 0) {
+      setError(`Photo limit reached (max ${MAX_LEAD_PHOTOS}).`)
       if (fileRef.current) fileRef.current.value = ''
       return
     }
 
-    for (const file of toUpload) {
-      const ext = file.name.split('.').pop()
-      const path = `${profile.org_id}/leads/${leadId}/${Date.now()}.${ext}`
+    const toUpload = files.slice(0, remaining)
+    const overflow = files.length - toUpload.length
+    setUploading(true)
 
-      const { error: uploadError } = await supabase.storage
-        .from('lead-photos')
-        .upload(path, file, { upsert: false })
+    let queuedForRetry = 0 // upload failed but safely stored for sync
+    let hardFail = 0 // couldn't even queue (cap full)
 
-      if (uploadError) continue
+    for (const original of toUpload) {
+      const file = await compressImage(original)
 
-      await supabase.from('lead_photos').insert({
-        lead_id: leadId,
-        org_id: profile.org_id,
-        uploaded_by: profile.id,
-        storage_path: path,
-      })
+      if (!navigator.onLine) {
+        if (!(await queuePhoto(file))) hardFail++
+        continue
+      }
+
+      if (await uploadOne(file)) continue
+
+      // Online upload failed — keep the photo in the queue so it's never lost
+      // and retries on the next sync, rather than silently dropping it.
+      if (await queuePhoto(file)) queuedForRetry++
+      else hardFail++
     }
 
     await fetchPhotos()
+    await fetchPending()
     setUploading(false)
     if (fileRef.current) fileRef.current.value = ''
+
+    if (hardFail > 0) {
+      setError(`${hardFail} photo${hardFail === 1 ? '' : 's'} couldn't be saved — the offline queue is full. Sync and try again.`)
+    } else if (queuedForRetry > 0) {
+      setNotice(`Upload didn't go through — ${queuedForRetry} photo${queuedForRetry === 1 ? '' : 's'} saved and will sync when your signal is back.`)
+    } else if (overflow > 0) {
+      setNotice(`Only ${toUpload.length} added — ${MAX_LEAD_PHOTOS}-photo limit reached.`)
+    }
   }
 
   async function handleDelete(photo: Photo) {
-    await supabase.storage.from('lead-photos').remove([photo.storage_path || ''])
+    if (!window.confirm('Delete this photo? This cannot be undone.')) return
+    await supabase.storage.from(LEAD_PHOTOS_BUCKET).remove([photo.storage_path || ''])
     await supabase.from('lead_photos').delete().eq('id', photo.id)
     fetchPhotos()
   }
@@ -159,6 +198,7 @@ export default function LeadPhotos({ leadId, canUpload = true, onShare }: Props)
       )}
 
       {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
+      {notice && <p className="text-xs text-amber-700 mb-2">{notice}</p>}
 
       <div className="flex gap-2 flex-wrap">
         {photos.map((photo) => {
@@ -166,17 +206,17 @@ export default function LeadPhotos({ leadId, canUpload = true, onShare }: Props)
           if (!src) return null
 
           return (
-            <div key={photo.id} className="relative group">
+            <div key={photo.id} className="relative">
               <img
                 src={src}
                 onClick={() => openLightbox(photo.storage_path)}
-                className="w-20 h-20 object-cover rounded-lg cursor-pointer hover:opacity-90 transition border border-gray-200"
+                className="w-20 h-20 object-cover rounded-lg cursor-pointer active:opacity-90 transition border border-gray-200"
                 alt=""
               />
               {onShare && (
                 <button
                   onClick={() => sharePhoto(photo.storage_path)}
-                  className="absolute bottom-0 left-0 right-0 bg-[#004B93] text-white text-xs py-0.5 rounded-b-lg opacity-0 group-hover:opacity-100 transition"
+                  className="absolute bottom-0 left-0 right-0 bg-[#004B93] text-white text-xs py-1 rounded-b-lg"
                 >
                   Share
                 </button>
@@ -184,7 +224,8 @@ export default function LeadPhotos({ leadId, canUpload = true, onShare }: Props)
               {canUpload && (
                 <button
                   onClick={() => handleDelete(photo)}
-                  className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs items-center justify-center hidden group-hover:flex"
+                  aria-label="Delete photo"
+                  className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-7 h-7 text-base leading-none flex items-center justify-center shadow"
                 >
                   ×
                 </button>
@@ -210,7 +251,7 @@ export default function LeadPhotos({ leadId, canUpload = true, onShare }: Props)
           )
         })}
 
-        {canUpload && photos.length + pending.length < 3 && (
+        {canUpload && photos.length + pending.length < MAX_LEAD_PHOTOS && (
           <button
             onClick={() => fileRef.current?.click()}
             disabled={uploading}

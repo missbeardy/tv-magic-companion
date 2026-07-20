@@ -12,5 +12,5 @@ export function getPlatformUrl(): string {
   if (typeof window !== 'undefined') {
     return window.location.origin
   }
-  return 'https://tv-magic-companion.vercel.app'
+  return 'https://fieldbourne.app'
 }

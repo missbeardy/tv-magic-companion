@@ -13,12 +13,15 @@ import {
   sendReviewRequestSms,
   type ReviewRequestLead,
 } from '../lib/reviewRequest';
+import { loadCompletionDraft, saveCompletionDraft, clearCompletionDraft } from '../lib/completionDraft';
 
+// Trade-neutral defaults (were TV-installer specific). Per-org customisation is a
+// planned follow-up; these read sensibly for any trade in the meantime.
 const CHECKLIST = [
-  'Equipment tested and working correctly',
+  'Work completed to standard',
   'Work area left clean and tidy',
-  'Customer shown how to use the equipment',
-  'Receipt / invoice discussed with customer',
+  'Customer walked through the work done',
+  'Payment / invoice discussed with customer',
 ];
 
 const DEFAULT_UPSELLS = [
@@ -47,12 +50,19 @@ export default function CompletionChecklist({ lead, onComplete, onCancel, logEve
   const reviewFeatureEnabled = !featureSwitchesLoading && isFeatureEnabled('review_requests');
   const upsellsEnabled = !featureSwitchesLoading && isFeatureEnabled('completion_upsells');
   const invoiceFeatureEnabled = !featureSwitchesLoading && isFeatureEnabled('one_tap_invoice');
-  const [checked, setChecked] = useState<boolean[]>(CHECKLIST.map(() => false));
-  const [upsellDone, setUpsellDone] = useState(!upsellsEnabled);
+  // Resume a ceremony interrupted mid-flow (same lead only).
+  const restored = profile?.id ? loadCompletionDraft(profile.id) : null;
+  const draft = restored && restored.leadId === lead.id && restored.checked?.length === CHECKLIST.length
+    ? restored
+    : null;
+  const [checked, setChecked] = useState<boolean[]>(draft ? draft.checked : CHECKLIST.map(() => false));
+  const [upsellDone, setUpsellDone] = useState(draft ? draft.upsellDone : !upsellsEnabled);
   const [upsellLabels, setUpsellLabels] = useState<string[]>(DEFAULT_UPSELLS);
-  const [step, setStep] = useState<'checklist' | 'invoice' | 'review'>('checklist');
+  const [step, setStep] = useState<'checklist' | 'invoice' | 'review'>(draft ? draft.step : 'checklist');
   const [sendingReview, setSendingReview] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [completionError, setCompletionError] = useState<string | null>(null);
+  const [finishing, setFinishing] = useState(false);
 
   const allChecked = checked.every(Boolean);
 
@@ -78,6 +88,12 @@ export default function CompletionChecklist({ lead, onComplete, onCancel, logEve
     }
     loadUpsells();
   }, [profile?.org_id]);
+
+  // Persist progress so an interruption can resume this ceremony.
+  useEffect(() => {
+    if (!profile?.id) return;
+    saveCompletionDraft(profile.id, { leadId: lead.id, step, checked, upsellDone });
+  }, [profile?.id, lead.id, step, checked, upsellDone]);
 
   const toggle = (i: number) => {
     setChecked((prev) => prev.map((v, idx) => (idx === i ? !v : v)));
@@ -107,8 +123,19 @@ export default function CompletionChecklist({ lead, onComplete, onCancel, logEve
         return;
       }
     }
+    // Only celebrate once the completion is confirmed saved (or safely queued for
+    // sync). If it can't be persisted at all, keep the modal open and surface it.
+    setFinishing(true);
+    setCompletionError(null);
+    try {
+      await onComplete();
+    } catch {
+      setFinishing(false);
+      setCompletionError("Couldn't save the completion. Check your connection and try again.");
+      return;
+    }
+    if (profile?.id) clearCompletionDraft(profile.id);
     fireConfetti();
-    await onComplete();
   }
 
   async function handleChecklistConfirm() {
@@ -122,6 +149,11 @@ export default function CompletionChecklist({ lead, onComplete, onCancel, logEve
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40">
       <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-lg p-6 space-y-4">
+        {completionError && (
+          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            {completionError}
+          </p>
+        )}
         {step === 'checklist' ? (
           <>
             <h2 className="text-lg font-bold text-[#004B93]">Before You Close This Job</h2>
@@ -173,10 +205,10 @@ export default function CompletionChecklist({ lead, onComplete, onCancel, logEve
               </button>
               <button
                 onClick={handleChecklistConfirm}
-                disabled={!allChecked || !upsellDone}
+                disabled={!allChecked || !upsellDone || finishing}
                 className="flex-1 py-3 rounded-xl bg-green-500 text-white font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {invoiceFeatureEnabled ? 'Next — Invoice' : 'Complete Job ✅'}
+                {invoiceFeatureEnabled ? 'Next — Invoice' : finishing ? 'Completing…' : 'Complete Job ✅'}
               </button>
             </div>
           </>

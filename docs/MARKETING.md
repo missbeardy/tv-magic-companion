@@ -46,7 +46,7 @@ Buying behaviour that shapes everything: tradies buy on **mate's recommendation 
 5. **0:40** — Tradie taps a price-list chip ("Emergency call-out — $220 inc GST"), sends the quote link; presenter opens it and taps Accept (e-sign).
 6. **0:50** — Tradie books tomorrow 8am; presenter instantly receives confirmation SMS + calendar invite. Enquiry-to-booked in under a minute, zero typing.
 
-**Status:** every beat is built except the accept→book prefill and flipping the ack switches — roadmap T2.1 + T1.10. T2.2 makes this demo runnable on demand. **Do not start outbound marketing before T2.2 passes twice in a row cold.**
+**Status:** every beat is built. T2.2 runbook makes this demo runnable on demand — rehearse twice cold before outbound marketing. T1.10 (prod TV Magic ack enable) remains manager-gated and is not required for a FieldBourne demo org with the wedge preset ON.
 
 ## Objections & honest answers
 

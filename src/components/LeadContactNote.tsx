@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { logLeadEvent } from '../lib/leadEvents'
+import { saveLeadNoteOrEnqueue } from '../lib/offlineWrites'
 
 interface Props {
   leadId: string
@@ -12,6 +12,7 @@ export default function LeadContactNote({ leadId, orgId, actorId, onSaved }: Pro
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [queuedMessage, setQueuedMessage] = useState('')
 
   async function handleSave(e: FormEvent) {
     e.preventDefault()
@@ -21,22 +22,19 @@ export default function LeadContactNote({ leadId, orgId, actorId, onSaved }: Pro
 
     setSaving(true)
     setError('')
-    const { error: logError } = await logLeadEvent({
-      leadId,
-      orgId,
-      eventType: 'contact_note',
-      note: trimmed,
-      actorId,
-    })
-    setSaving(false)
-
-    if (logError) {
+    setQueuedMessage('')
+    try {
+      const mode = await saveLeadNoteOrEnqueue({ leadId, orgId, actorId, note: trimmed })
+      setNote('')
+      if (mode === 'queued') {
+        setQueuedMessage('Saved — will sync when back online.')
+      }
+      onSaved?.()
+    } catch {
       setError('Could not save note')
-      return
+    } finally {
+      setSaving(false)
     }
-
-    setNote('')
-    onSaved?.()
   }
 
   return (
@@ -57,6 +55,7 @@ export default function LeadContactNote({ leadId, orgId, actorId, onSaved }: Pro
         className="w-full text-sm rounded-md border border-amber-200 bg-white px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-amber-400"
       />
       {error && <p className="text-xs text-red-600">{error}</p>}
+      {queuedMessage && <p className="text-xs text-amber-700">{queuedMessage}</p>}
       <button
         type="submit"
         disabled={saving || !note.trim()}

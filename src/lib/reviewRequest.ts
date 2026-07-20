@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { getAuthHeaders } from './apiAuth'
+import { fetchWithTimeout } from './fetchWithTimeout'
 import { formatAuPhoneForSms } from './phone'
 
 export interface ReviewRequestOrg {
@@ -82,7 +83,7 @@ export async function sendReviewRequestSms(
       return { ok: false, error: 'Session expired — log out and sign in again.' }
     }
 
-    const res = await fetch('/api/send-sms', {
+    const res = await fetchWithTimeout('/api/send-sms', {
       method: 'POST',
       headers,
       body: JSON.stringify({

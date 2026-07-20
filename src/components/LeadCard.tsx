@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import CountdownTimer from './CountdownTimer'
 import LeadStatusMenu from './LeadStatusMenu'
 import LeadPhotos from './LeadPhotos'
+import { canAddLeadPhotos } from '../lib/leadPhotoStorage'
 import LeadExtractedSummary, { LeadRawSource, type LeadSummaryFields } from './LeadExtractedSummary'
 import UnassignedTimer from './UnassignedTimer'
 import ContactFollowUpBadge from './ContactFollowUpBadge'
@@ -45,6 +46,7 @@ export interface KanbanLead {
   latest_quote_status?: string | null
   latest_quote_accepted_at?: string | null
   latest_quote_total_amount?: number | null
+  latest_quote_scope?: string | null
   latest_invoice_status?: string | null
   latest_invoice_id?: string | null
   latest_invoice_number?: string | null
@@ -288,7 +290,7 @@ export default function LeadCard({
             <button
               type="button"
               onClick={runNextAction}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition opacity-95 hover:opacity-100 ${nextAction.className}`}
+              className={`text-xs font-semibold px-3 min-h-[44px] inline-flex items-center justify-center rounded-lg transition opacity-95 hover:opacity-100 ${nextAction.className}`}
             >
               {nextAction.label}
             </button>
@@ -379,7 +381,7 @@ export default function LeadCard({
               )}
             </div>
 
-            {lead.status === 'completed' && (
+            {canAddLeadPhotos(lead.status) && (
               <LeadPhotos leadId={lead.id} canUpload={true} />
             )}
 

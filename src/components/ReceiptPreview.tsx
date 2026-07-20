@@ -17,8 +17,8 @@ interface Props {
 
 export default function ReceiptPreview({ lead, onClose }: Props) {
   const { org } = useOrg();
-  const businessName = org?.name || 'TVMagic';
-  const supportPhone = org?.support_phone || '1300 TVMagic';
+  const businessName = org?.name || 'Your business';
+  const supportPhone = org?.support_phone || 'your support number';
 
   const date = new Date().toLocaleDateString('en-AU', {
     day: 'numeric', month: 'long', year: 'numeric',

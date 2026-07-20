@@ -1,10 +1,11 @@
 import { getAuthHeaders } from './apiAuth';
+import { fetchWithTimeout } from './fetchWithTimeout';
 
 /** Alert managers (bell + WhatsApp) after creating an unassigned lead. */
 export async function alertManagersOnNewLead(leadId: string): Promise<void> {
   try {
     const headers = await getAuthHeaders();
-    const response = await fetch('/api/send-sms?action=new-lead-alert', {
+    const response = await fetchWithTimeout('/api/send-sms?action=new-lead-alert', {
       method: 'POST',
       headers,
       body: JSON.stringify({ leadId }),
@@ -33,7 +34,7 @@ export async function sendNotification(
 ): Promise<void> {
   try {
     const headers = await getAuthHeaders();
-    const response = await fetch('/api/send-sms?action=notify', {
+    const response = await fetchWithTimeout('/api/send-sms?action=notify', {
       method: 'POST',
       headers,
       body: JSON.stringify({ userId, title, message, url, type }),

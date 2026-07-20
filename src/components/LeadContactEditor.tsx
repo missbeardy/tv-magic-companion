@@ -135,19 +135,19 @@ export default function LeadContactEditor({
           <button
             type="button"
             onClick={(e) => { stop(e); onCall() }}
-            className="p-2 rounded-lg text-[var(--color-primary)] hover:bg-white transition-colors"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-[var(--color-primary)] hover:bg-white transition-colors"
             aria-label="Call"
           >
-            <Phone size={18} />
+            <Phone size={20} />
           </button>
           {smsEnabled && (
             <button
               type="button"
               onClick={(e) => { stop(e); onSms() }}
-              className="p-2 rounded-lg text-[var(--color-primary)] hover:bg-white transition-colors"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-[var(--color-primary)] hover:bg-white transition-colors"
               aria-label="Send SMS"
             >
-              <MessageSquare size={18} />
+              <MessageSquare size={20} />
             </button>
           )}
         </div>

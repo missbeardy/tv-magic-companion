@@ -35,6 +35,7 @@ describe('featureSwitchCatalog categories', () => {
       'inbound_calls',
       'inbound_messenger',
       'customer_linking',
+      'customer_import',
     ])
     expect(FEATURE_SWITCHES_BY_CATEGORY.customer_communication).toEqual([
       'missed_call_hookback_sms',
@@ -44,6 +45,7 @@ describe('featureSwitchCatalog categories', () => {
       'booking_confirm',
       'booking_reminder_sms',
       'review_requests',
+      'auto_review_on_paid',
     ])
     expect(FEATURE_SWITCHES_BY_CATEGORY.team_operations).toEqual([
       'manager_new_lead_alerts',
@@ -52,6 +54,7 @@ describe('featureSwitchCatalog categories', () => {
       'tech_location',
       'internal_messaging',
       'customer_profiles',
+      'onboarding_tips',
     ])
     expect(FEATURE_SWITCHES_BY_CATEGORY.sales_job_completion).toEqual([
       'quote_esign',
