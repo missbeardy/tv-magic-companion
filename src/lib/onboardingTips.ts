@@ -33,7 +33,7 @@ export const ONBOARDING_TIPS: OnboardingTipDef[] = [
   {
     id: 'pool_timer',
     title: 'Pick up leads from the pool',
-    body: 'Unassigned leads sit in the pool with a countdown. Call or SMS to claim one. If you don’t respond in time, the lead returns to the pool automatically so someone else can take it.',
+    body: 'Unassigned leads sit in the pool until someone picks them up. Call or SMS to claim one — once assigned, the lead stays with you. The timer shows how long it has been assigned.',
   },
   {
     id: 'contact_rounds',

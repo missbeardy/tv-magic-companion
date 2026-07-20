@@ -58,7 +58,7 @@ export default function AssignedLeads() {
       .eq('org_id', profile.org_id)
       .eq('status', 'assigned')
       .is('deleted_at', null)
-      .order('timer_expires_at', { ascending: true })
+      .order('assigned_at', { ascending: true })
     query = query.eq('assigned_to', profile.id)
     const { data } = await query
     if (data) setLeads(data as Lead[])
@@ -161,8 +161,8 @@ export default function AssignedLeads() {
                     <CalendarPlus size={12} />
                     Book
                   </button>
-                  {lead.timer_expires_at && (
-                    <CountdownTimer expiresAt={lead.timer_expires_at} onExpire={fetchLeads} showPoolHint />
+                  {lead.assigned_at && (
+                    <CountdownTimer assignedAt={lead.assigned_at} showHint />
                   )}
                 </div>
               </div>

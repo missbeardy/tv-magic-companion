@@ -279,9 +279,9 @@ export default function LeadCard({
           )}
         </div>
 
-        {lead.timer_expires_at && lead.status === 'assigned' && (
+        {lead.assigned_at && lead.status === 'assigned' && (
           <div className="mt-2">
-            <CountdownTimer expiresAt={lead.timer_expires_at} showPoolHint />
+            <CountdownTimer assignedAt={lead.assigned_at} showHint />
           </div>
         )}
 

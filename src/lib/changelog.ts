@@ -54,11 +54,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Demo + onboarding runbooks — docs/DEMO_RUNBOOK.md and scripts/demo-reset.sql for the 60-second pitch; founder provisioning runbook updated for the preset',
     'Engineering hygiene — removed dead Tasks board / web-push / SignatureCanvas; real README; tests under typecheck; sales pipeline backlog reconciled; migration-order hazard documented',
     'Positioning decision — FieldBourne stays a front-door add-on beside the tradie\'s existing tool; target solo price $69/mo GST-inc messaging-included (founding customers may differ); Xero live sync stays Tier 3',
+    'Assigned leads stay with the technician — no auto-return to the pool; timer pill now counts up as time assigned (green 0–2h, amber 2–4h, red 4h+)',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.140'
+export const APP_VERSION = '1.1.141'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

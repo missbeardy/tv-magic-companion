@@ -1,7 +1,12 @@
-/** Shared assign-timer expiry logic (mirrors public.expire_overdue_leads SQL). */
+/** Assign-timer auto-unassign is disabled — leads stay with the assignee.
+
+ * Kept for audit-event helpers / historical tests. `runExpireOverdueLeads` is a no-op
+ * mirroring `public.expire_overdue_leads()` after disable_assign_timer_expiry.
+ */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 
+/** @deprecated Assign-timer expiry no longer resets leads to the pool. */
 export const EXPIRE_OVERDUE_LEADS_PATCH = {
   status: 'unassigned',
   assigned_to: null,
@@ -42,11 +47,9 @@ export interface ExpireOverdueLeadsResult {
   errors: string[]
 }
 
-export function isAssignTimerExpired(lead: AssignTimerExpiredLead, nowMs: number): boolean {
-  if (lead.status !== 'assigned') return false
-  if (!lead.timer_expires_at) return false
-  const expiresMs = Date.parse(lead.timer_expires_at)
-  return !Number.isNaN(expiresMs) && expiresMs < nowMs
+/** @deprecated Assign-timer expiry is disabled — always returns false. */
+export function isAssignTimerExpired(_lead: AssignTimerExpiredLead, _nowMs: number): boolean {
+  return false
 }
 
 export function buildAssignTimerExpiredEvent(
@@ -73,47 +76,10 @@ export function buildAssignTimerExpiredEvent(
   }
 }
 
+/** No-op: assigned leads are no longer auto-returned to the pool. */
 export async function runExpireOverdueLeads(
-  supabase: SupabaseClient,
-  options?: { nowMs?: number }
+  _supabase: SupabaseClient,
+  _options?: { nowMs?: number }
 ): Promise<ExpireOverdueLeadsResult> {
-  const nowMs = options?.nowMs ?? Date.now()
-  const cutoff = new Date(nowMs).toISOString()
-  const result: ExpireOverdueLeadsResult = { expired: 0, errors: [] }
-
-  const { data, error } = await supabase
-    .from('leads')
-    .select('id, org_id, name, assigned_to, status, timer_expires_at')
-    .eq('status', 'assigned')
-    .not('timer_expires_at', 'is', null)
-    .lt('timer_expires_at', cutoff)
-
-  if (error) {
-    throw new Error(`Failed to load overdue assigned leads: ${error.message}`)
-  }
-
-  const leads = (data ?? []) as AssignTimerExpiredLead[]
-
-  for (const lead of leads) {
-    const event = buildAssignTimerExpiredEvent(lead)
-    const { error: eventError } = await supabase.from('lead_events').insert(event)
-    if (eventError) {
-      result.errors.push(`${lead.id} event: ${eventError.message}`)
-      continue
-    }
-
-    const { error: updateError } = await supabase
-      .from('leads')
-      .update(EXPIRE_OVERDUE_LEADS_PATCH)
-      .eq('id', lead.id)
-
-    if (updateError) {
-      result.errors.push(`${lead.id}: ${updateError.message}`)
-      continue
-    }
-
-    result.expired += 1
-  }
-
-  return result
+  return { expired: 0, errors: [] }
 }
