@@ -15,6 +15,22 @@ export interface TeamAutoAssignInput {
   leadLng?: number | null
 }
 
+/**
+ * Choose the pool of candidates to run selection over.
+ * Prefer technicians not currently on leave; if every technician is on leave (or
+ * there are none), fall back to managers. The manager fallback intentionally
+ * ignores leave — a lead must still land with someone who can act on it.
+ */
+export function selectAssignmentPool(input: {
+  techs: TeamAutoAssignCandidate[]
+  managers: TeamAutoAssignCandidate[]
+  onLeaveIds: Set<string>
+}): TeamAutoAssignCandidate[] {
+  const availableTechs = input.techs.filter((t) => !input.onLeaveIds.has(t.id))
+  if (availableTechs.length > 0) return availableTechs
+  return input.managers
+}
+
 /** Pick the best assignee: min workload, then nearest, then earliest profile. */
 export function pickTeamAutoAssignee(input: TeamAutoAssignInput): string | null {
   const { candidates, activeCounts, leadLat, leadLng } = input

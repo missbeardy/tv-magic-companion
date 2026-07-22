@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { pickTeamAutoAssignee } from '../../shared/teamAutoAssign.js'
+import { pickTeamAutoAssignee, selectAssignmentPool } from '../../shared/teamAutoAssign.js'
 import { getAssignExpiresAt } from '../../shared/leadAssignTimer.js'
 import { isFeatureEnabledForOrg } from './featureSwitches.js'
 import { isSoloOrg } from './soloInboundLead.js'
@@ -45,13 +45,37 @@ export async function applyTeamInboundAssignment(
 
   const { data: profiles } = await supabase
     .from('profiles')
-    .select('id, full_name, lat, lng, created_at')
+    .select('id, full_name, lat, lng, created_at, role')
     .eq('org_id', orgId)
-    .in('role', ['employee'])
+    .in('role', ['employee', 'manager'])
     .eq('is_hidden_test_profile', false)
     .order('created_at', { ascending: true })
 
   if (!profiles?.length) {
+    return { payload: basePayload }
+  }
+
+  const techs = profiles.filter((p) => p.role === 'employee')
+  const managers = profiles.filter((p) => p.role === 'manager')
+
+  // Skip technicians who have blocked out today as leave. A block-out is an
+  // `events` row with category 'Leave' spanning the full day(s) — see
+  // src/components/BlackoutModal.tsx. Managers are used only as a fallback when
+  // every technician is on leave, and that fallback intentionally ignores leave.
+  const nowIso = new Date().toISOString()
+  const { data: leaveRows } = await supabase
+    .from('events')
+    .select('user_id')
+    .eq('org_id', orgId)
+    .eq('category', 'Leave')
+    .lte('start_time', nowIso)
+    .gte('end_time', nowIso)
+  const onLeaveIds = new Set(
+    (leaveRows ?? []).map((r) => r.user_id).filter((id): id is string => Boolean(id))
+  )
+
+  const candidates = selectAssignmentPool({ techs, managers, onLeaveIds })
+  if (!candidates.length) {
     return { payload: basePayload }
   }
 
@@ -73,7 +97,7 @@ export async function applyTeamInboundAssignment(
   const coords = await geocodeLeadAddress(address)
 
   const assigneeId = pickTeamAutoAssignee({
-    candidates: profiles,
+    candidates,
     activeCounts,
     leadLat: coords?.lat,
     leadLng: coords?.lng,
@@ -83,7 +107,7 @@ export async function applyTeamInboundAssignment(
     return { payload: basePayload }
   }
 
-  const assignee = profiles.find((p) => p.id === assigneeId)
+  const assignee = candidates.find((p) => p.id === assigneeId)
   const now = new Date().toISOString()
 
   return {

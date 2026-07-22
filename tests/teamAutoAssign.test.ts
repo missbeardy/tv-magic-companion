@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { pickTeamAutoAssignee } from '../shared/teamAutoAssign'
+import { pickTeamAutoAssignee, selectAssignmentPool } from '../shared/teamAutoAssign'
 
 const baseCandidates = [
   { id: 'a', full_name: 'Alice', lat: -27.47, lng: 153.02, created_at: '2026-01-01T00:00:00Z' },
@@ -36,5 +36,35 @@ describe('pickTeamAutoAssignee', () => {
       activeCounts: { a: 0, b: 0, c: 0 },
     })
     expect(pick).toBe('a')
+  })
+})
+
+describe('selectAssignmentPool', () => {
+  const techs = [
+    { id: 'a', full_name: 'Alice', lat: null, lng: null, created_at: '2026-01-01T00:00:00Z' },
+    { id: 'b', full_name: 'Bob', lat: null, lng: null, created_at: '2026-01-02T00:00:00Z' },
+  ]
+  const managers = [
+    { id: 'm', full_name: 'Mona', lat: null, lng: null, created_at: '2026-01-01T00:00:00Z' },
+  ]
+
+  it('returns all technicians when none are on leave', () => {
+    const pool = selectAssignmentPool({ techs, managers, onLeaveIds: new Set() })
+    expect(pool.map((c) => c.id)).toEqual(['a', 'b'])
+  })
+
+  it('excludes a technician who is on leave', () => {
+    const pool = selectAssignmentPool({ techs, managers, onLeaveIds: new Set(['a']) })
+    expect(pool.map((c) => c.id)).toEqual(['b'])
+  })
+
+  it('falls back to managers (ignoring leave) when all technicians are on leave', () => {
+    const pool = selectAssignmentPool({ techs, managers, onLeaveIds: new Set(['a', 'b']) })
+    expect(pool.map((c) => c.id)).toEqual(['m'])
+  })
+
+  it('returns empty when all technicians are on leave and there are no managers', () => {
+    const pool = selectAssignmentPool({ techs, managers: [], onLeaveIds: new Set(['a', 'b']) })
+    expect(pool).toEqual([])
   })
 })
