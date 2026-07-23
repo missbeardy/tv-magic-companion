@@ -82,6 +82,11 @@
       "destination": "/api/inbound-email?action=facebook-lead"
     },
     {
+      "source": "/api/xero-oauth-callback",
+      "destination": "/api/xero?action=oauth-callback"
+    },
+
+    {
       "source": "/((?!api/|@|.*\\.).*)",
       "destination": "/index.html"
     }

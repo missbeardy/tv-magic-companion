@@ -80,8 +80,9 @@
 ## Parking lot
 
 - Platform Admin UI for `org_phone_numbers` — deferred
-- Xero/MYOB live sync — Tier 3 (front-door positioning)
+- Xero/MYOB **two-way** pull + payment reconciliation — beyond T3.1 push
 - Messenger hybrid bot — Tier 3
+- MYOB CSV variant — T3.9
 
 ---
 

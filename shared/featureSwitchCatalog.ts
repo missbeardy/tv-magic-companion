@@ -26,6 +26,7 @@ export const FEATURE_SWITCH_KEYS = [
   'price_list',
   'invoice_card_payments',
   'accounting_export',
+  'xero_live_sync',
   'tech_location',
   'internal_messaging',
   'customer_linking',
@@ -56,7 +57,7 @@ export const FEATURE_SWITCHES_BY_CATEGORY: Record<FeatureSwitchCategory, readonl
   lead_intake: ['inbound_sms', 'inbound_email', 'inbound_calls', 'inbound_messenger', 'customer_linking', 'customer_import'],
   customer_communication: ['missed_call_hookback_sms', 'lead_ack_sms', 'lead_ack_email', 'customer_ontheway_sms', 'booking_confirm', 'booking_reminder_sms', 'review_requests', 'auto_review_on_paid'],
   team_operations: ['manager_new_lead_alerts', 'smart_assign_badge', 'inbound_auto_assign', 'tech_location', 'internal_messaging', 'customer_profiles', 'onboarding_tips'],
-  sales_job_completion: ['quote_esign', 'completion_upsells', 'one_tap_invoice', 'invoice_chase', 'quote_chase', 'price_list', 'invoice_card_payments', 'accounting_export'],
+  sales_job_completion: ['quote_esign', 'completion_upsells', 'one_tap_invoice', 'invoice_chase', 'quote_chase', 'price_list', 'invoice_card_payments', 'accounting_export', 'xero_live_sync'],
 }
 
 export const FEATURE_SWITCH_CATEGORY_BY_KEY: Record<FeatureSwitchKey, FeatureSwitchCategory> = {
@@ -89,6 +90,7 @@ export const FEATURE_SWITCH_CATEGORY_BY_KEY: Record<FeatureSwitchKey, FeatureSwi
   price_list: 'sales_job_completion',
   invoice_card_payments: 'sales_job_completion',
   accounting_export: 'sales_job_completion',
+  xero_live_sync: 'sales_job_completion',
 }
 
 export const FEATURE_SWITCH_MIN_TIERS: Record<FeatureSwitchKey, SubscriptionTier> = {
@@ -115,6 +117,7 @@ export const FEATURE_SWITCH_MIN_TIERS: Record<FeatureSwitchKey, SubscriptionTier
   price_list: 'basic',
   invoice_card_payments: 'pro',
   accounting_export: 'basic',
+  xero_live_sync: 'basic',
   tech_location: 'basic',
   internal_messaging: 'basic',
   customer_linking: 'basic',

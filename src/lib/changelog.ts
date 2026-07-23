@@ -57,11 +57,13 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Assigned leads stay with the technician — no auto-return to the pool; timer pill now counts up as time assigned (green 0–2h, amber 2–4h, red 4h+)',
     'Inbound auto-assign skips technicians on leave — a blocked-out day (On Leave / Annual Leave / Sick Day) removes that tech from the running for new leads; if the whole team is out, the lead falls back to a manager',
     'Workflow Runs assign/unassign nodes show who did it — Auto vs manual by name on the graph, with mode/by/assignee detail when you click',
+    'Xero live sync (T3.1) — Franchise Settings can OAuth-connect a Xero org and push sent invoices (tax-inclusive ACCREC); feature switch xero_live_sync; CSV export unchanged',
+    'Xero mock mode — set XERO_MOCK=1 to Connect + Sync without a Xero account (payloads validated locally; invoice IDs prefixed mock-)',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.143'
+export const APP_VERSION = '1.1.145'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

@@ -5,7 +5,7 @@
 | **Purpose** | The single prioritised roadmap for FieldBourne. Three tiers: keep the current client, become sellable to strangers, nice-to-have. |
 | **Status** | Governing document — supersedes ordering in `MUST_HAVE_8_ROADMAP.md` and `SALES_PIPELINE_BACKLOG.md` (those remain as detailed specs, referenced below) |
 | **Created** | 18-07-2026, from four reviews run that day: full-code inventory, mobile UX/churn review, competitive assessment vs ServiceM8/Tradify, tech-debt re-validation |
-| **Last updated** | 20-07-2026 — Tier 2 shipped (v1.1.140) except prod schema reconcile operator step; T1.10 still deferred |
+| **Last updated** | 23-07-2026 — T3.1 Xero live sync shipped (v1.1.144); T1.10 still deferred |
 
 ## Governance (read first, every session)
 
@@ -168,7 +168,7 @@
 
 *Build only after Tiers 1–2, or when T2.9 or a real customer pulls one forward. Each gets a full spec block when promoted.*
 
-- [ ] **T3.1 Xero live sync (OAuth, two-way invoices/contacts).** The #1 competitive purchase gate *for replacement positioning*; deliberately deferred while positioned as a front-door add-on (CSV export shipped and honest). Promote to Tier 2 if T2.9 chooses "replacement."
+- [x] **T3.1 Xero live sync (OAuth, push invoices/contacts).** Shipped v1.1.144 (23-07-2026). OAuth connect + date-range push of sent ACCREC invoices (tax inclusive); feature switch `xero_live_sync`. Not full two-way accounting sync — payments/contacts pull still deferred. CSV export remains.
 - [ ] **T3.2 Compliance certificates / forms** (electrical safety, plumbing compliance, gas). Legally required paperwork for licensed trades — its absence excludes sparkies/plumbers/gasfitters from the market entirely. Promote when targeting those trades.
 - [ ] **T3.3 Recurring jobs** (maintenance contracts, test-and-tag). Exists even in ServiceM8's free tier; matters the moment a prospect does repeat servicing.
 - [ ] **T3.4 Timesheets + job costing / materials.** Tradify Pro / ServiceM8 Premium territory; needed for the 2–10-person team market more than for solos.
@@ -202,3 +202,4 @@ New idea (owner or session): add it to the appropriate tier with the same block 
 | 18-07-2026 | T1.9 Fix dead assignee push | v1.1.138. LeadStatusMenu completed/lost notification repointed from the unimplemented `push-notify` edge-function scaffold to the working `sendNotification` (`/api/send-sms?action=notify`, OneSignal + in-app bell); deleted dead `src/lib/sendPush.ts`. (Deployed scaffold `supabase/functions/push-notify` now unused — remove via Supabase dashboard when convenient.) Typecheck + suite clean. |
 | 20-07-2026 | T2.1 Closed-loop pipeline | v1.1.139. Quote-accept manager notify deep-links to `/calendar?bookLead=` with EventModal prefilled (amount + scope); complete→invoice already auto-advanced when `one_tap_invoice` on; new `auto_review_on_paid` switch + `api/_lib/reviewRequest.ts` fires review SMS from `markInvoicePaid` (Stripe or manual) with `review_request_sent_at` claim-before-send dedupe. Migration `20260720120000_auto_review_on_paid.sql`. Unit-tested guards. **Staging e2e UAT still owner-run.** |
 | 20-07-2026 | T2.2–T2.9 Tier 2 batch | v1.1.140. Demo runbook + reset SQL; FieldBourne shell rebrand; onboarding tips; customer CSV import; solo tradie preset at org create; migration-order docs + cutover marked historical (prod reconcile still operator-run); hygiene (dead code, README, tests typecheck, backlog); positioning = front-door add-on @ $69/mo GST-inc messaging-included. |
+| 23-07-2026 | T3.1 Xero live sync | v1.1.144. OAuth connect (`api/xero.ts`) + Franchise Settings panel; push sent invoices as tax-inclusive ACCREC; org token columns + `xero_invoice_id` markers; feature switch `xero_live_sync` (default off). Unit-tested payload + OAuth state. **Live Demo Company UAT needs XERO_CLIENT_* env + free Xero account.** |

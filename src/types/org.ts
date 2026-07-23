@@ -24,6 +24,9 @@ export interface Org {
   gst_registered?: boolean
   accounting_account_code?: string | null
   stripe_connect_status?: string | null
+  xero_tenant_id?: string | null
+  xero_tenant_name?: string | null
+  xero_connected_at?: string | null
 }
 
 interface OrgContextType {

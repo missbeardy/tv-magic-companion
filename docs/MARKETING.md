@@ -52,7 +52,7 @@ Buying behaviour that shapes everything: tradies buy on **mate's recommendation 
 
 | Objection | Answer |
 |---|---|
-| "Do you sync with Xero?" | "Xero-compatible CSV export today — one import a week, and your BSB/PayID stays on every invoice. Live sync is on the roadmap; most front-door users keep invoicing where it is and use us to stop losing the leads." |
+| "Do you sync with Xero?" | "Yes — connect Xero in Franchise Settings and push sent invoices live (or download a Xero-compatible CSV). BSB/PayID stays on every invoice." |
 | "ServiceM8 is $29 / has a free tier." | "ServiceM8 manages jobs you already won. FieldBourne wins you the jobs you're currently missing — one recovered job covers a year. Also: their Android app; ask any Android user." |
 | "I don't want to migrate / retrain." | "Nothing to migrate. Keep your current tool; we sit in front of it. Your leads are new data. Set-up is one session." |
 | "Where's the App Store app?" | "It installs from a link in 10 seconds and works identically on any phone — that's why it's the same app on a $300 Android as an iPhone, unlike some. Push notifications included." |

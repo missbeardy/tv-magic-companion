@@ -1,5 +1,8 @@
 import { INVOICE_DUE_DAYS } from '../../shared/invoiceDue'
+import { endOfDayIso, startOfDayIso } from '../../shared/dateRangeIso'
 import type { LineItem } from './lineItems'
+
+export { endOfDayIso, startOfDayIso }
 
 export const XERO_CSV_HEADERS = [
   'ContactName',
@@ -137,11 +140,3 @@ export function defaultMonthRange(now = new Date()): { from: string; to: string 
   return { from, to }
 }
 
-/** Inclusive end-of-day ISO upper bound for a YYYY-MM-DD date string. */
-export function endOfDayIso(dateYmd: string): string {
-  return `${dateYmd}T23:59:59.999`
-}
-
-export function startOfDayIso(dateYmd: string): string {
-  return `${dateYmd}T00:00:00.000`
-}

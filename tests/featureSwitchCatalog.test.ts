@@ -65,6 +65,7 @@ describe('featureSwitchCatalog categories', () => {
       'price_list',
       'invoice_card_payments',
       'accounting_export',
+      'xero_live_sync',
     ])
   })
 })

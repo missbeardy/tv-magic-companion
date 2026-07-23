@@ -8,6 +8,7 @@ import UpsellSettingsPanel from '../components/settings/UpsellSettingsPanel';
 import InvoiceTemplateEditor from '../components/settings/InvoiceTemplateEditor';
 import PriceListSettingsPanel from '../components/settings/PriceListSettingsPanel';
 import AccountingExportPanel from '../components/settings/AccountingExportPanel';
+import XeroConnectPanel from '../components/settings/XeroConnectPanel';
 import StripeConnectPanel from '../components/settings/StripeConnectPanel';
 import CustomerImportPanel from '../components/CustomerImportPanel';
 import BillingPanel from '../components/BillingPanel';
@@ -426,6 +427,10 @@ export default function OrgSettingsPage() {
 
         {orgId && !featureSwitchesLoading && isFeatureEnabled('accounting_export') && (
           <AccountingExportPanel orgId={orgId} />
+        )}
+
+        {orgId && !featureSwitchesLoading && isFeatureEnabled('xero_live_sync') && (
+          <XeroConnectPanel />
         )}
 
         {orgId && !featureSwitchesLoading && isFeatureEnabled('price_list') && (

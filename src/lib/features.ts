@@ -55,6 +55,7 @@ export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   price_list: false,
   invoice_card_payments: false,
   accounting_export: false,
+  xero_live_sync: false,
   tech_location: false,
   internal_messaging: false,
   customer_linking: false,
@@ -159,6 +160,11 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   accounting_export: {
     label: 'Accounting CSV Export',
     description: 'Export invoices as a Xero-compatible sales invoice CSV (Tax Inclusive)',
+  },
+  xero_live_sync: {
+    label: 'Xero Live Sync',
+    description:
+      'Connect a Xero organisation via OAuth and push sent invoices (contacts + ACCREC) live',
   },
   tech_location: {
     label: 'Tech Location Tracking',

@@ -342,6 +342,8 @@ export type Database = {
           token_expires_at: string | null
           total_amount: number
           updated_at: string
+          xero_invoice_id: string | null
+          xero_synced_at: string | null
         }
         Insert: {
           chase_count?: number
@@ -364,6 +366,8 @@ export type Database = {
           pdf_storage_path?: string | null
           public_token?: string | null
           quote_id?: string | null
+          xero_invoice_id?: string | null
+          xero_synced_at?: string | null
           sent_at?: string | null
           status?: string
           stripe_checkout_session_id?: string | null
@@ -400,6 +404,8 @@ export type Database = {
           token_expires_at?: string | null
           total_amount?: number
           updated_at?: string
+          xero_invoice_id?: string | null
+          xero_synced_at?: string | null
         }
         Relationships: [
           {
@@ -1087,6 +1093,12 @@ export type Database = {
           support_phone: string | null
           timezone: string
           upsell_items: Json
+          xero_access_token: string | null
+          xero_connected_at: string | null
+          xero_refresh_token: string | null
+          xero_tenant_id: string | null
+          xero_tenant_name: string | null
+          xero_token_expires_at: string | null
         }
         Insert: {
           abn?: string | null
@@ -1120,6 +1132,12 @@ export type Database = {
           support_phone?: string | null
           timezone?: string
           upsell_items?: Json
+          xero_access_token?: string | null
+          xero_connected_at?: string | null
+          xero_refresh_token?: string | null
+          xero_tenant_id?: string | null
+          xero_tenant_name?: string | null
+          xero_token_expires_at?: string | null
         }
         Update: {
           abn?: string | null
@@ -1153,6 +1171,12 @@ export type Database = {
           support_phone?: string | null
           timezone?: string
           upsell_items?: Json
+          xero_access_token?: string | null
+          xero_connected_at?: string | null
+          xero_refresh_token?: string | null
+          xero_tenant_id?: string | null
+          xero_tenant_name?: string | null
+          xero_token_expires_at?: string | null
         }
         Relationships: [
           {
