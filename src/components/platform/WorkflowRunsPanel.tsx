@@ -3,7 +3,13 @@ import { Link } from 'react-router-dom'
 import { GitBranch, RefreshCw } from 'lucide-react'
 import { WORKFLOWS } from '../../../shared/workflowRegistry'
 import { formatWorkflowDuration, parseLeadIdFromTriggerSummary, type WorkflowStepRow } from '../../../shared/workflowGraph'
-import { buildKanbanPathFromEvents, type KanbanPathNode, type LeadEventRow } from '../../../shared/kanbanLifecycle'
+import {
+  buildKanbanPathFromEvents,
+  collectKanbanProfileIds,
+  enrichKanbanPathAttribution,
+  type KanbanPathNode,
+  type LeadEventRow,
+} from '../../../shared/kanbanLifecycle'
 import { supabase } from '../../lib/supabase'
 import { timeAgo } from '../../lib/timeAgo'
 import WorkflowRunGraph, { findGraphNode } from './WorkflowRunGraph'
@@ -183,7 +189,7 @@ export default function WorkflowRunsPanel() {
     const [eventsResult, leadResult] = await Promise.all([
       supabase
         .from('lead_events')
-        .select('id, lead_id, event_type, payload, note, created_at, created_by')
+        .select('id, lead_id, event_type, payload, note, created_at, created_by, actor_id')
         .eq('lead_id', leadId)
         .order('created_at', { ascending: true }),
       supabase.from('leads').select('status').eq('id', leadId).maybeSingle(),
@@ -193,12 +199,25 @@ export default function WorkflowRunsPanel() {
       setError(eventsResult.error?.message ?? leadResult.error?.message ?? 'Failed to load lead trace')
       setKanbanPath([])
     } else {
-      setKanbanPath(
-        buildKanbanPathFromEvents(
-          (eventsResult.data ?? []) as LeadEventRow[],
-          (leadResult.data?.status as string | undefined) ?? null
-        )
+      const events = (eventsResult.data ?? []) as LeadEventRow[]
+      const path = buildKanbanPathFromEvents(
+        events,
+        (leadResult.data?.status as string | undefined) ?? null
       )
+
+      const profileIds = collectKanbanProfileIds(events)
+      let nameById = new Map<string, string>()
+      if (profileIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', profileIds)
+        nameById = new Map(
+          (profilesData ?? []).map((row) => [row.id as string, (row.full_name as string) ?? ''])
+        )
+      }
+
+      setKanbanPath(enrichKanbanPathAttribution(path, nameById))
     }
     setKanbanLoading(false)
   }, [])

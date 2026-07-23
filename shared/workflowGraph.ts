@@ -30,6 +30,8 @@ export interface WorkflowGraphNode {
   leadEvent?: KanbanPathNode['event']
   isCurrentStatus?: boolean
   kanbanStatus?: string
+  subtitle?: string | null
+  attribution?: KanbanPathNode['attribution']
 }
 
 export interface WorkflowGraphEdge {
@@ -173,6 +175,8 @@ export function buildInboundTraceGraph(
     leadEvent: item.event,
     isCurrentStatus: item.isCurrent,
     kanbanStatus: item.status,
+    subtitle: item.attribution?.subtitle ?? null,
+    attribution: item.attribution ?? null,
     position:
       layout === 'horizontal'
         ? { x: index * HORIZONTAL_GAP, y: KANBAN_ROW_OFFSET_Y }

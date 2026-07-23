@@ -21,6 +21,7 @@ import { stepNodeClass } from '../../lib/workflowStatusStyles'
 
 export interface WorkflowGraphNodeData extends Record<string, unknown> {
   label: string
+  subtitle?: string | null
   status: WorkflowGraphNode['status']
   selected: boolean
   layout: WorkflowGraphLayout
@@ -42,6 +43,11 @@ function WorkflowStepNode({ id, data }: NodeProps<WorkflowStepNodeType>) {
     >
       <Handle type="target" position={targetPos} className="!bg-gray-300 !w-2 !h-2" />
       <span className="block leading-snug">{data.label}</span>
+      {data.subtitle ? (
+        <span className="block text-[10px] font-normal text-gray-500 mt-0.5 leading-tight truncate max-w-[140px]">
+          {data.subtitle}
+        </span>
+      ) : null}
       <Handle type="source" position={sourcePos} className="!bg-gray-300 !w-2 !h-2" />
     </button>
   )
@@ -88,6 +94,7 @@ export default function WorkflowRunGraph({
         position: node.position,
         data: {
           label: node.label,
+          subtitle: node.subtitle ?? null,
           status: node.status,
           selected: selectedNodeId === node.nodeId,
           isCurrentKanban: node.isCurrentStatus === true,

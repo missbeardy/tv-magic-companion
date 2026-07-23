@@ -56,11 +56,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Positioning decision — FieldBourne stays a front-door add-on beside the tradie\'s existing tool; target solo price $69/mo GST-inc messaging-included (founding customers may differ); Xero live sync stays Tier 3',
     'Assigned leads stay with the technician — no auto-return to the pool; timer pill now counts up as time assigned (green 0–2h, amber 2–4h, red 4h+)',
     'Inbound auto-assign skips technicians on leave — a blocked-out day (On Leave / Annual Leave / Sick Day) removes that tech from the running for new leads; if the whole team is out, the lead falls back to a manager',
+    'Workflow Runs assign/unassign nodes show who did it — Auto vs manual by name on the graph, with mode/by/assignee detail when you click',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.142'
+export const APP_VERSION = '1.1.143'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Copy } from 'lucide-react'
 import type { WorkflowGraphNode } from '../../../shared/workflowGraph'
 import { formatWorkflowDuration } from '../../../shared/workflowGraph'
+import type { KanbanAttributionMode } from '../../../shared/kanbanLifecycle'
 import { WorkflowStepStatusPill } from './WorkflowRunStatusPill'
 
 interface WorkflowRunStepDetailProps {
@@ -27,6 +28,19 @@ function hasTruncatedMarker(value: unknown): boolean {
   )
 }
 
+function modeLabel(mode: KanbanAttributionMode): string {
+  switch (mode) {
+    case 'automated':
+      return 'Automated'
+    case 'manual':
+      return 'Manual'
+    case 'initial':
+      return 'Initial'
+    default:
+      return 'Unknown'
+  }
+}
+
 export default function WorkflowRunStepDetail({ node, onClose }: WorkflowRunStepDetailProps) {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
 
@@ -35,6 +49,9 @@ export default function WorkflowRunStepDetail({ node, onClose }: WorkflowRunStep
   const step = node.stepRow
   const leadEvent = node.leadEvent
   const isKanban = node.lane === 'kanban'
+  const attribution = node.attribution ?? null
+  const showAttribution =
+    isKanban && (node.kanbanStatus === 'assigned' || node.kanbanStatus === 'unassigned')
   const outputTruncated = hasTruncatedMarker(step?.output)
   const errorTruncated = hasTruncatedMarker(step?.error)
 
@@ -46,6 +63,7 @@ export default function WorkflowRunStepDetail({ node, onClose }: WorkflowRunStep
           payload: leadEvent?.payload ?? null,
           kanban_status: node?.kanbanStatus ?? null,
           is_current: node?.isCurrentStatus ?? false,
+          attribution: attribution ?? null,
         }
       : {
           output: step?.output ?? null,
@@ -103,6 +121,44 @@ export default function WorkflowRunStepDetail({ node, onClose }: WorkflowRunStep
       {(outputTruncated || errorTruncated) && (
         <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs p-3 rounded-xl">
           Payload truncated at 2 KB in storage.
+        </div>
+      )}
+
+      {showAttribution && attribution && (
+        <div className="space-y-2 rounded-xl border border-gray-100 bg-gray-50 p-3">
+          <p className="text-xs font-semibold text-gray-600">Assignment</p>
+          <div className="grid gap-2 sm:grid-cols-2 text-xs text-gray-700">
+            <div>
+              <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1">Mode</p>
+              <p>{modeLabel(attribution.mode)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1">By</p>
+              <p>{attribution.actorLabel ?? (attribution.mode === 'automated' ? 'System' : '—')}</p>
+            </div>
+            {node.kanbanStatus === 'assigned' && (
+              <div>
+                <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1">Assigned to</p>
+                <p>{attribution.assigneeLabel ?? '—'}</p>
+              </div>
+            )}
+            {node.kanbanStatus === 'unassigned' && attribution.assigneeLabel && (
+              <div>
+                <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1">
+                  Previously assigned to
+                </p>
+                <p>{attribution.assigneeLabel}</p>
+              </div>
+            )}
+            <div>
+              <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1">Source</p>
+              <p>{attribution.sourceLabel ?? '—'}</p>
+            </div>
+            <div className="sm:col-span-2">
+              <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1">Summary</p>
+              <p>{attribution.summary}</p>
+            </div>
+          </div>
         </div>
       )}
 
