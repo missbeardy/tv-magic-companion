@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useOrg } from '../../context/OrgContext'
 import { fetchStripeConnectStatus } from '../../lib/stripeConnect'
+import SettingsAccordion from './SettingsAccordion'
 
 export default function StripeConnectPanel() {
   const { org, refreshOrg } = useOrg()
@@ -50,14 +51,11 @@ export default function StripeConnectPanel() {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-      <div>
-        <p className="text-sm font-semibold text-gray-700">💳 Card Payments (Stripe Connect)</p>
-        <p className="text-xs text-gray-400 mt-1">
-          Connect your own Stripe account to add a Pay Now button to invoice emails. You own the
-          Stripe relationship — payouts and disputes go straight to your bank account.
-        </p>
-      </div>
+    <SettingsAccordion title="Card payments (Stripe Connect)">
+      <p className="text-xs text-gray-400">
+        Connect your own Stripe account to add a Pay Now button to invoice emails. You own the
+        Stripe relationship — payouts and disputes go straight to your bank account.
+      </p>
 
       {status === 'connected' ? (
         <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
@@ -75,6 +73,6 @@ export default function StripeConnectPanel() {
       )}
 
       {error && <p className="text-sm text-red-600">{error}</p>}
-    </div>
+    </SettingsAccordion>
   )
 }

@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { CreditCard, ExternalLink, Sparkles } from 'lucide-react'
+import { ExternalLink, Sparkles } from 'lucide-react'
 import { useOrg } from '../context/OrgContext'
 import { isPlatformFeaturesEnabled } from '../lib/env'
 import { requireAuthHeaders } from '../lib/apiAuth'
 import { FEATURES, type FeatureKey } from '../lib/features'
+import SettingsAccordion from './settings/SettingsAccordion'
 
 const TIER_LABELS = {
   basic: 'Basic',
@@ -80,12 +81,7 @@ export default function BillingPanel() {
   })
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-      <div className="flex items-center gap-2">
-        <CreditCard size={18} className="text-gray-600" />
-        <p className="text-sm font-semibold text-gray-700">Subscription & Billing</p>
-      </div>
-
+    <SettingsAccordion title="Subscription & billing">
       <div className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3">
         <div>
           <p className="text-xs text-gray-500 uppercase tracking-wide">Current plan</p>
@@ -151,6 +147,6 @@ export default function BillingPanel() {
       <p className="text-xs text-gray-400">
         Billing is per franchisee. Use Stripe test mode on preview until production cutover.
       </p>
-    </div>
+    </SettingsAccordion>
   )
 }

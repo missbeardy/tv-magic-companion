@@ -34,6 +34,7 @@ export interface InvoiceSendInput {
   orgName?: string
   senderName?: string
   emailTemplates?: Record<string, string> | null
+  brandEmailTemplates?: Record<string, string> | null
   paymentInstructions?: string | null
   orgPdfTemplatePath?: string | null
   primaryColor?: string
@@ -174,26 +175,31 @@ export async function createAndSendInvoice(input: InvoiceSendInput) {
     ? `<p style="margin:20px 0"><a href="${(input.baseUrl?.trim() || getPlatformUrl()).replace(/\/$/, '')}/api/stripe?action=invoice-pay&token=${publicToken}" style="background:${input.primaryColor?.trim() || '#004B93'};color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">Pay Now</a></p>`
     : ''
 
-  const { subject, html } = buildInvoiceEmailFromOrg(input.emailTemplates, {
-    'org.name': input.orgName?.trim() ?? '',
-    customerName: input.customerName,
-    customerEmail,
-    invoiceNumber,
-    documentTitle,
-    abnLine,
-    totalAmount: `AUD ${Number(input.totalAmount).toFixed(2)}`,
-    gstLine,
-    payButton,
-    dueDate,
-    lineItemsHtml: buildLineItemsHtml(lineItems),
-    paymentInstructions,
-    serviceType: input.serviceType?.trim() ?? '',
-    jobDate,
-    primaryColor: input.primaryColor?.trim() || '#004B93',
-    senderBlock: input.senderName?.trim()
-      ? `<p>Prepared by: ${escapeHtml(input.senderName.trim())}</p>`
-      : '',
-  })
+  const { subject, html } = buildInvoiceEmailFromOrg(
+    input.emailTemplates,
+    {
+      'org.name': input.orgName?.trim() ?? '',
+      customerName: input.customerName,
+      customerEmail,
+      invoiceNumber,
+      documentTitle,
+      abnLine,
+      totalAmount: `AUD ${Number(input.totalAmount).toFixed(2)}`,
+      gstLine,
+      payButton,
+      dueDate,
+      lineItemsHtml: buildLineItemsHtml(lineItems),
+      paymentInstructions,
+      serviceType: input.serviceType?.trim() ?? '',
+      jobDate,
+      primaryColor: input.primaryColor?.trim() || '#004B93',
+      senderBlock: input.senderName?.trim()
+        ? `<p>Prepared by: ${escapeHtml(input.senderName.trim())}</p>`
+        : '',
+    },
+    undefined,
+    input.brandEmailTemplates
+  )
 
   const attachments = await collectPdfAttachments(input.orgPdfTemplatePath, input.pdfStoragePath)
 

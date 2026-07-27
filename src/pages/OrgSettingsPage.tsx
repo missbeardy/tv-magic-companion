@@ -5,7 +5,8 @@ import { applyThemeToDocument, resolveThemeTokens } from '../lib/theme';
 import { buildBrandTransferPayload } from '../lib/brandTransfer';
 import NavBar from '../components/NavBar';
 import UpsellSettingsPanel from '../components/settings/UpsellSettingsPanel';
-import InvoiceTemplateEditor from '../components/settings/InvoiceTemplateEditor';
+import EmailTemplatesPanel from '../components/settings/EmailTemplatesPanel';
+import SettingsAccordion from '../components/settings/SettingsAccordion';
 import PriceListSettingsPanel from '../components/settings/PriceListSettingsPanel';
 import AccountingExportPanel from '../components/settings/AccountingExportPanel';
 import XeroConnectPanel from '../components/settings/XeroConnectPanel';
@@ -29,7 +30,6 @@ export default function OrgSettingsPage() {
   const [googleReviewUrl, setGoogleReviewUrl] = useState('');
   const [abn, setAbn] = useState('');
   const [gstRegistered, setGstRegistered] = useState(true);
-  // Image upload states
   const [imageUrl, setImageUrl] = useState<string>('');
   const [uploadingImage, setUploadingImage] = useState(false);
   const [applyingBrand, setApplyingBrand] = useState(false);
@@ -65,7 +65,7 @@ export default function OrgSettingsPage() {
             setGoogleReviewUrl(org.google_review_url || '');
             setAbn(org.abn || '');
             setGstRegistered(org.gst_registered !== false);
-            setImageUrl(org.logo_url || ''); // Match this key to your database column
+            setImageUrl(org.logo_url || '');
           }
         }
       } catch (err) {
@@ -76,7 +76,6 @@ export default function OrgSettingsPage() {
     loadOrg();
   }, []);
 
-  // Handles bucket uploading and returns a public URL reference
   async function handleImageUpload(e: ChangeEvent<HTMLInputElement>) {
     try {
       setError('');
@@ -89,17 +88,14 @@ export default function OrgSettingsPage() {
       setUploadingImage(true);
       const file = e.target.files[0];
       const fileExt = file.name.split('.').pop();
-      // Scoping the path by orgId handles file organization gracefully
       const filePath = `${orgId}/business-logo-${Math.random().toString(36).substring(2)}.${fileExt}`;
 
-      // Upload file directly into 'org-assets' public bucket
       const { error: uploadError } = await supabase.storage
         .from('org-assets')
         .upload(filePath, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      // Extract public URL
       const { data: { publicUrl } } = supabase.storage
         .from('org-assets')
         .getPublicUrl(filePath);
@@ -169,7 +165,7 @@ export default function OrgSettingsPage() {
           google_review_url: googleReviewUrl.trim() || null,
           abn: trimmedAbn ? formatAbn(trimmedAbn) : null,
           gst_registered: gstRegistered,
-          logo_url: imageUrl, // Saves public asset string path reference to DB
+          logo_url: imageUrl,
         })
         .eq('id', orgId);
 
@@ -201,10 +197,10 @@ export default function OrgSettingsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <NavBar />
-      <main className="p-6 max-w-lg mx-auto space-y-6">
+      <main className="p-6 max-w-2xl mx-auto space-y-3">
         <div>
           <h2 className="text-2xl font-bold text-gray-800 mb-1">Franchise Settings</h2>
-          <p className="text-gray-500 text-sm">Manage your brand and contact information</p>
+          <p className="text-gray-500 text-sm">Expand a section to edit — tap again to minimise</p>
         </div>
 
         {error && (
@@ -215,9 +211,7 @@ export default function OrgSettingsPage() {
           <div className="bg-green-50 text-green-600 p-3 rounded-lg text-sm">✅ Settings saved!</div>
         )}
 
-        {/* Brand Name */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-          <p className="text-sm font-semibold text-gray-700">🏢 Franchise Name</p>
+        <SettingsAccordion title="Franchise name" defaultOpen>
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Name</label>
             <input
@@ -227,13 +221,11 @@ export default function OrgSettingsPage() {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#004B93]"
               placeholder="e.g., Acme Antennas Brisbane"
             />
-            <p className="text-xs text-gray-400 mt-1">This appears throughout the app and on customer communications</p>
+            <p className="text-xs text-gray-400 mt-1">Appears throughout the app and on customer communications</p>
           </div>
-        </div>
+        </SettingsAccordion>
 
-        {/* Business Image Upload Card */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-          <p className="text-sm font-semibold text-gray-700">🖼️ Business Image / Logo</p>
+        <SettingsAccordion title="Business image / logo">
           <div className="flex flex-col items-center justify-center gap-4 border-2 border-dashed border-gray-200 rounded-xl p-4 bg-gray-50">
             {imageUrl ? (
               <div className="relative group w-full flex flex-col items-center">
@@ -250,7 +242,7 @@ export default function OrgSettingsPage() {
                 <p className="text-xs text-gray-400">Supports PNG, JPG, or WEBP</p>
               </div>
             )}
-            
+
             <label className="w-full flex justify-center items-center px-4 py-2 bg-white border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer transition focus-within:ring-2 focus-within:ring-[#004B93]">
               <span>{uploadingImage ? 'Uploading to Storage...' : imageUrl ? 'Change Image' : 'Select Business Image'}</span>
               <input
@@ -262,11 +254,9 @@ export default function OrgSettingsPage() {
               />
             </label>
           </div>
-        </div>
+        </SettingsAccordion>
 
-        {/* Brand Colors */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-          <p className="text-sm font-semibold text-gray-700">🎨 Brand Colors</p>
+        <SettingsAccordion title="Brand colours">
           <div className="flex gap-2 rounded-lg overflow-hidden h-10 border border-gray-200">
             <div className="flex-1" style={{ backgroundColor: primaryColor }} title="Primary (nav bar)" />
             <div className="flex-1" style={{ backgroundColor: secondaryColor }} title="Secondary" />
@@ -318,11 +308,9 @@ export default function OrgSettingsPage() {
               />
             </div>
           </div>
-        </div>
+        </SettingsAccordion>
 
-        {/* Revenue Settings */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-          <p className="text-sm font-semibold text-gray-700">💰 Revenue Settings</p>
+        <SettingsAccordion title="Revenue settings">
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Average Job Value (AUD)</label>
             <div className="relative">
@@ -339,11 +327,9 @@ export default function OrgSettingsPage() {
             </div>
             <p className="text-xs text-gray-400 mt-1">Used to estimate revenue in the Revenue Snapshot widget</p>
           </div>
-        </div>
+        </SettingsAccordion>
 
-        {/* Google review requests */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-          <p className="text-sm font-semibold text-gray-700">⭐ Google Review Requests</p>
+        <SettingsAccordion title="Google review requests">
           <p className="text-xs text-gray-500">
             Enable or disable review SMS for your brand in Platform Admin → Feature switches (
             <span className="font-medium">Google Review Request SMS</span>). Set your review link below.
@@ -361,11 +347,9 @@ export default function OrgSettingsPage() {
               Paste your Google Business review URL — used when a technician confirms the post-job SMS
             </p>
           </div>
-        </div>
+        </SettingsAccordion>
 
-        {/* Tax Details */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-          <p className="text-sm font-semibold text-gray-700">🧾 Tax Details (ABN &amp; GST)</p>
+        <SettingsAccordion title="Tax details (ABN & GST)">
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">ABN</label>
             <input
@@ -388,14 +372,12 @@ export default function OrgSettingsPage() {
             Registered for GST
           </label>
           <p className="text-xs text-gray-400">
-            When on, quotes and invoices show the GST component and are titled "Tax Invoice".
-            Turn off if you're not GST-registered (e.g. under the $75k threshold).
+            When on, quotes and invoices show the GST component and are titled &quot;Tax Invoice&quot;.
+            Turn off if you&apos;re not GST-registered (e.g. under the $75k threshold).
           </p>
-        </div>
+        </SettingsAccordion>
 
-        {/* Contact Information */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-          <p className="text-sm font-semibold text-gray-700">📞 Contact Information</p>
+        <SettingsAccordion title="Contact information">
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Support Phone</label>
             <input
@@ -416,13 +398,18 @@ export default function OrgSettingsPage() {
               placeholder="support@yourfranchise.com"
             />
           </div>
-        </div>
+        </SettingsAccordion>
 
-        {/* Upsell Items */}
         {orgId && <UpsellSettingsPanel orgId={orgId} />}
 
-        {orgId && !featureSwitchesLoading && isFeatureEnabled('one_tap_invoice') && (
-          <InvoiceTemplateEditor orgId={orgId} primaryColor={primaryColor} />
+        {orgId && (
+          <EmailTemplatesPanel
+            orgId={orgId}
+            orgName={orgName || org?.name || 'Franchise'}
+            primaryColor={primaryColor}
+            logoUrl={imageUrl || org?.logo_url}
+            showInvoiceExtras={!featureSwitchesLoading && isFeatureEnabled('one_tap_invoice')}
+          />
         )}
 
         {orgId && !featureSwitchesLoading && isFeatureEnabled('accounting_export') && (

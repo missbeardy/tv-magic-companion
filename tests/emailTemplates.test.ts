@@ -1,10 +1,21 @@
 import { describe, it, expect } from 'vitest'
 import {
   buildQuoteEmailFromBrand,
+  buildLeadAckEmailFromBrand,
+  buildInvoiceEmailFromOrg,
   escapeHtml,
   getDefaultQuoteEmailTemplates,
+  getDefaultLeadAckEmailTemplates,
+  getDefaultInvoiceEmailTemplates,
   nl2brHtml,
+  resolveEmailTemplateValue,
 } from '../api/_lib/emailTemplates'
+import {
+  compileEmailDoc,
+  getDefaultEmailTemplateDoc,
+  EMAIL_TEMPLATE_STORAGE_KEYS,
+  EMAIL_TEMPLATE_IDS,
+} from '../shared/emailTemplateDocs'
 
 describe('emailTemplates', () => {
   it('escapes HTML and converts newlines', () => {
@@ -45,5 +56,116 @@ describe('emailTemplates', () => {
       { 'org.name': 'Northside' }
     )
     expect(subject).toBe('Quote ready — Northside')
+  })
+
+  it('prefers org template over brand over default', () => {
+    expect(
+      resolveEmailTemplateValue(
+        { customer_quote_request_subject: 'Org: {{org.name}}' },
+        { customer_quote_request_subject: 'Brand: {{org.name}}' },
+        'customer_quote_request_subject',
+        'Default: {{org.name}}'
+      )
+    ).toBe('Org: {{org.name}}')
+
+    expect(
+      resolveEmailTemplateValue(
+        {},
+        { customer_quote_request_subject: 'Brand: {{org.name}}' },
+        'customer_quote_request_subject',
+        'Default: {{org.name}}'
+      )
+    ).toBe('Brand: {{org.name}}')
+
+    expect(
+      resolveEmailTemplateValue(
+        { customer_quote_request_subject: '   ' },
+        null,
+        'customer_quote_request_subject',
+        'Default: {{org.name}}'
+      )
+    ).toBe('Default: {{org.name}}')
+  })
+
+  it('builds quote with org override winning over brand', () => {
+    const { subject } = buildQuoteEmailFromBrand(
+      { customer_quote_request_subject: 'Brand subject {{org.name}}' },
+      { 'org.name': 'Westside' },
+      undefined,
+      { customer_quote_request_subject: 'Franchise subject {{org.name}}' }
+    )
+    expect(subject).toBe('Franchise subject Westside')
+  })
+
+  it('builds lead ack with org override', () => {
+    const { subject } = buildLeadAckEmailFromBrand(
+      getDefaultLeadAckEmailTemplates(),
+      { 'org.name': 'Ack Org', customerName: 'Pat', callbackWindow: 'soon', orgPhoneBlock: '' },
+      undefined,
+      { lead_ack_email_subject: 'Got it — {{org.name}}' }
+    )
+    expect(subject).toBe('Got it — Ack Org')
+  })
+
+  it('builds invoice falling back to brand when org empty', () => {
+    const { subject } = buildInvoiceEmailFromOrg(
+      {},
+      { 'org.name': 'Inv Org', invoiceNumber: 'INV-1' },
+      getDefaultInvoiceEmailTemplates(),
+      { customer_invoice_subject: 'Brand invoice {{invoiceNumber}}' }
+    )
+    expect(subject).toBe('Brand invoice INV-1')
+  })
+})
+
+describe('emailTemplateDocs', () => {
+  it('compiles default docs with required placeholders preserved', () => {
+    for (const id of EMAIL_TEMPLATE_IDS) {
+      const doc = getDefaultEmailTemplateDoc(id)
+      const { subject, html } = compileEmailDoc(doc, { primaryColor: '#004B93', templateId: id })
+      expect(subject.length).toBeGreaterThan(0)
+      expect(html).toContain('max-width:560px')
+
+      const keys = EMAIL_TEMPLATE_STORAGE_KEYS[id]
+      expect(keys.subject).toBeTruthy()
+      expect(keys.html).toBeTruthy()
+    }
+  })
+
+  it('preserves {{placeholders}} in body and button href', () => {
+    const doc = getDefaultEmailTemplateDoc('quote')
+    const { html } = compileEmailDoc(doc, { primaryColor: '#111111', templateId: 'quote' })
+    expect(html).toContain('{{customerName}}')
+    expect(html).toContain('{{acceptanceUrl}}')
+    expect(html).toContain('{{scopeHtml}}')
+    expect(html).toContain('{{totalAmount}}')
+  })
+
+  it('default subjects match legacy default subjects', () => {
+    expect(getDefaultEmailTemplateDoc('quote').subject).toBe(
+      getDefaultQuoteEmailTemplates().customer_quote_request_subject
+    )
+    expect(getDefaultEmailTemplateDoc('lead_ack').subject).toBe(
+      getDefaultLeadAckEmailTemplates().lead_ack_email_subject
+    )
+    expect(getDefaultEmailTemplateDoc('invoice').subject).toBe(
+      getDefaultInvoiceEmailTemplates().customer_invoice_subject
+    )
+  })
+
+  it('escapes user text but keeps placeholders', () => {
+    const { html } = compileEmailDoc(
+      {
+        version: 2,
+        subject: 'Hi',
+        heading: '',
+        body: 'Hello <b>{{customerName}}</b>',
+        buttonLabel: '',
+        buttonHref: '',
+        showLogo: false,
+      },
+      { templateId: 'lead_ack' }
+    )
+    expect(html).toContain('Hello &lt;b&gt;{{customerName}}&lt;/b&gt;')
   })
 })

@@ -24,6 +24,20 @@ export interface QuoteEmailContent {
   html: string
 }
 
+/** Org override → brand → default. Empty strings fall through. */
+export function resolveEmailTemplateValue(
+  orgTemplates: Record<string, string> | null | undefined,
+  brandTemplates: Record<string, string> | null | undefined,
+  key: string,
+  defaultValue: string
+): string {
+  const orgVal = orgTemplates?.[key]?.trim()
+  if (orgVal) return orgVal
+  const brandVal = brandTemplates?.[key]?.trim()
+  if (brandVal) return brandVal
+  return defaultValue
+}
+
 export function getDefaultQuoteEmailTemplates(): Record<string, string> {
   return {
     [QUOTE_EMAIL_TEMPLATE_KEYS.subject]: 'Your quote from {{org.name}}',
@@ -41,14 +55,23 @@ export function getDefaultQuoteEmailTemplates(): Record<string, string> {
 }
 
 export function buildQuoteEmailFromBrand(
-  templates: Record<string, string> | null | undefined,
+  brandTemplates: Record<string, string> | null | undefined,
   vars: TemplateVars,
-  fallbackTemplates: Record<string, string> = getDefaultQuoteEmailTemplates()
+  fallbackTemplates: Record<string, string> = getDefaultQuoteEmailTemplates(),
+  orgTemplates?: Record<string, string> | null
 ): QuoteEmailContent {
-  const subjectTemplate =
-    templates?.[QUOTE_EMAIL_TEMPLATE_KEYS.subject] ?? fallbackTemplates[QUOTE_EMAIL_TEMPLATE_KEYS.subject]
-  const htmlTemplate =
-    templates?.[QUOTE_EMAIL_TEMPLATE_KEYS.html] ?? fallbackTemplates[QUOTE_EMAIL_TEMPLATE_KEYS.html]
+  const subjectTemplate = resolveEmailTemplateValue(
+    orgTemplates,
+    brandTemplates,
+    QUOTE_EMAIL_TEMPLATE_KEYS.subject,
+    fallbackTemplates[QUOTE_EMAIL_TEMPLATE_KEYS.subject]
+  )
+  const htmlTemplate = resolveEmailTemplateValue(
+    orgTemplates,
+    brandTemplates,
+    QUOTE_EMAIL_TEMPLATE_KEYS.html,
+    fallbackTemplates[QUOTE_EMAIL_TEMPLATE_KEYS.html]
+  )
 
   return {
     subject: interpolateTemplate(subjectTemplate, vars),
@@ -98,16 +121,23 @@ export function getDefaultLeadAckEmailTemplates(): Record<string, string> {
 }
 
 export function buildLeadAckEmailFromBrand(
-  templates: Record<string, string> | null | undefined,
+  brandTemplates: Record<string, string> | null | undefined,
   vars: TemplateVars,
-  fallbackTemplates: Record<string, string> = getDefaultLeadAckEmailTemplates()
+  fallbackTemplates: Record<string, string> = getDefaultLeadAckEmailTemplates(),
+  orgTemplates?: Record<string, string> | null
 ): QuoteEmailContent {
-  const subjectTemplate =
-    templates?.[LEAD_ACK_EMAIL_TEMPLATE_KEYS.subject] ??
+  const subjectTemplate = resolveEmailTemplateValue(
+    orgTemplates,
+    brandTemplates,
+    LEAD_ACK_EMAIL_TEMPLATE_KEYS.subject,
     fallbackTemplates[LEAD_ACK_EMAIL_TEMPLATE_KEYS.subject]
-  const htmlTemplate =
-    templates?.[LEAD_ACK_EMAIL_TEMPLATE_KEYS.html] ??
+  )
+  const htmlTemplate = resolveEmailTemplateValue(
+    orgTemplates,
+    brandTemplates,
+    LEAD_ACK_EMAIL_TEMPLATE_KEYS.html,
     fallbackTemplates[LEAD_ACK_EMAIL_TEMPLATE_KEYS.html]
+  )
 
   return {
     subject: interpolateTemplate(subjectTemplate, vars),
@@ -116,14 +146,23 @@ export function buildLeadAckEmailFromBrand(
 }
 
 export function buildInvoiceEmailFromOrg(
-  templates: Record<string, string> | null | undefined,
+  orgTemplates: Record<string, string> | null | undefined,
   vars: TemplateVars,
-  fallbackTemplates: Record<string, string> = getDefaultInvoiceEmailTemplates()
+  fallbackTemplates: Record<string, string> = getDefaultInvoiceEmailTemplates(),
+  brandTemplates?: Record<string, string> | null
 ): QuoteEmailContent {
-  const subjectTemplate =
-    templates?.[INVOICE_EMAIL_TEMPLATE_KEYS.subject] ?? fallbackTemplates[INVOICE_EMAIL_TEMPLATE_KEYS.subject]
-  const htmlTemplate =
-    templates?.[INVOICE_EMAIL_TEMPLATE_KEYS.html] ?? fallbackTemplates[INVOICE_EMAIL_TEMPLATE_KEYS.html]
+  const subjectTemplate = resolveEmailTemplateValue(
+    orgTemplates,
+    brandTemplates,
+    INVOICE_EMAIL_TEMPLATE_KEYS.subject,
+    fallbackTemplates[INVOICE_EMAIL_TEMPLATE_KEYS.subject]
+  )
+  const htmlTemplate = resolveEmailTemplateValue(
+    orgTemplates,
+    brandTemplates,
+    INVOICE_EMAIL_TEMPLATE_KEYS.html,
+    fallbackTemplates[INVOICE_EMAIL_TEMPLATE_KEYS.html]
+  )
 
   return {
     subject: interpolateTemplate(subjectTemplate, vars),

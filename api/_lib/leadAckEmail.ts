@@ -33,30 +33,37 @@ export async function sendLeadAckEmailIfEnabled(input: LeadAckEmailInput): Promi
 
   const { data: org } = await supabase
     .from('orgs')
-    .select('name, brand_id, support_phone')
+    .select('name, brand_id, support_phone, email_templates')
     .eq('id', input.orgId)
     .single()
 
-  let emailTemplates: Record<string, string> | undefined
+  const orgTemplates = (org?.email_templates as Record<string, string> | undefined) ?? undefined
+
+  let brandTemplates: Record<string, string> | undefined
   if (org?.brand_id) {
     const { data: brandRow } = await supabase
       .from('brands')
       .select('email_templates')
       .eq('id', org.brand_id)
       .maybeSingle()
-    emailTemplates = brandRow?.email_templates as Record<string, string> | undefined
+    brandTemplates = brandRow?.email_templates as Record<string, string> | undefined
   }
 
   const orgName = org?.name ?? 'Your organisation'
   const supportPhone = org?.support_phone?.trim() ?? ''
   const customerName = input.customerName?.trim() || 'there'
 
-  const { subject, html } = buildLeadAckEmailFromBrand(emailTemplates, {
-    'org.name': orgName,
-    customerName,
-    callbackWindow: LEAD_ACK_CALLBACK_WINDOW,
-    orgPhoneBlock: buildOrgPhoneBlock(supportPhone),
-  })
+  const { subject, html } = buildLeadAckEmailFromBrand(
+    brandTemplates,
+    {
+      'org.name': orgName,
+      customerName,
+      callbackWindow: LEAD_ACK_CALLBACK_WINDOW,
+      orgPhoneBlock: buildOrgPhoneBlock(supportPhone),
+    },
+    undefined,
+    orgTemplates
+  )
 
   const result = await sendTransactionalEmail({ to: rawEmail, subject, html })
   if (!result.sent) {

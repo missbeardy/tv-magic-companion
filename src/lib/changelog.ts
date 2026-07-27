@@ -43,27 +43,16 @@ export function formatChangelogDate(date: string): string {
  * after Monday, set `weekStarts` to that Monday (use getCurrentReleaseWeekId()).
  */
 export const WEEKLY_CHANGELOG: WeeklyChangelog = {
-  weekStarts: '20-07-2026',
-  title: 'Stranger-ready Tier 2',
+  weekStarts: '27-07-2026',
+  title: 'Franchise email templates',
   items: [
-    'Closed-loop quote → book → invoice → pay → review — accepting a quote deep-links managers into Book on the calendar with amount and scope pre-filled; when an invoice is marked paid, Auto Review Request on Paid can SMS the Google review link once per lead',
-    'FieldBourne shell rebrand — PWA name/icon/manifest, login, captions, and receipts no longer say TVMagic outside the TV Magic brand\'s own data; draft keys migrate from tvmagic: to fieldbourne:',
-    'In-app onboarding tips — team-mode coach tips for the pool timer, contact rounds, and next-action button (replay via ? on Leads); solo mode stays quiet',
-    'Customer CSV import — Franchise Settings can upload a customer list (name/phone/email/address/notes), map columns, and merge duplicates by phone',
-    'Solo tradie wedge preset — Platform Admin can create a new org with inbound, ack, quote, booking, invoice, review, price list, import, and tips switches turned on in one tick',
-    'Demo + onboarding runbooks — docs/DEMO_RUNBOOK.md and scripts/demo-reset.sql for the 60-second pitch; founder provisioning runbook updated for the preset',
-    'Engineering hygiene — removed dead Tasks board / web-push / SignatureCanvas; real README; tests under typecheck; sales pipeline backlog reconciled; migration-order hazard documented',
-    'Positioning decision — FieldBourne stays a front-door add-on beside the tradie\'s existing tool; target solo price $69/mo GST-inc messaging-included (founding customers may differ); Xero live sync stays Tier 3',
-    'Assigned leads stay with the technician — no auto-return to the pool; timer pill now counts up as time assigned (green 0–2h, amber 2–4h, red 4h+)',
-    'Inbound auto-assign skips technicians on leave — a blocked-out day (On Leave / Annual Leave / Sick Day) removes that tech from the running for new leads; if the whole team is out, the lead falls back to a manager',
-    'Workflow Runs assign/unassign nodes show who did it — Auto vs manual by name on the graph, with mode/by/assignee detail when you click',
-    'Xero live sync (T3.1) — Franchise Settings can OAuth-connect a Xero org and push sent invoices (tax-inclusive ACCREC); feature switch xero_live_sync; CSV export unchanged',
-    'Xero mock mode — set XERO_MOCK=1 to Connect + Sync without a Xero account (payloads validated locally; invoice IDs prefixed mock-)',
+    'Franchise self-serve email templates — visual editor in Franchise Settings for quote, lead acknowledgement, and invoice emails (no raw HTML); per-franchise overrides fall back to brand then defaults',
+    'Franchise Settings accordion layout — every section expands and collapses so the page is easier to scan',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.145'
+export const APP_VERSION = '1.1.146'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

@@ -117,6 +117,7 @@ export interface QuoteCreateInput {
   orgName?: string
   senderName?: string
   emailTemplates?: Record<string, string> | null
+  brandEmailTemplates?: Record<string, string> | null
   primaryColor?: string
   gstRegistered?: boolean
 }
@@ -158,6 +159,7 @@ async function sendQuoteEmail(params: {
   orgName?: string
   senderName?: string
   emailTemplates?: Record<string, string> | null
+  brandEmailTemplates?: Record<string, string> | null
   primaryColor?: string
 }): Promise<{ emailSent: boolean; emailMessage: string }> {
   const apiKey = process.env.RESEND_API_KEY
@@ -174,23 +176,28 @@ async function sendQuoteEmail(params: {
       params.gstAmount != null
         ? `<p style="font-size:12px;color:#6b7280">Total includes GST of AUD ${params.gstAmount.toFixed(2)}</p>`
         : ''
-    const { subject, html } = buildQuoteEmailFromBrand(params.emailTemplates, {
-      'org.name': params.orgName?.trim() ?? '',
-      customerName: params.customerName,
-      acceptanceUrl: params.acceptanceUrl,
-      totalAmount: `AUD ${Number(params.totalAmount).toFixed(2)}`,
-      gstLine,
-      serviceType,
-      serviceTypeLine: serviceType ? ` for ${serviceType}` : '',
-      scopeHtml: nl2brHtml(params.scope),
-      termsBlock: params.terms?.trim()
-        ? `<p><strong>Terms:</strong><br/>${nl2brHtml(params.terms)}</p>`
-        : '',
-      senderBlock: params.senderName?.trim()
-        ? `<p>Prepared by: ${params.senderName.trim()}</p>`
-        : '',
-      primaryColor: params.primaryColor?.trim() || '#004B93',
-    })
+    const { subject, html } = buildQuoteEmailFromBrand(
+      params.brandEmailTemplates,
+      {
+        'org.name': params.orgName?.trim() ?? '',
+        customerName: params.customerName,
+        acceptanceUrl: params.acceptanceUrl,
+        totalAmount: `AUD ${Number(params.totalAmount).toFixed(2)}`,
+        gstLine,
+        serviceType,
+        serviceTypeLine: serviceType ? ` for ${serviceType}` : '',
+        scopeHtml: nl2brHtml(params.scope),
+        termsBlock: params.terms?.trim()
+          ? `<p><strong>Terms:</strong><br/>${nl2brHtml(params.terms)}</p>`
+          : '',
+        senderBlock: params.senderName?.trim()
+          ? `<p>Prepared by: ${params.senderName.trim()}</p>`
+          : '',
+        primaryColor: params.primaryColor?.trim() || '#004B93',
+      },
+      undefined,
+      params.emailTemplates
+    )
 
     const { error } = await resend.emails.send({
       from: fromAddress,
@@ -263,6 +270,7 @@ export async function createQuote(input: QuoteCreateInput) {
       orgName: input.orgName,
       senderName: input.senderName,
       emailTemplates: input.emailTemplates,
+      brandEmailTemplates: input.brandEmailTemplates,
       primaryColor: input.primaryColor,
     })
     emailSent = emailResult.emailSent

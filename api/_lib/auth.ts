@@ -22,6 +22,7 @@ export interface AuthContext {
     gst_registered: boolean
     stripe_connect_account_id: string | null
     stripe_connect_status: string | null
+    email_templates: Record<string, string>
   }
   brand: {
     sms_templates: Record<string, string>
@@ -67,7 +68,7 @@ export async function authenticateRequestDetailed(
   const { data: org, error: orgError } = await supabase
     .from('orgs')
     .select(
-      'id, name, slug, subscription_tier, support_phone, stripe_customer_id, brand_id, abn, gst_registered, stripe_connect_account_id, stripe_connect_status'
+      'id, name, slug, subscription_tier, support_phone, stripe_customer_id, brand_id, abn, gst_registered, stripe_connect_account_id, stripe_connect_status, email_templates'
     )
     .eq('id', profile.org_id)
     .single()
@@ -109,6 +110,7 @@ export async function authenticateRequestDetailed(
         gst_registered: (org.gst_registered as boolean | null) ?? true,
         stripe_connect_account_id: (org.stripe_connect_account_id as string | null) ?? null,
         stripe_connect_status: (org.stripe_connect_status as string | null) ?? null,
+        email_templates: (org.email_templates as Record<string, string>) ?? {},
       },
       brand,
     },

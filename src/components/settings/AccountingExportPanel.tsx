@@ -11,6 +11,7 @@ import {
   type AccountingExportInvoice,
 } from '../../lib/accountingExport'
 import type { LineItem } from '../../lib/lineItems'
+import SettingsAccordion from './SettingsAccordion'
 
 interface Props {
   orgId: string
@@ -117,16 +118,13 @@ export default function AccountingExportPanel({ orgId }: Props) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-      <div>
-        <h2 className="text-sm font-semibold text-gray-900">Accounting export</h2>
-        <p className="mt-1 text-xs text-gray-500 leading-relaxed">
-          Download a Xero-compatible sales invoice CSV for a date range. Import in Xero using the{' '}
-          <span className="font-medium text-gray-700">Tax Inclusive</span> option — amounts are
-          gross (GST included when you are GST-registered). BSB/PayID instructions stay in Invoice
-          templates.
-        </p>
-      </div>
+    <SettingsAccordion title="Accounting export">
+      <p className="text-xs text-gray-500 leading-relaxed">
+        Download a Xero-compatible sales invoice CSV for a date range. Import in Xero using the{' '}
+        <span className="font-medium text-gray-700">Tax Inclusive</span> option — amounts are
+        gross (GST included when you are GST-registered). BSB/PayID instructions stay in Invoice
+        templates.
+      </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
@@ -185,6 +183,6 @@ export default function AccountingExportPanel({ orgId }: Props) {
 
       {error && <p className="text-xs text-red-600">{error}</p>}
       {message && !error && <p className="text-xs text-green-700">{message}</p>}
-    </div>
+    </SettingsAccordion>
   )
 }

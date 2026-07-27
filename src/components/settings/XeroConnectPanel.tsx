@@ -8,6 +8,7 @@ import {
   startXeroOAuth,
   syncInvoicesToXero,
 } from '../../lib/xeroConnect'
+import SettingsAccordion from './SettingsAccordion'
 
 export default function XeroConnectPanel() {
   const { refreshOrg } = useOrg()
@@ -128,15 +129,12 @@ export default function XeroConnectPanel() {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-      <div>
-        <h2 className="text-sm font-semibold text-gray-900">Xero live sync</h2>
-        <p className="mt-1 text-xs text-gray-500 leading-relaxed">
-          Connect your Xero organisation and push sent invoices (contacts + sales invoices, tax
-          inclusive). Uses the AccountCode from Accounting export (default 200). Already-synced
-          invoices are skipped. CSV export still works without connecting.
-        </p>
-      </div>
+    <SettingsAccordion title="Xero live sync">
+      <p className="text-xs text-gray-500 leading-relaxed">
+        Connect your Xero organisation and push sent invoices (contacts + sales invoices, tax
+        inclusive). Uses the AccountCode from Accounting export (default 200). Already-synced
+        invoices are skipped. CSV export still works without connecting.
+      </p>
 
       {loading ? (
         <p className="text-xs text-gray-400">Checking connection…</p>
@@ -220,6 +218,6 @@ export default function XeroConnectPanel() {
       {error && <p className="text-xs text-red-600">{error}</p>}
       {message && !error && <p className="text-xs text-green-700">{message}</p>}
       {message && error && <p className="text-xs text-amber-700">{message}</p>}
-    </div>
+    </SettingsAccordion>
   )
 }

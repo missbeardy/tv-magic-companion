@@ -1068,6 +1068,7 @@ export type Database = {
           billing_status: string
           brand_id: string | null
           created_at: string
+          email_template_docs: Json
           email_templates: Json
           google_review_url: string | null
           gst_registered: boolean
@@ -1107,6 +1108,7 @@ export type Database = {
           billing_status?: string
           brand_id?: string | null
           created_at?: string
+          email_template_docs?: Json
           email_templates?: Json
           google_review_url?: string | null
           gst_registered?: boolean
@@ -1146,6 +1148,7 @@ export type Database = {
           billing_status?: string
           brand_id?: string | null
           created_at?: string
+          email_template_docs?: Json
           email_templates?: Json
           google_review_url?: string | null
           gst_registered?: boolean

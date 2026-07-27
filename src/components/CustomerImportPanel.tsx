@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { getAuthHeaders } from '../lib/apiAuth'
 import { fetchWithTimeout } from '../lib/fetchWithTimeout'
 import { useOrg } from '../context/OrgContext'
-import { Upload } from 'lucide-react'
+import SettingsAccordion from './settings/SettingsAccordion'
 
 type ColumnKey = 'name' | 'phone' | 'email' | 'address' | 'notes' | 'skip'
 
@@ -115,11 +115,7 @@ export default function CustomerImportPanel() {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-      <div className="flex items-center gap-2">
-        <Upload size={18} className="text-gray-600" />
-        <p className="text-sm font-semibold text-gray-700">Customer CSV import</p>
-      </div>
+    <SettingsAccordion title="Customer CSV import">
       <p className="text-xs text-gray-500">
         Upload name, phone, email, address, notes. Duplicates merge by phone (then email). Cap 5,000 rows.
       </p>
@@ -213,6 +209,6 @@ export default function CustomerImportPanel() {
           )}
         </div>
       )}
-    </div>
+    </SettingsAccordion>
   )
 }

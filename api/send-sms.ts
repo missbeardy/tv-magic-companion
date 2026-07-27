@@ -354,7 +354,8 @@ async function handleQuoteCreate(req: VercelRequest, res: VercelResponse, auth: 
       expiryDays,
       baseUrl: getRequestBaseUrl(req),
       orgName: auth.org.name,
-      emailTemplates: auth.brand?.email_templates ?? null,
+      emailTemplates: auth.org.email_templates ?? null,
+      brandEmailTemplates: auth.brand?.email_templates ?? null,
       primaryColor: auth.brand?.primary_color,
       gstRegistered: auth.org.gst_registered,
     })
@@ -592,6 +593,7 @@ async function handleInvoiceSendEmail(req: VercelRequest, res: VercelResponse, a
       orgName: auth.org.name,
       senderName,
       emailTemplates: orgSettings.email_templates,
+      brandEmailTemplates: auth.brand?.email_templates ?? null,
       paymentInstructions: orgSettings.invoice_payment_instructions,
       orgPdfTemplatePath: orgSettings.invoice_pdf_template_path,
       primaryColor: orgSettings.primary_color || auth.brand?.primary_color,

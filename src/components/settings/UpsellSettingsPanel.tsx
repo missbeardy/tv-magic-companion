@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { Json } from '../../types/database.types';
 import { Plus, Trash2, Save } from 'lucide-react';
+import SettingsAccordion from './SettingsAccordion';
 
 interface UpsellItem {
   id: string;
@@ -84,17 +85,18 @@ export default function UpsellSettingsPanel({ orgId }: UpsellSettingsPanelProps)
   };
 
   if (loading) {
-    return <p className="text-sm text-gray-500">Loading upsell settings...</p>;
+    return (
+      <SettingsAccordion title="Post-sale upsell items">
+        <p className="text-sm text-gray-500">Loading upsell settings...</p>
+      </SettingsAccordion>
+    );
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-      <div>
-        <p className="text-sm font-semibold text-gray-700">🛒 Post-Sale Upsell Items</p>
-        <p className="text-xs text-gray-400 mt-1">
-          These appear in the job completion checklist for your technicians to offer customers.
-        </p>
-      </div>
+    <SettingsAccordion title="Post-sale upsell items">
+      <p className="text-xs text-gray-400">
+        These appear in the job completion checklist for your technicians to offer customers.
+      </p>
 
       {error && (
         <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>
@@ -146,6 +148,6 @@ export default function UpsellSettingsPanel({ orgId }: UpsellSettingsPanelProps)
           {saving ? 'Saving...' : saved ? 'Saved ✓' : 'Save Changes'}
         </button>
       </div>
-    </div>
+    </SettingsAccordion>
   );
 }

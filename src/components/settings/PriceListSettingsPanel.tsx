@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowDown, ArrowUp, Plus, Save, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import SettingsAccordion from './SettingsAccordion'
 
 interface PriceListDraft {
   id: string | null
@@ -138,17 +139,18 @@ export default function PriceListSettingsPanel({ orgId }: Props) {
   }
 
   if (loading) {
-    return <p className="text-sm text-gray-400">Loading price list…</p>
+    return (
+      <SettingsAccordion title="Price list / favourites">
+        <p className="text-sm text-gray-400">Loading price list…</p>
+      </SettingsAccordion>
+    )
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-      <div>
-        <p className="text-sm font-semibold text-gray-700">💲 Price List / Favourites</p>
-        <p className="text-xs text-gray-400 mt-1">
-          Your 10–20 most common priced jobs. These show as quick-add chips when composing quotes and invoices.
-        </p>
-      </div>
+    <SettingsAccordion title="Price list / favourites">
+      <p className="text-xs text-gray-400">
+        Your 10–20 most common priced jobs. These show as quick-add chips when composing quotes and invoices.
+      </p>
 
       {error && (
         <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>
@@ -238,6 +240,6 @@ export default function PriceListSettingsPanel({ orgId }: Props) {
           {saving ? 'Saving...' : saved ? 'Saved ✓' : 'Save Changes'}
         </button>
       </div>
-    </div>
+    </SettingsAccordion>
   )
 }
