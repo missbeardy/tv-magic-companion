@@ -48,11 +48,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
   items: [
     'Franchise self-serve email templates — visual editor in Franchise Settings for quote, lead acknowledgement, and invoice emails (no raw HTML); per-franchise overrides fall back to brand then defaults',
     'Franchise Settings accordion layout — every section expands and collapses so the page is easier to scan',
+    'Fixed a false "profile row failed" error shown on every successful team invite',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.146'
+export const APP_VERSION = '1.1.147'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
