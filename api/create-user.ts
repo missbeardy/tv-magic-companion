@@ -115,7 +115,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { error: profileError } = await supabaseAdmin.from('profiles').upsert(
         {
           id: invitedUserId,
-          email,
           full_name: fullName,
           role,
           org_id: orgId,
