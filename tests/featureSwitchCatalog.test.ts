@@ -34,6 +34,7 @@ describe('featureSwitchCatalog categories', () => {
       'inbound_email',
       'inbound_calls',
       'inbound_messenger',
+      'inbound_facebook_ads',
       'customer_linking',
       'customer_import',
     ])

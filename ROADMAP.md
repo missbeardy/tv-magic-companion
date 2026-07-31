@@ -101,6 +101,16 @@
 - **Feature switch:** uses existing `lead_ack_sms` / `lead_ack_email` / `manager_new_lead_alerts`.
 - **Done when:** Stage 3 UAT passes on prod for the client's brand; backlog updated.
 
+### [ ] T1.11 Facebook Lead Ads intake (added 31-07-2026, owner request — client now running FB Ads)
+
+- **Why:** The client started Facebook Ads and is hand-copying leads out of Meta Leads Center — 11 sitting unworked at time of request. Speed-to-lead is the product's whole pitch, so leads ageing in Meta is the worst possible failure. `handleInboundFacebookLead.ts` already does the full pipeline (dedup → Claude extraction → manager alert → ack SMS → auto-assign → workflow run) and `/api/inbound-facebook-lead` is already routed in `vercel.json` — no new function slot needed.
+- **Spec:** Accept an optional `source` discriminator on the existing endpoint body (`messenger` default, `lead_ads`) so ad leads store `source: facebook_lead_ads` / `lead_source: 'Facebook Lead Ads'` instead of being mislabelled as Messenger — reporting normalises on `lead_source` (`20250630120000`, `20250702150000`), so without this, ad spend ROI is unmeasurable. Bridge = Make.com free tier (instant Facebook Lead Ads trigger → HTTP module; Zapier's webhook action is a premium app, Make's HTTP module is not). Extraction prompt and fallback parser get a lead-form-shaped variant (form answers, not free text). Setup doc alongside `docs/BOTPRESS_FACEBOOK_LEAD.md`.
+- **Feature switch:** new per-brand `inbound_facebook_ads` (default off, category `lead_intake`), gating the server path — not just UI. Separate from `inbound_messenger` so either channel can run alone.
+- **Backfill:** none built. The existing 11 go in via Add Lead by hand (owner decision, 31-07-2026); webhooks are forward-only.
+- **Depends on:** ack SMS / manager alerts only fire if T1.10's Stage-3 switches are enabled for the client's brand.
+- **Done when:** a real Lead Ads form submission lands as an unassigned lead attributed to "Facebook Lead Ads" within a minute, and the switch off means the endpoint rejects it.
+- **Later (not this item):** native Meta `leadgen` webhook to drop the Make dependency — needs `leads_retrieval` app review and per-org page tokens. Shares infrastructure with T3.5.
+
 ---
 
 ## Tier 2 — Before marketing to strangers

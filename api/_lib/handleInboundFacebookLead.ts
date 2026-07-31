@@ -12,6 +12,9 @@ import {
 } from './rawFirstLead.js'
 import { safeCompareSecret } from './timingSafeCompare.js'
 
+/** Messenger bot (Botpress) vs Facebook Lead Ads instant form (Make.com). */
+export type FacebookLeadChannel = 'messenger' | 'lead_ads'
+
 export interface FacebookLeadBody {
   org: string
   name: string
@@ -20,6 +23,33 @@ export interface FacebookLeadBody {
   city?: string | null
   email?: string | null
   website?: string | null
+  channel: FacebookLeadChannel
+  form_name?: string | null
+}
+
+interface FacebookChannelConfig {
+  featureKey: 'inbound_messenger' | 'inbound_facebook_ads'
+  source: string
+  leadSource: string
+  createdNote: string
+  logLabel: string
+}
+
+const FACEBOOK_CHANNELS: Record<FacebookLeadChannel, FacebookChannelConfig> = {
+  messenger: {
+    featureKey: 'inbound_messenger',
+    source: 'facebook_messenger',
+    leadSource: 'Facebook Messenger',
+    createdNote: 'Lead captured from Facebook Messenger via Botpress (raw-first)',
+    logLabel: 'inbound Facebook Messenger',
+  },
+  lead_ads: {
+    featureKey: 'inbound_facebook_ads',
+    source: 'facebook_lead_ads',
+    leadSource: 'Facebook Lead Ads',
+    createdNote: 'Lead captured from a Facebook Lead Ads instant form (raw-first)',
+    logLabel: 'inbound Facebook Lead Ads',
+  },
 }
 
 export type ParseFacebookLeadResult =
@@ -30,14 +60,38 @@ function trimString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-/** Build lead details when the Botpress payload has no free-text message (Facebook Lead Form). */
-export function buildFacebookLeadDetails(message: string, city: string | null): string {
+/**
+ * Build lead details when the payload has no free-text message.
+ * Lead Ads instant forms usually collect only name/phone/postcode, so the form
+ * name is the only signal about what the customer actually responded to.
+ */
+export function buildFacebookLeadDetails(
+  message: string,
+  city: string | null,
+  channel: FacebookLeadChannel = 'messenger',
+  formName: string | null = null
+): string {
   if (message) return message.slice(0, 500)
+
+  if (channel === 'lead_ads') {
+    const parts = [formName ? `"${formName}"` : null, city].filter(Boolean)
+    const suffix = parts.length > 0 ? ` — ${parts.join(' — ')}` : ''
+    return `Facebook Lead Ads enquiry${suffix}`.slice(0, 500)
+  }
+
   if (city) return `Facebook lead form — ${city}`.slice(0, 500)
   return 'Facebook lead form enquiry'
 }
 
-/** Validate Botpress / Messenger web-form JSON body. */
+/** Normalise the optional channel discriminator; anything unknown is rejected. */
+function parseChannel(value: unknown): FacebookLeadChannel | null {
+  const raw = trimString(value).toLowerCase()
+  if (!raw) return 'messenger'
+  if (raw === 'messenger' || raw === 'lead_ads') return raw
+  return null
+}
+
+/** Validate Botpress (Messenger) or Make.com (Lead Ads) JSON body. */
 export function parseFacebookLeadBody(body: unknown): ParseFacebookLeadResult {
   if (!body || typeof body !== 'object') {
     return { ok: false, error: 'Request body must be a JSON object', status: 400 }
@@ -49,12 +103,18 @@ export function parseFacebookLeadBody(body: unknown): ParseFacebookLeadResult {
     return { ok: false, error: 'Invalid submission', status: 400 }
   }
 
+  const channel = parseChannel(record.channel)
+  if (!channel) {
+    return { ok: false, error: 'channel must be "messenger" or "lead_ads"', status: 400 }
+  }
+
   const org = trimString(record.org)
   const name = trimString(record.name)
   const phone = trimString(record.phone)
   const message = trimString(record.message)
   const city = trimString(record.city) || null
   const email = trimString(record.email) || null
+  const formName = trimString(record.form_name) || null
 
   if (!org) return { ok: false, error: 'org is required', status: 400 }
   if (!name) return { ok: false, error: 'name is required', status: 400 }
@@ -66,10 +126,12 @@ export function parseFacebookLeadBody(body: unknown): ParseFacebookLeadResult {
       org,
       name,
       phone,
-      message: buildFacebookLeadDetails(message, city),
+      message: buildFacebookLeadDetails(message, city, channel, formName),
       city,
       email,
       website: null,
+      channel,
+      form_name: formName,
     },
   }
 }
@@ -105,12 +167,18 @@ export async function extractFacebookLeadWithClaude(
   name: string,
   phone: string,
   message: string,
-  email: string | null
+  email: string | null,
+  channel: FacebookLeadChannel = 'messenger'
 ): Promise<ExtractedLeadFields | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return null
 
-  const prompt = `Extract lead information from this Facebook Messenger enquiry. Return ONLY a JSON object, no markdown.
+  const context =
+    channel === 'lead_ads'
+      ? `this Facebook Lead Ads instant-form submission. The message is assembled from form answers and the ad's form name, not free text — infer service_type from the form name where the customer wrote nothing, and do not invent details they did not provide`
+      : 'this Facebook Messenger enquiry'
+
+  const prompt = `Extract lead information from ${context}. Return ONLY a JSON object, no markdown.
 
 Fields:
 - name: full name (or null)
@@ -162,7 +230,10 @@ function verifyInboundSecret(req: VercelRequest): boolean {
   return safeCompareSecret(incoming, process.env.INBOUND_SECRET)
 }
 
-/** POST /api/inbound-facebook-lead — Botpress Studio → Messenger web form → lead. */
+/**
+ * POST /api/inbound-facebook-lead — Facebook → lead.
+ * `channel: "messenger"` (default) = Botpress Studio; `channel: "lead_ads"` = Make.com Lead Ads.
+ */
 export async function handleInboundFacebookLead(
   req: VercelRequest,
   res: VercelResponse,
@@ -184,9 +255,10 @@ export async function handleInboundFacebookLead(
     return
   }
 
-  const { org, name, phone, message, city, email: rawEmail } = parsed.data
+  const { org, name, phone, message, city, email: rawEmail, channel, form_name: formName } = parsed.data
   const email = rawEmail ?? null
   const normalizedPhone = formatAuPhoneForSms(phone)
+  const config = FACEBOOK_CHANNELS[channel]
 
   const { data: orgRow, error: orgError } = await supabase
     .from('orgs')
@@ -213,10 +285,10 @@ export async function handleInboundFacebookLead(
   }
 
   const orgId = orgRow.id
-  const messengerEnabled = await isFeatureEnabledForOrg(orgId, 'inbound_messenger')
-  if (!messengerEnabled) {
-    console.log(`Inbound Messenger disabled for org ${orgId}`)
-    res.status(200).json({ skipped: true, reason: 'inbound_messenger_disabled' })
+  const channelEnabled = await isFeatureEnabledForOrg(orgId, config.featureKey)
+  if (!channelEnabled) {
+    console.log(`${config.logLabel} disabled for org ${orgId}`)
+    res.status(200).json({ skipped: true, reason: `${config.featureKey}_disabled` })
     return
   }
 
@@ -241,13 +313,13 @@ export async function handleInboundFacebookLead(
           service_type: extractedForAck.service_type || 'General Enquiry',
           details: message.slice(0, 500),
           address: extractedForAck.address ?? null,
-          source: 'facebook_messenger',
-          lead_source: 'Facebook Messenger',
+          source: config.source,
+          lead_source: config.leadSource,
           raw_email: JSON.stringify(req.body),
         }),
       createdEvent: {
-        note: 'Lead captured from Facebook Messenger via Botpress (raw-first)',
-        payload: { source: 'facebook_messenger', org_slug: org },
+        note: config.createdNote,
+        payload: { source: config.source, org_slug: org, ...(formName ? { form_name: formName } : {}) },
       },
       extract: async () => {
         let extractionStatus: ExtractionStatus = 'fallback'
@@ -255,7 +327,8 @@ export async function handleInboundFacebookLead(
           name,
           normalizedPhone,
           message,
-          email
+          email,
+          channel
         )
         const extracted =
           claudeExtracted ??
@@ -272,15 +345,19 @@ export async function handleInboundFacebookLead(
       }),
       followUp: {
         type: 'ack',
-        source: 'facebook_messenger',
+        source: config.source,
         resolvePhone: () => extractedForAck.phone?.trim() || normalizedPhone,
         resolveCustomerName: () => extractedForAck.name?.trim() || name,
       },
-      logLabel: 'inbound Facebook Messenger',
+      logLabel: config.logLabel,
       run: {
         workflowKey: 'inbound_lead',
-        triggerChannel: 'facebook_messenger',
-        triggerSummary: { org_slug: org, source: 'facebook_messenger' },
+        triggerChannel: config.source,
+        triggerSummary: {
+          org_slug: org,
+          source: config.source,
+          ...(formName ? { form_name: formName } : {}),
+        },
       },
     })
 

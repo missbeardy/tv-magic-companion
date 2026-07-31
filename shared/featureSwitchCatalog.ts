@@ -16,6 +16,7 @@ export const FEATURE_SWITCH_KEYS = [
   'inbound_email',
   'inbound_calls',
   'inbound_messenger',
+  'inbound_facebook_ads',
   'missed_call_hookback_sms',
   'lead_ack_sms',
   'lead_ack_email',
@@ -54,7 +55,7 @@ export const FEATURE_SWITCH_CATEGORY_LABELS: Record<FeatureSwitchCategory, strin
 }
 
 export const FEATURE_SWITCHES_BY_CATEGORY: Record<FeatureSwitchCategory, readonly FeatureSwitchKey[]> = {
-  lead_intake: ['inbound_sms', 'inbound_email', 'inbound_calls', 'inbound_messenger', 'customer_linking', 'customer_import'],
+  lead_intake: ['inbound_sms', 'inbound_email', 'inbound_calls', 'inbound_messenger', 'inbound_facebook_ads', 'customer_linking', 'customer_import'],
   customer_communication: ['missed_call_hookback_sms', 'lead_ack_sms', 'lead_ack_email', 'customer_ontheway_sms', 'booking_confirm', 'booking_reminder_sms', 'review_requests', 'auto_review_on_paid'],
   team_operations: ['manager_new_lead_alerts', 'smart_assign_badge', 'inbound_auto_assign', 'tech_location', 'internal_messaging', 'customer_profiles', 'onboarding_tips'],
   sales_job_completion: ['quote_esign', 'completion_upsells', 'one_tap_invoice', 'invoice_chase', 'quote_chase', 'price_list', 'invoice_card_payments', 'accounting_export', 'xero_live_sync'],
@@ -65,6 +66,7 @@ export const FEATURE_SWITCH_CATEGORY_BY_KEY: Record<FeatureSwitchKey, FeatureSwi
   inbound_email: 'lead_intake',
   inbound_calls: 'lead_intake',
   inbound_messenger: 'lead_intake',
+  inbound_facebook_ads: 'lead_intake',
   customer_linking: 'lead_intake',
   customer_import: 'lead_intake',
   missed_call_hookback_sms: 'customer_communication',
@@ -107,6 +109,7 @@ export const FEATURE_SWITCH_MIN_TIERS: Record<FeatureSwitchKey, SubscriptionTier
   inbound_email: 'basic',
   inbound_calls: 'basic',
   inbound_messenger: 'basic',
+  inbound_facebook_ads: 'basic',
   missed_call_hookback_sms: 'basic',
   lead_ack_sms: 'basic',
   lead_ack_email: 'basic',

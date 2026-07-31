@@ -84,7 +84,53 @@ describe('parseFacebookLeadBody', () => {
         email: 'jane@example.com',
         city: null,
         website: null,
+        channel: 'messenger',
+        form_name: null,
       },
+    })
+  })
+
+  it('defaults to the messenger channel when none is given', () => {
+    const result = parseFacebookLeadBody({
+      org: 'fieldbourne',
+      name: 'Jane Doe',
+      phone: '0412345678',
+      message: 'Hi',
+    })
+    expect(result).toMatchObject({ ok: true, data: { channel: 'messenger' } })
+  })
+
+  it('accepts a Lead Ads payload and keeps the form name', () => {
+    const result = parseFacebookLeadBody({
+      org: 'fieldbourne',
+      name: 'Jane Doe',
+      phone: '0412345678',
+      channel: 'lead_ads',
+      form_name: 'TV Wall Mounting — Brisbane',
+      city: 'Brisbane',
+      message: '',
+    })
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        channel: 'lead_ads',
+        form_name: 'TV Wall Mounting — Brisbane',
+        message: 'Facebook Lead Ads enquiry — "TV Wall Mounting — Brisbane" — Brisbane',
+      },
+    })
+  })
+
+  it('rejects an unknown channel rather than silently defaulting', () => {
+    const result = parseFacebookLeadBody({
+      org: 'fieldbourne',
+      name: 'Jane Doe',
+      phone: '0412345678',
+      channel: 'instagram',
+    })
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'channel must be "messenger" or "lead_ads"',
+      status: 400,
     })
   })
 
@@ -107,6 +153,8 @@ describe('parseFacebookLeadBody', () => {
         city: 'Brisbane',
         email: null,
         website: null,
+        channel: 'messenger',
+        form_name: null,
       },
     })
   })
@@ -133,6 +181,22 @@ describe('parseFacebookLeadBody', () => {
 describe('buildFacebookLeadDetails', () => {
   it('uses city when message is empty', () => {
     expect(buildFacebookLeadDetails('', 'Gold Coast')).toBe('Facebook lead form — Gold Coast')
+  })
+
+  it('names the ad form for Lead Ads submissions with no free text', () => {
+    expect(buildFacebookLeadDetails('', 'Gold Coast', 'lead_ads', 'Aerial Repairs')).toBe(
+      'Facebook Lead Ads enquiry — "Aerial Repairs" — Gold Coast'
+    )
+  })
+
+  it('falls back cleanly when a Lead Ads form has neither city nor form name', () => {
+    expect(buildFacebookLeadDetails('', null, 'lead_ads', null)).toBe('Facebook Lead Ads enquiry')
+  })
+
+  it('always prefers the customer’s own words', () => {
+    expect(buildFacebookLeadDetails('Aerial fell off the roof', 'Cairns', 'lead_ads', 'Form')).toBe(
+      'Aerial fell off the roof'
+    )
   })
 })
 
@@ -217,8 +281,53 @@ describe('handleInboundFacebookLead', () => {
     })
     const res = mockRes()
     await handleInboundFacebookLead(req, res, mockSupabase({ id: 'org-1' }))
+    expect(mockIsFeatureEnabled).toHaveBeenCalledWith('org-1', 'inbound_messenger')
     expect(mockProcessInboundLead).not.toHaveBeenCalled()
     expect(res.body).toEqual({ skipped: true, reason: 'inbound_messenger_disabled' })
+  })
+
+  it('gates Lead Ads on inbound_facebook_ads, not the Messenger switch', async () => {
+    mockIsFeatureEnabled.mockResolvedValue(false)
+    const req = mockReq({
+      headers: { 'x-inbound-secret': 'test-inbound-secret' },
+      body: {
+        org: 'fieldbourne',
+        name: 'Jane',
+        phone: '0412345678',
+        channel: 'lead_ads',
+        form_name: 'Aerial Repairs',
+      },
+    })
+    const res = mockRes()
+    await handleInboundFacebookLead(req, res, mockSupabase({ id: 'org-1' }))
+    expect(mockIsFeatureEnabled).toHaveBeenCalledWith('org-1', 'inbound_facebook_ads')
+    expect(mockProcessInboundLead).not.toHaveBeenCalled()
+    expect(res.body).toEqual({ skipped: true, reason: 'inbound_facebook_ads_disabled' })
+  })
+
+  it('attributes Lead Ads leads to their own source so ad ROI stays measurable', async () => {
+    const req = mockReq({
+      headers: { 'x-inbound-secret': 'test-inbound-secret' },
+      body: {
+        org: 'fieldbourne',
+        name: 'Jane Doe',
+        phone: '0412 345 678',
+        channel: 'lead_ads',
+        form_name: 'Aerial Repairs',
+        city: 'Brisbane',
+      },
+    })
+    const res = mockRes()
+    await handleInboundFacebookLead(req, res, mockSupabase({ id: 'org-1' }))
+
+    const input = mockProcessInboundLead.mock.calls[0][0]
+    expect(input.createdEvent.payload).toMatchObject({
+      source: 'facebook_lead_ads',
+      form_name: 'Aerial Repairs',
+    })
+    expect(input.run?.triggerChannel).toBe('facebook_lead_ads')
+    expect(input.followUp?.source).toBe('facebook_lead_ads')
+    expect(res.body).toEqual({ success: true, lead_id: 'lead-abc' })
   })
 
   it('creates lead when org resolves and switch is on', async () => {

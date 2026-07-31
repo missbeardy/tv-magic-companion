@@ -2,6 +2,9 @@
 
 Capture leads from **Facebook Messenger** using a Botpress Studio flow that POSTs JSON directly to this app.
 
+> For **Facebook Lead Ads** instant forms (paid ads), see [FACEBOOK_LEAD_ADS.md](FACEBOOK_LEAD_ADS.md).
+> Same endpoint, `channel: "lead_ads"`, separate feature switch.
+
 ## Flow
 
 ```

@@ -6,8 +6,10 @@ import {
   type ExtractionRunResult,
 } from './extractLead.js'
 import {
+  buildFacebookLeadDetails,
   extractFacebookLeadWithClaude,
   facebookLeadFallbackParse,
+  type FacebookLeadChannel,
 } from './handleInboundFacebookLead.js'
 import { formatAuPhoneForSms } from './phone.js'
 import { setLeadExtractionStatus } from './processInboundLead.js'
@@ -41,7 +43,10 @@ function parseSmsRaw(rawSms: string): { body: string; from: string } {
   }
 }
 
-function parseFacebookRaw(rawEmail: string): {
+function parseFacebookRaw(
+  rawEmail: string,
+  channel: FacebookLeadChannel
+): {
   name: string
   phone: string
   message: string
@@ -52,14 +57,18 @@ function parseFacebookRaw(rawEmail: string): {
     const parsed = JSON.parse(rawEmail) as Record<string, unknown>
     const name = typeof parsed.name === 'string' ? parsed.name.trim() : ''
     const phone = typeof parsed.phone === 'string' ? parsed.phone.trim() : ''
-    const message = typeof parsed.message === 'string' ? parsed.message.trim() : ''
+    const rawMessage = typeof parsed.message === 'string' ? parsed.message.trim() : ''
+    const city = typeof parsed.city === 'string' ? parsed.city.trim() || null : null
+    const formName = typeof parsed.form_name === 'string' ? parsed.form_name.trim() || null : null
     if (!name || !phone) return null
     return {
       name,
       phone,
-      message,
+      // The stored body holds the raw form answers; rebuild the same details string
+      // the intake endpoint derived, so a retry sees what the first pass saw.
+      message: buildFacebookLeadDetails(rawMessage, city, channel, formName),
       email: typeof parsed.email === 'string' ? parsed.email.trim() || null : null,
-      city: typeof parsed.city === 'string' ? parsed.city.trim() || null : null,
+      city,
     }
   } catch {
     return null
@@ -90,8 +99,9 @@ export async function runLeadExtractionRetry(
     )
   }
 
-  if (source === 'facebook_messenger' && lead.raw_email) {
-    const fb = parseFacebookRaw(lead.raw_email)
+  if ((source === 'facebook_messenger' || source === 'facebook_lead_ads') && lead.raw_email) {
+    const channel: FacebookLeadChannel = source === 'facebook_lead_ads' ? 'lead_ads' : 'messenger'
+    const fb = parseFacebookRaw(lead.raw_email, channel)
     if (!fb) {
       return { fields: {}, status: 'failed' }
     }
@@ -100,7 +110,8 @@ export async function runLeadExtractionRetry(
       fb.name,
       normalizedPhone,
       fb.message,
-      fb.email
+      fb.email,
+      channel
     )
     if (claude) {
       return { fields: claude, status: 'succeeded' }

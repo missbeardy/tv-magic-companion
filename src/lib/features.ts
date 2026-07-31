@@ -45,6 +45,7 @@ export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   inbound_email: false,
   inbound_calls: false,
   inbound_messenger: false,
+  inbound_facebook_ads: false,
   missed_call_hookback_sms: false,
   lead_ack_sms: false,
   lead_ack_email: false,
@@ -120,6 +121,10 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   inbound_messenger: {
     label: 'Inbound Meta Messaging',
     description: 'Create leads from Facebook Messenger and Instagram DM webhooks',
+  },
+  inbound_facebook_ads: {
+    label: 'Facebook Lead Ads',
+    description: 'Create leads from Facebook Lead Ads instant forms (via Make.com)',
   },
   missed_call_hookback_sms: {
     label: 'Missed Call Auto-Reply SMS',
