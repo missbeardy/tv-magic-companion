@@ -5,7 +5,7 @@
 | **Purpose** | The single prioritised roadmap for FieldBourne. Three tiers: keep the current client, become sellable to strangers, nice-to-have. |
 | **Status** | Governing document — supersedes ordering in `MUST_HAVE_8_ROADMAP.md` and `SALES_PIPELINE_BACKLOG.md` (those remain as detailed specs, referenced below) |
 | **Created** | 18-07-2026, from four reviews run that day: full-code inventory, mobile UX/churn review, competitive assessment vs ServiceM8/Tradify, tech-debt re-validation |
-| **Last updated** | 23-07-2026 — T3.1 Xero live sync shipped (v1.1.144); T1.10 still deferred |
+| **Last updated** | 31-07-2026 — T1.11 Facebook Lead Ads intake shipped (v1.1.148), awaiting Make.com build + real-form UAT; T1.10 found partially live in prod (ack SMS + manager alerts on for `tv-magic`, email ack still off) |
 
 ## Governance (read first, every session)
 
@@ -94,20 +94,22 @@
 - **Feature switch:** no new switch; respects existing notification behaviour.
 - **Done when:** completing/losing an assigned lead delivers a real push to the assignee (or the dead path is removed), and no scaffold code remains.
 
-### [ ] T1.10 Turn on the built Stage-3 acknowledgment for the client
+### [~] T1.10 Turn on the built Stage-3 acknowledgment for the client — PARTIAL, discovered live 31-07-2026
 
 - **Why:** Instant customer ack SMS/email + manager new-lead alerts are fully built and shipped dark. The enable migrations already exist in the repo (`supabase/migrations/20250714120000_fieldbourne_stage3_ack.sql`, `20250714130000_lead_ack_email_switch.sql`) but were never run against prod. This is finished value the client isn't getting — and it's the first beat of the sales wedge.
-- **Spec:** Confirm brand slug targets with owner (migrations target `fieldbourne`/`fieldbourne-dev`; the real prod org is TV Magic South Brisbane — the enable rows likely need the client's actual brand). Apply via the prod Management-API flow. UAT = `SALES_PIPELINE_BACKLOG.md` 3.7: SMS in → customer ack + manager push <60s. Reconcile backlog Stage 3 checkboxes while there.
-- **Feature switch:** uses existing `lead_ack_sms` / `lead_ack_email` / `manager_new_lead_alerts`.
-- **Done when:** Stage 3 UAT passes on prod for the client's brand; backlog updated.
+- **Correction (31-07-2026):** checked prod directly while shipping T1.11 — `lead_ack_sms` and `manager_new_lead_alerts` are **already `true`** for brand `tv-magic` (id `b0000000-...-0001`), enabled out-of-band at some point with no roadmap/memory record of it. Only `lead_ack_email` is still `false`. Brand slug question is resolved: prod has exactly two brands, `tv-magic` ("TV Magic") and `fieldbourne` ("FieldBourne Digital") — the client's org is `default` / "TV Magic South Brisbane" under the `tv-magic` brand.
+- **Spec:** Decide whether to enable `lead_ack_email` too (left off 31-07-2026, owner's call — no urgency stated). UAT = `SALES_PIPELINE_BACKLOG.md` 3.7: SMS in → customer ack + manager push <60s — **not yet actually run/confirmed on prod** despite the switches being on. Reconcile backlog Stage 3 checkboxes while there.
+- **Feature switch:** uses existing `lead_ack_sms` (on) / `lead_ack_email` (off) / `manager_new_lead_alerts` (on).
+- **Done when:** Stage 3 UAT passes on prod for `tv-magic`/`default`; backlog updated; `lead_ack_email` decision made and applied.
 
-### [ ] T1.11 Facebook Lead Ads intake (added 31-07-2026, owner request — client now running FB Ads)
+### [~] T1.11 Facebook Lead Ads intake (added 31-07-2026, owner request — client now running FB Ads) — deployed, awaiting Make.com + UAT
 
 - **Why:** The client started Facebook Ads and is hand-copying leads out of Meta Leads Center — 11 sitting unworked at time of request. Speed-to-lead is the product's whole pitch, so leads ageing in Meta is the worst possible failure. `handleInboundFacebookLead.ts` already does the full pipeline (dedup → Claude extraction → manager alert → ack SMS → auto-assign → workflow run) and `/api/inbound-facebook-lead` is already routed in `vercel.json` — no new function slot needed.
 - **Spec:** Accept an optional `source` discriminator on the existing endpoint body (`messenger` default, `lead_ads`) so ad leads store `source: facebook_lead_ads` / `lead_source: 'Facebook Lead Ads'` instead of being mislabelled as Messenger — reporting normalises on `lead_source` (`20250630120000`, `20250702150000`), so without this, ad spend ROI is unmeasurable. Bridge = Make.com free tier (instant Facebook Lead Ads trigger → HTTP module; Zapier's webhook action is a premium app, Make's HTTP module is not). Extraction prompt and fallback parser get a lead-form-shaped variant (form answers, not free text). Setup doc alongside `docs/BOTPRESS_FACEBOOK_LEAD.md`.
 - **Feature switch:** new per-brand `inbound_facebook_ads` (default off, category `lead_intake`), gating the server path — not just UI. Separate from `inbound_messenger` so either channel can run alone.
+- **Shipped 31-07-2026 (v1.1.148):** deployed to prod, migration applied (was already applied out-of-band before this deploy — not tracked in `supabase_migrations`), switch enabled for `tv-magic`. Ack SMS + manager push will fire on new Lead Ads leads (T1.10 partial-live above); email ack won't (`lead_ack_email` off).
 - **Backfill:** none built. The existing 11 go in via Add Lead by hand (owner decision, 31-07-2026); webhooks are forward-only.
-- **Depends on:** ack SMS / manager alerts only fire if T1.10's Stage-3 switches are enabled for the client's brand.
+- **Remaining:** Make.com scenario build (needs Nick's Facebook Page connected in Make with Leads Access — owner/Nick action) using `org: "default"` in the request body; real-form UAT once Make is live. Owner deferred a synthetic curl UAT (31-07-2026) since it would fire a real ack SMS + manager push.
 - **Done when:** a real Lead Ads form submission lands as an unassigned lead attributed to "Facebook Lead Ads" within a minute, and the switch off means the endpoint rejects it.
 - **Later (not this item):** native Meta `leadgen` webhook to drop the Make dependency — needs `leads_retrieval` app review and per-org page tokens. Shares infrastructure with T3.5.
 
@@ -213,3 +215,4 @@ New idea (owner or session): add it to the appropriate tier with the same block 
 | 20-07-2026 | T2.1 Closed-loop pipeline | v1.1.139. Quote-accept manager notify deep-links to `/calendar?bookLead=` with EventModal prefilled (amount + scope); complete→invoice already auto-advanced when `one_tap_invoice` on; new `auto_review_on_paid` switch + `api/_lib/reviewRequest.ts` fires review SMS from `markInvoicePaid` (Stripe or manual) with `review_request_sent_at` claim-before-send dedupe. Migration `20260720120000_auto_review_on_paid.sql`. Unit-tested guards. **Staging e2e UAT still owner-run.** |
 | 20-07-2026 | T2.2–T2.9 Tier 2 batch | v1.1.140. Demo runbook + reset SQL; FieldBourne shell rebrand; onboarding tips; customer CSV import; solo tradie preset at org create; migration-order docs + cutover marked historical (prod reconcile still operator-run); hygiene (dead code, README, tests typecheck, backlog); positioning = front-door add-on @ $69/mo GST-inc messaging-included. |
 | 23-07-2026 | T3.1 Xero live sync | v1.1.144. OAuth connect (`api/xero.ts`) + Franchise Settings panel; push sent invoices as tax-inclusive ACCREC; org token columns + `xero_invoice_id` markers; feature switch `xero_live_sync` (default off). Unit-tested payload + OAuth state. **Live Demo Company UAT needs XERO_CLIENT_* env + free Xero account.** |
+| 31-07-2026 | T1.11 Facebook Lead Ads intake (PARTIAL) | v1.1.148. `channel: "lead_ads"` discriminator on `handleInboundFacebookLead.ts`/`/api/inbound-facebook-lead`; new per-brand `inbound_facebook_ads` switch, enabled for `tv-magic` (org `default`); lead-form-shaped extraction + retry path. Typecheck + suite clean (503 tests). While shipping, found `lead_ack_sms`/`manager_new_lead_alerts` already `true` for `tv-magic` in prod (T1.10 partial, undocumented). **Remaining: Make.com scenario build (owner/Nick, needs FB Page access) + real-form UAT — deliberately not simulated via curl to avoid firing a real ack SMS/manager push.** |
