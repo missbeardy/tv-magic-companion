@@ -1,4 +1,5 @@
 import { parseEmailSender, type ExtractedLeadFields } from './rawFirstLead.js'
+import { findAuPhoneInText, phonesEqual } from './phone.js'
 
 export type { ExtractedLeadFields }
 
@@ -21,6 +22,36 @@ function hasExtractedFields(fields: ExtractedLeadFields): boolean {
 
 const CLAUDE_MODEL = 'claude-sonnet-4-6'
 
+/** Prefer a phone found in the SMS body over the Twilio From (often a form-to-SMS gateway). */
+function resolveSmsPhone(
+  candidate: string | undefined | null,
+  sourceText: string,
+  fromNumber: string
+): string {
+  const bodyPhone = findAuPhoneInText(sourceText)
+  const trimmed = candidate?.trim() || ''
+
+  if (trimmed && bodyPhone) {
+    // Claude/label returned the gateway From — prefer the number in the text.
+    if (fromNumber && phonesEqual(trimmed, fromNumber) && !phonesEqual(bodyPhone, fromNumber)) {
+      return bodyPhone
+    }
+    return trimmed
+  }
+  if (trimmed) return trimmed
+  if (bodyPhone) return bodyPhone
+  return fromNumber
+}
+
+function extractJsonObject(raw: string): string {
+  const cleaned = raw.replace(/```json\s*|\s*```/g, '').trim()
+  if (cleaned.startsWith('{') && cleaned.endsWith('}')) return cleaned
+  const start = cleaned.indexOf('{')
+  const end = cleaned.lastIndexOf('}')
+  if (start >= 0 && end > start) return cleaned.slice(start, end + 1)
+  return cleaned
+}
+
 function buildClaudePrompt(
   sourceText: string,
   subject: string,
@@ -34,7 +65,7 @@ ${sourceText.substring(0, 1500)}
 
 Fields:
 - customer_name (string)
-- phone (string) – if missing, use ${from}
+- phone (string) – extract any phone number written in the SMS text (e.g. Contact Phone, Mobile, or bare AU numbers like 04xx xxx xxx / +614…). Do NOT use the SMS sender/From number (${from}) unless no phone digits appear anywhere in the text. Ignore footer lines like "Sent from my iPhone".
 - email (string or empty)
 - service_type (one of: "TV Aerial","Satellite Dish","CCTV","Home Automation","Other")
 - job_details (string, summary)
@@ -90,10 +121,14 @@ interface ClaudeStandardPayload {
   address?: string | null
 }
 
-function mapSmsClaudePayload(parsed: ClaudeSmsPayload, fromNumber: string): ExtractedLeadFields {
+function mapSmsClaudePayload(
+  parsed: ClaudeSmsPayload,
+  fromNumber: string,
+  sourceText: string
+): ExtractedLeadFields {
   return {
     name: parsed.customer_name?.trim() || undefined,
-    phone: parsed.phone?.trim() || fromNumber,
+    phone: resolveSmsPhone(parsed.phone, sourceText, fromNumber),
     email: parsed.email?.trim() || undefined,
     service_type: parsed.service_type || 'Other',
     details: parsed.job_details?.trim() || undefined,
@@ -119,8 +154,9 @@ export async function extractLeadWithClaude(
   from: string,
   context: ExtractionContext
 ): Promise<ExtractedLeadFields | null> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
+  const apiKey = process.env.ANTHROPIC_API_KEY?.trim()
   if (!apiKey) {
+    console.error('Claude extraction skipped: missing ANTHROPIC_API_KEY')
     if (context === 'sms') return null
     throw new Error('Missing ANTHROPIC_API_KEY')
   }
@@ -142,23 +178,28 @@ export async function extractLeadWithClaude(
   })
 
   if (!response.ok) {
+    const errBody = await response.text().catch(() => '')
+    console.error(
+      `Claude ${context} extraction HTTP ${response.status}:`,
+      errBody.slice(0, 500)
+    )
     if (context === 'sms') return null
     throw new Error(`Anthropic API error: ${response.status}`)
   }
 
   const data = (await response.json()) as { content?: Array<{ type?: string; text?: string }> }
   const raw = data.content?.[0]?.text || ''
-  const cleaned = raw.replace(/```json\s*|\s*```/g, '').trim()
+  const cleaned = extractJsonObject(raw)
 
   try {
     const parsed = JSON.parse(cleaned) as ClaudeSmsPayload & ClaudeStandardPayload
     if (context === 'sms') {
-      return mapSmsClaudePayload(parsed, from)
+      return mapSmsClaudePayload(parsed, from, sourceText)
     }
     return mapStandardClaudePayload(parsed)
   } catch (err) {
     if (context === 'sms') {
-      console.error('Claude SMS parse error:', err)
+      console.error('Claude SMS parse error:', err, 'raw:', raw.slice(0, 300))
       return null
     }
     throw err
@@ -169,7 +210,7 @@ export async function extractLeadWithClaude(
 export function smsFallbackParse(smsText: string, fromNumber: string): ExtractedLeadFields {
   const result: ExtractedLeadFields = {
     name: 'SMS Enquiry',
-    phone: fromNumber,
+    phone: resolveSmsPhone(undefined, smsText, fromNumber),
     email: undefined,
     service_type: 'Other',
     details: smsText.substring(0, 200),
@@ -179,7 +220,9 @@ export function smsFallbackParse(smsText: string, fromNumber: string): Extracted
   const nameMatch = smsText.match(/Your Name:\s*(.+?)(?:\n|$)/i)
   if (nameMatch) result.name = nameMatch[1].trim()
   const phoneMatch = smsText.match(/Contact Phone:\s*(.+?)(?:\n|$)/i)
-  if (phoneMatch) result.phone = phoneMatch[1].trim()
+  if (phoneMatch) {
+    result.phone = resolveSmsPhone(phoneMatch[1].trim(), smsText, fromNumber)
+  }
   const emailMatch = smsText.match(/Your Email:\s*(.+?)(?:\n|$)/i)
   if (emailMatch) result.email = emailMatch[1].trim()
   const addressMatch = smsText.match(/Address:\s*(.+?)(?:\n|$)/i)
@@ -223,7 +266,7 @@ export function emailFallbackParse(
   return {
     name,
     email,
-    phone: phoneMatch?.[1]?.trim() ?? null,
+    phone: phoneMatch?.[1]?.trim() ?? findAuPhoneInText(emailText) ?? null,
     service_type,
     details: bodySnippet || subject || 'Inbound email enquiry',
     address: addressMatch?.[1]?.trim() ?? null,

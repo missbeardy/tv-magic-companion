@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import {
   emailFallbackParse,
   extractFromEmail,
@@ -6,6 +6,36 @@ import {
   extractFromVoicemailTranscript,
   smsFallbackParse,
 } from '../api/_lib/extractLead'
+import { findAuPhoneInText, phonesEqual } from '../api/_lib/phone'
+
+const GATEWAY = '+61480437390'
+
+describe('findAuPhoneInText', () => {
+  it('finds labelled Contact Phone', () => {
+    expect(findAuPhoneInText('Contact Phone: 0413 365 044\nYour Email: a@b.com')).toContain('0413')
+  })
+
+  it('finds bare AU mobile at start of free text', () => {
+    expect(findAuPhoneInText('0459514799 Julie\n\nVictoria Point')).toBe('0459514799')
+  })
+
+  it('finds +61 mobile and ignores Sent from my iPhone', () => {
+    const text =
+      '+61429442538\n\nGood evening,\nI’m inquiring about a TV.\nKind regards,\nFrancesca\nSent from my iPhone'
+    expect(findAuPhoneInText(text)).toContain('61429442538')
+  })
+
+  it('returns null when no phone present', () => {
+    expect(findAuPhoneInText('Can you message? I am at work.')).toBeNull()
+  })
+})
+
+describe('phonesEqual', () => {
+  it('treats national and E.164 as equal', () => {
+    expect(phonesEqual('0413365044', '+61413365044')).toBe(true)
+    expect(phonesEqual('0413365044', '+61480437390')).toBe(false)
+  })
+})
 
 describe('smsFallbackParse', () => {
   it('uses from number and structured Subject/Message fields', () => {
@@ -17,6 +47,45 @@ describe('smsFallbackParse', () => {
     expect(result.phone).toBe('+61400111222')
     expect(result.service_type).toBe('TV Aerial')
     expect(result.details).toContain('aerial')
+  })
+
+  it('prefers Contact Phone over gateway From', () => {
+    const result = smsFallbackParse(
+      'Your Name: Hemraj Joshi\n\nContact Phone: 0413365044\n\nSubject: Starlink\n\nMessage: Fix cable',
+      GATEWAY
+    )
+    expect(result.phone).toBe('0413365044')
+    expect(result.name).toBe('Hemraj Joshi')
+  })
+
+  it('extracts bare mobile from free-text enquiry, not gateway From', () => {
+    const result = smsFallbackParse('0459514799 Julie\n\nVictoria Point ', GATEWAY)
+    expect(result.phone).toBe('0459514799')
+  })
+
+  it('extracts phone buried in free-text body', () => {
+    const result = smsFallbackParse(
+      'Gary\n\n45 double jump road Redland bay\n\n0407119821\n\nStarlink installation plus wi fi extender',
+      GATEWAY
+    )
+    expect(result.phone).toBe('0407119821')
+  })
+
+  it('extracts +61 phone and ignores Sent from my iPhone footer', () => {
+    const result = smsFallbackParse(
+      '+61429442538\n\nGood evening,\nI’m inquiring about a potential fix on my TV.\nKind regards,\nFrancesca Hudson\nSent from my iPhone',
+      GATEWAY
+    )
+    expect(result.phone).toMatch(/61429442538/)
+    expect(result.phone).not.toBe(GATEWAY)
+  })
+
+  it('extracts phone from name/phone/suburb style message', () => {
+    const result = smsFallbackParse(
+      'Marnie Flaherty\n0466251790\nFlagstone\n50 inch tv wall mount for bedroom',
+      GATEWAY
+    )
+    expect(result.phone).toBe('0466251790')
   })
 })
 
@@ -60,6 +129,12 @@ describe('ExtractionRunResult', () => {
     const result = await extractFromSms('Need a TV aerial', '+61400000000')
     expect(result.status).toBe('fallback')
     expect(result.fields.phone).toBe('+61400000000')
+  })
+
+  it('extractFromSms fallback prefers body phone over From when no API key', async () => {
+    const result = await extractFromSms('0422889813 lead', GATEWAY)
+    expect(result.status).toBe('fallback')
+    expect(result.fields.phone).toBe('0422889813')
   })
 
   it('extractFromEmail returns fallback status without API key', async () => {
