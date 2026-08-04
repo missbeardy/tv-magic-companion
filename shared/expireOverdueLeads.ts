@@ -1,7 +1,8 @@
 /** Assign-timer auto-unassign is disabled — leads stay with the assignee.
 
  * Kept for audit-event helpers / historical tests. `runExpireOverdueLeads` is a no-op
- * mirroring `public.expire_overdue_leads()` after disable_assign_timer_expiry.
+ * mirroring `public.expire_overdue_leads()` / `public.check_expired_leads()` after
+ * disable_assign_timer_expiry + disable_legacy_check_expired_leads.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'

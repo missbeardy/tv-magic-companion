@@ -48,11 +48,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
   items: [
     'SMS enquiries now take the customer phone from the message text, not the form-relay “Sent from” number',
     'Clearer logging when Claude lead extraction falls back to regex parsing',
+    'Assigned leads stay with the technician — leftover assign-timer auto-unassign cron disabled',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.149'
+export const APP_VERSION = '1.1.150'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
