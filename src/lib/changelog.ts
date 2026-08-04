@@ -43,18 +43,16 @@ export function formatChangelogDate(date: string): string {
  * after Monday, set `weekStarts` to that Monday (use getCurrentReleaseWeekId()).
  */
 export const WEEKLY_CHANGELOG: WeeklyChangelog = {
-  weekStarts: '27-07-2026',
-  title: 'Franchise email templates',
+  weekStarts: '03-08-2026', // Monday — update on first push after each Monday
+  title: 'SMS enquiry phone fix',
   items: [
-    'Franchise self-serve email templates — visual editor in Franchise Settings for quote, lead acknowledgement, and invoice emails (no raw HTML); per-franchise overrides fall back to brand then defaults',
-    'Franchise Settings accordion layout — every section expands and collapses so the page is easier to scan',
-    'Fixed a false "profile row failed" error shown on every successful team invite',
-    'Facebook Lead Ads intake — ad-form leads land as unassigned leads attributed to "Facebook Lead Ads", separate from Messenger, via a new Make.com bridge (per-brand switch, default off)',
+    'SMS enquiries now take the customer phone from the message text, not the form-relay “Sent from” number',
+    'Clearer logging when Claude lead extraction falls back to regex parsing',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.148'
+export const APP_VERSION = '1.1.149'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
