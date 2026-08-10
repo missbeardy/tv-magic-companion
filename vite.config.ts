@@ -24,30 +24,12 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         globIgnores: ['OneSignalSDKWorker.js'],
       },
-      manifest: {
-        name: 'FieldBourne',
-        short_name: 'FieldBourne',
-        description: 'Field service CRM for Australian trade businesses',
-        start_url: '/',
-        display: 'standalone',
-        background_color: '#ffffff',
-        theme_color: '#004B93',
-        orientation: 'portrait',
-        icons: [
-          {
-            src: '/fieldbourne-logo.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any',
-          },
-          {
-            src: '/fieldbourne-logo.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'maskable',
-          },
-        ],
-      },
+      // dd6: this used to duplicate public/manifest.json verbatim, generating a second,
+      // unreferenced manifest.webmanifest that only drifted from the one index.html actually
+      // links. public/manifest.json is the single source of truth — `manifest: false` stops
+      // the plugin emitting its own (omitting the key isn't enough; it still writes a default
+      // empty one).
+      manifest: false,
       devOptions: {
         enabled: true,
       },

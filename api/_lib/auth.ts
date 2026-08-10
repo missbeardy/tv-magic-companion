@@ -57,39 +57,37 @@ export async function authenticateRequestDetailed(
   const { data: userData, error: userError } = await supabase.auth.getUser(accessToken)
   if (userError || !userData?.user) return { auth: null, reason: 'invalid_token' }
 
+  // dd8: was 3 further round trips (profiles, then orgs, then brands) on every authenticated
+  // request. A single PostgREST embedded-resource select over the org_id/brand_id foreign keys
+  // does the equivalent of a join in one call — token verification (the actual security
+  // boundary) stays a separate, uncached step above.
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('role, org_id, full_name')
+    .select(
+      `role, org_id, full_name,
+       orgs (
+         id, name, slug, subscription_tier, support_phone, stripe_customer_id, brand_id,
+         google_review_url, review_requests_enabled, abn, gst_registered,
+         stripe_connect_account_id, stripe_connect_status, email_templates,
+         brands ( sms_templates, email_templates, primary_color )
+       )`
+    )
     .eq('id', userData.user.id)
     .single()
 
   if (profileError || !profile?.org_id) return { auth: null, reason: 'no_profile' }
 
-  const { data: org, error: orgError } = await supabase
-    .from('orgs')
-    .select(
-      'id, name, slug, subscription_tier, support_phone, stripe_customer_id, brand_id, abn, gst_registered, stripe_connect_account_id, stripe_connect_status, email_templates'
-    )
-    .eq('id', profile.org_id)
-    .single()
+  const org = Array.isArray(profile.orgs) ? profile.orgs[0] : profile.orgs
+  if (!org) return { auth: null, reason: 'no_org' }
 
-  if (orgError || !org) return { auth: null, reason: 'no_org' }
-
-  let brand: AuthContext['brand'] = null
-  if (org.brand_id) {
-    const { data: brandRow } = await supabase
-      .from('brands')
-      .select('sms_templates, email_templates, primary_color')
-      .eq('id', org.brand_id)
-      .maybeSingle()
-    if (brandRow) {
-      brand = {
+  const brandRow = Array.isArray(org.brands) ? org.brands[0] : org.brands
+  const brand: AuthContext['brand'] = brandRow
+    ? {
         sms_templates: (brandRow.sms_templates as Record<string, string>) ?? {},
         email_templates: (brandRow.email_templates as Record<string, string>) ?? {},
         primary_color: (brandRow.primary_color as string) || '#004B93',
       }
-    }
-  }
+    : null
 
   return {
     auth: {
@@ -106,6 +104,8 @@ export async function authenticateRequestDetailed(
         support_phone: org.support_phone,
         stripe_customer_id: org.stripe_customer_id,
         brand_id: org.brand_id,
+        google_review_url: (org.google_review_url as string | null) ?? null,
+        review_requests_enabled: (org.review_requests_enabled as boolean | null) ?? undefined,
         abn: (org.abn as string | null) ?? null,
         gst_registered: (org.gst_registered as boolean | null) ?? true,
         stripe_connect_account_id: (org.stripe_connect_account_id as string | null) ?? null,

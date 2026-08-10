@@ -5,6 +5,7 @@ import { OPERATIONAL_MANAGER_ROLES } from './managerRoles.js'
 import { isFeatureEnabledForOrg } from './featureSwitches.js'
 import { sendEmployeeAlertWithSmsFallback } from './sendEmployeeAlert.js'
 import { buildEmployeeWhatsAppMessage } from './employeeWhatsAppTemplates.js'
+import { sendPushToUsers } from './pushTransport.js'
 
 export interface NewLeadRecord {
   id?: string
@@ -80,30 +81,23 @@ export async function notifyManagersNewLead(
   const alertMessage = `${leadName} needs assigning (${serviceType}).`
   const leadsUrl = `${platformUrl}/leads`
 
-  const appId = process.env.ONESIGNAL_APP_ID
-  const apiKey = process.env.ONESIGNAL_API_KEY
-  if (appId && apiKey && alertsEnabled) {
+  // Transport (Web Push vs OneSignal) is chosen per-brand inside sendPushToUsers.
+  if (alertsEnabled) {
     const pushUrl = lead.id ? `${leadsUrl}?highlight=${lead.id}` : leadsUrl
-    for (const manager of managers) {
-      try {
-        await fetch('https://onesignal.com/api/v1/notifications', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Basic ${apiKey}`,
-          },
-          body: JSON.stringify({
-            app_id: appId,
-            target_channel: 'push',
-            include_aliases: { external_id: [manager.id] },
-            headings: { en: title },
-            contents: { en: alertMessage },
-            url: pushUrl,
-          }),
-        })
-      } catch (err) {
-        console.error(`OneSignal new-lead push failed for ${manager.id} (non-fatal):`, err)
-      }
+    try {
+      await sendPushToUsers(
+        supabase,
+        lead.org_id,
+        managers.map((m) => m.id),
+        {
+          title,
+          body: alertMessage,
+          url: pushUrl,
+          ...(lead.id ? { leadId: lead.id } : {}),
+        }
+      )
+    } catch (err) {
+      console.error('New-lead push failed (non-fatal):', err)
     }
   }
 

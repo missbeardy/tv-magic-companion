@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth, type Profile } from '../context/AuthContext'
 import { normalizeRole } from '../lib/roles'
+import { identifyStaff, trackLogin } from '../lib/analytics'
 import { Mail, Lock, LogIn } from 'lucide-react'
 
 export default function Login() {
@@ -78,6 +79,8 @@ export default function Login() {
 
       const role = normalizeRole(profileData.role) ?? profileData.role
       establishSession(session.user, { ...(profileData as Profile), role: role as Profile['role'] })
+      identifyStaff(userId)
+      trackLogin({ orgId: profileData.org_id, role })
       navigate('/')
       setLoadingForm(false)
     } catch (err) {
@@ -94,7 +97,7 @@ export default function Login() {
         <div className="text-center mb-8">
           <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg p-2 border border-gray-100">
             <img 
-              src="/fieldbourne-logo.png"
+              src="/icon-512.png"
               alt="FieldBourne"
               className="max-w-full max-h-full object-contain"
             />
@@ -165,6 +168,11 @@ export default function Login() {
 
         <p className="text-center text-xs text-gray-400 mt-6">
           Powered by FieldBourne Digital
+        </p>
+        <p className="text-center text-xs text-gray-300 mt-1">
+          <Link to="/privacy" className="underline">Privacy Policy</Link>
+          {' · '}
+          <Link to="/terms" className="underline">Terms of Service</Link>
         </p>
         {import.meta.env.VITE_ENABLE_PLATFORM_FEATURES === 'true' && import.meta.env.VITE_SUPABASE_URL && (
           <p className="text-center text-xs text-gray-300 mt-2 font-mono">

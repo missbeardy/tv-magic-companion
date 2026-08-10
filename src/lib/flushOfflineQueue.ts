@@ -14,6 +14,8 @@ import {
   type OfflineLeadPhotoItem,
   type OfflineQueueItem,
 } from './offlineQueue'
+import { trackViaRelay } from './analytics'
+import { captureClientException } from './sentry'
 
 export interface FlushResult {
   processed: number
@@ -139,6 +141,7 @@ async function flushCompletion(item: OfflineCompletionItem): Promise<void> {
       source: 'offline_queue',
     },
   })
+  void trackViaRelay('job_completed', { orgId: item.orgId, leadId: item.leadId, source: 'offline_queue_sync' })
 }
 
 async function flushLeadNote(item: OfflineLeadNoteItem): Promise<void> {
@@ -188,6 +191,14 @@ export async function flushOfflineQueue(): Promise<FlushResult> {
       processed++
     } catch (err) {
       console.error('Offline flush failed for', item.id, err)
+      captureClientException(err, { stage: 'offline-queue-flush', itemType: item.type })
+      // Re-fires on every retry of a still-stuck item, not just once — there's no
+      // retry-count tracking in this queue to detect "permanently" failed (see dd1 notes).
+      void trackViaRelay('offline_queue_flush_failed', {
+        orgId: item.orgId,
+        leadId: item.leadId,
+        itemType: item.type,
+      })
       failed++
       // Keep going so one bad photo doesn't block contact attempts
     }

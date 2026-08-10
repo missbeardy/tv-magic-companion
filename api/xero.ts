@@ -3,6 +3,7 @@ import { authenticateRequestDetailed, authErrorMessage } from './_lib/auth.js'
 import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
 import { getSupabaseAdmin } from './_lib/supabaseAdmin.js'
 import { getPlatformUrl } from './_lib/platformUrl.js'
+import { withObservability } from './_lib/observability.js'
 import {
   buildXeroAuthorizeUrl,
   buildMockTokenSet,
@@ -451,7 +452,7 @@ async function handleSync(req: VercelRequest, res: VercelResponse) {
   })
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handler(req: VercelRequest, res: VercelResponse) {
   const action = resolveAction(req)
   if (!action) {
     return res.status(400).json({
@@ -481,3 +482,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Unhandled action' })
   }
 }
+
+export default withObservability(handler)

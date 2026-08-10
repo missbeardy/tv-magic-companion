@@ -21,14 +21,6 @@ interface ExtractedLead {
 
 const MAX_EMAIL_LENGTH = 5000
 
-function getClaudeModel(): string {
-  const envModel = import.meta.env.VITE_CLAUDE_MODEL
-  if (envModel && envModel.trim().length > 0) {
-    return envModel.trim()
-  }
-  return 'claude-sonnet-4-6'
-}
-
 async function hashText(text: string): Promise<string> {
   const encoder = new TextEncoder()
   const data = encoder.encode(text.trim().toLowerCase())
@@ -121,35 +113,12 @@ export default function EmailParser({
     setSaved(false)
     setDuplicateWarning(null)
 
-    const model = getClaudeModel()
-
     try {
       const headers = await getAuthHeaders()
-      const response = await fetch('/api/anthropic', {
+      const response = await fetch('/api/anthropic?action=extract-lead-fields', {
         method: 'POST',
         headers,
-        body: JSON.stringify({
-          model,
-          max_tokens: 1000,
-          messages: [
-            {
-              role: 'user',
-              content: `Extract the following fields from this email and respond ONLY with a JSON object, no markdown, no explanation:
-{
-  "name": "customer full name or empty string",
-  "phone": "phone number or empty string",
-  "email": "email address or empty string",
-  "address": "full street address including suburb and postcode if present, or empty string",
-  "service_type": "one of: TV Aerial, Satellite Dish, Home Automation, CCTV, General Repair, Other",
-  "lead_source": "where the lead came from — one of: Website, Google, Facebook, Referral, Phone, Email, Unknown",
-  "details": "brief summary of the job details or empty string"
-}
-
-Email:
-${rawEmail}`,
-            },
-          ],
-        }),
+        body: JSON.stringify({ rawText: rawEmail }),
       })
 
       if (!response.ok) {
@@ -158,21 +127,12 @@ ${rawEmail}`,
         throw new Error(`API error: ${message}`)
       }
 
-      const data = await response.json()
-
-      if (!data.content || !data.content[0] || !data.content[0].text) {
+      const data = (await response.json()) as { fields?: ExtractedLead }
+      if (!data.fields) {
         throw new Error('Unexpected response format from AI service')
       }
 
-      const text = data.content[0].text.trim()
-      const clean = text.replace(/^```json[\s\S]*?|^```[\s\S]*?|```$/g, '').trim()
-
-      let parsed: ExtractedLead
-      try {
-        parsed = JSON.parse(clean)
-      } catch {
-        parsed = JSON.parse(text)
-      }
+      const parsed = data.fields
 
       const requiredFields: (keyof ExtractedLead)[] = [
         'name', 'phone', 'email', 'address', 'service_type', 'lead_source', 'details',

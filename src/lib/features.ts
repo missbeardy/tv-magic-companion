@@ -46,6 +46,7 @@ export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   inbound_calls: false,
   inbound_messenger: false,
   inbound_facebook_ads: false,
+  native_web_push: false,
   missed_call_hookback_sms: false,
   lead_ack_sms: false,
   lead_ack_email: false,
@@ -125,6 +126,10 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   inbound_facebook_ads: {
     label: 'Facebook Lead Ads',
     description: 'Create leads from Facebook Lead Ads instant forms (via Make.com)',
+  },
+  native_web_push: {
+    label: 'Native Web Push',
+    description: 'Deliver push notifications directly from the app via Web Push (VAPID) instead of relaying through OneSignal',
   },
   missed_call_hookback_sms: {
     label: 'Missed Call Auto-Reply SMS',

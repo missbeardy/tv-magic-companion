@@ -3,26 +3,16 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { authenticateRequest } from './_lib/auth.js'
 import { geocodeWithGoogle, geocodeWithNominatim } from './_lib/staticMap.js'
 import { mapPlacesAutocompleteResponse } from '../shared/placesAutocomplete.js'
-
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
-function checkRateLimit(key: string, limit = 20, windowMs = 60_000): boolean {
-  const now = Date.now()
-  const entry = rateLimitMap.get(key)
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(key, { count: 1, resetAt: now + windowMs })
-    return true
-  }
-  if (entry.count >= limit) return false
-  entry.count++
-  return true
-}
+import { withObservability } from './_lib/observability.js'
+import { checkRateLimit, rateLimitIdentifier } from './_lib/rateLimit.js'
 
 async function handleAutocomplete(
   req: VercelRequest,
   res: VercelResponse,
-  ip: string
+  identifier: string
 ): Promise<VercelResponse> {
-  if (!checkRateLimit(ip, 30)) {
+  const allowed = await checkRateLimit({ scope: 'geocode-autocomplete', identifier, limit: 30, windowMs: 60_000 })
+  if (!allowed) {
     return res.status(429).json({ error: 'Too many requests. Please wait a moment.' })
   }
 
@@ -74,9 +64,10 @@ async function handleAutocomplete(
 async function handleGeocode(
   req: VercelRequest,
   res: VercelResponse,
-  ip: string
+  identifier: string
 ): Promise<VercelResponse> {
-  if (!checkRateLimit(ip)) {
+  const allowed = await checkRateLimit({ scope: 'geocode', identifier, limit: 20, windowMs: 60_000 })
+  if (!allowed) {
     return res.status(429).json({ error: 'Too many requests. Please wait a moment.' })
   }
 
@@ -116,7 +107,7 @@ async function handleGeocode(
   }
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -126,12 +117,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
-  const ip = (req.headers['x-forwarded-for'] as string) ?? auth.userId
+  const identifier = rateLimitIdentifier(req.headers['x-forwarded-for'] as string | undefined, auth.userId)
   const action = req.query.action as string | undefined
 
   if (action === 'autocomplete') {
-    return handleAutocomplete(req, res, ip)
+    return handleAutocomplete(req, res, identifier)
   }
 
-  return handleGeocode(req, res, ip)
+  return handleGeocode(req, res, identifier)
 }
+
+export default withObservability(handler)

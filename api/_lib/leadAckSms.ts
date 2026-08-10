@@ -2,6 +2,7 @@ import { isFeatureEnabledForOrg } from './featureSwitches.js'
 import { sendBrandedSms } from './sendBrandedSms.js'
 import { formatAuPhoneForSms } from './phone.js'
 import { LEAD_ACK_CALLBACK_WINDOW, LEAD_ACK_SMS_FALLBACK } from '../../shared/leadAckCopy.js'
+import { track } from './analytics.js'
 
 export interface LeadAckSmsInput {
   orgId: string
@@ -34,6 +35,8 @@ export async function sendLeadAckSmsIfEnabled(input: LeadAckSmsInput): Promise<b
 
   if (result.error) {
     console.error('Lead ack SMS failed:', result.error)
+  } else if (result.sent) {
+    track('ack_sent', input.leadId, { orgId: input.orgId, leadId: input.leadId, channel: 'sms' })
   }
 
   return result.sent

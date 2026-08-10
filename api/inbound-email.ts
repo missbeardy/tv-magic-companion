@@ -8,6 +8,7 @@ import { captureUnroutedInbound } from './_lib/captureUnroutedInbound.js'
 import { findRecentLeadByPhone } from './_lib/inboundLeadDedup.js'
 import { formatAuPhoneForSms } from './_lib/phone.js'
 import { processInboundLead } from './_lib/processInboundLead.js'
+import { withObservability } from './_lib/observability.js'
 import {
   extractFromEmail,
   extractFromVoicemailTranscript,
@@ -93,7 +94,7 @@ async function transcribeAudio(buffer: Buffer, fileName: string): Promise<string
   return data.text || ''
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handler(req: VercelRequest, res: VercelResponse) {
   const action = typeof req.query.action === 'string' ? req.query.action : undefined
   if (action === 'facebook-lead') {
     const { handleInboundFacebookLead } = await import('./_lib/handleInboundFacebookLead.js')
@@ -462,3 +463,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Processing failed' })
   }
 }
+
+export default withObservability(handler)

@@ -22,6 +22,8 @@ export interface QuoteRecord {
   email_message?: string
   sms_sent?: boolean
   sms_message?: string
+  /** True when the quote saved but email/SMS were still in flight at response time. */
+  delivery_pending?: boolean
   org_name?: string
   primary_color?: string
   logo_url?: string | null
@@ -47,6 +49,7 @@ export async function createQuote(payload: CreateQuotePayload): Promise<{
     email_message?: string
     sms_sent?: boolean
     sms_message?: string
+    delivery_pending?: boolean
   }
 }> {
   const headers = await requireAuthHeaders()
@@ -63,6 +66,7 @@ export async function createQuote(payload: CreateQuotePayload): Promise<{
       email_message?: string
       sms_sent?: boolean
       sms_message?: string
+      delivery_pending?: boolean
     }
   }
   if (!res.ok || !data.quote) {

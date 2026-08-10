@@ -3,8 +3,34 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import './_lib/loadLocalEnv.js';
 import { getSupabaseAdmin } from './_lib/supabaseAdmin.js';
+import { withObservability } from './_lib/observability.js';
+import { authenticateRequest } from './_lib/auth.js';
+import { deleteOwnAccount } from './_lib/accountDeletion.js';
+import { captureServerException } from './_lib/sentry.js';
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handleDeleteAccount(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+  const auth = await authenticateRequest(req);
+  if (!auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const supabaseAdmin = getSupabaseAdmin();
+  if (!supabaseAdmin) {
+    return res.status(500).json({ error: 'Server misconfiguration' });
+  }
+
+  const result = await deleteOwnAccount(supabaseAdmin, auth.userId);
+  if (!result.ok) {
+    console.error('Account deletion failed:', result.error);
+    captureServerException(new Error(result.error), { action: 'delete-account', orgId: auth.orgId });
+    return res.status(500).json({ error: 'Account deletion failed. Please contact support.' });
+  }
+  return res.status(200).json({ success: true });
+}
+
+async function handler(req: VercelRequest, res: VercelResponse) {
   const action = typeof req.query.action === 'string' ? req.query.action : undefined;
   if (action === 'simulate-inbound') {
     const { handlePlatformSimulateInbound } = await import('./_lib/platformSimulateInbound.js');
@@ -14,6 +40,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (action === 'set-test-profile') {
     const { handleSetTestProfile } = await import('./_lib/platformSetTestProfile.js');
     return handleSetTestProfile(req, res);
+  }
+
+  if (action === 'delete-account') {
+    return handleDeleteAccount(req, res);
   }
 
   if (req.method !== 'POST') {
@@ -135,3 +165,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Internal server error', details: err.message });
   }
 }
+
+export default withObservability(handler);

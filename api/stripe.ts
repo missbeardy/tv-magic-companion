@@ -7,6 +7,9 @@ import { tierFromStripePriceId, type SubscriptionTier } from './_lib/tier.js'
 import { readRawBody } from './_lib/rawBody.js'
 import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
 import { getInvoiceByToken, markInvoicePaid } from './_lib/invoices.js'
+import { withObservability } from './_lib/observability.js'
+import { captureServerException } from './_lib/sentry.js'
+import { checkRateLimit, rateLimitIdentifier } from './_lib/rateLimit.js'
 import {
   buildInvoiceCheckoutSessionParams,
   checkInvoicePayable,
@@ -326,6 +329,12 @@ async function handleInvoicePay(req: VercelRequest, res: VercelResponse) {
     return res.redirect(302, `${platformUrl}/invoice/${encodeURIComponent(token || 'unknown')}`)
   }
 
+  const identifier = rateLimitIdentifier(req.headers['x-forwarded-for'] as string | undefined)
+  const allowed = await checkRateLimit({ scope: 'stripe-invoice-pay', identifier, limit: 30, windowMs: 60_000 })
+  if (!allowed) {
+    return res.redirect(302, `${platformUrl}/invoice/${encodeURIComponent(token)}?error=rate_limited`)
+  }
+
   try {
     const invoice = await getInvoiceByToken(token)
 
@@ -441,11 +450,12 @@ async function handleConnectWebhook(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ received: true })
   } catch (err) {
     console.error('[STRIPE_CONNECT_WEBHOOK] handler error:', err)
+    captureServerException(err, { action: 'stripe-connect-webhook', eventType: event.type })
     return res.status(500).json({ error: 'Webhook handler failed' })
   }
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handler(req: VercelRequest, res: VercelResponse) {
   const action = resolveAction(req)
   if (!action) {
     return res.status(404).json({ error: 'Unknown Stripe action' })
@@ -476,3 +486,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(404).json({ error: 'Unknown Stripe action' })
   }
 }
+
+export default withObservability(handler)

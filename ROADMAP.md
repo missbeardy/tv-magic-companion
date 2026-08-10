@@ -1,14 +1,23 @@
 # FieldBourne Roadmap — Master
 
+> ## ⚠️ SUPERSEDED 06-08-2026 — read [DUE_DILIGENCE_REVIEW.md](DUE_DILIGENCE_REVIEW.md) first
+>
+> An independent end-to-end technical and product due diligence review was run on 06-08-2026 (v1.1.154) and **adopted by the owner as the governing roadmap**. It supersedes the tier ordering below.
+>
+> **What changed:** the Critical list (`dd1`–`dd6`, `dd13` on the Kanban board) comes before all Tier 1/2/3 work. **Tier 3 is frozen** — no T3.x item may be promoted or built until five paying strangers exist (`dd13`). No new feature work while `dd1` (observability) is open.
+>
+> **This document remains authoritative for:** the shipped log, the T1.x/T2.x specs and their "done when" criteria, and the strategy anchor — all of which the review builds on rather than replaces. Sessions should read both.
+
 | Field | Value |
 |-------|-------|
 | **Purpose** | The single prioritised roadmap for FieldBourne. Three tiers: keep the current client, become sellable to strangers, nice-to-have. |
-| **Status** | Governing document — supersedes ordering in `MUST_HAVE_8_ROADMAP.md` and `SALES_PIPELINE_BACKLOG.md` (those remain as detailed specs, referenced below) |
+| **Status** | **Superseded for prioritisation** by [DUE_DILIGENCE_REVIEW.md](DUE_DILIGENCE_REVIEW.md) (06-08-2026). Still governing for specs + shipped history. Supersedes ordering in `MUST_HAVE_8_ROADMAP.md` and `SALES_PIPELINE_BACKLOG.md` (those remain as detailed specs, referenced below) |
 | **Created** | 18-07-2026, from four reviews run that day: full-code inventory, mobile UX/churn review, competitive assessment vs ServiceM8/Tradify, tech-debt re-validation |
-| **Last updated** | 31-07-2026 — T1.11 Facebook Lead Ads intake shipped (v1.1.148), awaiting Make.com build + real-form UAT; T1.10 found partially live in prod (ack SMS + manager alerts on for `tv-magic`, email ack still off) |
+| **Last updated** | 06-08-2026 — **due diligence review adopted as governing (see banner above); 20 findings carded as `dd1`–`dd20` in Backlog, and 7 pre-existing cards triaged into Review for owner decision (T1.10, T1.6b, T3.5, T3.6, T3.11, T3.12, franchise email templates).** Prior same day: T1.12 Self-hosted Web Push added (owner request: OneSignal judged unstable, wants notifications from the app itself). Prior: 31-07-2026, T1.11 Facebook Lead Ads intake shipped (v1.1.148), awaiting Make.com build + real-form UAT; T1.10 found partially live in prod (ack SMS + manager alerts on for `tv-magic`, email ack still off) |
 
 ## Governance (read first, every session)
 
+0. **[DUE_DILIGENCE_REVIEW.md](DUE_DILIGENCE_REVIEW.md) sets priority order as of 06-08-2026.** Work its Critical list (`dd1`–`dd6`, `dd13`) before anything below. Tier 3 is frozen until `dd13` completes. Its "Rules for now" section applies to every session.
 1. **This doc governs what gets built.** If a session is asked to build something not listed here, push back, get explicit owner confirmation, and add it to a tier (same block format, dated) *before* writing code.
 2. **One item per session** unless items are explicitly marked as bundleable. Work top-down within a tier unless the owner reorders.
 3. **Standing conventions apply to every item:** ask whether a per-brand feature switch is needed (switches gate server endpoints, not just UI); bump `src/lib/changelog.ts` + `package.json`; update + version-bump `docs/SALES_PIPELINE_WORKFLOW.md` for any pipeline behaviour change; pure logic goes in `src/lib/`/`shared/` with vitest tests.
@@ -112,6 +121,15 @@
 - **Remaining:** Make.com scenario build (needs Nick's Facebook Page connected in Make with Leads Access — owner/Nick action) using `org: "default"` in the request body; real-form UAT once Make is live. Owner deferred a synthetic curl UAT (31-07-2026) since it would fire a real ack SMS + manager push.
 - **Done when:** a real Lead Ads form submission lands as an unassigned lead attributed to "Facebook Lead Ads" within a minute, and the switch off means the endpoint rejects it.
 - **Later (not this item):** native Meta `leadgen` webhook to drop the Make dependency — needs `leads_retrieval` app review and per-org page tokens. Shares infrastructure with T3.5.
+
+### [ ] T1.12 Self-hosted Web Push — own the notification delivery path (added 06-08-2026, owner request — OneSignal judged unstable)
+
+- **Why:** Push is how the client learns a lead arrived, and speed-to-lead is the entire product pitch — a missed push is the worst failure mode we have. OneSignal is only a *relay*: our server calls its REST API, it holds the browser subscriptions and forwards to FCM / Mozilla autopush / Apple. Every reliability problem lives in that extra hop plus its SDK/SW layer. The owner wants the notification to come from the app itself where possible. Audit (06-08-2026) also found a likely live double-notification bug: `public/OneSignalSDKWorker.js` does `importScripts('/sw.js')`, so our own `push` listener at `public/sw.js:18` and OneSignal's share one SW global and **both fire on every OneSignal push** — the second renders a generic "TVMagic / New notification" with no subscriber behind it.
+- **Spec:** VAPID + the W3C Web Push protocol against our own `push_subscriptions` table — the same thing OneSignal does internally, minus the middleman. Sender is `api/_lib/webPush.ts` (lazy `import('web-push')`, mirroring the `import('resend')` pattern) called in-process by the existing hubs — **no new file under `api/`**, the Hobby cap is at 12/12. Subscribe/unsubscribe go client → Supabase direct via RLS (users are authenticated, `profiles.id` = `auth.users.id`), so they cost zero function slots; only the SW's session-less `pushsubscriptionchange` needs a `?action=push-rotate` on `send-sms.ts`, authorised by possession of the unguessable old endpoint. `api/_lib/pushTransport.ts` routes on the switch and **falls back to OneSignal per-recipient when a user has no live subscription**, so flipping the switch cannot black out anyone who hasn't reopened the app. Harden the half-built `public/sw.js` handlers (marker-gate against OneSignal payloads, FieldBourne branding, try/catch so a malformed payload never renders nothing, focus-then-`navigate` so deep links survive an open tab). `supabase/functions/notify-message/index.ts` calls the Vercel sender over `?action=push-send` rather than porting `web-push` to Deno. Delete nothing OneSignal yet — teardown is T1.13.
+- **Feature switch:** new per-brand `native_web_push` (default off, category `team_operations`, min_tier basic), gating the server transport choice — not just UI. Rollback is one toggle in Platform Admin.
+- **Done when:** with the switch on for a brand, a lead assignment delivers to a fully-closed Android Chrome PWA within 10s and the tap lands on the payload's URL; an installed iOS PWA receives it backgrounded; 404/410 responses delete their subscription row; a recipient with no subscription still gets the OneSignal push; and with the switch off delivery is byte-for-byte unchanged.
+- **Unlocks:** `src/lib/oneSignal.ts:7-12` hard-disables OneSignal outside two production origins, so preview deploys have never had push at all. Web Push works on any HTTPS origin — preview UAT becomes possible for the first time.
+- **Later (not this item):** T1.13 OneSignal teardown once the subscription table plateaus — remove `react-onesignal`, `public/OneSignalSDKWorker.js`, both `ONESIGNAL_*` env vars, and the three REST call sites.
 
 ---
 

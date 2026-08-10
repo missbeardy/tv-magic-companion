@@ -43,17 +43,28 @@ export function formatChangelogDate(date: string): string {
  * after Monday, set `weekStarts` to that Monday (use getCurrentReleaseWeekId()).
  */
 export const WEEKLY_CHANGELOG: WeeklyChangelog = {
-  weekStarts: '03-08-2026', // Monday — update on first push after each Monday
-  title: 'SMS enquiry phone fix',
+  weekStarts: '10-08-2026', // Monday — update on first push after each Monday
+  title: 'Reliability, privacy and speed',
   items: [
-    'SMS enquiries now take the customer phone from the message text, not the form-relay “Sent from” number',
-    'Clearer logging when Claude lead extraction falls back to regex parsing',
-    'Assigned leads stay with the technician — leftover assign-timer auto-unassign cron disabled',
+    'Faster first load, especially on mobile — reports, calendar, platform admin, and public quote/invoice pages now load on demand instead of shipping to everyone up front',
+    'Sending a quote no longer shows a failure when the email or SMS is just slow — the quote saves first and confirms "saved, still sending", so you never send the same quote twice',
+    'Added Privacy Policy and Terms of Service pages, an in-app "Delete my account" option, and a public account-deletion request page',
+    'Deleting a staff account no longer removes their customer bookings from the calendar — the business keeps its records',
+    'Automated customer SMS (enquiry acknowledgement, booking reminders, quote/invoice follow-ups) now includes a reply-STOP opt-out line',
+    'Added error monitoring and product analytics behind the scenes, with customer names/phones/addresses/photos scrubbed before anything leaves the app',
+    'Rate limiting on AI parsing, SMS, geocoding, and public quote/invoice links is now honest under real traffic — the old per-instance counter reset on every cold start and could be bypassed by spreading requests across concurrent connections',
+    'AI lead-parsing and caption generation now build their prompts server-side with a per-franchise monthly usage limit, closing an open-ended AI proxy',
+    'Every authenticated API request now does one fewer database round trip under the hood — should shave a little latency off writes on weak signal',
+    'Removed a duplicate, unused app manifest that could silently drift from the real one',
+    'Fixed follow-up reminders repeating every 15 minutes on the same lead — technicians were getting thousands of duplicate notifications a day, and it was timing out the background job that also sends invoice/quote chases and booking reminders',
+    'Leads with no contact for 14 days are now automatically marked Lost (booked jobs are never touched), so dead leads stop nagging forever',
+    'In-app notifications older than 30 days are now cleaned up automatically',
+    'Replaced the app icon and favicon with FieldBourne’s real logo (was showing the client’s TV Magic logo)',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.150'
+export const APP_VERSION = '1.1.167'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

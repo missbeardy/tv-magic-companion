@@ -1,6 +1,7 @@
 import { isFeatureEnabledForOrg } from './featureSwitches.js'
 import { getSupabaseAdmin } from './supabaseAdmin.js'
 import { sendBrandedSms } from './sendBrandedSms.js'
+import { track } from './analytics.js'
 
 export interface AutoReviewGuardInput {
   autoReviewEnabled: boolean
@@ -134,5 +135,6 @@ export async function maybeSendReviewOnInvoicePaid(
     }
   }
 
+  track('review_sent', leadId, { orgId, leadId })
   return { sent: true }
 }

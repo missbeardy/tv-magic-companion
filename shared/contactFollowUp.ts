@@ -2,6 +2,22 @@
 
 export const CONTACT_FOLLOW_UP_MS = 6 * 60 * 60 * 1000 // 6 hours
 
+/**
+ * A lead sitting in `contact_attempted` this long with no employee contact is written off as
+ * lost, regardless of attempt round.
+ *
+ * Without this, a lead the employee never touches can never leave `contact_attempted`: the round
+ * only advances on real contact, and round-based auto-lost needs round >= FINAL_LABEL_ROUND. Prod
+ * had 72 such leads, the oldest 40 days old, being re-nudged indefinitely. Booked leads are
+ * unaffected — they leave `contact_attempted` when booked.
+ *
+ * Owner set this to 14 days (10-08-2026), up from an initial 7 — writing a lead off is
+ * irreversible-ish in the client's eyes, so the bias is toward giving the tradie longer to
+ * follow up.
+ */
+export const STALE_LEAD_AUTO_LOST_MS = 14 * 24 * 60 * 60 * 1000 // 14 days
+export const STALE_LEAD_AUTO_LOST_DAYS = STALE_LEAD_AUTO_LOST_MS / (24 * 60 * 60 * 1000)
+
 /** Total employee contact actions before unable-to-contact lost. */
 export const MAX_CONTACT_ATTEMPTS = 6
 
@@ -20,6 +36,9 @@ export interface ContactFollowUpLead {
   status: string
   contact_attempt_round?: number | null
   last_contact_attempted_at?: string | null
+  /** When the follow-up *reminder* last fired. Separate from last_contact_attempted_at, which
+   * only moves when the employee actually contacts the customer. */
+  last_follow_up_reminder_at?: string | null
   assigned_to?: string | null
 }
 
@@ -50,18 +69,52 @@ export function isFollowUpRolloverDue(
   return nowMs - new Date(lastAttemptAt).getTime() >= CONTACT_FOLLOW_UP_MS
 }
 
+/**
+ * Whether a lead's reminder cooldown has elapsed.
+ *
+ * Without this the reminder repeats on every cron run (every 15 min) forever: the reminder path
+ * deliberately doesn't advance the round or `last_contact_attempted_at`, so a lead that crosses
+ * the 6h staleness line keeps matching indefinitely. In prod that produced 29,825 notifications
+ * over five weeks — see 20260810000000_follow_up_reminder_cooldown.sql.
+ */
+export function isFollowUpReminderCooldownElapsed(
+  lastReminderAt: string | null | undefined,
+  nowMs = Date.now()
+): boolean {
+  if (!lastReminderAt) return true
+  return nowMs - new Date(lastReminderAt).getTime() >= CONTACT_FOLLOW_UP_MS
+}
+
 /** Stale leads eligible for a reminder (no round change — employee must contact again). */
 export function leadsDueForFollowUpReminder(leads: ContactFollowUpLead[], nowMs = Date.now()): ContactFollowUpLead[] {
   return leads.filter(
     (lead) =>
       lead.status === 'contact_attempted' &&
       (lead.contact_attempt_round ?? 0) < FINAL_LABEL_ROUND &&
-      isFollowUpRolloverDue(lead.last_contact_attempted_at, nowMs)
+      isFollowUpRolloverDue(lead.last_contact_attempted_at, nowMs) &&
+      isFollowUpReminderCooldownElapsed(lead.last_follow_up_reminder_at, nowMs)
   )
 }
 
 /** @deprecated Timer no longer increments round */
 export const leadsDueForFollowUpEscalation = leadsDueForFollowUpReminder
+
+/**
+ * Leads written off purely on elapsed time (7 days in `contact_attempted` with no employee
+ * contact), regardless of attempt round. Complements the round-based rule below — whichever
+ * condition is met first wins.
+ */
+export function leadsDueForStaleAutoLost(
+  leads: ContactFollowUpLead[],
+  nowMs = Date.now()
+): ContactFollowUpLead[] {
+  return leads.filter(
+    (lead) =>
+      lead.status === 'contact_attempted' &&
+      Boolean(lead.last_contact_attempted_at) &&
+      nowMs - new Date(lead.last_contact_attempted_at as string).getTime() >= STALE_LEAD_AUTO_LOST_MS
+  )
+}
 
 /** 5th Attempt showing (round 4) + 6h with no success → auto lost. */
 export function leadsDueForFollowUpAutoLost(leads: ContactFollowUpLead[], nowMs = Date.now()): ContactFollowUpLead[] {
@@ -197,7 +250,24 @@ export async function processContactFollowUpRollovers<T extends ContactFollowUpL
   const nowMs = options?.nowMs ?? Date.now()
   let result = leads
 
-  for (const lead of leadsDueForFollowUpAutoLost(leads, nowMs)) {
+  // Time-based write-off first: a lead 7+ days untouched is lost no matter its round, so it
+  // can't sit in contact_attempted being nudged forever.
+  for (const lead of leadsDueForStaleAutoLost(leads, nowMs)) {
+    const update = buildUnableToContactLostUpdate()
+    const ok = await applyUpdate(lead.id, update)
+    if (!ok) continue
+
+    await logEvent(lead.id, 'lost', `No contact for ${STALE_LEAD_AUTO_LOST_DAYS} days`, {
+      from_status: 'contact_attempted',
+      to_status: 'lost',
+      reason: LOST_REASON_UNABLE_TO_CONTACT,
+      contact_attempt_round: lead.contact_attempt_round,
+      source: 'stale_no_contact',
+    })
+    result = result.map((row) => (row.id === lead.id ? { ...row, ...update } : row)) as T[]
+  }
+
+  for (const lead of leadsDueForFollowUpAutoLost(result, nowMs)) {
     const update = buildUnableToContactLostUpdate()
     const ok = await applyUpdate(lead.id, update)
     if (!ok) continue

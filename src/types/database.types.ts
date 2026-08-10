@@ -1355,27 +1355,49 @@ export type Database = {
           auth: string
           created_at: string
           endpoint: string
+          failure_count: number
           id: string
+          last_seen_at: string
+          last_success_at: string | null
+          org_id: string | null
           p256dh: string
+          user_agent: string | null
           user_id: string
         }
         Insert: {
           auth: string
           created_at?: string
           endpoint: string
+          failure_count?: number
           id?: string
+          last_seen_at?: string
+          last_success_at?: string | null
+          org_id?: string | null
           p256dh: string
+          user_agent?: string | null
           user_id: string
         }
         Update: {
           auth?: string
           created_at?: string
           endpoint?: string
+          failure_count?: number
           id?: string
+          last_seen_at?: string
+          last_success_at?: string | null
+          org_id?: string | null
           p256dh?: string
+          user_agent?: string | null
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "push_subscriptions_user_id_fkey"
             columns: ["user_id"]

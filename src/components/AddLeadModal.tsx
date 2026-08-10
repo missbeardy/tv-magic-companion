@@ -6,6 +6,8 @@ import { supabase } from '../lib/supabase';
 import { alertManagersOnNewLead } from '../lib/notify';
 import { logLeadEvent } from '../lib/leadEvents';
 import { buildSoloManualLeadFields } from '../lib/soloLeadAssignment';
+import { trackViaRelay } from '../lib/analytics';
+import { captureClientException } from '../lib/sentry';
 import {
   addLeadDraftHasContent,
   clearAddLeadDraft,
@@ -101,8 +103,15 @@ export default function AddLeadModal({ onClose, onCreated }: Props) {
 
     if (insertError || !lead) {
       setError(insertError?.message ?? 'Failed to create lead');
+      captureClientException(insertError ?? new Error('Manual lead insert returned no row'), {
+        stage: 'add-lead-modal-insert',
+      });
       setSaving(false);
       return;
+    }
+
+    if (profile?.org_id) {
+      void trackViaRelay('lead_captured', { orgId: profile.org_id, leadId: lead.id, source: 'manual' });
     }
 
     await logLeadEvent({

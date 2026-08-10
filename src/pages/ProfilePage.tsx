@@ -1,11 +1,15 @@
 // src/pages/ProfilePage.tsx
 import { useEffect, useState, useRef } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import NavBar from '../components/NavBar'
 import CreateEmployeeModal from '../components/CreateEmployeeModal'
 import { promptForNotifications } from '../lib/oneSignal'
+import { disablePush, enablePush, isIosSafariNotInstalled } from '../lib/webPush'
+import { useOrg } from '../context/OrgContext'
 import { isManagerRole } from '../lib/roles'
+import { deleteMyAccount } from '../lib/accountDeletion'
 
 function ChangePassword() {
   const [newPassword, setNewPassword] = useState('')
@@ -81,7 +85,11 @@ function InfoBubble({ text }: { text: string }) {
 }
 
 export default function ProfilePage() {
-  const { profile } = useAuth()
+  const navigate = useNavigate()
+  const { profile, signOut } = useAuth()
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
   const [fullName, setFullName] = useState('')
   const [suburb, setSuburb] = useState('')
   const [phone, setPhone] = useState('')
@@ -94,7 +102,13 @@ export default function ProfilePage() {
   const [error, setError] = useState('')
   const [showCreateEmployee, setShowCreateEmployee] = useState(false)
   const [notifStatus, setNotifStatus] = useState<'idle' | 'success' | 'denied'>('idle')
+  const [notifSaving, setNotifSaving] = useState(false)
+  // Explicit opt-in flag from profiles.push_enabled. Browser Notification.permission
+  // stays "granted" after unsubscribe, so we must not treat permission alone as "on".
+  const [pushEnabled, setPushEnabled] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const { isFeatureEnabled, featureSwitchesLoading } = useOrg()
+  const nativePushEnabled = !featureSwitchesLoading && isFeatureEnabled('native_web_push')
 
   useEffect(() => {
     if (!profile) return
@@ -102,7 +116,7 @@ export default function ProfilePage() {
 
     supabase
       .from('profiles')
-      .select('suburb, phone, avatar_url, location_enabled')
+      .select('suburb, phone, avatar_url, location_enabled, push_enabled')
       .eq('id', profile.id)
       .single()
       .then(({ data }) => {
@@ -111,23 +125,41 @@ export default function ProfilePage() {
           setPhone(data.phone ?? '')
           setAvatarUrl(data.avatar_url ?? '')
           setLocationEnabled(data.location_enabled ?? false)
+          setPushEnabled(data.push_enabled === true)
         }
       })
   }, [profile])
 
+  // Must stay inside the click handler — iOS only honours requestPermission()
+  // from a real user gesture.
   async function handleEnableNotifications() {
+    if (!profile) return
     try {
-      await promptForNotifications()
-      const permission = Notification.permission
-      if (permission === 'granted') {
-        setNotifStatus('success')
-      } else {
-        setNotifStatus('denied')
+      if (nativePushEnabled) {
+        const result = await enablePush(profile.id, profile.org_id ?? null)
+        if (result.ok) {
+          setPushEnabled(true)
+          setNotifStatus('success')
+        } else {
+          setNotifStatus('denied')
+        }
+        return
       }
+      await promptForNotifications()
+      setNotifStatus(Notification.permission === 'granted' ? 'success' : 'denied')
     } catch (err) {
       console.error('Notification prompt error:', err)
       setNotifStatus('denied')
     }
+  }
+
+  async function handleDisableNotifications() {
+    if (!profile) return
+    setNotifSaving(true)
+    await disablePush(profile.id)
+    setPushEnabled(false)
+    setNotifStatus('idle')
+    setNotifSaving(false)
   }
 
   async function handleLocationToggle(enabled: boolean) {
@@ -201,7 +233,26 @@ export default function ProfilePage() {
     setSaving(false)
   }
 
+  async function handleDeleteAccount() {
+    setDeleting(true)
+    setDeleteError('')
+    const result = await deleteMyAccount()
+    if (!result.ok) {
+      setDeleteError(result.error)
+      setDeleting(false)
+      return
+    }
+    await signOut()
+    navigate('/login', { replace: true })
+  }
+
   const notifPermission = typeof Notification !== 'undefined' ? Notification.permission : 'default'
+  const iosNeedsInstall = nativePushEnabled && isIosSafariNotInstalled()
+  // Native path: "on" means the user opted in (push_enabled / local success), not
+  // merely that the browser still remembers a prior permission grant.
+  const deviceNotificationsOn = nativePushEnabled
+    ? notifStatus === 'success' || (pushEnabled && notifPermission === 'granted')
+    : notifPermission === 'granted' || notifStatus === 'success'
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -251,9 +302,30 @@ export default function ProfilePage() {
             Enable push notifications to get alerted on your phone when a lead is assigned to you.
           </p>
 
-          {notifPermission === 'granted' || notifStatus === 'success' ? (
-            <div className="bg-green-50 text-green-700 text-sm p-3 rounded-lg font-medium">
-              ✅ Notifications are enabled on this device
+          {iosNeedsInstall ? (
+            // iOS only exposes Web Push to a PWA launched from the Home Screen.
+            // Showing an enable button here would be a dead button.
+            <div className="bg-blue-50 text-blue-800 text-sm p-3 rounded-lg space-y-1">
+              <p className="font-medium">📲 Add FieldBourne to your Home Screen</p>
+              <p className="text-xs">
+                iPhone and iPad only allow notifications once the app is installed. Tap Share, then
+                “Add to Home Screen”, and open FieldBourne from the new icon.
+              </p>
+            </div>
+          ) : deviceNotificationsOn ? (
+            <div className="space-y-2">
+              <div className="bg-green-50 text-green-700 text-sm p-3 rounded-lg font-medium">
+                ✅ Notifications are enabled on this device
+              </div>
+              {nativePushEnabled && (
+                <button
+                  onClick={handleDisableNotifications}
+                  disabled={notifSaving}
+                  className="w-full min-h-[44px] border border-gray-300 text-gray-600 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition disabled:opacity-50"
+                >
+                  {notifSaving ? 'Turning off…' : 'Turn off notifications on this device'}
+                </button>
+              )}
             </div>
           ) : notifStatus === 'denied' || notifPermission === 'denied' ? (
             <div className="bg-amber-50 text-amber-700 text-sm p-3 rounded-lg">
@@ -262,7 +334,7 @@ export default function ProfilePage() {
           ) : (
             <button
               onClick={handleEnableNotifications}
-              className="w-full bg-[#00B4C5] text-white py-3 rounded-lg text-sm font-semibold hover:bg-[#009aaa] transition"
+              className="w-full min-h-[44px] bg-[#00B4C5] text-white py-3 rounded-lg text-sm font-semibold hover:bg-[#009aaa] transition"
             >
               🔔 Enable Notifications on This Device
             </button>
@@ -379,6 +451,60 @@ export default function ProfilePage() {
             Role: <span className="font-medium text-gray-600">{profile?.role}</span>
           </p>
         </div>
+
+        <div className="bg-white rounded-xl border border-red-200 p-6 space-y-3">
+          <p className="text-sm font-semibold text-red-700">Danger zone</p>
+          <p className="text-xs text-gray-500">
+            Deletes your personal login and profile details (name, phone, photo). Business
+            records like leads, jobs, and invoices belong to your organisation and are not
+            deleted with your account.
+          </p>
+          {deleteError && (
+            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm">{deleteError}</div>
+          )}
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="w-full min-h-[44px] border border-red-300 text-red-700 py-2 rounded-lg text-sm font-medium hover:bg-red-50 transition"
+          >
+            Delete my account
+          </button>
+          <p className="text-xs text-gray-400 text-center">
+            <Link to="/privacy" className="underline">Privacy Policy</Link>
+            {' · '}
+            <Link to="/terms" className="underline">Terms of Service</Link>
+          </p>
+        </div>
+
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+              <h3 className="font-display font-semibold text-gray-900 text-lg">
+                Delete your account?
+              </h3>
+              <p className="text-sm text-gray-600">
+                This signs you out permanently and removes your name, phone, and photo from
+                FieldBourne. This cannot be undone. Your organisation's business records are not
+                affected.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={deleting}
+                  className="flex-1 min-h-[44px] border border-gray-300 text-gray-600 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={deleting}
+                  className="flex-1 min-h-[44px] bg-red-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-red-700 transition disabled:opacity-50"
+                >
+                  {deleting ? 'Deleting…' : 'Delete account'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   )

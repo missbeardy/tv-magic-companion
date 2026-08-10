@@ -3,9 +3,9 @@ import { interpolateTemplate } from './smsTemplates.js'
 import type { ChaseStage } from './invoiceChasePolicy.js'
 
 export const INVOICE_CHASE_SMS_FALLBACKS: Record<ChaseStage, string> = {
-  1: "Hi {{firstName}}, a reminder from {{org.name}} — invoice {{invoiceNumber}} for {{amount}} was due on {{dueDate}}. If you've already paid, ignore this. Any questions, just reply.{{payLine}}",
-  2: 'Hi {{firstName}}, invoice {{invoiceNumber}} for {{amount}} from {{org.name}} is now {{daysOverdue}} days overdue. Reply here or call us to sort it out.{{payLine}}',
-  3: 'Hi {{firstName}}, invoice {{invoiceNumber}} for {{amount}} from {{org.name}} is now {{daysOverdue}} days overdue. Please reply or call us so we can help resolve this.{{payLine}}',
+  1: "Hi {{firstName}}, a reminder from {{org.name}} — invoice {{invoiceNumber}} for {{amount}} was due on {{dueDate}}. If you've already paid, ignore this. Any questions, just reply.{{payLine}} Reply STOP to opt out.",
+  2: 'Hi {{firstName}}, invoice {{invoiceNumber}} for {{amount}} from {{org.name}} is now {{daysOverdue}} days overdue. Reply here or call us to sort it out.{{payLine}} Reply STOP to opt out.',
+  3: 'Hi {{firstName}}, invoice {{invoiceNumber}} for {{amount}} from {{org.name}} is now {{daysOverdue}} days overdue. Please reply or call us so we can help resolve this.{{payLine}} Reply STOP to opt out.',
 }
 
 export const INVOICE_CHASE_EMAIL_SUBJECTS: Record<ChaseStage, string> = {

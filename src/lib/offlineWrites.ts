@@ -3,6 +3,8 @@ import { asLeadUpdate } from './dbTypes'
 import { logLeadEvent } from './leadEvents'
 import { enqueueCompletion, enqueueLeadNote } from './offlineQueue'
 import { isNetworkError } from './fetchWithTimeout'
+import { trackViaRelay } from './analytics'
+import { captureClientException } from './sentry'
 
 /** Whether a write reached the server ('online') or was stored for later sync ('queued'). */
 export type OfflineWriteMode = 'online' | 'queued'
@@ -89,6 +91,7 @@ export async function completeLeadOrEnqueue(p: CompleteLeadParams): Promise<Offl
       })
       return 'queued'
     }
+    captureClientException(err, { stage: 'complete-lead-online' })
     throw err
   }
 
@@ -101,6 +104,7 @@ export async function completeLeadOrEnqueue(p: CompleteLeadParams): Promise<Offl
     actorId: p.actorId,
     payload: { from_status: p.fromStatus, to_status: 'completed', source: 'completion_checklist' },
   })
+  void trackViaRelay('job_completed', { orgId: p.orgId, leadId: p.leadId, source: 'online' })
   return 'online'
 }
 

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getPlatformUrl } from './platformUrl.js'
 import { buildEmployeeWhatsAppMessage } from './employeeWhatsAppTemplates.js'
+import { sendPushToUsers } from './pushTransport.js'
 
 export interface NotifyOrgUserInput {
   supabase: SupabaseClient
@@ -51,27 +52,17 @@ export async function notifyOrgUser(input: NotifyOrgUserInput): Promise<NotifyOr
 
   const resolvedUrl = url || `${getPlatformUrl()}/leads`
 
-  const appId = process.env.ONESIGNAL_APP_ID
-  const apiKey = process.env.ONESIGNAL_API_KEY
-  if (appId && apiKey && type !== 'contact_follow_up') {
+  // Transport (Web Push vs OneSignal) is chosen per-brand inside sendPushToUsers.
+  if (type !== 'contact_follow_up') {
     try {
-      await fetch('https://onesignal.com/api/v1/notifications', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Basic ${apiKey}`,
-        },
-        body: JSON.stringify({
-          app_id: appId,
-          target_channel: 'push',
-          include_aliases: { external_id: [userId] },
-          headings: { en: title },
-          contents: { en: message },
-          url: resolvedUrl,
-        }),
+      await sendPushToUsers(supabase, orgId, [userId], {
+        title,
+        body: message,
+        url: resolvedUrl,
+        ...(leadId ? { leadId } : {}),
       })
     } catch (err) {
-      console.error('OneSignal push failed (non-fatal):', err)
+      console.error('Push failed (non-fatal):', err)
     }
   }
 

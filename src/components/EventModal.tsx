@@ -13,6 +13,8 @@ import {
   getTeamMeetingAccentColor,
 } from '../lib/calendarColors'
 import { logLeadEvent } from '../lib/leadEvents'
+import { trackViaRelay } from '../lib/analytics'
+import { captureClientException } from '../lib/sentry'
 import { sendNotification } from '../lib/notify'
 import { getPlatformUrl } from '../lib/env'
 import { getAuthHeaders } from '../lib/apiAuth'
@@ -825,11 +827,23 @@ export default function EventModal({
       if (e) { setError(e.message); setSaving(false); return }
       await notifyManager('updated')
     } else {
-      const { error: e } = await supabase
+      const { data: insertedEvent, error: e } = await supabase
         .from('events')
         .insert(eventData)
-      if (e) { setError(e.message); setSaving(false); return }
+        .select('id')
+        .single()
+      if (e) {
+        setError(e.message)
+        captureClientException(e, { stage: 'event-modal-booking-insert' })
+        setSaving(false)
+        return
+      }
       if (leadIdToUse) {
+        void trackViaRelay('booking_created', {
+          orgId: profile?.org_id ?? '',
+          leadId: leadIdToUse,
+          eventId: insertedEvent?.id ?? '',
+        })
         await logLeadEvent({
           leadId: leadIdToUse,
           orgId: profile?.org_id ?? null,

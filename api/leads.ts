@@ -12,6 +12,13 @@ import {
   type CustomerImportColumn,
 } from './_lib/customerImport.js'
 import { applySoloTradiePresetToBrand } from './_lib/soloTradiePreset.js'
+import { withObservability } from './_lib/observability.js'
+import { track } from './_lib/analytics.js'
+import {
+  CLIENT_RELAYED_EVENTS,
+  type AnalyticsEventProperties,
+  type ClientRelayedEvent,
+} from '../shared/analyticsEvents.js'
 
 const MIN_REASON_LENGTH = 3
 
@@ -163,8 +170,15 @@ async function handleRetryExtraction(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handler(req: VercelRequest, res: VercelResponse) {
   const action = typeof req.query.action === 'string' ? req.query.action : undefined
+
+  if (action === 'analytics-track') {
+    if (req.method !== 'POST') {
+      return res.status(405).json({ error: 'Method not allowed' })
+    }
+    return handleAnalyticsTrack(req, res)
+  }
 
   if (action === 'delete') {
     if (req.method !== 'POST') {
@@ -253,3 +267,42 @@ async function handleApplySoloPreset(req: VercelRequest, res: VercelResponse) {
   const result = await applySoloTradiePresetToBrand(brandId.trim(), auth.userId)
   return res.status(200).json({ success: true, ...result })
 }
+
+/**
+ * Relay for the handful of lead-lifecycle analytics events that can only originate client-side
+ * (a direct browser Supabase write, no natural server round-trip) — see
+ * shared/analyticsEvents.ts CLIENT_RELAYED_EVENTS and src/lib/analytics.ts trackViaRelay.
+ * orgId always comes from the authenticated session, never the request body — a client cannot
+ * attribute an event to a different org.
+ */
+async function handleAnalyticsTrack(req: VercelRequest, res: VercelResponse) {
+  const auth = await authenticateRequest(req)
+  if (!auth) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  const { event, properties } = req.body as {
+    event?: string
+    properties?: Record<string, unknown>
+  }
+
+  if (!event || !CLIENT_RELAYED_EVENTS.includes(event as ClientRelayedEvent)) {
+    return res.status(400).json({ error: 'Unknown or non-relayable event' })
+  }
+
+  const leadId = typeof properties?.leadId === 'string' ? properties.leadId : undefined
+  if (!leadId) {
+    return res.status(400).json({ error: 'Missing leadId' })
+  }
+
+  const safeProperties = {
+    ...properties,
+    leadId,
+    orgId: auth.orgId,
+  } as AnalyticsEventProperties[ClientRelayedEvent]
+
+  track(event as ClientRelayedEvent, leadId, safeProperties)
+  return res.status(200).json({ success: true })
+}
+
+export default withObservability(handler)

@@ -3,6 +3,7 @@ import { sendTransactionalEmail } from './sendTransactionalEmail.js'
 import { buildLeadAckEmailFromBrand } from './emailTemplates.js'
 import { getSupabaseAdmin } from './supabaseAdmin.js'
 import { LEAD_ACK_CALLBACK_WINDOW } from '../../shared/leadAckCopy.js'
+import { track } from './analytics.js'
 
 export interface LeadAckEmailInput {
   orgId: string
@@ -79,5 +80,6 @@ export async function sendLeadAckEmailIfEnabled(input: LeadAckEmailInput): Promi
     payload: { source: input.source, channel: 'email' },
   })
 
+  track('ack_sent', input.leadId, { orgId: input.orgId, leadId: input.leadId, channel: 'email' })
   return true
 }

@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { captureClientException } from '../lib/sentry'
 
 interface Props {
   children: ReactNode
@@ -17,6 +18,8 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('App render error:', error, info.componentStack)
+    // componentStack is just React component names — never lead/customer data.
+    captureClientException(error, { componentStack: info.componentStack ?? '' })
   }
 
   render() {

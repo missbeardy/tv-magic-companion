@@ -169,6 +169,12 @@ export default function QuoteComposerModal({ lead, onClose, onSent }: Props) {
       setEmailSent(quote.email_sent === true)
       setSmsSent(quote.sms_sent === true)
       const parts = [quote.sms_message, quote.email_message].filter(Boolean)
+      // The quote is saved either way — lead with that so a slow Resend/Twilio never reads as
+      // "it failed, send it again" (which is how duplicate quotes get sent).
+      if (quote.delivery_pending) {
+        parts.unshift('Quote saved.')
+        parts.push('You can copy the link below and send it yourself if needed.')
+      }
       setDeliveryMessage(parts.join(' '))
       setCopyState('idle')
       if (profile?.id) clearQuoteDraft(profile.id)

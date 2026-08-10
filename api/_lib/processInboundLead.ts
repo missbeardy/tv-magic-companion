@@ -13,6 +13,8 @@ import { NOOP_RECORDER, startWorkflowRun, type WorkflowRunRecorder } from './wor
 import { isFeatureEnabledForOrg } from './featureSwitches.js'
 import { linkCustomerForLead } from './customers.js'
 import { notifyInboundAutoAssign } from './inboundAutoAssignNotify.js'
+import { track } from './analytics.js'
+import { captureServerException } from './sentry.js'
 
 export interface SavedLeadRow {
   id?: string
@@ -160,8 +162,10 @@ export async function processInboundLead(
     leadId = insertResult.id
     inboundAutoAssign = insertResult.inboundAutoAssign
     await recorder.step('insert_lead', 'succeeded')
+    track('lead_captured', leadId, { orgId, leadId, source: logLabel })
   } catch (insertErr) {
     await recorder.step('insert_lead', 'failed', { error: insertErr })
+    captureServerException(insertErr, { stage: 'insert_lead', logLabel })
     await finishRun('failed')
     throw insertErr
   }
@@ -212,9 +216,14 @@ export async function processInboundLead(
       try {
         await setLeadExtractionStatus(supabase, leadId, extractionStatus)
         await recorder.step('extraction_status', 'succeeded')
+        if (extractionStatus === 'fallback') {
+          const channel = logLabel.toLowerCase().includes('sms') ? 'sms' : 'email'
+          track('extraction_fallback_used', leadId, { orgId, leadId, channel })
+        }
       } catch (statusErr) {
         console.error(`${logLabel} extraction status update failed:`, statusErr)
         await recorder.step('extraction_status', 'failed', { error: statusErr })
+        captureServerException(statusErr, { stage: 'extraction_status', logLabel, leadId })
         partial = true
       }
 

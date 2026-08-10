@@ -9,13 +9,19 @@
 //     is unset or the header does not match, returns 401 and does nothing.
 //   • Never logs message bodies, user ids alongside bodies, or payload contents.
 //     Logs only event type + success/failure counts.
-//   • OneSignal REST key is read from an Edge Function secret, never bundled.
+//   • Holds no push credentials of its own — see below.
+//
+// Delivery (T1.12):
+//   Push is sent by POSTing to the Vercel hub at ?action=push-send, which owns the
+//   VAPID keys and the one sender implementation (api/_lib/webPush.ts). Keeping the
+//   sender in one place avoids a second copy of the keys here and avoids betting on
+//   Deno's node-crypto compatibility for npm:web-push.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const WEBHOOK_SECRET = Deno.env.get("MESSAGING_WEBHOOK_SECRET");
-const ONESIGNAL_APP_ID = Deno.env.get("ONESIGNAL_APP_ID");
-const ONESIGNAL_API_KEY = Deno.env.get("ONESIGNAL_API_KEY");
+const PUSH_SHARED_SECRET = Deno.env.get("PUSH_SHARED_SECRET");
+const PLATFORM_URL = Deno.env.get("PLATFORM_URL");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -34,43 +40,52 @@ function preview(body: unknown): string {
   return s.length > PREVIEW_LEN ? `${s.slice(0, PREVIEW_LEN)}…` : s;
 }
 
-/** Send a OneSignal push. Returns true on 2xx. Never logs body content. */
+/** Send a push via the Vercel sender. Returns true on 2xx. Never logs body content. */
 async function sendPush(opts: {
-  externalIds?: string[];
-  segments?: string[];
+  userIds: string[];
   title: string;
   contents: string;
   url?: string;
 }): Promise<boolean> {
-  if (!ONESIGNAL_APP_ID || !ONESIGNAL_API_KEY) {
-    console.error("notify-message: OneSignal secrets unset; skipping push");
+  if (!PUSH_SHARED_SECRET || !PLATFORM_URL) {
+    console.error("notify-message: push secrets unset; skipping push");
     return false;
   }
-  if (opts.externalIds && opts.externalIds.length === 0) return false;
-
-  const payload: Record<string, unknown> = {
-    app_id: ONESIGNAL_APP_ID,
-    target_channel: "push",
-    headings: { en: opts.title },
-    contents: { en: opts.contents },
-  };
-  if (opts.url) payload.url = opts.url;
-  if (opts.segments) payload.included_segments = opts.segments;
-  if (opts.externalIds) payload.include_aliases = { external_id: opts.externalIds };
+  if (opts.userIds.length === 0) return false;
 
   try {
-    const res = await fetch("https://onesignal.com/api/v1/notifications", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Basic ${ONESIGNAL_API_KEY}`,
+    const res = await fetch(
+      `${PLATFORM_URL.replace(/\/$/, "")}/api/send-sms?action=push-send`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-push-secret": PUSH_SHARED_SECRET,
+        },
+        body: JSON.stringify({
+          userIds: opts.userIds,
+          payload: {
+            title: opts.title,
+            body: opts.contents,
+            ...(opts.url ? { url: opts.url } : {}),
+          },
+        }),
       },
-      body: JSON.stringify(payload),
-    });
+    );
     return res.ok;
   } catch {
     return false;
   }
+}
+
+/** Every profile id — announcements are a broadcast, and the sender needs explicit
+ *  recipients now that OneSignal's "Subscribed Users" segment is gone. */
+async function allProfileIds(
+  supabase: ReturnType<typeof createClient>,
+): Promise<string[]> {
+  const { data, error } = await supabase.from("profiles").select("id");
+  if (error || !data) return [];
+  return data.map((r) => r.id as string);
 }
 
 async function platformAdminIds(
@@ -121,7 +136,7 @@ Deno.serve(async (req) => {
     if (senderIsAdmin) {
       // Support replied → notify the thread owner.
       ok = await sendPush({
-        externalIds: [ownerId],
+        userIds: [ownerId],
         title: "New message from support",
         contents: bodyPreview,
         url: "/support",
@@ -129,7 +144,7 @@ Deno.serve(async (req) => {
     } else {
       // User posted → notify every platform admin.
       ok = await sendPush({
-        externalIds: admins,
+        userIds: admins,
         title: "New support message",
         contents: bodyPreview,
         url: "/support",
@@ -137,7 +152,7 @@ Deno.serve(async (req) => {
     }
   } else if (payload.table === "platform_announcements") {
     ok = await sendPush({
-      segments: ["Subscribed Users"],
+      userIds: await allProfileIds(supabase),
       title: "New announcement",
       contents: preview(payload.record.body),
       url: "/support",

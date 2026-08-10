@@ -8,6 +8,8 @@ import { sendTransactionalEmail, type TransactionalEmailAttachment } from './sen
 import { formatAbn, gstComponentOf } from '../../shared/gst.js'
 import { getPlatformUrl } from './platformUrl.js'
 import { maybeSendReviewOnInvoicePaid } from './reviewRequest.js'
+import { track } from './analytics.js'
+import { captureServerException } from './sentry.js'
 
 const INVOICE_TOKEN_VALID_DAYS = 90
 
@@ -232,6 +234,12 @@ export async function createAndSendInvoice(input: InvoiceSendInput) {
     throw new Error(updateError?.message ?? 'Invoice sent but status update failed')
   }
 
+  track('invoice_sent', input.leadId, {
+    orgId: input.orgId,
+    leadId: input.leadId,
+    invoiceId: updated.id,
+  })
+
   return {
     ...updated,
     email_sent: true,
@@ -284,10 +292,20 @@ export async function markInvoicePaid(
   if (error) throw new Error(error.message)
   if (!data) throw new Error('Invoice not found or cannot be marked paid')
 
+  if (data.lead_id) {
+    track('invoice_paid', data.lead_id, {
+      orgId,
+      leadId: data.lead_id,
+      invoiceId: data.id,
+      paidVia,
+    })
+  }
+
   // Paid → review (Package 6 / T2.1). Non-blocking: never fail mark-paid if SMS fails.
   if (data.lead_id) {
     void maybeSendReviewOnInvoicePaid(orgId, data.lead_id).catch((err) => {
       console.error('auto_review_on_paid failed (non-fatal):', err)
+      captureServerException(err, { action: 'auto-review-on-paid', orgId, leadId: data.lead_id! })
     })
   }
 

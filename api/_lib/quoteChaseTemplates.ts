@@ -2,8 +2,8 @@ import { interpolateTemplate } from './smsTemplates.js'
 import type { FollowUpStage } from './quoteChasePolicy.js'
 
 export const QUOTE_CHASE_SMS_FALLBACKS: Record<FollowUpStage, string> = {
-  1: "Hi {{firstName}}, {{org.name}} here — just checking you got the quote for {{jobService}}. View or accept it here: {{link}}. Any questions, reply and I'll sort it.",
-  2: "Hi {{firstName}}, that quote for {{jobService}} is still open if you'd like it: {{link}}. If the timing's not right, no worries — reply and let me know either way.",
+  1: "Hi {{firstName}}, {{org.name}} here — just checking you got the quote for {{jobService}}. View or accept it here: {{link}}. Any questions, reply and I'll sort it. Reply STOP to opt out.",
+  2: "Hi {{firstName}}, that quote for {{jobService}} is still open if you'd like it: {{link}}. If the timing's not right, no worries — reply and let me know either way. Reply STOP to opt out.",
 }
 
 export const QUOTE_CHASE_EMAIL_SUBJECTS: Record<FollowUpStage, string> = {

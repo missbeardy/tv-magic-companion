@@ -2,21 +2,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { authenticateRequest } from './_lib/auth.js'
 import { canAccessFeature } from './_lib/tier.js'
+import { withObservability } from './_lib/observability.js'
+import { checkRateLimit, rateLimitIdentifier } from './_lib/rateLimit.js'
 
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
-function checkRateLimit(key: string, limit = 20, windowMs = 60_000): boolean {
-  const now = Date.now()
-  const entry = rateLimitMap.get(key)
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(key, { count: 1, resetAt: now + windowMs })
-    return true
-  }
-  if (entry.count >= limit) return false
-  entry.count++
-  return true
-}
-
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -38,8 +27,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
   }
 
-  const ip = (req.headers['x-forwarded-for'] as string) ?? auth.userId
-  if (!checkRateLimit(ip)) {
+  const identifier = rateLimitIdentifier(req.headers['x-forwarded-for'] as string | undefined, auth.userId)
+  const allowed = await checkRateLimit({ scope: 'social-post', identifier, limit: 20, windowMs: 60_000 })
+  if (!allowed) {
     return res.status(429).json({ error: 'Too many requests. Please wait a moment.' })
   }
 
@@ -107,3 +97,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Network error contacting Zernio' })
   }
 }
+
+export default withObservability(handler)

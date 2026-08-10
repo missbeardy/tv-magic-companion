@@ -4,12 +4,14 @@ import './_lib/loadLocalEnv.js'
 import { createClient } from '@supabase/supabase-js'
 import { timingSafeEqual } from 'crypto'
 import { processInboundLead } from './_lib/processInboundLead.js'
+import { withObservability } from './_lib/observability.js'
 import { insertRawFirstLead } from './_lib/rawFirstLead.js'
 import { resolveOrgIdFromDid } from './_lib/resolveOrgFromDid.js'
 import { captureUnroutedInbound } from './_lib/captureUnroutedInbound.js'
 import { computeTwilioSignature } from './_lib/twilioSignature.js'
 import { readRawBody } from './_lib/rawBody.js'
 import { extractFromSms } from './_lib/extractLead.js'
+import { checkRateLimit, rateLimitIdentifier } from './_lib/rateLimit.js'
 
 /**
  * Disable Vercel's default body parser so the Meta webhook can verify its
@@ -20,21 +22,6 @@ export const config = {
   api: {
     bodyParser: false,
   },
-}
-
-const requests = new Map<string, { count: number; reset: number }>()
-
-function checkRateLimit(ip: string, limit = 60, windowMs = 60000): boolean {
-  const now = Date.now()
-  const key = ip.split(',')[0].trim() || 'unknown'
-  const entry = requests.get(key)
-  if (!entry || now > entry.reset) {
-    requests.set(key, { count: 1, reset: now + windowMs })
-    return true
-  }
-  if (entry.count >= limit) return false
-  entry.count++
-  return true
 }
 
 const supabase = createClient(
@@ -64,7 +51,7 @@ function verifyTwilioSignature(req: VercelRequest, authToken: string): boolean {
   }
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handler(req: VercelRequest, res: VercelResponse) {
   const action = typeof req.query.action === 'string' ? req.query.action : undefined
 
   // Body parser is disabled (see `config` above); read the raw stream once.
@@ -83,8 +70,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // object the rest of this handler (and verifyTwilioSignature) expects.
   req.body = Object.fromEntries(new URLSearchParams(rawBody))
 
-  const ip = (req.headers['x-forwarded-for'] as string) ?? 'unknown'
-  if (!checkRateLimit(ip)) {
+  const identifier = rateLimitIdentifier(req.headers['x-forwarded-for'] as string | undefined)
+  const allowed = await checkRateLimit({ scope: 'inbound-sms', identifier, limit: 60, windowMs: 60_000 })
+  if (!allowed) {
     res.setHeader('Content-Type', 'text/xml')
     return res.status(200).send('<Response></Response>')
   }
@@ -216,3 +204,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).send('<Response></Response>')
   }
 }
+
+export default withObservability(handler)

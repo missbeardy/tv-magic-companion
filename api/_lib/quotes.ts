@@ -6,6 +6,8 @@ import { sendBrandedSms } from './sendBrandedSms.js'
 import { notifyOrgUser } from './notifyUser.js'
 import { OPERATIONAL_MANAGER_ROLES } from './managerRoles.js'
 import { gstComponentOf } from '../../shared/gst.js'
+import { track } from './analytics.js'
+import { waitUntil } from '@vercel/functions'
 
 export interface QuotePublicBrand {
   org_name: string
@@ -255,6 +257,47 @@ export async function createQuote(input: QuoteCreateInput) {
 
   const acceptanceUrl = `${resolveBaseUrl(input.baseUrl)}/quote/${data.public_token}`
 
+  const delivery = await deliverQuoteWithinBudget({
+    input,
+    quoteId: data.id,
+    acceptanceUrl,
+    gstAmount,
+  })
+
+  return {
+    ...data,
+    acceptance_url: acceptanceUrl,
+    email_sent: delivery.emailSent,
+    email_message: delivery.emailMessage,
+    sms_sent: delivery.smsSent,
+    sms_message: delivery.smsMessage,
+    delivery_pending: delivery.pending,
+  }
+}
+
+interface QuoteDeliveryOutcome {
+  emailSent: boolean
+  emailMessage: string
+  smsSent: boolean
+  smsMessage: string
+}
+
+/**
+ * How long the request will wait for Resend/Twilio before handing delivery off to the
+ * background. Comfortably covers a healthy send (~1-2s) while staying well inside the client's
+ * 10s fetch timeout, so a slow provider degrades to "still sending" instead of a hard error.
+ */
+const DELIVERY_WAIT_MS = 3500
+
+/** Sends the quote email + SMS and records the analytics event. Never throws. */
+async function deliverQuote(params: {
+  input: QuoteCreateInput
+  quoteId: string
+  acceptanceUrl: string
+  gstAmount: number | null
+}): Promise<QuoteDeliveryOutcome> {
+  const { input, quoteId, acceptanceUrl, gstAmount } = params
+
   let emailSent = false
   let emailMessage = 'No customer email on lead; share the link manually.'
   if (input.customerEmail?.trim()) {
@@ -294,7 +337,7 @@ export async function createQuote(input: QuoteCreateInput) {
       leadId: input.leadId,
       eventType: 'quote_sms_sent',
       eventNote: 'Quote acceptance link SMS sent',
-      eventPayload: { quote_id: data.id },
+      eventPayload: { quote_id: quoteId },
     })
     smsSent = smsResult.sent
     if (smsResult.sent) {
@@ -307,13 +350,88 @@ export async function createQuote(input: QuoteCreateInput) {
     }
   }
 
+  track('quote_sent', input.leadId, {
+    orgId: input.orgId,
+    leadId: input.leadId,
+    quoteId,
+    emailSent,
+    smsSent,
+  })
+
+  return { emailSent, emailMessage, smsSent, smsMessage }
+}
+
+/**
+ * The quote row is already committed by the time this runs, so delivery must never be able to
+ * fail the request — a tradie seeing "couldn't send" on a quote that actually saved will retry
+ * and double-send. Mirrors the T1.7 booking fix (persist first, notify after), with a short
+ * grace period so the common fast path still reports real per-channel delivery status.
+ * Anything slower is handed to Vercel's `waitUntil` and completes after the response is sent.
+ */
+async function deliverQuoteWithinBudget(params: {
+  input: QuoteCreateInput
+  quoteId: string
+  acceptanceUrl: string
+  gstAmount: number | null
+}): Promise<QuoteDeliveryOutcome & { pending: boolean }> {
+  const deliveryPromise = deliverQuote(params).catch((err) => {
+    console.error('Quote delivery failed (quote was saved):', err)
+    return null
+  })
+
+  const timedOut = Symbol('timeout')
+  const timeout = new Promise<typeof timedOut>((resolve) =>
+    setTimeout(() => resolve(timedOut), DELIVERY_WAIT_MS)
+  )
+
+  const result = await Promise.race([deliveryPromise, timeout])
+
+  if (result !== timedOut && result !== null) {
+    return { ...result, pending: false }
+  }
+
+  // Still in flight (or it threw): keep the invocation alive so the send completes, and tell
+  // the client the quote is saved and sending rather than reporting a false failure.
+  if (result === timedOut) {
+    waitUntil(deliveryPromise)
+  }
+
+  const stillSending = result === timedOut
   return {
-    ...data,
-    acceptance_url: acceptanceUrl,
-    email_sent: emailSent,
-    email_message: emailMessage,
-    sms_sent: smsSent,
-    sms_message: smsMessage,
+    ...buildUnresolvedDeliveryCopy({
+      stillSending,
+      hasEmail: Boolean(params.input.customerEmail?.trim()),
+      hasPhone: Boolean(params.input.customerPhone?.trim()),
+    }),
+    pending: stillSending,
+  }
+}
+
+/**
+ * Copy for when delivery hasn't resolved by the time we must respond — either still in flight
+ * (`stillSending`) or it threw. Channel-specific on purpose: the client concatenates both
+ * messages, so identical strings would read as a stutter when email and SMS are both
+ * outstanding. Pure and unit-tested.
+ */
+export function buildUnresolvedDeliveryCopy(params: {
+  stillSending: boolean
+  hasEmail: boolean
+  hasPhone: boolean
+}): QuoteDeliveryOutcome {
+  const { stillSending, hasEmail, hasPhone } = params
+  return {
+    emailSent: false,
+    emailMessage: !hasEmail
+      ? 'No customer email on lead; share the link manually.'
+      : stillSending
+        ? 'Email still sending.'
+        : 'Email delivery failed — share the link manually.',
+    smsSent: false,
+    smsMessage: !hasPhone
+      ? 'No customer phone on lead; share the link manually.'
+      : stillSending
+        ? 'SMS still sending.'
+        : 'SMS delivery failed — share the link manually.',
   }
 }
 
@@ -393,6 +511,11 @@ export async function acceptQuoteByToken(input: QuoteAcceptInput) {
   const updatedQuote = await getQuoteByToken(input.token)
   if (updatedQuote) {
     await notifyManagersQuoteAccepted(updatedQuote)
+    track('quote_accepted', updatedQuote.lead_id, {
+      orgId: updatedQuote.org_id,
+      leadId: updatedQuote.lead_id,
+      quoteId: updatedQuote.id,
+    })
   }
   return { status: 'accepted' as const, quote: updatedQuote }
 }

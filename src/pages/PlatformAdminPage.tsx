@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useOrg } from '../context/OrgContext'
 import { useAuth } from '../context/AuthContext'
 import { buildBrandTransferPayload } from '../lib/brandTransfer'
+import { getAuthHeaders } from '../lib/apiAuth'
 import NavBar from '../components/NavBar'
 import BrandTemplatesEditor from '../components/BrandTemplatesEditor'
 import PlatformFeatureSwitches from '../components/platform/PlatformFeatureSwitches'
@@ -263,7 +264,6 @@ export default function PlatformAdminPage() {
       if (insertError) throw insertError
 
       if (applySoloPreset && newOrgBrandId) {
-        const { getAuthHeaders } = await import('../lib/apiAuth')
         const headers = await getAuthHeaders()
         const presetRes = await fetch('/api/leads?action=apply-solo-preset', {
           method: 'POST',

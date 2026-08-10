@@ -74,7 +74,13 @@ describe('runContactFollowUpCron', () => {
     expect(result.reminded).toBe(1)
     expect(result.lost).toBe(0)
     expect(result.notified).toBe(1)
-    expect(updates).toHaveLength(0)
+    // The only write is the reminder cooldown stamp — round, status and
+    // last_contact_attempted_at must be untouched (those only move on real employee contact).
+    expect(updates).toHaveLength(1)
+    expect(updates[0]).toEqual({
+      id: 'lead-1',
+      patch: { last_follow_up_reminder_at: new Date(nowMs).toISOString() },
+    })
     expect(events).toHaveLength(0)
     expect(notifyOrgUser).toHaveBeenCalledWith(
       expect.objectContaining({

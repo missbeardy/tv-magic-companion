@@ -2,8 +2,8 @@
 
 | Field | Value |
 |-------|-------|
-| **Document version** | `1.8.0` |
-| **Last updated** | 20-07-2026 |
+| **Document version** | `1.9.0` |
+| **Last updated** | 06-08-2026 |
 | **Maintained by** | Update in the same PR as any pipeline behaviour change |
 
 > **Living document.** This file must stay in sync with production behaviour. See [Maintenance policy](#maintenance-policy) and [Version history](#version-history).
@@ -19,7 +19,7 @@ Consult this reference **before** merging any change that touches:
 - Lead status, assignment, timers, or contact-attempt rounds
 - Kanban columns, mobile tabs, or dashboard stats
 - Inbound lead creation (SMS, email, calls, voicemail, manual)
-- Pipeline notifications (in-app, OneSignal, WhatsApp, customer SMS)
+- Pipeline notifications (in-app, push, WhatsApp, customer SMS)
 - Cron / background jobs affecting leads
 
 ### Change checklist (required)
@@ -421,9 +421,9 @@ sequenceDiagram
 
 ## Notification matrix
 
-| Event | In-app | OneSignal | WhatsApp template | Customer SMS |
-|-------|--------|-----------|-------------------|--------------|
-| New unassigned lead | Managers (`new_lead`) | Partial | `manager_alert` | `lead_ack_sms` |
+| Event | In-app | Push | WhatsApp template | Customer SMS |
+|-------|--------|------|-------------------|--------------|
+| New unassigned lead | Managers (`new_lead`) | Yes (gated `manager_new_lead_alerts`) | `manager_alert` | `lead_ack_sms` |
 | Lead assigned | Assignee (`lead_assigned`) | Yes | `tech_assignment` | — |
 | Contact follow-up 6h | Assignee (`contact_follow_up`) | — | `contact_follow_up` | — |
 | Booking scheduled | Assignee | Yes | `booking_scheduled` | Not automated |
@@ -431,6 +431,20 @@ sequenceDiagram
 | Review request | — | — | — | `review_request` |
 
 Templates: `api/_lib/employeeWhatsAppTemplates.ts`. Employee alerts try WhatsApp first, SMS fallback (`sendEmployeeAlert.ts`).
+
+### Push transport (T1.12)
+
+Every "Yes" above goes through one seam — `sendPushToUsers` in `api/_lib/pushTransport.ts` — which picks the carrier per brand:
+
+| `native_web_push` | Carrier |
+|---|---|
+| off (default) | OneSignal REST relay — the legacy path |
+| on | Web Push / VAPID direct from `api/_lib/webPush.ts` to the browser's push service |
+| on, but the recipient has no live subscription | **Falls back to OneSignal**, so flipping the switch cannot black out a user who has not reopened the app since the deploy |
+
+Subscriptions live in `public.push_subscriptions`, written client-side under RLS by `src/lib/webPush.ts` and pruned automatically when the push service returns 404/410. `reconcileSubscription()` runs on every app load with permission already granted, which is what repairs a lost row or a browser-side rotation.
+
+Support messages and platform announcements (`supabase/functions/notify-message/index.ts`) are outside the pipeline but use the same sender, via `POST /api/send-sms?action=push-send`.
 
 ---
 
@@ -522,6 +536,7 @@ Logged to `lead_events` for audit and reporting (`api/_lib/leadEventTypes.ts`):
 | `1.7.0` | 16-07-2026 | Package 5: day-before booking reminder. New `runBookingReminderSweep` (`api/_lib/bookingReminder.ts`) joins the consolidated cron chain in `api/send-sms.ts`, sending a reminder SMS in a `[start+20h, start+28h]` window, deduped via new `events.reminder_sent_at`, gated by new `booking_reminder_sms` switch (basic tier, off by default), quiet-hours aware via new `orgs.timezone` (8am-8pm local). New `customer_booking_reminder` SMS template (editable in Platform Admin), new `booking_reminder_sent` lead event, new `cron_heartbeats` table surfaced in Platform Admin Workflow Runs. Also fixed the booking-confirm `.ics` invite's `ORGANIZER` field, previously hard-coded to `noreply@example.com`, to use the org's real support email. Corrected this doc's stale claim that no external cron scheduler exists — `.github/workflows/contact-follow-up-cron.yml` already triggers the chain every 15 minutes. |
 | `1.6.1` | 15-07-2026 | Fix: `invoice_card_payments` switch was UI-only — `handleConnectOnboard` and the public invoice-get endpoint (`action=invoice-public-get`) had no server-side gate, so a disabled org's public invoice page and Connect endpoint were still reachable directly. Both now check `isFeatureEnabledForOrg(...,'invoice_card_payments')` and return 403 when off, mirroring the existing `quote_esign` pattern on `handleQuotePublicGet`. |
 | `1.6.0` | 15-07-2026 | Card / Pay Now on invoice: stages 8–9 (Payment/Reconciliation) go from "manual only" to real. Stripe Connect Standard, direct charges — each org connects/owns its own Stripe account (`StripeConnectPanel` in Settings, `action=connect-onboard`). Invoice emails and overdue-chase messages get a Pay Now button (`action=invoice-pay`, lazy Checkout Session on the connected account) when `invoice_card_payments` is enabled and the org is connected. A separate Connect webhook (`STRIPE_CONNECT_WEBHOOK_SECRET`, `action=connect-webhook`) idempotently marks the invoice paid (`paid_via='stripe'`). New public `/invoice/:token` status page. New `invoice_card_payments` feature switch (pro tier, off by default). BSB/PayID instructions remain as the always-shown fallback. |
+| `1.9.0` | 06-08-2026 | T1.12 Self-hosted Web Push: every pipeline push now routes through `sendPushToUsers` (`api/_lib/pushTransport.ts`), which picks OneSignal or VAPID Web Push per brand on the new `native_web_push` switch and falls back to OneSignal per-recipient when a user has no live subscription. Subscriptions in `public.push_subscriptions` (RLS-written client-side, auto-pruned on 404/410). No change to which events notify whom; the "Partial" OneSignal cell on new-lead was stale and is corrected to the real `manager_new_lead_alerts` gating. |
 | `1.5.0` | 15-07-2026 | Booking confirmation was previously unconditional (no way to turn off). Added `booking_confirm` feature switch, catalog default **ON** so existing behaviour is unchanged, gating `handleBookingConfirm` in `api/send-sms.ts`. Closes a gap against the "every automated customer-facing feature needs a toggle" policy. |
 | `1.4.0` | 15-07-2026 | Price list / favourites: new `price_list_items` table + `quotes.line_items`; quick-add chips and an editable line-item list in `QuoteComposerModal`/`InvoiceStep` (`src/components/LineItemsEditor.tsx`); accepted quote's line items carry through to the invoice automatically; itemised breakdown on the public quote accept page. New `price_list` feature switch (basic tier) gates the chips only — manual multi-line editing is always available. |
 | `1.3.0` | 15-07-2026 | GST-aware quotes/invoices: real GST component (`shared/gst.ts`, divide-by-11) on quote accept page and invoice emails; `orgs.abn` + `orgs.gst_registered` in Franchise Settings; invoices titled "Tax Invoice" with ABN when GST-registered. No new feature switch — compliance behaviour, always on. |

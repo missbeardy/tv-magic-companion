@@ -7,6 +7,12 @@ import { getPlatformUrl } from './_lib/platformUrl.js'
 import { notifyManagersNewLead } from './_lib/notifyManagersNewLead.js'
 import { formatAuPhoneForSms, phoneCandidates } from './_lib/phone.js'
 import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
+import { withObservability } from './_lib/observability.js'
+import { captureServerException } from './_lib/sentry.js'
+import { track } from './_lib/analytics.js'
+import { checkRateLimit, purgeOldRateLimitHits, rateLimitIdentifier } from './_lib/rateLimit.js'
+import { requestAccountDeletion } from './_lib/accountDeletion.js'
+import { purgeOldNotifications } from './_lib/notificationRetention.js'
 import {
   acceptQuoteByToken,
   createQuote,
@@ -23,6 +29,7 @@ import { runBookingReminderSweep } from './_lib/bookingReminder.js'
 import { purgeOldWorkflowRuns } from './_lib/workflowRun.js'
 import { loadLocalEnvIfNeeded } from './_lib/loadLocalEnv.js'
 import { notifyOrgUser } from './_lib/notifyUser.js'
+import { handlePushRotate, handlePushSend } from './_lib/pushEndpoints.js'
 import { sendEmployeeAlertWithSmsFallback } from './_lib/sendEmployeeAlert.js'
 import {
   buildEmployeeWhatsAppMessage,
@@ -30,19 +37,6 @@ import {
   isStaticAssignmentWhatsAppTemplate,
   whatsAppTemplateKeyForMode,
 } from './_lib/employeeWhatsAppTemplates.js'
-
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
-function checkRateLimit(key: string, limit = 20, windowMs = 60_000): boolean {
-  const now = Date.now()
-  const entry = rateLimitMap.get(key)
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(key, { count: 1, resetAt: now + windowMs })
-    return true
-  }
-  if (entry.count >= limit) return false
-  entry.count++
-  return true
-}
 
 function getRequestBaseUrl(req: VercelRequest): string | null {
   const protoHeader = req.headers['x-forwarded-proto']
@@ -362,6 +356,7 @@ async function handleQuoteCreate(req: VercelRequest, res: VercelResponse, auth: 
     return res.status(200).json({ success: true, quote })
   } catch (err) {
     console.error('Quote create failed:', err)
+    captureServerException(err, { action: 'quote-create', orgId: auth.orgId, leadId })
     return res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create quote' })
   }
 }
@@ -499,6 +494,7 @@ async function handleQuotePublicAccept(req: VercelRequest, res: VercelResponse) 
     })
   } catch (err) {
     console.error('Quote public accept failed:', err)
+    captureServerException(err, { action: 'quote-public-accept' })
     return res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to accept quote' })
   }
 }
@@ -605,6 +601,7 @@ async function handleInvoiceSendEmail(req: VercelRequest, res: VercelResponse, a
     return res.status(200).json({ success: true, invoice })
   } catch (err) {
     console.error('Invoice send failed:', err)
+    captureServerException(err, { action: 'invoice-send', orgId: auth.orgId, leadId })
     return res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to send invoice' })
   }
 }
@@ -624,8 +621,29 @@ async function handleInvoiceMarkPaid(req: VercelRequest, res: VercelResponse, au
     return res.status(200).json({ success: true, invoice })
   } catch (err) {
     console.error('Invoice mark paid failed:', err)
+    captureServerException(err, { action: 'invoice-mark-paid', orgId: auth.orgId, invoiceId })
     return res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to mark invoice paid' })
   }
+}
+
+async function handleRequestAccountDeletion(req: VercelRequest, res: VercelResponse) {
+  const { email, orgHint, note } = (req.body ?? {}) as { email?: string; orgHint?: string; note?: string }
+  if (!email?.trim() || !email.includes('@')) {
+    return res.status(400).json({ error: 'A valid email is required' })
+  }
+
+  const supabase = getSupabaseAdmin()
+  if (!supabase) {
+    return res.status(503).json({ error: 'Server not configured' })
+  }
+
+  const result = await requestAccountDeletion(supabase, { email, orgHint, note })
+  if (!result.ok) {
+    console.error('Account deletion request failed:', result.error)
+    captureServerException(new Error(result.error), { action: 'request-account-deletion' })
+    return res.status(500).json({ error: 'Could not submit your request. Please try again later.' })
+  }
+  return res.status(200).json({ success: true })
 }
 
 async function handleInvoicePublicGet(req: VercelRequest, res: VercelResponse) {
@@ -725,16 +743,28 @@ async function handleContactFollowUpCron(req: VercelRequest, res: VercelResponse
     } catch (reminderErr) {
       console.error('[BOOKING_REMINDER_SWEEP_FAILED]', reminderErr)
     }
+    let notificationPurge = { deleted: 0 }
+    try {
+      notificationPurge = await purgeOldNotifications(supabase)
+    } catch (purgeErr) {
+      console.error('[NOTIFICATION_PURGE_FAILED]', purgeErr)
+    }
+    let rateLimitPurge = { deleted: 0 }
+    try {
+      rateLimitPurge = await purgeOldRateLimitHits()
+    } catch (purgeErr) {
+      console.error('[RATE_LIMIT_PURGE_FAILED]', purgeErr)
+    }
     try {
       await supabase.from('cron_heartbeats').upsert({
         cron_key: 'contact_follow_up_chain',
         last_run_at: new Date().toISOString(),
-        last_result: { ...result, workflowPurge, invoiceChase, quoteChase, bookingReminder },
+        last_result: { ...result, workflowPurge, invoiceChase, quoteChase, bookingReminder, rateLimitPurge, notificationPurge },
       })
     } catch (heartbeatErr) {
       console.error('[CRON_HEARTBEAT_FAILED]', heartbeatErr)
     }
-    return res.status(200).json({ ok: true, ...result, workflowPurge, invoiceChase, quoteChase, bookingReminder })
+    return res.status(200).json({ ok: true, ...result, workflowPurge, invoiceChase, quoteChase, bookingReminder, rateLimitPurge, notificationPurge })
   } catch (err) {
     console.error('contact-follow-up cron failed:', err)
     return res.status(500).json({
@@ -743,8 +773,28 @@ async function handleContactFollowUpCron(req: VercelRequest, res: VercelResponse
   }
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handler(req: VercelRequest, res: VercelResponse) {
   const action = String(req.query.action ?? '').trim()
+
+  // Public, unauthenticated actions had NO rate limiting at all until dd4 (they're dispatched
+  // before the auth gate below) — the highest-risk group, since quote/invoice tokens and push
+  // endpoints are guessable-secret-protected rather than session-protected. IP-only: there's no
+  // authenticated identity yet at this point in the dispatch.
+  const PUBLIC_RATE_LIMITED_ACTIONS = new Set([
+    'quote-public-get',
+    'quote-public-accept',
+    'quote-public-decline',
+    'invoice-public-get',
+    'push-rotate',
+    'request-account-deletion',
+  ])
+  if (PUBLIC_RATE_LIMITED_ACTIONS.has(action)) {
+    const identifier = rateLimitIdentifier(req.headers['x-forwarded-for'] as string | undefined)
+    const allowed = await checkRateLimit({ scope: `public-${action}`, identifier, limit: 30, windowMs: 60_000 })
+    if (!allowed) {
+      return res.status(429).json({ error: 'Too many requests. Please wait a moment.' })
+    }
+  }
 
   // Public quote actions (no app session required)
   if (action === 'quote-public-get') {
@@ -763,10 +813,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
     return handleInvoicePublicGet(req, res)
   }
+  if (action === 'request-account-deletion') {
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+    return handleRequestAccountDeletion(req, res)
+  }
 
   // CRON_SECRET — consolidated to stay under Hobby 12-function limit (see vercel.json).
   if (action === 'contact-follow-up') {
     return handleContactFollowUpCron(req, res)
+  }
+
+  // Web Push (T1.12) — both are session-less by necessity and carry their own auth.
+  // push-rotate is called by the service worker on pushsubscriptionchange
+  // (authorised by possession of the old endpoint); push-send is called by the
+  // notify-message Supabase Edge Function (PUSH_SHARED_SECRET, fail-closed — not
+  // rate-limited here, a valid shared secret is already the access control).
+  if (action === 'push-rotate') {
+    return handlePushRotate(req, res)
+  }
+  if (action === 'push-send') {
+    return handlePushSend(req, res)
   }
 
   if (req.method !== 'POST') {
@@ -778,8 +844,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: authErrorMessage(reason) })
   }
 
-  const ip = (req.headers['x-forwarded-for'] as string) ?? auth.userId
-  if (!checkRateLimit(ip)) {
+  const rateLimitIdent = rateLimitIdentifier(req.headers['x-forwarded-for'] as string | undefined, auth.userId)
+  const withinRateLimit = await checkRateLimit({ scope: 'send-sms-notify', identifier: rateLimitIdent, limit: 20, windowMs: 60_000 })
+  if (!withinRateLimit) {
     return res.status(429).json({ error: 'Too many requests. Please wait a moment.' })
   }
 
@@ -1083,9 +1150,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(502).json({ error: 'Twilio rejected the request', detail: (twData as { message?: string }).message })
     }
 
+    if (mode === 'review_request' && leadId) {
+      track('review_sent', leadId, { orgId: auth.orgId, leadId })
+    }
+
     return res.status(200).json({ success: true })
   } catch (err) {
     console.error('SMS send error:', err)
+    captureServerException(err, { action: 'notify', mode: mode ?? 'unknown' })
     return res.status(500).json({ error: 'Failed to send SMS' })
   }
 }
+
+export default withObservability(handler)

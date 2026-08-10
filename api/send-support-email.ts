@@ -2,21 +2,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { authenticateRequest } from './_lib/auth.js';
 import { escapeHtml, nl2brHtml } from './_lib/emailTemplates.js';
-
-// Inlined rate limit (matches pattern used in inbound-sms.ts)
-const requests = new Map<string, { count: number; reset: number }>();
-function checkRateLimit(ip: string, limit = 10, windowMs = 60000): boolean {
-  const now = Date.now();
-  const key = ip.split(',')[0].trim() || 'unknown';
-  const entry = requests.get(key);
-  if (!entry || now > entry.reset) {
-    requests.set(key, { count: 1, reset: now + windowMs });
-    return true;
-  }
-  if (entry.count >= limit) return false;
-  entry.count++;
-  return true;
-}
+import { withObservability } from './_lib/observability.js';
+import { checkRateLimit, rateLimitIdentifier } from './_lib/rateLimit.js';
 
 interface SupportPayload {
   type: 'feature' | 'issue';
@@ -37,7 +24,7 @@ function isOwnSupportAttachmentUrl(url: unknown, userId: string): boolean {
   return url.startsWith(prefix);
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Content-Type', 'application/json');
 
   if (req.method !== 'POST') {
@@ -49,8 +36,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const ip = (req.headers['x-forwarded-for'] as string) ?? auth.userId;
-  if (!checkRateLimit(ip, 10, 60000)) {
+  const identifier = rateLimitIdentifier(req.headers['x-forwarded-for'] as string | undefined, auth.userId);
+  const allowed = await checkRateLimit({ scope: 'send-support-email', identifier, limit: 10, windowMs: 60_000 });
+  if (!allowed) {
     return res.status(429).json({ error: 'Too many requests. Please wait a minute.' });
   }
 
@@ -139,3 +127,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Internal server error. Please try again later.' });
   }
 }
+
+export default withObservability(handler);

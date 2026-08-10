@@ -184,7 +184,7 @@ export async function runBookingReminderForEvent(
       templateKey: 'customer_booking_reminder',
       vars: messageVars,
       fallbackMessage:
-        'Hi {{customerName}}, just a reminder — your {{serviceType}} appointment with {{org.name}} is tomorrow, {{dateTime}}.{{techLine}} See you then!',
+        'Hi {{customerName}}, just a reminder — your {{serviceType}} appointment with {{org.name}} is tomorrow, {{dateTime}}.{{techLine}} See you then! Reply STOP to opt out.',
       leadId: loaded.lead_id ?? undefined,
       eventType: 'booking_reminder_sent',
       eventNote: 'Day-before booking reminder SMS sent',

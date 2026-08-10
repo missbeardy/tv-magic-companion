@@ -1,49 +1,71 @@
 // src/App.tsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { lazy, Suspense } from 'react'
 import { AuthProvider } from './context/AuthContext'
 import { OrgProvider } from './context/OrgContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { useAuth } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
+import RouteLoadingFallback from './components/RouteLoadingFallback'
 import Login from './pages/Login'
 import SetPasswordPage from './pages/SetPasswordPage'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import ManagerDashboard from './pages/ManagerDashboard'
 import EmployeeDashboard from './pages/EmployeeDashboard'
-import CalendarPage from './pages/CalendarPage'
 import LeadsPage from './pages/LeadsPage'
 import SupportPage from './pages/SupportPage';
 import ProfilePage from './pages/ProfilePage'
-import SocialPage from './pages/SocialPage'
-import ReportsPage from './pages/ReportsPage'
-import OrgSettingsPage from './pages/OrgSettingsPage'
-import PlatformAdminPage from './pages/PlatformAdminPage'
-import QuoteAcceptPage from './pages/QuoteAcceptPage'
-import InvoiceStatusPage from './pages/InvoiceStatusPage'
 import TeamActivityPage from './pages/TeamActivityPage'
 import { useEffect } from 'react'
+
+// dd7: these are rarely-visited (admin/report/public-link) routes pulling in heavy libraries
+// (recharts, @xyflow/react, @dnd-kit) that every field tech was downloading on first load
+// regardless of whether they'd ever open them. Lazy-loaded so the login -> leads path stays light.
+const CalendarPage = lazy(() => import('./pages/CalendarPage'))
+const SocialPage = lazy(() => import('./pages/SocialPage'))
+const ReportsPage = lazy(() => import('./pages/ReportsPage'))
+const OrgSettingsPage = lazy(() => import('./pages/OrgSettingsPage'))
+const PlatformAdminPage = lazy(() => import('./pages/PlatformAdminPage'))
+const QuoteAcceptPage = lazy(() => import('./pages/QuoteAcceptPage'))
+const InvoiceStatusPage = lazy(() => import('./pages/InvoiceStatusPage'))
+const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'))
+const TermsOfServicePage = lazy(() => import('./pages/TermsOfServicePage'))
+const DeleteAccountPage = lazy(() => import('./pages/DeleteAccountPage'))
 import { useTechLocation } from './hooks/useTechLocation'
 import { initOneSignal, setOneSignalUser, clearOneSignalUser } from './lib/oneSignal'
+import { reconcileSubscription } from './lib/webPush'
 import { isManagerRole } from './lib/roles'
+import { useOrg } from './context/OrgContext'
 import PwaUpdateLayer from './components/PwaUpdateLayer'
 import OfflineBanner from './components/OfflineBanner'
 import ToastHost from './components/ToastHost'
 
 function Dashboard() {
   const { profile, loading } = useAuth()
+  const { isFeatureEnabled, featureSwitchesLoading } = useOrg()
+  const nativePush = !featureSwitchesLoading && isFeatureEnabled('native_web_push')
 
   useTechLocation(profile?.id ?? null)
 
   useEffect(() => {
     if (profile?.id) {
-      setOneSignalUser(profile.id).catch(err =>
-        console.error('OneSignal user link failed:', err)
-      )
+      // When native Web Push owns delivery, skip OneSignal login so its SW does
+      // not keep claiming the push subscription out from under us.
+      if (!nativePush && !featureSwitchesLoading) {
+        setOneSignalUser(profile.id).catch(err =>
+          console.error('OneSignal user link failed:', err)
+        )
+      }
+      // Self-heal the Web Push subscription: repairs a lost server row or a
+      // browser-side rotation that happened while the app was closed. No-ops
+      // unless permission is already granted. Runs regardless of which transport
+      // the brand is on, so subscriptions accumulate before the switch is flipped.
+      void reconcileSubscription(profile.id, profile.org_id ?? null)
     } else if (!loading && !profile) {
       clearOneSignalUser().catch(() => {})
     }
-  }, [profile?.id, loading])
+  }, [profile?.id, profile?.org_id, loading, nativePush, featureSwitchesLoading])
 
   if (loading) {
     return (
@@ -57,26 +79,40 @@ function Dashboard() {
   return <EmployeeDashboard />
 }
 
-function App() {
+/** Init OneSignal only for brands still on the legacy relay. */
+function OneSignalBootstrap() {
+  const { isFeatureEnabled, featureSwitchesLoading } = useOrg()
+
   useEffect(() => {
+    if (featureSwitchesLoading) return
+    if (isFeatureEnabled('native_web_push')) return
     initOneSignal().catch(err =>
       console.error('OneSignal init failed:', err)
     )
-  }, [])
+  }, [featureSwitchesLoading, isFeatureEnabled])
 
+  return null
+}
+
+function App() {
   return (
     <AuthProvider>
         <OrgProvider>
           <ThemeProvider>
+          <OneSignalBootstrap />
           <PwaUpdateLayer>
           <OfflineBanner />
           <ToastHost />
           <BrowserRouter>
+            <Suspense fallback={<RouteLoadingFallback />}>
             <Routes>
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/login" element={<Login />} />
               <Route path="/quote/:token" element={<QuoteAcceptPage />} />
               <Route path="/invoice/:token" element={<InvoiceStatusPage />} />
+              <Route path="/privacy" element={<PrivacyPolicyPage />} />
+              <Route path="/terms" element={<TermsOfServicePage />} />
+              <Route path="/delete-account" element={<DeleteAccountPage />} />
               <Route path="/set-password" element={<SetPasswordPage />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/support" element={<ProtectedRoute> <SupportPage /> </ProtectedRoute> }/>
@@ -171,6 +207,7 @@ function App() {
               />
               <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
+            </Suspense>
           </BrowserRouter>
           </PwaUpdateLayer>
           </ThemeProvider>
