@@ -1,6 +1,6 @@
 ---
 id: "t1-14-technician-job-exclusions-2026-08-11"
-status: "in-progress"
+status: "review"
 priority: "high"
 assignee: null
 dueDate: null
@@ -33,8 +33,13 @@ Manager UI extends the Team Management card on `ProfilePage` — which today hol
 
 **Tension worth recording:** this makes the catalog 33 switches while [[dd19]] ("cut the feature switch catalog to twelve") is open backlog. Owner chose the switch anyway on 11-08-2026 so exclusions can be turned off independently of `inbound_auto_assign`.
 
+**Deployed 11-08-2026 (v1.1.171)** — prod `readyState: READY`, 593 tests green, hubs smoke-checked (`create-user` 405, `?action=set-exclusions` 401). **Inert until the migration is applied and the switch is enabled**: `isFeatureEnabledForOrg` returns `catalogRow?.default_enabled === true`, so with no catalog row the feature is hard-off.
+
+Gotcha for the next session: the `src/lib/features.ts` half of this change leaked into the v1.1.170 social-posting commit without its `shared/featureSwitchCatalog.ts` counterpart, breaking that build with `TS2741`. Reverted in `e347b25`, restored here. **A switch key must land in both files in the same commit** — `FEATURE_SWITCH_DEFAULTS` and `FEATURE_SWITCH_DEFINITIONS` are `Record<FeatureSwitchKey, …>`, so the union and its two tables are one atomic change.
+
 ## Done when
 
+- [ ] Owner applies `supabase/migrations/20260811120000_assignment_exclusions.sql` to prod (Management API) and enables `assignment_exclusions` for `tv-magic`.
 - [ ] Switch on: an inbound SMS reading "Starlink installation plus wifi extender" assigns to someone *other than* the excluded tech, even when that tech has the lowest workload and is nearest.
 - [ ] "TV aerial not working" still assigns to that same tech.
 - [ ] Exclude every tech and manager → lead lands `unassigned`, manager alert fires, no assignment SMS sent.
