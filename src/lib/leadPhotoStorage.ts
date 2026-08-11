@@ -16,9 +16,6 @@ export function canAddLeadPhotos(status: string | null | undefined): boolean {
 /** Default TTL for in-app display (1 hour). */
 export const LEAD_PHOTO_DISPLAY_TTL = 3600
 
-/** Longer TTL when an external service (e.g. Zernio) must fetch the file. */
-export const LEAD_PHOTO_POST_TTL = 7200
-
 export async function signLeadPhotoPath(
   storagePath: string,
   expiresIn = LEAD_PHOTO_DISPLAY_TTL,

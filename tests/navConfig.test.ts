@@ -34,7 +34,7 @@ describe('filterNavLinks', () => {
     expect(links.map((l) => l.label)).toContain('Platform')
   })
 
-  it('hides tier-gated social when feature denied', () => {
+  it('hides tier-gated routes when feature denied', () => {
     const links = filterNavLinks('manager', denyAll)
     expect(links.map((l) => l.label)).not.toContain('Social')
     expect(links.map((l) => l.label)).not.toContain('Tasks')

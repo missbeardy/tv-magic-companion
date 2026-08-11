@@ -17,7 +17,7 @@ Second track (later): **white-label / franchise networks.** The brands→orgs la
 Per-org variable costs are dominated by SMS. Approximate AUD figures as of knowledge — **recheck each**:
 
 - **Twilio SMS (AU):** ~5–8¢/segment outbound + ~$6–12/mo per dedicated number. A busy solo tradie doing ~150 automated SMS/mo ≈ $10–15/mo + number. This is the main COGS line and why "all messaging included" is a packaging weapon vs Tradify's 20¢/msg.
-- **Anthropic (extraction/captions):** small per-lead cost (short prompts); tens of cents to a few dollars per org/month at solo volume.
+- **Anthropic (lead extraction):** small per-lead cost (short prompts); tens of cents to a few dollars per org/month at solo volume.
 - **Resend, OneSignal:** free tiers cover early volume.
 - **Supabase:** free tier now; Pro (~US$25/mo) advisable before scaling paying customers (backups/PITR matter — see risks).
 - **Vercel:** currently Hobby. **Two problems at scale: (1) Hobby prohibits commercial use — moving to Pro (~US$20/seat/mo) is a compliance matter, not just capacity; (2) Pro also lifts the 12-function cap** that currently constrains the API architecture. Budget this as a launch cost.

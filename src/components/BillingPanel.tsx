@@ -14,7 +14,7 @@ const TIER_LABELS = {
 
 const TIER_FEATURES: Record<string, string[]> = {
   basic: ['Leads', 'Calendar'],
-  pro: ['Everything in Basic', 'Social', 'AI lead parsing', 'Reports'],
+  pro: ['Everything in Basic', 'AI lead parsing', 'Reports'],
   enterprise: ['Everything in Pro', 'API access', 'Priority support'],
 }
 

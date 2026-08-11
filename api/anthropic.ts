@@ -5,11 +5,10 @@ import { canAccessFeature } from './_lib/tier.js'
 import { withObservability } from './_lib/observability.js'
 import { checkRateLimit, rateLimitIdentifier } from './_lib/rateLimit.js'
 import { isUnderMonthlyAiCeiling, recordAiUsage } from './_lib/aiUsage.js'
-import { buildCaptionPrompt, buildLeadExtractionPrompt, extractJsonObject } from './_lib/aiPrompts.js'
+import { buildLeadExtractionPrompt, extractJsonObject } from './_lib/aiPrompts.js'
 import { captureServerException } from './_lib/sentry.js'
 
 const EXTRACTION_MODEL = 'claude-sonnet-4-6'
-const CAPTION_MODEL = 'claude-haiku-4-5'
 
 interface ClaudeCallResult {
   text: string
@@ -81,28 +80,6 @@ async function handleExtractLeadFields(req: VercelRequest, res: VercelResponse, 
   }
 }
 
-async function handleGenerateCaption(req: VercelRequest, res: VercelResponse, auth: AuthContext) {
-  const { jobContext, notes } = (req.body ?? {}) as { jobContext?: string; notes?: string }
-  if (!notes?.trim()) {
-    return res.status(400).json({ error: 'Missing notes' })
-  }
-
-  try {
-    const { text, totalTokens } = await callClaude(
-      CAPTION_MODEL,
-      buildCaptionPrompt({ jobContext: jobContext ?? '', notes }),
-      300
-    )
-    void recordAiUsage(auth.orgId, totalTokens)
-
-    return res.status(200).json({ caption: text.trim() })
-  } catch (err) {
-    console.error('Caption generation failed:', err)
-    captureServerException(err, { action: 'generate-caption', orgId: auth.orgId })
-    return res.status(502).json({ error: err instanceof Error ? err.message : 'Caption generation failed' })
-  }
-}
-
 async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -134,9 +111,6 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   const action = typeof req.query.action === 'string' ? req.query.action : undefined
   if (action === 'extract-lead-fields') {
     return handleExtractLeadFields(req, res, auth)
-  }
-  if (action === 'generate-caption') {
-    return handleGenerateCaption(req, res, auth)
   }
 
   return res.status(404).json({ error: 'Unknown action' })

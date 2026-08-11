@@ -128,10 +128,10 @@ Bucket is **private** (`public = false`). App uses signed URLs for display.
 | 6 | Basic tier hides Tasks/Social | Pass |
 | 7 | Tier on new org | Pass |
 | 8 | AI parsing blocked on Basic (server) | **Pass** (preview) |
-| 9 | Social post blocked on Basic (server) | **Skipped** — not in use first 3 months |
+| 9 | Social post blocked on Basic (server) | **N/A** — social posting removed (T3.6, 11-08-2026) |
 | 10 | Brand SMS on lead assign | **Pass** (preview) |
 
-**When Vercel preview is live:** tests 8 & 10 verified on preview. Ensure preview env has `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ENABLE_PLATFORM_FEATURES=true`, plus Anthropic/Twilio/Zernio as needed.
+**When Vercel preview is live:** tests 8 & 10 verified on preview. Ensure preview env has `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ENABLE_PLATFORM_FEATURES=true`, plus Anthropic/Twilio as needed. Remove any leftover `ZERNIO_*` vars (social posting deleted).
 
 ### Stripe billing (optional on preview)
 
@@ -231,7 +231,7 @@ _Last updated: post-merge smoke test complete (all 6 pass); preview sign-off don
 - **Brand transfer** — Platform Admin assigns brand + copies colors/upsells to franchisee orgs
 - **Manual tiers** — set per org in Platform Admin (works alongside Stripe)
 - **Stripe billing** — checkout, customer portal, webhook sync (`api/stripe-*`, `BillingPanel` on Org Settings)
-- **Server-side tier gates** — `anthropic` (Pro), `social-post` (Pro)
+- **Server-side tier gates** — `anthropic` (Pro)
 - **Brand SMS templates** — `send-sms` uses org brand templates with auth
 - **API auth** — protected routes require Supabase session token
 

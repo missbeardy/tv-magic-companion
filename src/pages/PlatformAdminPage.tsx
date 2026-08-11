@@ -438,7 +438,7 @@ export default function PlatformAdminPage() {
 
         <PlatformAdminSection id="feature-switches" title="Feature switches" icon={ToggleLeft}>
           <p className="text-xs text-gray-500">
-            Tier features (Tasks, Social, Reports, AI parsing) turn on automatically when a franchise upgrades.
+            Tier features (Reports, AI parsing) turn on automatically when a franchise upgrades.
             Feature switches below are manual rollout controls per brand — all franchises under a brand share the same
             setting.
           </p>

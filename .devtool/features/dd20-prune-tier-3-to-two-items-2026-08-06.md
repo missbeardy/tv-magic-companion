@@ -5,7 +5,7 @@ priority: "low"
 assignee: null
 dueDate: null
 created: "2026-08-06T16:00:00.000Z"
-modified: "2026-08-06T17:00:00.000Z"
+modified: "2026-08-11T03:20:00.000Z"
 completedAt: null
 labels: ["due-diligence", "subtraction", "roadmap", "governance"]
 order: "ZF"
@@ -28,7 +28,7 @@ Tier 3 holds twelve items. Ten of them will never be built in their current form
 - T3.10 Cross-device drafts — localStorage is fine at this scale.
 - T3.11 Self-serve signup — only worth building with real inbound demand. (Existing card `t311` — close it.)
 - T3.12 Card surcharge — documented fast-follow with no demand behind it. (Existing card `t312` — close it.)
-- T3.6 Social posting — decided as DELETE, not deferred. (Existing card `t36`, executed by `dd18`.)
+- T3.6 Social posting — **executed DELETE** 11-08-2026 (v1.1.168). Card `t36` is in `done/`.
 
 **T3.1 Xero live sync is already built** — and was built in violation of the T2.9 gate that explicitly said it stays Tier 3 under the front-door position. It shipped three days after that decision, unrequested and never UAT'd against a real Xero account. **Leave it in place, but log the governance failure**: this is the pattern the review identifies as the core risk — building because it is buildable, when the bottleneck is market contact.
 

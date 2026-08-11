@@ -1,15 +1,4 @@
 
-[functions.push-notify]
-enabled = true
-verify_jwt = false
-import_map = "./functions/push-notify/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
-entrypoint = "./functions/push-notify/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/push-notify/*.html" ]
-
 [functions.notify-message]
 enabled = true
 # Called by Supabase Database Webhooks with a shared-secret header, not a JWT.

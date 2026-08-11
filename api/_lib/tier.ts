@@ -1,12 +1,11 @@
 export type SubscriptionTier = 'basic' | 'pro' | 'enterprise'
 
 /** Keys still enforced via subscription tier (server-side). Tasks/task_board retired. */
-export type FeatureKey = 'leads' | 'calendar' | 'social' | 'ai_parsing' | 'reports' | 'api_access'
+export type FeatureKey = 'leads' | 'calendar' | 'ai_parsing' | 'reports' | 'api_access'
 
 const FEATURE_TIERS: Record<FeatureKey, SubscriptionTier> = {
   leads: 'basic',
   calendar: 'basic',
-  social: 'pro',
   ai_parsing: 'pro',
   reports: 'pro',
   api_access: 'enterprise',

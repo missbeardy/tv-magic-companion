@@ -16,7 +16,7 @@ import { sendEmployeeAlertToPhone } from './sendEmployeeAlert.js'
  *   Fixed in `20260807000000_events_user_fk_set_null.sql`; if you add a new table referencing
  *   `profiles`, check its delete rule against that migration's reasoning.
  * - Still CASCADE by design: `notifications`, `push_subscriptions` (genuinely personal to the
- *   deleted user), and `tasks` (dead feature, slated for removal in dd18).
+ *   deleted user). Tasks tables were dropped in dd18 (`20260811032416_drop_tasks_tables.sql`).
  * - Invoices in particular must be retained for ATO record-keeping — see the dd3 card.
  */
 export async function deleteOwnAccount(

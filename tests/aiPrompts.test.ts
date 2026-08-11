@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildCaptionPrompt, buildLeadExtractionPrompt, extractJsonObject } from '../api/_lib/aiPrompts'
+import { buildLeadExtractionPrompt, extractJsonObject } from '../api/_lib/aiPrompts'
 
 describe('buildLeadExtractionPrompt', () => {
   it('embeds the raw text and asks for the expected JSON shape', () => {
@@ -12,14 +12,6 @@ describe('buildLeadExtractionPrompt', () => {
     const long = 'a'.repeat(20_000)
     const prompt = buildLeadExtractionPrompt({ rawText: long })
     expect(prompt.length).toBeLessThan(20_000)
-  })
-})
-
-describe('buildCaptionPrompt', () => {
-  it('embeds job context and notes', () => {
-    const prompt = buildCaptionPrompt({ jobContext: 'TV wall mount', notes: 'Customer very happy' })
-    expect(prompt).toContain('TV wall mount')
-    expect(prompt).toContain('Customer very happy')
   })
 })
 

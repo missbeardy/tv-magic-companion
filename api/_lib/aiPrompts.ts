@@ -1,8 +1,8 @@
 /**
- * Server-owned prompts for the two legitimate /api/anthropic callers (EmailParser.tsx's
- * paste-parse, generateCaption.ts). dd5: the client used to send a full `messages` array and
- * the server forwarded it verbatim — any authenticated session could send an arbitrary prompt
- * to Claude on the platform's API key. These builders take only structured, purpose-specific
+ * Server-owned prompts for /api/anthropic callers (EmailParser paste-parse).
+ * dd5: the client used to send a full `messages` array and the server forwarded it
+ * verbatim — any authenticated session could send an arbitrary prompt to Claude on
+ * the platform's API key. These builders take only structured, purpose-specific
  * input; the client can no longer influence anything except the data fields being filled in.
  */
 
@@ -27,30 +27,6 @@ export function buildLeadExtractionPrompt(input: LeadExtractionPromptInput): str
 
 Email:
 ${rawText}`
-}
-
-export interface CaptionPromptInput {
-  jobContext: string
-  notes: string
-}
-
-const MAX_CAPTION_FIELD_LENGTH = 2000
-
-export function buildCaptionPrompt(input: CaptionPromptInput): string {
-  const jobContext = input.jobContext.trim().slice(0, MAX_CAPTION_FIELD_LENGTH)
-  const notes = input.notes.trim().slice(0, MAX_CAPTION_FIELD_LENGTH)
-  return `You are a professional social media copywriter for a local Australian trade business.
-
-Write a social media caption based on the technician's notes below. Rules:
-- 2-3 sentences maximum
-- Warm, professional, and slightly proud tone
-- Inject exactly 2 relevant emojis naturally into the sentences (not at the end)
-- End with exactly 4 relevant hashtags on a new line (trade + local + service, no brand-specific tags unless the job notes name the brand)
-
-Job context: ${jobContext}
-Technician's notes: ${notes}
-
-Respond with ONLY the caption text, nothing else.`
 }
 
 /** Strips markdown code fences and extracts the outermost {...} — matches api/_lib/extractLead.ts. */

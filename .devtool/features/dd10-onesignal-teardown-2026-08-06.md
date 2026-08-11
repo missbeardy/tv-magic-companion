@@ -5,7 +5,7 @@ priority: "medium"
 assignee: null
 dueDate: null
 created: "2026-08-06T16:00:00.000Z"
-modified: "2026-08-06T17:00:00.000Z"
+modified: "2026-08-11T03:30:00.000Z"
 completedAt: null
 labels: ["due-diligence", "notifications", "tech-debt", "t1"]
 order: "ZB"
@@ -26,6 +26,7 @@ Two push stacks means: two SDKs, two service-worker code paths sharing one globa
 - Remove the three REST call sites and the OneSignal branch in `api/_lib/pushTransport.ts`.
 - Retire the `native_web_push` switch itself once there is no alternative transport to route to (a switch with one option is dead config — see `dd19`).
 - Also remove the unused `supabase/functions/push-notify` scaffold still deployed (noted in ROADMAP T1.9 and PROJECT.md known debt).
+  **DONE via dd18 (11-08-2026)** — deleted from repo + undeployed from prod.
 - Update `vercel.json` CSP: drop `https://cdn.onesignal.com` and `https://*.onesignal.com` from `script-src` / `connect-src` / `frame-src` (coordinate with `dd9`).
 
 **Feature switch:** removes one.

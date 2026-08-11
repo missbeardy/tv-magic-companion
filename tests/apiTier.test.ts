@@ -22,9 +22,9 @@ describe('api tier enforcement', () => {
     expect(canAccessFeature('ai_parsing', 'pro')).toBe(true)
   })
 
-  it('blocks social on basic tier', () => {
-    expect(canAccessFeature('social', 'basic')).toBe(false)
-    expect(canAccessFeature('social', 'pro')).toBe(true)
+  it('blocks reports on basic tier', () => {
+    expect(canAccessFeature('reports', 'basic')).toBe(false)
+    expect(canAccessFeature('reports', 'pro')).toBe(true)
   })
 
   it('allows leads on all tiers when platform features enabled', () => {

@@ -1264,6 +1264,7 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           email: string
+          excluded_service_keywords: string[]
           first_name: string | null
           full_name: string | null
           id: string
@@ -1286,6 +1287,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           email: string
+          excluded_service_keywords?: string[]
           first_name?: string | null
           full_name?: string | null
           id: string
@@ -1308,6 +1310,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           email?: string
+          excluded_service_keywords?: string[]
           first_name?: string | null
           full_name?: string | null
           id?: string
@@ -1589,86 +1592,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "support_messages_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "orgs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      task_items: {
-        Row: {
-          created_at: string
-          id: string
-          is_checked: boolean
-          label: string
-          task_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          is_checked?: boolean
-          label: string
-          task_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          is_checked?: boolean
-          label?: string
-          task_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "task_items_task_id_fkey"
-            columns: ["task_id"]
-            isOneToOne: false
-            referencedRelation: "tasks"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tasks: {
-        Row: {
-          created_at: string
-          created_by: string
-          expires_at: string | null
-          id: string
-          is_completed: boolean
-          org_id: string | null
-          title: string
-          visibility: string
-        }
-        Insert: {
-          created_at?: string
-          created_by: string
-          expires_at?: string | null
-          id?: string
-          is_completed?: boolean
-          org_id?: string | null
-          title: string
-          visibility?: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string
-          expires_at?: string | null
-          id?: string
-          is_completed?: boolean
-          org_id?: string | null
-          title?: string
-          visibility?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tasks_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tasks_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "orgs"

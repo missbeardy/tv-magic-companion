@@ -25,7 +25,7 @@ export function useOrgSupabase() {
   const from = useCallback((table: string) => {
     const query = supabase.from(table as TableName);
     const tablesWithOrgFilter = [
-      'leads', 'events', 'tasks', 'notifications', 
+      'leads', 'events', 'notifications',
       'customers', 'lead_photos', 'lead_events'
     ];
     

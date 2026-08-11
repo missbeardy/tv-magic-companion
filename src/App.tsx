@@ -23,7 +23,6 @@ import { useEffect } from 'react'
 // (recharts, @xyflow/react, @dnd-kit) that every field tech was downloading on first load
 // regardless of whether they'd ever open them. Lazy-loaded so the login -> leads path stays light.
 const CalendarPage = lazy(() => import('./pages/CalendarPage'))
-const SocialPage = lazy(() => import('./pages/SocialPage'))
 const ReportsPage = lazy(() => import('./pages/ReportsPage'))
 const OrgSettingsPage = lazy(() => import('./pages/OrgSettingsPage'))
 const PlatformAdminPage = lazy(() => import('./pages/PlatformAdminPage'))
@@ -170,14 +169,6 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <ProfilePage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/social"
-                element={
-                  <ProtectedRoute requiredRole="manager">
-                    <SocialPage />
                   </ProtectedRoute>
                 }
               />

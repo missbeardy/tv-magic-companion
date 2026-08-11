@@ -53,18 +53,20 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Automated customer SMS (enquiry acknowledgement, booking reminders, quote/invoice follow-ups) now includes a reply-STOP opt-out line',
     'Added error monitoring and product analytics behind the scenes, with customer names/phones/addresses/photos scrubbed before anything leaves the app',
     'Rate limiting on AI parsing, SMS, geocoding, and public quote/invoice links is now honest under real traffic — the old per-instance counter reset on every cold start and could be bypassed by spreading requests across concurrent connections',
-    'AI lead-parsing and caption generation now build their prompts server-side with a per-franchise monthly usage limit, closing an open-ended AI proxy',
+    'AI lead-parsing now builds its prompt server-side with a per-franchise monthly usage limit, closing an open-ended AI proxy',
     'Every authenticated API request now does one fewer database round trip under the hood — should shave a little latency off writes on weak signal',
     'Removed a duplicate, unused app manifest that could silently drift from the real one',
     'Fixed follow-up reminders repeating every 15 minutes on the same lead — technicians were getting thousands of duplicate notifications a day, and it was timing out the background job that also sends invoice/quote chases and booking reminders',
     'Leads with no contact for 14 days are now automatically marked Lost (booked jobs are never touched), so dead leads stop nagging forever',
     'In-app notifications older than 30 days are now cleaned up automatically',
     'Replaced the app icon and favicon with FieldBourne’s real logo (was showing the client’s TV Magic logo)',
+    'Removed parked Instagram/Facebook social posting (Zernio) and AI caption generation — never UAT’d, frees a server function slot',
+    'Cleaned up leftover dead code: dropped unused Tasks database tables, removed the unused push-notify edge function, and fixed broken notification icon paths after the logo swap',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.167'
+export const APP_VERSION = '1.1.170'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
