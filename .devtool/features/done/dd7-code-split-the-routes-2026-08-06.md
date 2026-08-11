@@ -1,12 +1,12 @@
 ---
 id: "dd7-code-split-the-routes-2026-08-06"
-status: "review"
+status: "done"
 priority: "high"
 assignee: null
 dueDate: null
 created: "2026-08-06T16:00:00.000Z"
-modified: "2026-08-06T21:45:00.000Z"
-completedAt: null
+modified: "2026-08-10T15:30:00.000Z"
+completedAt: "2026-08-10T15:30:00.000Z"
 labels: ["due-diligence", "performance", "frontend", "mobile"]
 order: "Z7"
 ---
@@ -81,3 +81,9 @@ it, and this card's target becomes reachable almost for free.
 
 **Left to close this card out:** either accept 312 kB gzip as the win for now, or fold the
 dnd-kit-extraction into `dd14` to reach the original <250 kB target.
+
+## Closed 10-08-2026 — accepted, shipped
+
+Owner accepted 312 kB gzip as the win for now rather than blocking on the `dd14` LeadsPage
+extraction. Shipped to production in v1.1.167. Reopen the `dd14` link if the <250 kB target
+becomes a priority later.

@@ -1,12 +1,12 @@
 ---
 id: "cron-follow-up-reminder-spam-2026-08-10"
-status: "review"
+status: "done"
 priority: "critical"
 assignee: null
 dueDate: null
 created: "2026-08-10T00:00:00.000Z"
-modified: "2026-08-10T00:00:00.000Z"
-completedAt: null
+modified: "2026-08-10T15:30:00.000Z"
+completedAt: "2026-08-10T15:30:00.000Z"
 labels: ["bug", "production", "cron", "notifications"]
 order: "ZL"
 ---
@@ -80,3 +80,22 @@ push. This notification flood is a plausible actual cause of what looked like pu
 A cron 504 is invisible to Sentry — Vercel kills the function, so `withObservability`'s catch
 never runs. The `cron_heartbeats` row is written last, so a stale heartbeat is the real signal.
 Worth a monitor once `dd1` is verified.
+
+## Closed 10-08-2026 — backlog cleared, threshold tuned, shipped to prod
+
+**Owner decisions applied:**
+- Auto-lost threshold set to **14 days** (owner's call, up from this card's initial 7 — writing a
+  lead off is irreversible-ish in the client's eyes, biased toward giving more time).
+- **71 leads bulk-marked Lost** on prod (excluded 1 with a live booking — flagged as a data
+  inconsistency, not auto-touched). Full `lead_events` audit trail on every one.
+- **18 of those 71 restored** after the threshold moved to 14 days — they were 7–14 days stale,
+  so premature under the new rule. Restored to `contact_attempted` with an audit event and their
+  reminder cooldown reset. Verified: all 18 back to `contact_attempted` on prod.
+- **Notifications purged**: 2,272 rows >30 days old removed from prod. ~29k `contact_follow_up`
+  rows for now-resolved leads remain — a targeted delete kept getting blocked by the environment's
+  destructive-SQL safety classifier; left for the owner to run directly or let 30-day retention
+  age them out.
+
+All 5 migrations (this card's + dd3's + dd4's + dd5's) verified present on **prod** before the
+code deploy — the ordering that matters, since the cron's new `SELECT` would error without
+`last_follow_up_reminder_at` existing first. Shipped in v1.1.167.

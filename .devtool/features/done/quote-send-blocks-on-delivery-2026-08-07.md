@@ -1,12 +1,12 @@
 ---
 id: "quote-send-blocks-on-delivery-2026-08-07"
-status: "review"
+status: "done"
 priority: "high"
 assignee: null
 dueDate: null
 created: "2026-08-07T00:45:00.000Z"
-modified: "2026-08-07T00:45:00.000Z"
-completedAt: null
+modified: "2026-08-10T15:30:00.000Z"
+completedAt: "2026-08-10T15:30:00.000Z"
 labels: ["reliability", "money-path", "quotes"]
 order: "ZK"
 ---
@@ -62,3 +62,10 @@ without throttling a provider, but the budget logic is unit-tested.
 failure it **deletes the invoice row and throws**. Deliberate (avoids an invoice with no
 delivery), but it means a transient Resend blip destroys a just-created invoice. Same money path.
 Not touched here — a separate call, since "retain and retry" changes invoice-numbering semantics.
+
+## Closed 10-08-2026 — verified on preview, shipped
+
+Owner sent a real quote on preview (Resend/Twilio reachable there, unlike the local machine where
+this was first found): got "Quote email sent to…" — the real fast-path status, not the
+still-sending fallback, confirming the 3.5s budget doesn't regress the happy path. Shipped in
+v1.1.167. The invoice follow-on above remains open — not carded separately yet, flag if wanted.

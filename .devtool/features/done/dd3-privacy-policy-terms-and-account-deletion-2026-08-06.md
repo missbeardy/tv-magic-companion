@@ -1,12 +1,12 @@
 ---
 id: "dd3-privacy-policy-terms-and-account-deletion-2026-08-06"
-status: "review"
+status: "done"
 priority: "critical"
 assignee: null
 dueDate: null
 created: "2026-08-06T16:00:00.000Z"
-modified: "2026-08-06T21:20:00.000Z"
-completedAt: null
+modified: "2026-08-10T15:30:00.000Z"
+completedAt: "2026-08-10T15:30:00.000Z"
 labels: ["due-diligence", "legal", "play-store", "compliance"]
 order: "Z2"
 ---
@@ -120,3 +120,21 @@ the app collects. Both in-app pages now cross-link to the website ones.
 4. Apply `20260806170000_account_deletion.sql` to dev Supabase, then click through both deletion
    flows once for real.
 5. Only then: move to `done`, add the Shipped row in `ROADMAP.md`.
+
+## Closed 10-08-2026 — tested on preview, migration applied, shipped
+
+Owner tested account deletion on preview: confirmed working, kicked back to login as designed.
+That test surfaced a real bug beyond this card's scope — `events.user_id → profiles.id` was
+`ON DELETE CASCADE`, so deleting a staff account was silently deleting their customer bookings.
+Fixed in `20260807000000_events_user_fk_set_null.sql` (see that migration's own reasoning) and
+`api/_lib/accountDeletion.ts`'s deletion-matrix doc corrected to match: the `profiles` row is
+hard-deleted via the `auth.users` cascade, not soft-deleted — the `deleted_at` scrub only matters
+as a fallback if the auth delete fails after the scrub succeeds.
+
+Placeholders resolved from the owner's real website (fieldbournedigital.com.au): FieldBourne
+Digital, ABN 22 324 219 568, admin@fieldbournedigital.com.au, Beaudesert QLD, Queensland law,
+5-year ATO retention. All 5 migration objects (`account_deletion_requests`,
+`profiles.deleted_at`, plus the FK fix) verified present on **prod**. Shipped in v1.1.167.
+
+**Still open, owner's call, not touched:** whether `tv-magic`/`fieldbourne` have customised the 4
+SMS templates the opt-out line was added to (not checked this session).

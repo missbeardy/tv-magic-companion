@@ -1,12 +1,12 @@
 ---
 id: "dd4-fix-broken-rate-limiting-2026-08-06"
-status: "review"
+status: "done"
 priority: "critical"
 assignee: null
 dueDate: null
 created: "2026-08-06T16:00:00.000Z"
-modified: "2026-08-06T20:10:00.000Z"
-completedAt: null
+modified: "2026-08-10T15:30:00.000Z"
+completedAt: "2026-08-10T15:30:00.000Z"
 labels: ["due-diligence", "security", "backend"]
 order: "Z3"
 ---
@@ -82,3 +82,12 @@ from an email link) was the same. All six now rate-limited.
    burst — this is the card's actual "done when" criterion, and nothing here proves it without
    hitting a live endpoint with a real Postgres behind it.
 3. Only then: move to `done`, add the Shipped row in `ROADMAP.md`.
+
+## Closed 10-08-2026 — verified under real concurrency on preview and prod
+
+Ran the actual "done when" test: 50 concurrent requests to a rate-limited public endpoint on
+preview. `rate_limit_hits` shows `count: 50` on one row — every hit counted atomically, zero lost
+updates, the exact property the old `Map()` limiter could never have. 30 passed, 20 came back 429.
+Same burst also confirmed `anthropic:`, `geocode-autocomplete:`, and `send-sms-notify:` scopes
+recording independently. Migration applied to both dev and prod, verified present on prod before
+deploy. Shipped in v1.1.167.

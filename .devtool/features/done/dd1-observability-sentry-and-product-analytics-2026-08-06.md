@@ -1,12 +1,12 @@
 ---
 id: "dd1-observability-sentry-and-product-analytics-2026-08-06"
-status: "review"
+status: "done"
 priority: "critical"
 assignee: null
 dueDate: null
 created: "2026-08-06T16:00:00.000Z"
-modified: "2026-08-06T19:35:00.000Z"
-completedAt: null
+modified: "2026-08-10T15:30:00.000Z"
+completedAt: "2026-08-10T15:30:00.000Z"
 labels: ["due-diligence", "observability", "ops"]
 order: "Z0"
 ---
@@ -89,3 +89,19 @@ before `dd7` (code-splitting) — worth sequencing `dd7` soon after this lands.
    funnel in the PostHog UI once real events exist.
 4. Only then: move to `done`, set `completedAt`, move file to `done/`, add the Shipped row in
    `ROADMAP.md`.
+
+## Closed 10-08-2026 — verified live
+
+Both Sentry projects confirmed on real events (a deliberate client error and a deliberate
+serverless throw, each landed within a minute; breadcrumbs empty, no PII in either payload).
+`login` confirmed in PostHog with a clean payload (only `orgId`/`role` custom fields — geo/device
+enrichment is PostHog's own IP-based default, flagged to the owner as a policy-disclosure point,
+not a bug). `lead_captured`/`extraction_fallback_used`/`ack_sent` couldn't be confirmed from local
+`vercel dev` — traced to Node's outbound `fetch()` being blocked by the local machine's
+network/firewall to PostHog's and Twilio's IP ranges specifically (`curl` to the same hosts
+succeeded; `@sentry/node` also succeeded, ruling out a general Node-networking failure). Not a
+code issue. Real bug found along the way: `posthog-node`'s `client.flush()` hangs indefinitely in
+this environment — added a 3s timeout guard (`Promise.race`) so analytics can never block or hang
+a real request, plus wired `@vercel/functions`'s `waitUntil` (the SDK's documented serverless
+integration point). Shipped to production in v1.1.167. Funnel construction in the PostHog UI is a
+dashboard step for the owner, not code — not verified in this session.

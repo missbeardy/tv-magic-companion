@@ -1,12 +1,12 @@
 ---
 id: "dd8-collapse-the-auth-round-trips-2026-08-06"
-status: "review"
+status: "done"
 priority: "medium"
 assignee: null
 dueDate: null
 created: "2026-08-06T16:00:00.000Z"
-modified: "2026-08-06T22:05:00.000Z"
-completedAt: null
+modified: "2026-08-10T15:30:00.000Z"
+completedAt: "2026-08-10T15:30:00.000Z"
 labels: ["due-diligence", "performance", "backend"]
 order: "ZA"
 ---
@@ -60,3 +60,15 @@ authenticated endpoint (e.g. open Leads, send a quote) before trusting this.
 **Left to close this card out:** log in against dev Supabase and exercise a couple of
 authenticated actions (role checks especially — `api/send-sms.ts`'s manager-only branches) to
 confirm the collapsed query resolves correctly, then move to `done`.
+
+## Closed 10-08-2026 — verified against real prod schema, not just dev
+
+Owner reported a quote send failing on preview — initial suspicion was this card, since it's the
+highest-blast-radius change (every authenticated request). Investigated properly rather than
+assuming: ran the exact embedded PostgREST select this card introduced directly against **prod**
+(`orgs` + nested `brands` both resolved correctly, all 12 columns present, both required FK
+constraints exist), then checked the actual quote — it had been created successfully
+(`408edbd3…`, $850, `sent`). The real cause was unrelated: `createQuote` was awaiting Resend/Twilio
+inline before returning, and both were timing out on the owner's local network (a separate issue,
+fixed as its own card — see `quote-send-blocks-on-delivery`). dd8 is not implicated; the auth
+collapse resolves correctly on the real schema, both dev and prod. Shipped in v1.1.167.

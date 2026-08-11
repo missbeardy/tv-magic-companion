@@ -1,12 +1,12 @@
 ---
 id: "dd5-close-the-open-llm-proxy-2026-08-06"
-status: "review"
+status: "done"
 priority: "critical"
 assignee: null
 dueDate: null
 created: "2026-08-06T16:00:00.000Z"
-modified: "2026-08-06T20:30:00.000Z"
-completedAt: null
+modified: "2026-08-10T15:30:00.000Z"
+completedAt: "2026-08-10T15:30:00.000Z"
 labels: ["due-diligence", "security", "cost", "backend"]
 order: "Z4"
 ---
@@ -68,3 +68,9 @@ has actually removed social posting yet, so `generateCaption` was migrated rathe
 
 (Re-grepped `src/` for every `/api/anthropic` reference after migrating both callers — confirmed
 exactly the two above, nothing else hits this endpoint.)
+
+## Closed 10-08-2026 — smoke-tested on preview, migration applied to prod
+
+Owner pasted an email into the AI parser on preview against a real `ANTHROPIC_API_KEY` (already
+present in the Vercel Preview env) — passed, extracted correctly rather than falling back to
+regex. `ai_usage_monthly` migration verified present on prod before deploy. Shipped in v1.1.167.

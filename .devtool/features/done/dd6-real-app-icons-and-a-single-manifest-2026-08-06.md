@@ -1,12 +1,12 @@
 ---
 id: "dd6-real-app-icons-and-a-single-manifest-2026-08-06"
-status: "in-progress"
+status: "done"
 priority: "critical"
 assignee: null
 dueDate: null
 created: "2026-08-06T16:00:00.000Z"
-modified: "2026-08-06T20:45:00.000Z"
-completedAt: null
+modified: "2026-08-10T15:30:00.000Z"
+completedAt: "2026-08-10T15:30:00.000Z"
 labels: ["due-diligence", "pwa", "branding", "play-store"]
 order: "Z5"
 ---
@@ -71,3 +71,26 @@ Source: DUE_DILIGENCE_REVIEW.md — Phase 5 + Phase 2, I6.
 **Left to close this card out:** you (or a designer) produce the real icon set; I wire it into
 `manifest.json` + `index.html` and re-verify with Lighthouse. Leaving this in `in-progress`, not
 `review` — it's not close to done, only the drift/duplication risk is fixed.
+
+## Closed 10-08-2026 — real logo supplied, wired up, shipped to prod
+
+Owner dropped a real FieldBourne logo (`logo.png`, 1254×1254, white background, no alpha) at the
+project root. Generated proper variants with `sharp` (added as a one-off devDependency — not
+referenced anywhere at runtime, safe to remove later):
+
+- `public/icon-192.png` — 192×192, direct resize, `purpose: "any"`
+- `public/icon-512.png` — 512×512, direct resize, `purpose: "any"`
+- `public/icon-512-maskable.png` — 512×512, logo scaled to the inner 80% (410px) on a
+  matching-background canvas so Android's maskable safe-zone crop never clips it — the exact
+  failure mode this card originally flagged against the old file
+
+Wired into `public/manifest.json` (now three correctly-scoped icon entries instead of one file
+misused for both sizes and both purposes), `index.html` (favicon + apple-touch-icon), and
+`Login.tsx` (the visible logo on the sign-in screen). `public/fieldbourne-logo.png` — the
+byte-identical TV Magic logo this card exists because of — deleted.
+
+`npm run typecheck` clean, full suite green, `vite build` confirmed the three new files land in
+`dist/`. Shipped to production in v1.1.167.
+
+**Still open, not this card's scope:** no Lighthouse PWA audit was run (no Android device/CI in
+this session). Worth doing before `dd17` (TWA/Play packaging) is picked up.
