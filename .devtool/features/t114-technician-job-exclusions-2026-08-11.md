@@ -48,6 +48,7 @@ Gotcha for the next session: the `src/lib/features.ts` half of this change leake
 
 ## Not in this item
 
+- **Hidden profiles in the Assign Lead modal — owner decision 11-08-2026: leave as is.** `fetchOrgProfiles` keeps a hidden profile visible to whoever hid it (`profileVisibility.ts:14`), so a retired staff member still appears under "Select Technician" for the owner. The flag carries two meanings — test profile (owner *should* see it, that is the point) and retired staff (should not appear) — and filtering the modal would break testing. Owner toggles the flag on and off as needed instead. **Do not "fix" this or propose a separate `is_active` column without asking again.** The v1.1.172 filter applies to the Team Management roster only.
 - **Pool pickup bypasses the check.** `src/lib/leadPoolPickup.ts:15-21` self-assigns the actor on *any* status change out of `unassigned`, so an excluded employee can still pull the lead off the board by dragging it. Threading the check through the drag and status-menu paths is separate work.
 - **Solo mode** always assigns the owner; exclusions are meaningless there and are not applied.
 - **Semantics.** Keyword-on-text catches the word, not the concept — "satellite internet dish" with no "Starlink" in it will not match. The proper fix is a real service-type catalog (seams: the unused `brands.ai_config.service_types`, the orphaned `LeadFilterBar.tsx`), a much larger item this one does not block.
