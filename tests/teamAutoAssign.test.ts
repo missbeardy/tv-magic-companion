@@ -106,16 +106,54 @@ describe('job exclusions feeding the assignment pool', () => {
     expect(pool).toEqual([])
     expect(pickTeamAutoAssignee({ candidates: pool, activeCounts: {} })).toBeNull()
   })
+})
 
-  it('still falls back to a manager who has no matching exclusion', () => {
+// Regression: prod 11-08-2026. Adding an exclusion to every technician emptied the
+// tech pool, which tripped the on-leave manager fallback and silently routed the
+// lead to a manager who merely happened to have no exclusion. The fallback is for
+// "nobody is around", not "nobody is qualified".
+describe('manager fallback is suppressed once an exclusion matches', () => {
+  const techs = [
+    { id: 'kyle', full_name: 'Kyle', lat: null, lng: null, created_at: '2026-01-01T00:00:00Z' },
+    { id: 'darren', full_name: 'Darren', lat: null, lng: null, created_at: '2026-01-02T00:00:00Z' },
+  ]
+  const managers = [
+    { id: 'nick', full_name: 'Nick', lat: null, lng: null, created_at: '2026-01-01T00:00:00Z' },
+  ]
+
+  it('leaves the pool empty rather than handing the lead to an unexcluded manager', () => {
     const pool = selectAssignmentPool({
-      techs: filterExcludedCandidates(techs, 'starlink please'),
-      managers: filterExcludedCandidates(
-        [{ ...managers[0], excluded_service_keywords: [] }],
-        'starlink please'
-      ),
-      onLeaveIds: new Set(['sam']),
+      techs: [],
+      managers,
+      onLeaveIds: new Set(),
+      allowManagerFallback: false,
     })
-    expect(pool.map((c) => c.id)).toEqual(['mona'])
+    expect(pool).toEqual([])
+    expect(pickTeamAutoAssignee({ candidates: pool, activeCounts: {} })).toBeNull()
+  })
+
+  it('still falls back to a manager when the pool emptied for leave, not exclusions', () => {
+    const pool = selectAssignmentPool({
+      techs,
+      managers,
+      onLeaveIds: new Set(['kyle', 'darren']),
+      allowManagerFallback: true,
+    })
+    expect(pool.map((c) => c.id)).toEqual(['nick'])
+  })
+
+  it('defaults to allowing the fallback when the flag is omitted (pre-T1.14 behaviour)', () => {
+    const pool = selectAssignmentPool({ techs: [], managers, onLeaveIds: new Set() })
+    expect(pool.map((c) => c.id)).toEqual(['nick'])
+  })
+
+  it('an eligible technician still wins over the fallback question entirely', () => {
+    const pool = selectAssignmentPool({
+      techs: [techs[0]],
+      managers,
+      onLeaveIds: new Set(),
+      allowManagerFallback: false,
+    })
+    expect(pool.map((c) => c.id)).toEqual(['kyle'])
   })
 })

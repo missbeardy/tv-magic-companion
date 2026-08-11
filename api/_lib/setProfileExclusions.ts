@@ -84,9 +84,12 @@ export async function handleSetProfileExclusions(req: VercelRequest, res: Vercel
     return res.status(403).json({ error: 'You can only edit team members in your own organisation' })
   }
 
+  // Bump updated_at explicitly — nothing else does, and without it there is no way
+  // to tell when an exclusion was set when diagnosing a routing decision after the
+  // fact (this cost real time on 11-08-2026).
   const { error: updateError } = await supabaseAdmin
     .from('profiles')
-    .update({ excluded_service_keywords: cleaned })
+    .update({ excluded_service_keywords: cleaned, updated_at: new Date().toISOString() })
     .eq('id', target.id)
 
   if (updateError) {

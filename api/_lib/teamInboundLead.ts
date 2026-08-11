@@ -67,11 +67,14 @@ export async function applyTeamInboundAssignment(
   // catalog and still holds the raw-first placeholder at this point in the pipeline,
   // because auto-assign runs before Claude extraction resolves it.
   //
-  // Filtering BOTH lists here is deliberate: if every technician is excluded,
-  // selectAssignmentPool falls through to an already-filtered manager list, and if
-  // those are excluded too the pool is empty and the lead stays unassigned in the
-  // pool (manager new-lead alert still fires). A lead is never handed to someone who
-  // cannot do it.
+  // Filtering BOTH lists here is deliberate, and so is suppressing the manager
+  // fallback when anything matched: that fallback exists for "nobody is around"
+  // (everyone on leave), not "nobody is qualified". Without this, excluding every
+  // technician silently routed specialist work onto a manager — observed in prod
+  // 11-08-2026 on a "This is a test" lead. When an exclusion matches and no
+  // eligible technician remains, the lead stays unassigned in the pool and the
+  // manager new-lead alert fires instead.
+  let exclusionMatched = false
   if (await isFeatureEnabledForOrg(orgId, 'assignment_exclusions')) {
     const haystack = buildExclusionHaystack([
       basePayload.service_type,
@@ -80,8 +83,12 @@ export async function applyTeamInboundAssignment(
       basePayload.raw_email,
     ])
     if (haystack) {
-      techs = filterExcludedCandidates(techs, haystack)
-      managers = filterExcludedCandidates(managers, haystack)
+      const eligibleTechs = filterExcludedCandidates(techs, haystack)
+      const eligibleManagers = filterExcludedCandidates(managers, haystack)
+      exclusionMatched =
+        eligibleTechs.length !== techs.length || eligibleManagers.length !== managers.length
+      techs = eligibleTechs
+      managers = eligibleManagers
     }
   }
 
@@ -101,7 +108,12 @@ export async function applyTeamInboundAssignment(
     (leaveRows ?? []).map((r) => r.user_id).filter((id): id is string => Boolean(id))
   )
 
-  const candidates = selectAssignmentPool({ techs, managers, onLeaveIds })
+  const candidates = selectAssignmentPool({
+    techs,
+    managers,
+    onLeaveIds,
+    allowManagerFallback: !exclusionMatched,
+  })
   if (!candidates.length) {
     return { payload: basePayload }
   }

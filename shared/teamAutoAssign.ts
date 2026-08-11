@@ -20,14 +20,21 @@ export interface TeamAutoAssignInput {
  * Prefer technicians not currently on leave; if every technician is on leave (or
  * there are none), fall back to managers. The manager fallback intentionally
  * ignores leave — a lead must still land with someone who can act on it.
+ *
+ * `allowManagerFallback: false` disables that fallback. The caller passes this
+ * when the lead matched a job exclusion (T1.14): the fallback exists for "nobody
+ * is around", not "nobody is qualified", so specialist work must go to the pool
+ * for a human to route rather than defaulting onto a manager.
  */
 export function selectAssignmentPool(input: {
   techs: TeamAutoAssignCandidate[]
   managers: TeamAutoAssignCandidate[]
   onLeaveIds: Set<string>
+  allowManagerFallback?: boolean
 }): TeamAutoAssignCandidate[] {
   const availableTechs = input.techs.filter((t) => !input.onLeaveIds.has(t.id))
   if (availableTechs.length > 0) return availableTechs
+  if (input.allowManagerFallback === false) return []
   return input.managers
 }
 
