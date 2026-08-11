@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import NavBar from '../components/NavBar'
 import CreateEmployeeModal from '../components/CreateEmployeeModal'
+import TeamExclusionsPanel from '../components/TeamExclusionsPanel'
 import { promptForNotifications } from '../lib/oneSignal'
 import { disablePush, enablePush, isIosSafariNotInstalled } from '../lib/webPush'
 import { useOrg } from '../context/OrgContext'
@@ -433,6 +434,9 @@ export default function ProfilePage() {
             >
               + Create New Employee Account
             </button>
+            {!featureSwitchesLoading && isFeatureEnabled('assignment_exclusions') && (
+              <TeamExclusionsPanel />
+            )}
           </div>
         )}
 

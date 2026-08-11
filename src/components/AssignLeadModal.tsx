@@ -10,13 +10,16 @@ import { getAuthHeaders } from '../lib/apiAuth'
 import { useOrgProfiles } from '../hooks/useOrgProfiles'
 import { logLeadEvent } from '../lib/leadEvents'
 import { getSmartAssignDecision } from '../lib/smartAssign'
-import { X, MapPin, Zap, Navigation, Star } from 'lucide-react'
+import { buildExclusionHaystack, matchedExclusions } from '../../shared/serviceExclusions'
+import { X, MapPin, Zap, Navigation, Star, Ban } from 'lucide-react'
 
 interface Lead {
   id: string
   name: string
   service_type: string
   address?: string
+  /** Matched for job exclusions (T1.14) — service_type alone is too unreliable. */
+  details?: string
 }
 
 interface Props {
@@ -34,6 +37,7 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [loadingProximity, setLoadingProximity] = useState(true)
+  const [pendingExcludedId, setPendingExcludedId] = useState<string | null>(null)
 
   useEffect(() => {
     async function fetchData() {
@@ -81,6 +85,27 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
     ? Math.min(...employees.map((e) => countMap[e.id] ?? 0))
     : 0
   const smartAssignEnabled = !featureSwitchesLoading && isFeatureEnabled('smart_assign_badge')
+  const exclusionsEnabled = !featureSwitchesLoading && isFeatureEnabled('assignment_exclusions')
+
+  // Job exclusions (T1.14). Matched on the customer's own words as well as
+  // service_type — a Starlink lead is filed as "Other", so service_type alone
+  // would never match. Manual assign warns rather than blocks: the manager may
+  // know the flag is stale.
+  const exclusionHaystack = exclusionsEnabled
+    ? buildExclusionHaystack([lead.service_type, lead.details])
+    : ''
+  const exclusionsFor = (employeeId: string): string[] => {
+    if (!exclusionHaystack) return []
+    const emp = employees.find((e) => e.id === employeeId)
+    return matchedExclusions((emp as any)?.excluded_service_keywords, exclusionHaystack)
+  }
+
+  // Excluded people stay in the list but sink to the bottom, behind the distance rank.
+  const orderedEmployees = exclusionHaystack
+    ? [...employees].sort(
+        (a, b) => Number(exclusionsFor(a.id).length > 0) - Number(exclusionsFor(b.id).length > 0)
+      )
+    : employees
 
   async function handleAssign(employeeId: string) {
     // Backend Guard Rule: Employees cannot assign leads to anyone else
@@ -88,6 +113,14 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
       setError('Permission denied: Employees can only self-assign leads.')
       return
     }
+
+    // Confirm once before overriding a job exclusion.
+    if (pendingExcludedId !== employeeId && exclusionsFor(employeeId).length > 0) {
+      setPendingExcludedId(employeeId)
+      setError('')
+      return
+    }
+    setPendingExcludedId(null)
 
     setSaving(true)
     setError('')
@@ -271,6 +304,36 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
             </div>
           )}
 
+          {/* Job exclusion override confirm */}
+          {pendingExcludedId && (
+            <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl mb-4">
+              <p className="text-sm text-amber-900">
+                <span className="font-semibold">
+                  {employees.find((e) => e.id === pendingExcludedId)?.full_name ?? 'This person'}
+                </span>{' '}
+                is flagged as unable to do{' '}
+                <span className="font-semibold">{exclusionsFor(pendingExcludedId).join(', ')}</span>.
+                Assign anyway?
+              </p>
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={() => setPendingExcludedId(null)}
+                  disabled={saving}
+                  className="flex-1 py-2 min-h-[44px] rounded-lg border border-amber-300 text-amber-900 text-sm font-semibold hover:bg-amber-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleAssign(pendingExcludedId)}
+                  disabled={saving}
+                  className="flex-1 py-2 min-h-[44px] rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 transition-colors disabled:opacity-60"
+                >
+                  Assign anyway
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Subheading */}
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-semibold text-gray-700">
@@ -293,10 +356,15 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
             {employees.length === 0 && loadingProximity && (
               <p className="text-sm text-gray-400 text-center py-6">Loading team…</p>
             )}
-            {employees.map((emp, index) => {
+            {orderedEmployees.map((emp, index) => {
               const activeCount = countMap[emp.id] ?? 0
               const isSelf = emp.id === profile?.id
-              const isNearest = index === 0 && emp.distanceKm != null && profile?.role !== 'employee'
+              const excluded = exclusionsFor(emp.id)
+              const isNearest =
+                index === 0 &&
+                emp.distanceKm != null &&
+                profile?.role !== 'employee' &&
+                excluded.length === 0
               const isManager = (emp as any).role === 'manager'
               const smartAssign = getSmartAssignDecision({
                 featureEnabled: smartAssignEnabled,
@@ -312,7 +380,9 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
                   disabled={saving}
                   onClick={() => handleAssign(emp.id)}
                   className={`w-full text-left flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all hover:shadow-md disabled:opacity-50 ${
-                    smartAssignEnabled && isNearest
+                    excluded.length > 0
+                      ? 'border-red-200 bg-red-50/40'
+                      : smartAssignEnabled && isNearest
                       ? 'border-[#00B4C5] bg-[#00B4C5]/5'
                       : smartAssignEnabled && smartAssign.isRecommended && profile?.role !== 'employee'
                       ? 'border-green-400 bg-green-50/50'
@@ -340,6 +410,11 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
                           <Navigation size={9} /> Nearest
                         </span>
                       )}
+                      {excluded.length > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-semibold">
+                          <Ban size={9} /> Can't do: {excluded.join(', ')}
+                        </span>
+                      )}
                     </div>
                     {(emp as any).suburb && (
                       <p className="text-xs text-gray-400 mt-0.5">{(emp as any).suburb}</p>
@@ -352,8 +427,8 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
                     </p>
                   </div>
 
-                  {/* Recommended badge */}
-                  {smartAssignEnabled && smartAssign.isRecommended && !isNearest && profile?.role !== 'employee' && (
+                  {/* Recommended badge — never recommend someone who can't do the job */}
+                  {smartAssignEnabled && smartAssign.isRecommended && !isNearest && excluded.length === 0 && profile?.role !== 'employee' && (
                     <span className="badge badge-green flex items-center gap-1 shrink-0">
                       <Star size={9} /> Recommended
                     </span>

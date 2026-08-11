@@ -62,11 +62,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Replaced the app icon and favicon with FieldBourne’s real logo (was showing the client’s TV Magic logo)',
     'Removed parked Instagram/Facebook social posting (Zernio) and AI caption generation — never UAT’d, frees a server function slot',
     'Cleaned up leftover dead code: dropped unused Tasks database tables, removed the unused push-notify edge function, and fixed broken notification icon paths after the logo swap',
+    'You can now flag jobs a team member can’t do (e.g. Starlink) under Profile → Team Management — auto-assign skips them, and assigning by hand warns first. If nobody on the team can do it, the lead stays in the pool instead of going to the wrong person',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.170'
+export const APP_VERSION = '1.1.171'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

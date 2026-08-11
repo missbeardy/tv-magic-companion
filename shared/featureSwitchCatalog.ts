@@ -5,6 +5,7 @@ export type SubscriptionTier = 'basic' | 'pro' | 'enterprise'
 export const FEATURE_SWITCH_KEYS = [
   'smart_assign_badge',
   'inbound_auto_assign',
+  'assignment_exclusions',
   'quote_esign',
   'review_requests',
   'auto_review_on_paid',
@@ -58,7 +59,7 @@ export const FEATURE_SWITCH_CATEGORY_LABELS: Record<FeatureSwitchCategory, strin
 export const FEATURE_SWITCHES_BY_CATEGORY: Record<FeatureSwitchCategory, readonly FeatureSwitchKey[]> = {
   lead_intake: ['inbound_sms', 'inbound_email', 'inbound_calls', 'inbound_messenger', 'inbound_facebook_ads', 'customer_linking', 'customer_import'],
   customer_communication: ['missed_call_hookback_sms', 'lead_ack_sms', 'lead_ack_email', 'customer_ontheway_sms', 'booking_confirm', 'booking_reminder_sms', 'review_requests', 'auto_review_on_paid'],
-  team_operations: ['manager_new_lead_alerts', 'smart_assign_badge', 'inbound_auto_assign', 'tech_location', 'internal_messaging', 'customer_profiles', 'onboarding_tips', 'native_web_push'],
+  team_operations: ['manager_new_lead_alerts', 'smart_assign_badge', 'inbound_auto_assign', 'assignment_exclusions', 'tech_location', 'internal_messaging', 'customer_profiles', 'onboarding_tips', 'native_web_push'],
   sales_job_completion: ['quote_esign', 'completion_upsells', 'one_tap_invoice', 'invoice_chase', 'quote_chase', 'price_list', 'invoice_card_payments', 'accounting_export', 'xero_live_sync'],
 }
 
@@ -81,6 +82,7 @@ export const FEATURE_SWITCH_CATEGORY_BY_KEY: Record<FeatureSwitchKey, FeatureSwi
   manager_new_lead_alerts: 'team_operations',
   smart_assign_badge: 'team_operations',
   inbound_auto_assign: 'team_operations',
+  assignment_exclusions: 'team_operations',
   tech_location: 'team_operations',
   internal_messaging: 'team_operations',
   customer_profiles: 'team_operations',
@@ -100,6 +102,7 @@ export const FEATURE_SWITCH_CATEGORY_BY_KEY: Record<FeatureSwitchKey, FeatureSwi
 export const FEATURE_SWITCH_MIN_TIERS: Record<FeatureSwitchKey, SubscriptionTier> = {
   smart_assign_badge: 'basic',
   inbound_auto_assign: 'basic',
+  assignment_exclusions: 'basic',
   quote_esign: 'pro',
   review_requests: 'basic',
   auto_review_on_paid: 'basic',

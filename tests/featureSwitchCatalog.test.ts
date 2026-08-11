@@ -52,6 +52,7 @@ describe('featureSwitchCatalog categories', () => {
       'manager_new_lead_alerts',
       'smart_assign_badge',
       'inbound_auto_assign',
+      'assignment_exclusions',
       'tech_location',
       'internal_messaging',
       'customer_profiles',

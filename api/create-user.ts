@@ -42,6 +42,11 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return handleSetTestProfile(req, res);
   }
 
+  if (action === 'set-exclusions') {
+    const { handleSetProfileExclusions } = await import('./_lib/setProfileExclusions.js');
+    return handleSetProfileExclusions(req, res);
+  }
+
   if (action === 'delete-account') {
     return handleDeleteAccount(req, res);
   }

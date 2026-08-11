@@ -33,6 +33,7 @@ export const FEATURES = {
 export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   smart_assign_badge: false,
   inbound_auto_assign: false,
+  assignment_exclusions: false,
   quote_esign: false,
   review_requests: false,
   auto_review_on_paid: false,
@@ -76,6 +77,11 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   inbound_auto_assign: {
     label: 'Inbound Auto-Assign',
     description: 'Automatically assign inbound team leads to the best available technician',
+  },
+  assignment_exclusions: {
+    label: 'Technician Job Exclusions',
+    description:
+      'Skip technicians flagged as unable to do a job type when auto-assigning, and warn on manual assign',
   },
   quote_esign: {
     label: 'Quote Acceptance + E-Sign',

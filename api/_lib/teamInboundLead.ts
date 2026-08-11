@@ -1,5 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { pickTeamAutoAssignee, selectAssignmentPool } from '../../shared/teamAutoAssign.js'
+import {
+  buildExclusionHaystack,
+  filterExcludedCandidates,
+} from '../../shared/serviceExclusions.js'
 import { getAssignExpiresAt } from '../../shared/leadAssignTimer.js'
 import { isFeatureEnabledForOrg } from './featureSwitches.js'
 import { isSoloOrg } from './soloInboundLead.js'
@@ -45,7 +49,7 @@ export async function applyTeamInboundAssignment(
 
   const { data: profiles } = await supabase
     .from('profiles')
-    .select('id, full_name, lat, lng, created_at, role')
+    .select('id, full_name, lat, lng, created_at, role, excluded_service_keywords')
     .eq('org_id', orgId)
     .in('role', ['employee', 'manager'])
     .eq('is_hidden_test_profile', false)
@@ -55,8 +59,31 @@ export async function applyTeamInboundAssignment(
     return { payload: basePayload }
   }
 
-  const techs = profiles.filter((p) => p.role === 'employee')
-  const managers = profiles.filter((p) => p.role === 'manager')
+  let techs = profiles.filter((p) => p.role === 'employee')
+  let managers = profiles.filter((p) => p.role === 'manager')
+
+  // Skip anyone flagged as unable to do this kind of work (T1.14). Matched against
+  // the customer's own words, not `service_type` — that column is free text with no
+  // catalog and still holds the raw-first placeholder at this point in the pipeline,
+  // because auto-assign runs before Claude extraction resolves it.
+  //
+  // Filtering BOTH lists here is deliberate: if every technician is excluded,
+  // selectAssignmentPool falls through to an already-filtered manager list, and if
+  // those are excluded too the pool is empty and the lead stays unassigned in the
+  // pool (manager new-lead alert still fires). A lead is never handed to someone who
+  // cannot do it.
+  if (await isFeatureEnabledForOrg(orgId, 'assignment_exclusions')) {
+    const haystack = buildExclusionHaystack([
+      basePayload.service_type,
+      basePayload.details,
+      basePayload.raw_sms,
+      basePayload.raw_email,
+    ])
+    if (haystack) {
+      techs = filterExcludedCandidates(techs, haystack)
+      managers = filterExcludedCandidates(managers, haystack)
+    }
+  }
 
   // Skip technicians who have blocked out today as leave. A block-out is an
   // `events` row with category 'Leave' spanning the full day(s) — see
