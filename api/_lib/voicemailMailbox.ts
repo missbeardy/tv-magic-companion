@@ -31,9 +31,11 @@ export function getVoicemailMailboxConfig(): VoicemailMailboxConfig | null {
   const host = process.env.VOICEMAIL_IMAP_HOST?.trim()
   const user = process.env.VOICEMAIL_IMAP_USER?.trim()
   const password = process.env.VOICEMAIL_IMAP_APP_PASSWORD?.trim()
-  // Gmail exposes each label as an IMAP folder; nested labels use 'Parent/Child'.
-  // The default is the label the ops mailbox already applies to 3CX voicemail mail.
-  const folder = process.env.VOICEMAIL_IMAP_FOLDER?.trim() || 'tvmagic-sales-lead-voicemail-lead'
+  // Gmail exposes each label as an IMAP folder, and a NESTED label is 'Parent/Child'
+  // with the display name and spacing preserved — not the hyphenated slug Gmail shows
+  // in its URL bar. Getting this wrong is why the first prod run 500'd.
+  const folder =
+    process.env.VOICEMAIL_IMAP_FOLDER?.trim() || 'TVMagic Sales Lead/VoiceMail Lead'
 
   if (!host || !user || !password) return null
   return { host, user, password, folder }
@@ -101,7 +103,24 @@ export async function pollVoicemailMailbox(
   })
 
   await client.connect()
-  const lock = await client.getMailboxLock(config.folder)
+
+  // A wrong folder name otherwise surfaces as an opaque 500 in the cron log. Naming
+  // the available paths turns it into a one-line fix — Gmail's URL slug for a label
+  // is not its IMAP path, which is the mistake that broke the first prod run.
+  let lock
+  try {
+    lock = await client.getMailboxLock(config.folder)
+  } catch (err) {
+    const paths = await client
+      .list()
+      .then((boxes) => boxes.map((b) => b.path).join(', '))
+      .catch(() => 'unavailable')
+    await client.logout().catch(() => client.close())
+    throw new Error(
+      `Voicemail mailbox folder ${JSON.stringify(config.folder)} could not be opened ` +
+        `(${err instanceof Error ? err.message : String(err)}). Available: ${paths}`
+    )
+  }
 
   try {
     // No subject constraint: the Gmail label is already the filter, and matching on

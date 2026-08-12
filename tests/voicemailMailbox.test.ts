@@ -119,7 +119,8 @@ describe('getVoicemailMailboxConfig', () => {
       host: 'imap.gmail.com',
       user: 'ops@example.com',
       password: 'app-password',
-      folder: 'tvmagic-sales-lead-voicemail-lead',
+      // Nested Gmail label: the IMAP path uses the display name, not the URL slug.
+      folder: 'TVMagic Sales Lead/VoiceMail Lead',
     })
   })
 
