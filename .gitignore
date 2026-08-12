@@ -33,3 +33,9 @@ dist-ssr
 .stitch/metadata.json
 repomix-output.xml
 .vercel
+
+# Real voicemail samples dropped in the repo root for debugging — these contain
+# live customer phone numbers in both the filename and the body. Scrubbed copies
+# live in tests/fixtures/ and are the only versions that may be committed.
+/vmail_*.wav
+/*.eml

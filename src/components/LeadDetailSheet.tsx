@@ -14,6 +14,7 @@ import BottomSheet from './BottomSheet'
 import CustomerHistorySheet from './CustomerHistorySheet'
 import SmsComposeModal from './SmsComposeModal'
 import LeadPhotos from './LeadPhotos'
+import LeadVoicemail from './LeadVoicemail'
 import { canAddLeadPhotos } from '../lib/leadPhotoStorage'
 import LeadAddressEditor from './LeadAddressEditor'
 import LeadContactEditor from './LeadContactEditor'
@@ -290,6 +291,10 @@ export default function LeadDetailSheet({
             )}
           </div>
         )}
+
+        {/* Self-hides when the lead has no recording. Not status-gated like photos:
+            the voicemail is what created the lead, so it matters most while unassigned. */}
+        <LeadVoicemail leadId={lead.id} />
 
         {isCompleted ? (
           <div className="space-y-3">

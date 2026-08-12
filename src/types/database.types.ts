@@ -555,6 +555,72 @@ export type Database = {
           },
         ]
       }
+      lead_voicemails: {
+        Row: {
+          byte_size: number | null
+          caller_phone: string | null
+          created_at: string
+          duration_text: string | null
+          file_name: string | null
+          id: string
+          lead_id: string | null
+          mime_type: string | null
+          org_id: string
+          received_text: string | null
+          rfc_message_id: string
+          source: string
+          storage_path: string | null
+          transcription_status: string
+        }
+        Insert: {
+          byte_size?: number | null
+          caller_phone?: string | null
+          created_at?: string
+          duration_text?: string | null
+          file_name?: string | null
+          id?: string
+          lead_id?: string | null
+          mime_type?: string | null
+          org_id: string
+          received_text?: string | null
+          rfc_message_id: string
+          source: string
+          storage_path?: string | null
+          transcription_status?: string
+        }
+        Update: {
+          byte_size?: number | null
+          caller_phone?: string | null
+          created_at?: string
+          duration_text?: string | null
+          file_name?: string | null
+          id?: string
+          lead_id?: string | null
+          mime_type?: string | null
+          org_id?: string
+          received_text?: string | null
+          rfc_message_id?: string
+          source?: string
+          storage_path?: string | null
+          transcription_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_voicemails_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_voicemails_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           address: string | null
