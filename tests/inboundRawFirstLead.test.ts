@@ -38,10 +38,15 @@ const INBOUND_RAW_FIRST_IMPORTS = {
   'api/inbound-email.ts': ['insertRawFirstLead', 'parseEmailSender'],
 } as const
 
+/**
+ * Voicemail extraction moved out of api/inbound-email.ts into the shared
+ * processVoicemail module, so the CloudMailin webhook and the IMAP fallback poller
+ * run identical logic. The guard follows it there rather than being dropped.
+ */
 const INBOUND_EXTRACT_IMPORTS = {
   'api/inbound-sms.ts': ['extractFromSms'],
-  'api/inbound-email.ts': [
-    'extractFromEmail',
+  'api/inbound-email.ts': ['extractFromEmail'],
+  'api/_lib/processVoicemail.ts': [
     'extractFromVoicemailTranscript',
     'canEnrichLeadFromVoicemail',
     'enrichLeadFromVoicemailTranscript',
@@ -86,9 +91,10 @@ describe('inbound raw-first module bundle', () => {
   for (const [handlerPath, symbols] of Object.entries(INBOUND_EXTRACT_IMPORTS)) {
     it(`${handlerPath} imports extraction helpers`, () => {
       const source = readApiSource(handlerPath)
-      if (handlerPath === 'api/inbound-email.ts') {
-        expect(source).toContain("from './_lib/extractLead.js'")
-        expect(source).toContain("from './_lib/retryLeadExtraction.js'")
+      if (handlerPath === 'api/_lib/processVoicemail.ts') {
+        // Sibling imports inside _lib, so no './_lib/' prefix here.
+        expect(source).toContain("from './extractLead.js'")
+        expect(source).toContain("from './retryLeadExtraction.js'")
       } else {
         expect(source).toContain("from './_lib/extractLead.js'")
       }

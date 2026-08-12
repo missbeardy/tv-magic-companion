@@ -5,57 +5,25 @@ import { createClient } from '@supabase/supabase-js'
 import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
 import { resolveOrgIdFromInboundEmail, resolveOrgIdFromCloudmailinWebhook } from './_lib/resolveOrgFromInboundEmail.js'
 import { captureUnroutedInbound } from './_lib/captureUnroutedInbound.js'
-import { findRecentLeadByPhone } from './_lib/inboundLeadDedup.js'
-import { formatAuPhoneForSms } from './_lib/phone.js'
 import { processInboundLead } from './_lib/processInboundLead.js'
 import { withObservability } from './_lib/observability.js'
-import {
-  extractFromEmail,
-  extractFromVoicemailTranscript,
-  type ExtractionStatus,
-} from './_lib/extractLead.js'
+import { extractFromEmail } from './_lib/extractLead.js'
 import {
   insertRawFirstLead,
   parseEmailSender,
   type ExtractedLeadFields,
 } from './_lib/rawFirstLead.js'
 import {
-  canEnrichLeadFromVoicemail,
-  enrichLeadFromVoicemailTranscript,
-} from './_lib/retryLeadExtraction.js'
+  extractVoicemailMetadata,
+  isVoicemailAudio,
+  processVoicemail,
+} from './_lib/processVoicemail.js'
 import { safeCompareSecret } from './_lib/timingSafeCompare.js'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
-
-const VOICEMAIL_AUDIO_TYPES = ['audio/wav', 'audio/x-wav', 'audio/wave', 'audio/mpeg', 'audio/mp3']
-const VOICEMAIL_AUDIO_EXTENSIONS = ['.wav', '.mp3', '.m4a', '.ogg']
-
-interface VoicemailMetadata {
-  phone: string
-  calledNumber: string | null
-  receivedAt: string | null
-  duration: string | null
-  extensionName: string | null
-}
-
-function extractVoicemailMetadata(subject: string, body: string): VoicemailMetadata {
-  const fromMatch = body.match(/From:\s*([\d\s()+-]+)/i)
-  const subjectMatch = subject.match(/New Voicemail from ([\d\s()+-]+)/i)
-  const receivedMatch = body.match(/Received:\s*"([^"]+)"/i)
-  const durationMatch = body.match(/Duration:\s*"([^"]+)"/i)
-  const toMatch = body.match(/To:\s*"([^"]+)"\s*-\s*"([^"]+)"/i)
-
-  return {
-    phone: (fromMatch?.[1] || subjectMatch?.[1] || 'Unknown').trim(),
-    calledNumber: toMatch?.[1]?.trim() || null,
-    receivedAt: receivedMatch?.[1]?.trim() || null,
-    duration: durationMatch?.[1]?.trim() || null,
-    extensionName: toMatch?.[2]?.trim() || null,
-  }
-}
 
 interface CloudmailinAttachment {
   file_name?: string
@@ -65,40 +33,16 @@ interface CloudmailinAttachment {
   size?: number
 }
 
-function isVoicemailAttachment(att: CloudmailinAttachment): boolean {
-  const type = (att.content_type || '').toLowerCase()
-  const name = (att.file_name || '').toLowerCase()
-  return (
-    VOICEMAIL_AUDIO_TYPES.some((t) => type.includes(t)) ||
-    VOICEMAIL_AUDIO_EXTENSIONS.some((ext) => name.endsWith(ext))
-  )
-}
-
-async function transcribeAudio(buffer: Buffer, fileName: string): Promise<string> {
-  const form = new FormData()
-  form.append('file', new Blob([new Uint8Array(buffer)]), fileName || 'voicemail.wav')
-  form.append('model', 'whisper-1')
-
-  const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-    body: form,
-  })
-
-  if (!res.ok) {
-    const errText = await res.text()
-    throw new Error(`Whisper API error: ${res.status} — ${errText}`)
-  }
-
-  const data = (await res.json()) as { text: string }
-  return data.text || ''
-}
-
 async function handler(req: VercelRequest, res: VercelResponse) {
   const action = typeof req.query.action === 'string' ? req.query.action : undefined
   if (action === 'facebook-lead') {
     const { handleInboundFacebookLead } = await import('./_lib/handleInboundFacebookLead.js')
     return handleInboundFacebookLead(req, res, supabase)
+  }
+  if (action === 'voicemail-poll') {
+    // Lazily imported so the CloudMailin hot path never loads the IMAP client.
+    const { handleVoicemailPoll } = await import('./_lib/handleVoicemailPoll.js')
+    return handleVoicemailPoll(req, res, supabase)
   }
 
   if (req.method !== 'POST') {
@@ -135,7 +79,12 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       : ''
 
   // ── Voicemail branch ──────────────────────────────────────────
-  const voicemailAttachment = attachments?.find(isVoicemailAttachment)
+  // Only reaches here for recordings under ~25s; anything longer is rejected by
+  // CloudMailin's 524,288-byte cap and picked up instead by the IMAP poller
+  // (action=voicemail-poll). Both call the same processVoicemail().
+  const voicemailAttachment = attachments?.find((att) =>
+    isVoicemailAudio(att.content_type, att.file_name)
+  )
 
   if (voicemailAttachment) {
     const metadataPreview = extractVoicemailMetadata(subject, emailText)
@@ -166,184 +115,66 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-      const metadata = extractVoicemailMetadata(subject, emailText)
-      const callInfo = `Call received: ${metadata.receivedAt || 'time unknown'} (${metadata.duration || '?'}s)${
-        metadata.extensionName ? ` via ${metadata.extensionName}` : ''
-      }`
-
-      const rawPhone = metadata.phone
-      const normalizedPhone = rawPhone && rawPhone !== 'Unknown'
-        ? formatAuPhoneForSms(rawPhone)
-        : null
-
-      let transcriptionFailed = false
-      let transcript = ''
-
-      if (simulatedTranscript) {
-        transcript = simulatedTranscript
-      } else {
-        try {
-          if (voicemailAttachment.content) {
-            const buffer = Buffer.from(voicemailAttachment.content, 'base64')
-            transcript = await transcribeAudio(buffer, voicemailAttachment.file_name || 'voicemail.wav')
-          } else if (voicemailAttachment.url) {
-            const audioRes = await fetch(voicemailAttachment.url)
-            const buffer = Buffer.from(await audioRes.arrayBuffer())
-            transcript = await transcribeAudio(buffer, voicemailAttachment.file_name || 'voicemail.wav')
-          } else {
-            throw new Error('No attachment content or url present')
-          }
-        } catch (transcribeErr) {
-          console.error('Voicemail transcription failed:', transcribeErr)
-          transcriptionFailed = true
+      // Resolve the audio to a buffer here so the processor stays transport-neutral.
+      let audio = null
+      if (voicemailAttachment.content) {
+        audio = {
+          buffer: Buffer.from(voicemailAttachment.content, 'base64'),
+          fileName: voicemailAttachment.file_name || 'voicemail.wav',
+          contentType: voicemailAttachment.content_type || 'audio/wav',
+        }
+      } else if (voicemailAttachment.url) {
+        const audioRes = await fetch(voicemailAttachment.url)
+        audio = {
+          buffer: Buffer.from(await audioRes.arrayBuffer()),
+          fileName: voicemailAttachment.file_name || 'voicemail.wav',
+          contentType: voicemailAttachment.content_type || 'audio/wav',
         }
       }
 
-      if (normalizedPhone) {
-        const existingLead = await findRecentLeadByPhone(supabase, normalizedPhone, orgId)
-        if (existingLead) {
-          if (
-            !transcriptionFailed &&
-            transcript.trim() &&
-            canEnrichLeadFromVoicemail(existingLead)
-          ) {
-            const enriched = await enrichLeadFromVoicemailTranscript(
-              supabase,
-              {
-                id: existingLead.id,
-                org_id: orgId,
-                source: 'phone',
-                name: existingLead.name,
-                phone: normalizedPhone,
-                raw_sms: null,
-                raw_email: transcript,
-                extraction_status: existingLead.extraction_status,
-              },
-              transcript,
-              { subject, from, callInfo }
-            )
-            return res.status(200).json({
-              success: true,
-              action: 'enriched_existing',
-              lead_id: existingLead.id,
-              extraction_status: enriched.status,
-              type: 'voicemail',
-            })
-          }
+      const result = await processVoicemail({
+        supabase,
+        orgId,
+        bodyText: emailText,
+        subject,
+        from,
+        messageId: headers?.['message-id'] ?? null,
+        audio,
+        source: 'cloudmailin',
+        simulatedTranscript: simulatedTranscript || undefined,
+        triggerIdentifier: orgResolution.tag ?? metadataPreview.calledNumber,
+      })
 
-          await supabase.from('lead_events').insert({
-            lead_id: existingLead.id,
-            org_id: orgId,
-            event_type: 'missed_call_again',
-            note: `Another voicemail from ${normalizedPhone}`,
-            payload: { source: 'phone', transcription_failed: transcriptionFailed },
+      switch (result.outcome) {
+        case 'already_processed':
+          console.log('Voicemail already handled by the mailbox poller:', result.dedupKey)
+          return res.status(200).json({ skipped: true, reason: 'already_processed' })
+        case 'enriched_existing':
+          return res.status(200).json({
+            success: true,
+            action: 'enriched_existing',
+            lead_id: result.leadId,
+            extraction_status: result.extractionStatus,
+            type: 'voicemail',
           })
+        case 'logged_to_existing':
           return res.status(200).json({
             success: true,
             action: 'logged_to_existing',
-            lead_id: existingLead.id,
+            lead_id: result.leadId,
             type: 'voicemail',
           })
-        }
+        default:
+          console.log('Voicemail lead created:', result.leadId)
+          return res.status(200).json({
+            success: true,
+            lead_id: result.leadId,
+            type: 'voicemail',
+            hookbackSent: result.hookbackSent,
+            transcription_failed: result.transcriptionFailed,
+            ...(result.partial ? { partial: true } : {}),
+          })
       }
-
-      let result
-      try {
-        result = await processInboundLead({
-          supabase,
-          orgId,
-          insertLead: () =>
-            insertRawFirstLead(supabase, orgId, {
-              org_id: orgId,
-              name: 'Missed Call',
-              phone: normalizedPhone || rawPhone,
-              email: null,
-              service_type: 'General Enquiry',
-              details: `Voicemail received — processing. ${callInfo}`,
-              address: null,
-              source: 'phone',
-              raw_email: emailText,
-            }),
-          createdEvent: {
-            note: 'Lead captured from inbound voicemail email (raw-first)',
-            payload: { source: 'phone' },
-          },
-          extract: async () => {
-            let extracted: ExtractedLeadFields = {}
-            let extractionStatus: ExtractionStatus = 'failed'
-
-            if (!transcriptionFailed && transcript.trim()) {
-              const runResult = await extractFromVoicemailTranscript(transcript, subject, from)
-              extracted = runResult.fields
-              extractionStatus = runResult.status
-            }
-
-            const fallbackDetails = transcriptionFailed
-              ? `Voicemail received — transcription failed, please check 3CX manually. ${callInfo}`
-              : transcript.trim()
-                ? `Voicemail transcript: ${transcript}\n\n${callInfo}`
-                : `Missed call voicemail received. ${callInfo}`
-
-            const details = extracted.details
-              ? `${extracted.details}\n\nFull transcript: ${transcript}\n\n${callInfo}`
-              : fallbackDetails
-
-            return {
-              updateFields: {
-                name: extracted.name || 'Missed Call',
-                phone: extracted.phone || normalizedPhone || rawPhone,
-                email: extracted.email,
-                service_type: extracted.service_type || 'General Enquiry',
-                details,
-                address: extracted.address,
-              },
-              extractionStatus: transcriptionFailed ? 'failed' : extractionStatus,
-              afterUpdate: transcript
-                ? async (leadId) => {
-                    await supabase.from('leads').update({ raw_email: transcript }).eq('id', leadId)
-                  }
-                : undefined,
-            }
-          },
-          selectColumns: 'id, name, service_type, phone, status, email, address',
-          buildNotify: ({ savedLead }) => ({
-            name: savedLead?.name || 'Missed Call',
-            service_type: savedLead?.service_type || 'General Enquiry',
-            status: savedLead?.status || 'unassigned',
-          }),
-          followUp: {
-            type: 'hookback',
-            source: 'voicemail_email',
-            resolvePhone: ({ savedLead }) =>
-              savedLead?.phone
-                ? formatAuPhoneForSms(String(savedLead.phone))
-                : normalizedPhone,
-            resolveCustomerName: ({ savedLead }) => savedLead?.name || 'there',
-          },
-          logLabel: 'voicemail email',
-          run: {
-            workflowKey: 'inbound_lead',
-            triggerChannel: 'voicemail',
-            triggerSummary: {
-              identifier: orgResolution.tag ?? metadataPreview.calledNumber,
-              source: 'phone',
-            },
-          },
-        })
-      } catch (insertErr) {
-        console.error('Voicemail raw-first insert failed:', insertErr)
-        return res.status(500).json({ error: 'Failed to save lead' })
-      }
-
-      console.log('Voicemail lead created:', result.leadId)
-      return res.status(200).json({
-        success: true,
-        lead_id: result.leadId,
-        type: 'voicemail',
-        hookbackSent: result.hookbackSent,
-        transcription_failed: transcriptionFailed,
-        ...(result.partial ? { partial: true } : {}),
-      })
     } catch (err) {
       console.error('Voicemail processing error:', err)
       return res.status(500).json({ error: 'Voicemail processing failed' })

@@ -63,11 +63,13 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Removed parked Instagram/Facebook social posting (Zernio) and AI caption generation — never UAT’d, frees a server function slot',
     'Cleaned up leftover dead code: dropped unused Tasks database tables, removed the unused push-notify edge function, and fixed broken notification icon paths after the logo swap',
     'You can now flag jobs a team member can’t do (e.g. Starlink) under Profile → Team Management — auto-assign skips them, and assigning by hand warns first. If nobody on the team can do it, the lead stays in the pool instead of going to the wrong person',
+    'Fixed voicemails longer than about 25 seconds never reaching the app at all — they were being rejected in transit and silently dropped, so the customer was never called back. Longer voicemails are now collected straight from the mailbox instead',
+    'Voicemail recordings are now saved to the lead and can be played back in the app, so you can hear the customer in their own words — and if the automatic transcription fails, the recording is still there rather than lost',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.173'
+export const APP_VERSION = '1.1.174'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

@@ -7,6 +7,9 @@
   "functions": {
     "api/send-sms.ts": {
       "maxDuration": 60
+    },
+    "api/inbound-email.ts": {
+      "maxDuration": 60
     }
   },
   "headers": [
@@ -80,6 +83,10 @@
     {
       "source": "/api/inbound-facebook-lead",
       "destination": "/api/inbound-email?action=facebook-lead"
+    },
+    {
+      "source": "/api/cron/voicemail-poll",
+      "destination": "/api/inbound-email?action=voicemail-poll"
     },
     {
       "source": "/api/xero-oauth-callback",
