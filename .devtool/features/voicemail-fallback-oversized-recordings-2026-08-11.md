@@ -12,21 +12,58 @@ order: "a1"
 ---
 # Voicemail fallback — recover the recordings CloudMailin rejects
 
-## ⚠️ BLOCKED ON OWNER — 4 steps, ~20 minutes (written 11-08-2026, owner away until 13-08)
+## ✅ DEPLOYED AND GREEN 13-08-2026 — one UAT step left
 
-Code is built, merged-ready and verified (625 tests, typecheck, build, lint all green). **It does nothing at all until these four are done**, and voicemails keep being lost in the meantime. Nothing here is destructive; the poller is hard-off while unconfigured (`getVoicemailMailboxConfig()` returns null ⇒ `not_configured`).
+Live on prod at `main` `fa1dfdc` (v1.1.174). The cron ran clean on its own schedule:
 
-1. **Apply the migration to prod** via the Management API: `supabase/migrations/20260811160000_lead_voicemails.sql`. Creates the `lead_voicemails` table and the private `lead-voicemails` bucket.
-2. ~~**Gmail filter**~~ — **already done.** The mailbox already labels 3CX voicemail mail `tvmagic-sales-lead-voicemail-lead`, which is now the configured default. Nothing to create. Only check: account-level forwarding must not be set to *"delete Gmail's copy"* — that would leave no original to poll. Keep or archive are both fine, and an earlier note claiming "Skip the Inbox" breaks the CloudMailin forward was **wrong**: archiving and forwarding are independent in Gmail.
-3. **Google App Password** (Account → Security → App passwords; requires 2FA). Then set five vars in Vercel — see `.env.example` for the documented block:
-   - `VOICEMAIL_MAILBOX_ORG_ID` — the `tv-magic` org UUID
-   - `VOICEMAIL_IMAP_HOST=imap.gmail.com`
-   - `VOICEMAIL_IMAP_USER=fieldbournedigital@gmail.com`
-   - `VOICEMAIL_IMAP_APP_PASSWORD` — the 16-char app password, **not** the login password
-   - `VOICEMAIL_IMAP_FOLDER` — optional; defaults to `tvmagic-sales-lead-voicemail-lead`
-4. **Check repo secrets** `PLATFORM_URL` and `CRON_SECRET` exist (both already used by the contact-follow-up cron — reused, not duplicated). Without them `.github/workflows/voicemail-poll-cron.yml` exits 0 silently and you'd think it was running.
+```
+{"success":true,"examined":0,"processed":0,"skipped":0,"failed":0}
+```
 
-**Then UAT:** leave a >30s voicemail on the 3CX line. Within 5 minutes a lead should appear with a playable recording. Also leave a ~10s one and confirm it still arrives instantly via CloudMailin, now with audio attached too.
+`examined: 0` is the correct result, not a failure — the historical backlog was
+deliberately suppressed (below) and no new voicemail has arrived since. That run proves
+the whole chain: GitHub Actions → cron secret auth → env config → IMAP connect → nested
+folder open → keyword search.
+
+**Verified:** migration applied to prod · code deployed · cron registered and firing ·
+`PLATFORM_URL` + `CRON_SECRET` present · IMAP auth and app password working against the
+live mailbox · folder path correct · `missed_call_hookback_sms` confirmed OFF.
+
+**Remaining — the one thing not verifiable from a terminal:** leave a **>30s** voicemail
+on the 3CX line. Within 5 minutes a lead should appear with playable audio. Also leave a
+~10s one to confirm the CloudMailin fast path still works and now carries audio. This is
+the first real exercise of the storage-before-transcribe path, Whisper, and the new
+bucket's RLS.
+
+**Also still open:** `VOICEMAIL_MAILBOX_ORG_ID` is still set on the **Preview** scope.
+Remove it. Preview points at dev Supabase (no TV Magic org) but shares the *same live
+mailbox*, and now that the credentials are known-good a preview poll would connect
+successfully and could mark real messages handled. Today only the dev-Supabase FK error
+prevents that — safety resting on a failure rather than on design.
+
+### Two corrections worth keeping
+
+- **The Gmail label is nested.** IMAP exposes it as `TVMagic Sales Lead/VoiceMail Lead`,
+  using the display name — *not* the hyphenated slug Gmail shows in its URL bar
+  (`tvmagic-sales-lead-voicemail-lead`). That mismatch made the first prod cron run 500.
+  The poller now lists the available mailbox paths in its error when a folder cannot be
+  opened, so this diagnoses itself next time.
+- **"Skip the Inbox" does not break the CloudMailin forward.** Archiving and forwarding
+  are independent actions in Gmail; an earlier note here claiming otherwise was wrong.
+  The setting that *would* break this is account-level forwarding set to **"delete
+  Gmail's copy"** — then no original survives to poll. Keep or archive are both fine.
+
+### Backlog deliberately suppressed (13-08-2026)
+
+The label held **93** messages (21 inside the 14-day lookback). The owner had already
+worked all of them manually, so every message in the label was marked with the
+`fieldbourneVoicemailDone` IMAP keyword before the poller went live — otherwise the first
+runs would have created ~21 stale leads and fired a manager notification for each.
+
+All 93 were marked, not just the 14-day window, so raising `LOOKBACK_DAYS` later cannot
+resurrect them. Gmail surfaces that keyword as a label; **removing it from a message puts
+that message back in the poller's queue**, which is the manual re-process switch. The
+flip side: anything genuinely missed in that history is now permanently skipped.
 
 ---
 
