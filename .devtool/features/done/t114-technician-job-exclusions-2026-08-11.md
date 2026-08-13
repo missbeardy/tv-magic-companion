@@ -1,14 +1,15 @@
 ---
 id: "t1-14-technician-job-exclusions-2026-08-11"
-status: "review"
+status: "done"
 priority: "high"
 assignee: null
+epic: null
 dueDate: null
 created: "2026-08-11T00:00:00.000Z"
-modified: "2026-08-11T00:00:00.000Z"
-completedAt: null
+modified: "2026-08-12T22:56:12.472Z"
+completedAt: "2026-08-12T22:56:12.472Z"
 labels: ["roadmap", "t1", "team-operations"]
-order: "a2"
+order: "Z3V"
 ---
 # T1.14 Per-technician job exclusions
 

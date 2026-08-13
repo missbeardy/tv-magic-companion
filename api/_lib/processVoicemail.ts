@@ -77,6 +77,28 @@ export function extractVoicemailMetadata(subject: string, body: string): Voicema
 }
 
 /**
+ * Storage-safe MIME type for the recording.
+ *
+ * 3CX attaches the WAV as `application/octet-stream`, which the lead-voicemails bucket
+ * rejects because its allowed_mime_types lists real audio types only. Detection already
+ * relies on the filename (isVoicemailAudio), so derive the stored type the same way
+ * rather than trusting a generic declaration. Measured: the bytes really are RIFF PCM.
+ */
+export function normaliseAudioContentType(
+  declared: string | null | undefined,
+  fileName: string | null | undefined
+): string {
+  const type = (declared || '').toLowerCase().trim()
+  if (VOICEMAIL_AUDIO_TYPES.includes(type)) return type
+
+  const name = (fileName || '').toLowerCase()
+  if (name.endsWith('.mp3')) return 'audio/mpeg'
+  if (name.endsWith('.m4a')) return 'audio/mp4'
+  if (name.endsWith('.ogg')) return 'audio/ogg'
+  return 'audio/wav'
+}
+
+/**
  * Does this actually look like a 3CX voicemail notification?
  *
  * The poller trusts the Gmail label rather than a subject match, so anything else
@@ -188,7 +210,9 @@ async function claimVoicemail(
       org_id: input.orgId,
       lead_id: null,
       storage_path: storagePath,
-      mime_type: input.audio?.contentType ?? null,
+      mime_type: input.audio
+        ? normaliseAudioContentType(input.audio.contentType, input.audio.fileName)
+        : null,
       file_name: input.audio?.fileName ?? metadata.fileRef ?? null,
       byte_size: input.audio?.buffer.length ?? null,
       duration_text: metadata.duration,
@@ -231,19 +255,24 @@ export async function processVoicemail(input: VoicemailInput): Promise<Voicemail
     return { outcome: 'already_processed', dedupKey }
   }
 
-  // Store the audio before transcription. On failure drop the claim so the next
-  // run can retry cleanly rather than leaving a row that blocks it forever.
+  // Store the audio before transcription, so a Whisper failure still leaves something
+  // playable. A storage failure must NOT be fatal: losing the recording is bad, but
+  // losing the lead is the exact failure this whole change exists to prevent — and an
+  // upload problem previously took down the short-voicemail CloudMailin path too.
   if (input.audio && claim.storagePath) {
     const { error: uploadErr } = await supabase.storage
       .from(VOICEMAIL_BUCKET)
       .upload(claim.storagePath, input.audio.buffer, {
-        contentType: input.audio.contentType || 'audio/wav',
+        contentType: normaliseAudioContentType(input.audio.contentType, input.audio.fileName),
         upsert: false,
       })
 
     if (uploadErr) {
-      await supabase.from('lead_voicemails').delete().eq('id', claim.id)
-      throw new Error(`Voicemail upload failed: ${uploadErr.message}`)
+      console.error(
+        `Voicemail upload failed (${uploadErr.message}) — continuing without the recording`
+      )
+      await supabase.from('lead_voicemails').update({ storage_path: null }).eq('id', claim.id)
+      claim.storagePath = null
     }
   }
 

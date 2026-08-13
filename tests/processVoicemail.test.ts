@@ -3,6 +3,7 @@ import {
   extractVoicemailMetadata,
   isVoicemailAudio,
   looksLikeVoicemailNotification,
+  normaliseAudioContentType,
   processVoicemail,
   voicemailDedupKey,
   MAX_VOICEMAIL_BYTES,
@@ -216,6 +217,29 @@ describe('looksLikeVoicemailNotification', () => {
   })
 })
 
+describe('normaliseAudioContentType', () => {
+  // Measured from the live mailbox 13-08-2026: 3CX declares application/octet-stream
+  // while the bytes are genuine RIFF PCM.
+  it('maps 3CX octet-stream to audio/wav using the filename', () => {
+    expect(normaliseAudioContentType('application/octet-stream', 'vmail_x_166.wav')).toBe('audio/wav')
+  })
+
+  it('keeps a declared type that the bucket already accepts', () => {
+    expect(normaliseAudioContentType('audio/mpeg', 'x.mp3')).toBe('audio/mpeg')
+    expect(normaliseAudioContentType('AUDIO/WAV', 'x.wav')).toBe('audio/wav')
+  })
+
+  it('derives from other known extensions', () => {
+    expect(normaliseAudioContentType('application/octet-stream', 'x.mp3')).toBe('audio/mpeg')
+    expect(normaliseAudioContentType('application/octet-stream', 'x.m4a')).toBe('audio/mp4')
+    expect(normaliseAudioContentType('application/octet-stream', 'x.ogg')).toBe('audio/ogg')
+  })
+
+  it('falls back to audio/wav when nothing is recognisable', () => {
+    expect(normaliseAudioContentType(null, null)).toBe('audio/wav')
+  })
+})
+
 describe('isVoicemailAudio', () => {
   it('matches on content type or filename extension', () => {
     expect(isVoicemailAudio('audio/wav', 'x.bin')).toBe(true)
@@ -329,14 +353,41 @@ describe('processVoicemail', () => {
     expect(db.lead_voicemails[0].lead_id).toBe('lead-existing')
   })
 
-  it('drops the claim when the upload fails so the next run can retry', async () => {
+  // Regression, found in prod 13-08-2026: a fatal upload took down BOTH transports,
+  // including short voicemails that used to work fine through CloudMailin. Losing the
+  // recording is bad; losing the lead is the failure this change exists to prevent.
+  it('still creates the lead when the upload fails', async () => {
     const db = createDb()
-    const supabase = createSupabase(db, { uploadError: 'bucket unavailable' })
+    const supabase = createSupabase(db, { uploadError: 'mime type not supported' })
 
-    await expect(processVoicemail(voicemailInput(supabase))).rejects.toThrow(/upload failed/i)
+    const result = await processVoicemail(voicemailInput(supabase))
 
-    expect(db.lead_voicemails).toHaveLength(0)
-    expect(mockProcessInboundLead).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ outcome: 'created', leadId: 'lead-1' })
+    expect(mockProcessInboundLead).toHaveBeenCalledTimes(1)
+    // Claim is kept (it is the dedup lock) but records that there is no audio.
+    expect(db.lead_voicemails).toHaveLength(1)
+    expect(db.lead_voicemails[0].storage_path).toBeNull()
+    expect(db.lead_voicemails[0].lead_id).toBe('lead-1')
+  })
+
+  it('uploads 3CX audio as a real audio type, not the declared octet-stream', async () => {
+    const db = createDb()
+    const supabase = createSupabase(db)
+
+    await processVoicemail(
+      voicemailInput(supabase, {
+        audio: {
+          buffer: buildPcmWav(),
+          fileName: VOICEMAIL_FILE_NAME,
+          // What 3CX actually sends — rejected by the bucket's allowed_mime_types.
+          contentType: 'application/octet-stream',
+        },
+      })
+    )
+
+    expect(db.uploads).toHaveLength(1)
+    expect(db.uploads[0].contentType).toBe('audio/wav')
+    expect(db.lead_voicemails[0].mime_type).toBe('audio/wav')
   })
 
   it('rejects audio beyond the Whisper limit before claiming anything', async () => {
