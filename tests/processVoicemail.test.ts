@@ -179,21 +179,36 @@ describe('extractVoicemailMetadata', () => {
 })
 
 describe('voicemailDedupKey', () => {
-  it('prefers the RFC Message-ID, which survives Gmail auto-forward', () => {
-    const metadata = extractVoicemailMetadata(VOICEMAIL_SUBJECT, VOICEMAIL_BODY)
-    expect(voicemailDedupKey(VOICEMAIL_MESSAGE_ID, metadata)).toBe(VOICEMAIL_MESSAGE_ID)
+  const metadata = extractVoicemailMetadata(VOICEMAIL_SUBJECT, VOICEMAIL_BODY)
+
+  it('keys on the 3CX File reference from the body, not the Message-ID header', () => {
+    expect(voicemailDedupKey(VOICEMAIL_MESSAGE_ID, metadata)).toBe(
+      'vmail:vmail_0400000000_166_20260727015014'
+    )
   })
 
-  it('derives a stable synthetic key when Message-ID is missing', () => {
-    const metadata = extractVoicemailMetadata(VOICEMAIL_SUBJECT, VOICEMAIL_BODY)
-    const first = voicemailDedupKey(null, metadata)
-    const second = voicemailDedupKey('   ', metadata)
+  /**
+   * The prod defect this guards against (13-08-2026): CloudMailin does not forward
+   * Message-ID, so the webhook and the IMAP poller saw DIFFERENT header values for the
+   * same voicemail, the unique constraint never fired, and the customer got two leads.
+   * The body is the only thing both transports read identically.
+   */
+  it('agrees across transports even when only one of them has a Message-ID', () => {
+    const viaWebhook = voicemailDedupKey(null, metadata)
+    const viaPoller = voicemailDedupKey('<real-id@geopod-ismtpd-15>', metadata)
+    expect(viaWebhook).toBe(viaPoller)
+  })
 
-    expect(first).toMatch(/^synthetic:[a-f0-9]{64}$/)
-    expect(second).toBe(first)
-
+  it('distinguishes different recordings', () => {
     const other = voicemailDedupKey(null, { ...metadata, fileRef: 'vmail_other_166_2026' })
-    expect(other).not.toBe(first)
+    expect(other).not.toBe(voicemailDedupKey(null, metadata))
+  })
+
+  it('falls back to Message-ID, then a content hash, when there is no File reference', () => {
+    const noFile = { ...metadata, fileRef: null }
+    expect(voicemailDedupKey('<id@host>', noFile)).toBe('<id@host>')
+    expect(voicemailDedupKey(null, noFile)).toMatch(/^synthetic:[a-f0-9]{64}$/)
+    expect(voicemailDedupKey('   ', noFile)).toBe(voicemailDedupKey(null, noFile))
   })
 })
 
@@ -288,7 +303,7 @@ describe('processVoicemail', () => {
     expect(db.lead_voicemails[0]).toMatchObject({
       lead_id: 'lead-1',
       org_id: ORG_ID,
-      rfc_message_id: VOICEMAIL_MESSAGE_ID,
+      rfc_message_id: 'vmail:vmail_0400000000_166_20260727015014',
       source: 'cloudmailin',
       transcription_status: 'succeeded',
       duration_text: '00:00:26',
@@ -321,13 +336,21 @@ describe('processVoicemail', () => {
     const db = createDb()
     const supabase = createSupabase(db)
 
-    // CloudMailin gets there first (recording was short enough to be forwarded).
-    const first = await processVoicemail(voicemailInput(supabase, { source: 'cloudmailin' }))
-    // Then the poller sees the same message in the mailbox.
-    const second = await processVoicemail(voicemailInput(supabase, { source: 'imap_poll' }))
+    // Mirrors production exactly: CloudMailin gets there first and supplies NO
+    // Message-ID, then the poller sees the same message WITH one. Keying on the
+    // header made these diverge and produced two leads for one customer.
+    const first = await processVoicemail(
+      voicemailInput(supabase, { source: 'cloudmailin', messageId: null })
+    )
+    const second = await processVoicemail(
+      voicemailInput(supabase, { source: 'imap_poll', messageId: VOICEMAIL_MESSAGE_ID })
+    )
 
     expect(first.outcome).toBe('created')
-    expect(second).toEqual({ outcome: 'already_processed', dedupKey: VOICEMAIL_MESSAGE_ID })
+    expect(second).toEqual({
+      outcome: 'already_processed',
+      dedupKey: 'vmail:vmail_0400000000_166_20260727015014',
+    })
 
     expect(mockProcessInboundLead).toHaveBeenCalledTimes(1)
     expect(db.lead_voicemails).toHaveLength(1)

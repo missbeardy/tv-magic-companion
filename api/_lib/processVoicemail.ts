@@ -112,24 +112,28 @@ export function looksLikeVoicemailNotification(subject: string, body: string): b
 }
 
 /**
- * Dedup key shared by both transports. Gmail's auto-forward preserves
- * Message-ID, so the webhook and the poller derive the same value for the same
- * voicemail. The synthetic fallback leans on 3CX's `File:` reference, which
- * already encodes caller, extension, and timestamp.
+ * Dedup key shared by both transports.
+ *
+ * 3CX's `File:` reference is the primary key — it lives in the message BODY, which
+ * both transports parse identically, and it already encodes caller, extension and
+ * timestamp (`vmail_0400000000_166_20260727015014`).
+ *
+ * Message-ID is deliberately NOT preferred. It is only visible to whichever transport
+ * can see the headers: CloudMailin does not forward one, so in production on
+ * 13-08-2026 the webhook fell back to the synthetic hash while the poller used the
+ * real RFC Message-ID. Different keys for the same voicemail meant the UNIQUE
+ * constraint never fired and the customer got two leads.
  */
 export function voicemailDedupKey(
   messageId: string | null | undefined,
   metadata: VoicemailMetadata
 ): string {
+  if (metadata.fileRef) return `vmail:${metadata.fileRef}`
+
   const trimmed = messageId?.trim()
   if (trimmed) return trimmed
 
-  const basis = [
-    metadata.fileRef ?? '',
-    metadata.phone,
-    metadata.receivedAt ?? '',
-    metadata.duration ?? '',
-  ].join('|')
+  const basis = [metadata.phone, metadata.receivedAt ?? '', metadata.duration ?? ''].join('|')
   return `synthetic:${createHash('sha256').update(basis).digest('hex')}`
 }
 
