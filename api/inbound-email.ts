@@ -16,6 +16,7 @@ import {
 import {
   extractVoicemailMetadata,
   isVoicemailAudio,
+  looksLikeVoicemailNotification,
   processVoicemail,
 } from './_lib/processVoicemail.js'
 import { safeCompareSecret } from './_lib/timingSafeCompare.js'
@@ -185,6 +186,18 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   if (!emailText.trim()) {
     console.error('Empty email body received from CloudMailin')
     return res.status(200).json({ received: true })
+  }
+
+  // A 3CX voicemail notification that reached here has no usable audio — stripped,
+  // rejected, or an unrecognised attachment type. Treating it as an email enquiry
+  // would create a junk lead named after the PBX, so drop it: the poller reads the
+  // original from the mailbox and handles it properly, audio included.
+  //
+  // This is also what makes retiring the CloudMailin voicemail branch safe. Delete
+  // that branch without this guard and every voicemail becomes a junk email lead.
+  if (looksLikeVoicemailNotification(subject, emailText)) {
+    console.log('Inbound email: 3CX voicemail with no usable audio — leaving it to the poller')
+    return res.status(200).json({ skipped: true, reason: 'voicemail_without_audio' })
   }
 
   const orgResolution = await resolveOrgIdFromInboundEmail(supabase, req.body)
