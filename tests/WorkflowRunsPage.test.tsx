@@ -110,9 +110,15 @@ vi.mock('../src/lib/supabase', () => {
   }
 
   const cronHeartbeatsQuery = {
-    eq: vi.fn().mockReturnThis(),
-    maybeSingle: vi.fn().mockImplementation(() =>
-      Promise.resolve({ data: { last_run_at: '2026-07-16T09:00:00.000Z' }, error: null })
+    in: vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        data: [
+          { cron_key: 'contact_follow_up', last_run_at: '2026-07-16T09:00:00.000Z' },
+          { cron_key: 'automation_sweeps', last_run_at: '2026-07-16T08:00:00.000Z' },
+          { cron_key: 'cron_maintenance', last_run_at: '2026-07-16T18:00:00.000Z' },
+        ],
+        error: null,
+      })
     ),
   }
 

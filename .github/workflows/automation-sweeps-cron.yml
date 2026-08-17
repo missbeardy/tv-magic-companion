@@ -1,17 +1,18 @@
-# Runs contact follow-up on Hobby Vercel (Vercel crons are daily-only on Hobby).
+# Invoice/quote chase and booking reminders — isolated from the 15-minute
+# contact-follow-up job so a slow sweep cannot time out lead follow-up.
 # Repo secrets: PLATFORM_URL (e.g. https://tv-magic-companion.vercel.app), CRON_SECRET
-name: Contact follow-up cron
+name: Automation sweeps cron
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 jobs:
-  contact-follow-up:
+  automation-sweeps:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger /api/cron/contact-follow-up
+      - name: Trigger /api/cron/automation-sweeps
         env:
           PLATFORM_URL: ${{ secrets.PLATFORM_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
@@ -20,5 +21,5 @@ jobs:
             echo "Missing PLATFORM_URL or CRON_SECRET in repo secrets"
             exit 1
           fi
-          curl --fail-with-body --max-time 55 -X POST "${PLATFORM_URL%/}/api/cron/contact-follow-up" \
+          curl --fail-with-body --max-time 55 -X POST "${PLATFORM_URL%/}/api/cron/automation-sweeps" \
             -H "Authorization: Bearer ${CRON_SECRET}"

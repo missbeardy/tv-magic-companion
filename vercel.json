@@ -49,6 +49,14 @@
       "destination": "/api/send-sms?action=contact-follow-up"
     },
     {
+      "source": "/api/cron/automation-sweeps",
+      "destination": "/api/send-sms?action=automation-sweeps"
+    },
+    {
+      "source": "/api/cron/maintenance",
+      "destination": "/api/send-sms?action=cron-maintenance"
+    },
+    {
       "source": "/api/meta-webhook",
       "destination": "/api/inbound-sms?action=meta-webhook"
     },

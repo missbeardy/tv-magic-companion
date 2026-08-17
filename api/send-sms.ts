@@ -10,9 +10,8 @@ import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
 import { withObservability } from './_lib/observability.js'
 import { captureServerException } from './_lib/sentry.js'
 import { track } from './_lib/analytics.js'
-import { checkRateLimit, purgeOldRateLimitHits, rateLimitIdentifier } from './_lib/rateLimit.js'
+import { checkRateLimit, rateLimitIdentifier } from './_lib/rateLimit.js'
 import { requestAccountDeletion } from './_lib/accountDeletion.js'
-import { purgeOldNotifications } from './_lib/notificationRetention.js'
 import {
   acceptQuoteByToken,
   createQuote,
@@ -22,12 +21,11 @@ import {
 } from './_lib/quotes.js'
 import { sendBookingConfirmations } from './_lib/bookingConfirm.js'
 import { createAndSendInvoice, getInvoiceByToken, markInvoicePaid } from './_lib/invoices.js'
-import { runContactFollowUpCron } from './_lib/runContactFollowUpCron.js'
-import { runInvoiceChaseSweep } from './_lib/invoiceChase.js'
-import { runQuoteChaseSweep } from './_lib/quoteChase.js'
-import { runBookingReminderSweep } from './_lib/bookingReminder.js'
-import { purgeOldWorkflowRuns } from './_lib/workflowRun.js'
-import { loadLocalEnvIfNeeded } from './_lib/loadLocalEnv.js'
+import {
+  handleAutomationSweepsCron,
+  handleContactFollowUpCron,
+  handleCronMaintenance,
+} from './_lib/cronActions.js'
 import { notifyOrgUser } from './_lib/notifyUser.js'
 import { handlePushRotate, handlePushSend } from './_lib/pushEndpoints.js'
 import { sendEmployeeAlertWithSmsFallback } from './_lib/sendEmployeeAlert.js'
@@ -689,90 +687,6 @@ async function handleInvoicePublicGet(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-function isContactFollowUpCronAuthorized(req: VercelRequest): boolean {
-  loadLocalEnvIfNeeded()
-  const secret = process.env.CRON_SECRET?.trim()
-  // Fail closed in every environment: no secret configured means no access.
-  if (!secret) return false
-
-  const authHeader = req.headers.authorization
-  if (typeof authHeader === 'string' && authHeader === `Bearer ${secret}`) return true
-
-  const cronHeader = req.headers['x-cron-secret']
-  const headerVal = Array.isArray(cronHeader) ? cronHeader[0] : cronHeader
-  return headerVal === secret
-}
-
-async function handleContactFollowUpCron(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'GET' && req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' })
-  }
-
-  if (!isContactFollowUpCronAuthorized(req)) {
-    return res.status(401).json({ error: 'Unauthorized' })
-  }
-
-  const supabase = getSupabaseAdmin()
-  if (!supabase) {
-    return res.status(503).json({ error: 'Server not configured' })
-  }
-
-  try {
-    const result = await runContactFollowUpCron(supabase)
-    let workflowPurge = { deleted: 0 }
-    try {
-      workflowPurge = await purgeOldWorkflowRuns(supabase)
-    } catch (purgeErr) {
-      console.error('[WORKFLOW_RUN_LOG_FAILED] workflow purge failed:', purgeErr)
-    }
-    let invoiceChase = { orgs: 0, checked: 0, sent: 0 }
-    try {
-      invoiceChase = await runInvoiceChaseSweep(supabase)
-    } catch (chaseErr) {
-      console.error('[INVOICE_CHASE_SWEEP_FAILED]', chaseErr)
-    }
-    let quoteChase = { orgs: 0, checked: 0, sent: 0 }
-    try {
-      quoteChase = await runQuoteChaseSweep(supabase)
-    } catch (chaseErr) {
-      console.error('[QUOTE_CHASE_SWEEP_FAILED]', chaseErr)
-    }
-    let bookingReminder = { orgs: 0, checked: 0, sent: 0 }
-    try {
-      bookingReminder = await runBookingReminderSweep(supabase)
-    } catch (reminderErr) {
-      console.error('[BOOKING_REMINDER_SWEEP_FAILED]', reminderErr)
-    }
-    let notificationPurge = { deleted: 0 }
-    try {
-      notificationPurge = await purgeOldNotifications(supabase)
-    } catch (purgeErr) {
-      console.error('[NOTIFICATION_PURGE_FAILED]', purgeErr)
-    }
-    let rateLimitPurge = { deleted: 0 }
-    try {
-      rateLimitPurge = await purgeOldRateLimitHits()
-    } catch (purgeErr) {
-      console.error('[RATE_LIMIT_PURGE_FAILED]', purgeErr)
-    }
-    try {
-      await supabase.from('cron_heartbeats').upsert({
-        cron_key: 'contact_follow_up_chain',
-        last_run_at: new Date().toISOString(),
-        last_result: { ...result, workflowPurge, invoiceChase, quoteChase, bookingReminder, rateLimitPurge, notificationPurge },
-      })
-    } catch (heartbeatErr) {
-      console.error('[CRON_HEARTBEAT_FAILED]', heartbeatErr)
-    }
-    return res.status(200).json({ ok: true, ...result, workflowPurge, invoiceChase, quoteChase, bookingReminder, rateLimitPurge, notificationPurge })
-  } catch (err) {
-    console.error('contact-follow-up cron failed:', err)
-    return res.status(500).json({
-      error: err instanceof Error ? err.message : 'Cron failed',
-    })
-  }
-}
-
 async function handler(req: VercelRequest, res: VercelResponse) {
   const action = String(req.query.action ?? '').trim()
 
@@ -818,9 +732,15 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return handleRequestAccountDeletion(req, res)
   }
 
-  // CRON_SECRET — consolidated to stay under Hobby 12-function limit (see vercel.json).
+  // CRON_SECRET — stay on this function to keep under the Hobby 12-function limit.
   if (action === 'contact-follow-up') {
     return handleContactFollowUpCron(req, res)
+  }
+  if (action === 'automation-sweeps') {
+    return handleAutomationSweepsCron(req, res)
+  }
+  if (action === 'cron-maintenance') {
+    return handleCronMaintenance(req, res)
   }
 
   // Web Push (T1.12) — both are session-less by necessity and carry their own auth.

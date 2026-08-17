@@ -89,7 +89,7 @@ export default function WorkflowRunsPanel() {
   const [kanbanLoading, setKanbanLoading] = useState(false)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [leadById, setLeadById] = useState<Record<string, LeadSummary>>({})
-  const [cronHeartbeat, setCronHeartbeat] = useState<string | null>(null)
+  const [cronHeartbeats, setCronHeartbeats] = useState<Record<string, string | null>>({})
 
   const orgOptions = useMemo(() => {
     const map = new Map<string, string>()
@@ -252,10 +252,13 @@ export default function WorkflowRunsPanel() {
     const loadHeartbeat = async () => {
       const { data } = await supabase
         .from('cron_heartbeats')
-        .select('last_run_at')
-        .eq('cron_key', 'contact_follow_up_chain')
-        .maybeSingle()
-      setCronHeartbeat((data?.last_run_at as string | undefined) ?? null)
+        .select('cron_key, last_run_at')
+        .in('cron_key', ['contact_follow_up', 'automation_sweeps', 'cron_maintenance'])
+      const next: Record<string, string | null> = {}
+      for (const row of data ?? []) {
+        next[row.cron_key as string] = (row.last_run_at as string | undefined) ?? null
+      }
+      setCronHeartbeats(next)
     }
     void loadHeartbeat()
     const id = window.setInterval(() => void loadHeartbeat(), POLL_MS)
@@ -295,13 +298,21 @@ export default function WorkflowRunsPanel() {
         Read-only trace of inbound workflow runs and kanban lifecycle (from lead events). List refreshes every 30
         seconds while this tab is visible.
       </p>
-      <p className="text-xs text-gray-500">
-        Contact-follow-up cron chain last ran:{' '}
-        {cronHeartbeat ? (
-          <span className="font-medium text-gray-700">{timeAgo(cronHeartbeat)}</span>
-        ) : (
-          <span className="font-medium text-red-600">never recorded</span>
-        )}
+      <p className="text-xs text-gray-500 space-y-1">
+        {[
+          ['contact_follow_up', 'Contact follow-up'],
+          ['automation_sweeps', 'Invoice/quote/booking sweeps'],
+          ['cron_maintenance', 'Cron maintenance'],
+        ].map(([key, label]) => (
+          <span key={key} className="block">
+            {label} last ran:{' '}
+            {cronHeartbeats[key] ? (
+              <span className="font-medium text-gray-700">{timeAgo(cronHeartbeats[key]!)}</span>
+            ) : (
+              <span className="font-medium text-red-600">never recorded</span>
+            )}
+          </span>
+        ))}
       </p>
 
       <div className="flex flex-wrap items-end gap-3">
