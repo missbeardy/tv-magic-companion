@@ -47,11 +47,13 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
   title: 'Background jobs stay on time',
   items: [
     'Split the overloaded 15-minute background job so lead follow-up, invoice/quote/booking sweeps, and cleanup each run on their own schedule — a slow chase can no longer time out technician follow-up reminders',
+    'Follow-up reminders now process in small batches so a wave of stale leads cannot time out the 15-minute job',
+    'Automatic follow-up changes now run entirely on the server, so opening the Leads board no longer edits lead data in the background',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.175'
+export const APP_VERSION = '1.1.176'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

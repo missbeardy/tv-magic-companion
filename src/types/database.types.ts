@@ -640,6 +640,7 @@ export type Database = {
           hidden_from_kanban_at: string | null
           id: string
           last_contact_attempted_at: string | null
+          last_follow_up_reminder_at: string | null
           lead_source: string | null
           lost_reason: string | null
           name: string
@@ -672,6 +673,7 @@ export type Database = {
           hidden_from_kanban_at?: string | null
           id?: string
           last_contact_attempted_at?: string | null
+          last_follow_up_reminder_at?: string | null
           lead_source?: string | null
           lost_reason?: string | null
           name: string
@@ -704,6 +706,7 @@ export type Database = {
           hidden_from_kanban_at?: string | null
           id?: string
           last_contact_attempted_at?: string | null
+          last_follow_up_reminder_at?: string | null
           lead_source?: string | null
           lost_reason?: string | null
           name?: string

@@ -1,5 +1,6 @@
 export {
   CONTACT_FOLLOW_UP_MS,
+  CONTACT_FOLLOW_UP_REMINDER_BATCH_SIZE,
   MAX_CONTACT_ATTEMPTS,
   MAX_RETRY_WAIT_ROUND,
   FINAL_LABEL_ROUND,
@@ -10,6 +11,8 @@ export {
   isFollowUpRolloverDue,
   isFollowUpReminderCooldownElapsed,
   leadsDueForFollowUpReminder,
+  selectFollowUpReminderBatch,
+  sortFollowUpRemindersOldestDueFirst,
   leadsDueForFollowUpEscalation,
   leadsDueForFollowUpAutoLost,
   leadsDueForStaleAutoLost,
@@ -26,7 +29,6 @@ export {
   buildContactAttemptUpdate,
   formatEscalationEventNote,
   buildFollowUpNotificationCopy,
-  processContactFollowUpRollovers,
   sortLeadsForKanbanColumn,
 } from '../../shared/contactFollowUp'
 

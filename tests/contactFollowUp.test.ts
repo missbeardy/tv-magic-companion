@@ -11,6 +11,8 @@ import {
   leadsDueForStaleAutoLost,
   leadsDueForFollowUpReminder,
   isFollowUpReminderCooldownElapsed,
+  selectFollowUpReminderBatch,
+  CONTACT_FOLLOW_UP_REMINDER_BATCH_SIZE,
   LOST_REASON_UNABLE_TO_CONTACT,
   MAX_CONTACT_ATTEMPTS,
   FINAL_LABEL_ROUND,
@@ -211,5 +213,54 @@ describe('contactFollowUp', () => {
   it('formats escalation note with ordinal label', () => {
     expect(formatEscalationEventNote(1)).toBe('2nd Attempt — no contact in 6 hours')
   })
+
+  it('selects the oldest-due reminder batch and reports remaining', () => {
+    expect(CONTACT_FOLLOW_UP_REMINDER_BATCH_SIZE).toBe(12)
+    const nowMs = Date.parse('2026-07-01T12:00:00Z')
+    const leads = Array.from({ length: 15 }, (_, i) => ({
+      id: `lead-${String(i).padStart(2, '0')}`,
+      status: 'contact_attempted',
+      contact_attempt_round: 1,
+      last_contact_attempted_at: new Date(nowMs - CONTACT_FOLLOW_UP_MS - (15 - i) * 60_000).toISOString(),
+    }))
+    const { batch, remaining } = selectFollowUpReminderBatch(leads, nowMs)
+    expect(remaining).toBe(3)
+    expect(batch).toHaveLength(12)
+    expect(batch.map((lead) => lead.id)).toEqual([
+      'lead-00', 'lead-01', 'lead-02', 'lead-03', 'lead-04', 'lead-05',
+      'lead-06', 'lead-07', 'lead-08', 'lead-09', 'lead-10', 'lead-11',
+    ])
+  })
 })
-
+
+
+// Kanban ordering and attempt labels stay in the browser after the automatic sweep moved to the
+// backend, so they are the presentation surface that must not drift.
+describe('contactFollowUp presentation', () => {
+  it('sorts assigned by soonest timer first, nulls last', () => {
+    const sorted = sortLeadsForKanbanColumn(
+      [
+        { id: 'no-timer', status: 'assigned', timer_expires_at: null, created_at: '2026-01-01' },
+        { id: 'later', status: 'assigned', timer_expires_at: '2026-01-02T12:00:00Z', created_at: '2026-01-02' },
+        { id: 'soonest', status: 'assigned', timer_expires_at: '2026-01-02T09:00:00Z', created_at: '2026-01-03' },
+      ],
+      'assigned'
+    )
+    expect(sorted.map((lead) => lead.id)).toEqual(['soonest', 'later', 'no-timer'])
+  })
+
+  it('leaves unknown columns untouched', () => {
+    const leads = [
+      { id: 'b', status: 'booked', created_at: '2026-01-02' },
+      { id: 'a', status: 'booked', created_at: '2026-01-01' },
+    ]
+    expect(sortLeadsForKanbanColumn(leads, 'booked').map((lead) => lead.id)).toEqual(['b', 'a'])
+  })
+
+  it('labels every attempt round the badge can render', () => {
+    expect(getAttemptPhaseLabel(null)).toBeNull()
+    expect(getAttemptPhaseLabel(undefined)).toBeNull()
+    expect(getAttemptPhaseLabel(-1)).toBeNull()
+    expect(getAttemptPhaseLabel(6)).toBeNull()
+  })
+})

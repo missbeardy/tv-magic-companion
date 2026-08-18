@@ -49,7 +49,7 @@ const mockWorkflowPurge = vi.mocked(purgeOldWorkflowRuns)
 const mockNotificationPurge = vi.mocked(purgeOldNotifications)
 const mockRateLimitPurge = vi.mocked(purgeOldRateLimitHits)
 
-const followUpResult = { checked: 1, reminded: 0, lost: 0, notified: 0, errors: [] }
+const followUpResult = { checked: 1, reminded: 0, lost: 0, notified: 0, remaining: 0, errors: [] }
 const sweepResult = { orgs: 0, checked: 0, sent: 0 }
 const purgeResult = { deleted: 0 }
 

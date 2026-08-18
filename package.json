@@ -1,7 +1,7 @@
 {
   "name": "tv-magic-companion",
   "private": true,
-  "version": "1.1.175",
+  "version": "1.1.176",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,7 +15,8 @@
     "lint": "eslint .",
     "verify:changelog": "node scripts/verify-changelog.mjs",
     "prebuild": "node scripts/verify-changelog.mjs && npm run typecheck",
-    "stitch:push": "node scripts/stitch/push-to-stitch.mjs"
+    "stitch:push": "node scripts/stitch/push-to-stitch.mjs",
+    "db:types": "supabase gen types typescript --project-id $SUPABASE_DEV_PROJECT_ID --schema public > src/types/database.types.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.2",

@@ -56,7 +56,6 @@ import { useOrgProfiles } from '../hooks/useOrgProfiles'
 import { isManagerRole } from '../lib/roles'
 import {
   buildContactAttemptUpdate,
-  processContactFollowUpRollovers,
   sortLeadsForKanbanColumn,
   LOST_REASON_UNABLE_TO_CONTACT,
 } from '../lib/contactFollowUp'
@@ -391,29 +390,12 @@ export default function LeadsPage() {
         }
       })
 
-      let withFollowUp = merged
-      if (profile?.org_id && profile?.id) {
-        withFollowUp = await processContactFollowUpRollovers(
-          merged,
-          async (leadId, update) => {
-            const { error } = await supabase.from('leads').update(asLeadUpdate(update)).eq('id', leadId)
-            return !error
-          },
-          async (leadId, eventType, note, payload) => {
-            await recordLeadEvent({
-              leadId,
-              orgId: profile.org_id!,
-              eventType,
-              note,
-              actorId: profile.id,
-              payload,
-            })
-          }
-        )
-      }
-
-      setLeads(withFollowUp)
-      if (profile?.id) void saveLeadsCache(profile.id, withFollowUp)
+      // Automatic follow-up transitions (stale auto-lost, final-round auto-lost) belong to the
+      // backend sweep at /api/cron/contact-follow-up. The browser used to run them here on every
+      // page load: three unconditioned writers racing the same rows, which produced duplicate
+      // "Unable to contact" entries in a lead's history. Reads only now.
+      setLeads(merged)
+      if (profile?.id) void saveLeadsCache(profile.id, merged)
     }
     setLoading(false)
   }, [profile?.org_id, profile?.role, profile?.id])

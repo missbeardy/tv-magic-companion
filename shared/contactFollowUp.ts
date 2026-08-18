@@ -31,6 +31,13 @@ export const LOST_REASON_UNABLE_TO_CONTACT = 'unable_to_contact' as const
 
 export const CONTACT_FOLLOW_UP_HOURS = CONTACT_FOLLOW_UP_MS / (60 * 60 * 1000)
 
+/**
+ * Max follow-up reminders per cron invocation. Each reminder is a cooldown stamp + in-app
+ * notification; 28 serial ones took 59s in prod (GitHub curl --max-time 55 failed while Vercel
+ * still returned 200). The 15-minute cadence drains the rest. Auto-lost is uncapped.
+ */
+export const CONTACT_FOLLOW_UP_REMINDER_BATCH_SIZE = 12
+
 export interface ContactFollowUpLead {
   id: string
   status: string
@@ -86,7 +93,10 @@ export function isFollowUpReminderCooldownElapsed(
 }
 
 /** Stale leads eligible for a reminder (no round change — employee must contact again). */
-export function leadsDueForFollowUpReminder(leads: ContactFollowUpLead[], nowMs = Date.now()): ContactFollowUpLead[] {
+export function leadsDueForFollowUpReminder<T extends ContactFollowUpLead>(
+  leads: T[],
+  nowMs = Date.now()
+): T[] {
   return leads.filter(
     (lead) =>
       lead.status === 'contact_attempted' &&
@@ -94,6 +104,38 @@ export function leadsDueForFollowUpReminder(leads: ContactFollowUpLead[], nowMs 
       isFollowUpRolloverDue(lead.last_contact_attempted_at, nowMs) &&
       isFollowUpReminderCooldownElapsed(lead.last_follow_up_reminder_at, nowMs)
   )
+}
+
+function reminderDueTimestamp(lead: ContactFollowUpLead): number {
+  const reminderAt = lead.last_follow_up_reminder_at
+    ? new Date(lead.last_follow_up_reminder_at).getTime()
+    : 0
+  const attemptedAt = lead.last_contact_attempted_at
+    ? new Date(lead.last_contact_attempted_at).getTime()
+    : 0
+  return reminderAt || attemptedAt
+}
+
+/** Oldest-due first so a capped cron drain does not starve long-stale leads. */
+export function sortFollowUpRemindersOldestDueFirst<T extends ContactFollowUpLead>(leads: T[]): T[] {
+  return [...leads].sort((a, b) => {
+    const aTs = reminderDueTimestamp(a)
+    const bTs = reminderDueTimestamp(b)
+    if (aTs !== bTs) return aTs - bTs
+    return a.id.localeCompare(b.id)
+  })
+}
+
+export function selectFollowUpReminderBatch<T extends ContactFollowUpLead>(
+  leads: T[],
+  nowMs = Date.now(),
+  limit = CONTACT_FOLLOW_UP_REMINDER_BATCH_SIZE
+): { batch: T[]; remaining: number } {
+  const due = sortFollowUpRemindersOldestDueFirst(leadsDueForFollowUpReminder(leads, nowMs))
+  return {
+    batch: due.slice(0, limit),
+    remaining: Math.max(0, due.length - limit),
+  }
 }
 
 /** @deprecated Timer no longer increments round */
@@ -245,7 +287,7 @@ export async function processContactFollowUpRollovers<T extends ContactFollowUpL
     payload: Record<string, unknown>
   ) => Promise<void>,
   onReminder?: (lead: T) => Promise<void>,
-  options?: { nowMs?: number }
+  options?: { nowMs?: number; reminderLimit?: number }
 ): Promise<T[]> {
   const nowMs = options?.nowMs ?? Date.now()
   let result = leads
@@ -283,8 +325,13 @@ export async function processContactFollowUpRollovers<T extends ContactFollowUpL
   }
 
   if (onReminder) {
-    for (const lead of leadsDueForFollowUpReminder(result, nowMs)) {
-      await onReminder(lead as T)
+    const { batch } = selectFollowUpReminderBatch(
+      result,
+      nowMs,
+      options?.reminderLimit ?? CONTACT_FOLLOW_UP_REMINDER_BATCH_SIZE
+    )
+    for (const lead of batch) {
+      await onReminder(lead)
     }
   }
 
