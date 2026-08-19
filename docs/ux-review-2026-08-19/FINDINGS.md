@@ -8,15 +8,19 @@ Driven with Playwright against the dev server (`localhost:5174`, dev Supabase) a
 
 ---
 
-## 1. HIGH — Your customers see your internal engineering changelog
+## 1. HIGH — The changelog reaches the two routes that aren't yours
 
-**The single worst thing found.** `ChangelogOverlay` is mounted in `PwaUpdateLayer`, which wraps
-**every** route in [src/App.tsx:104-213](../../src/App.tsx#L104-L213) — including the public,
-unauthenticated ones:
+**Scope correction (owner, 19-08-2026):** this app is for FieldBourne's clients and their techs.
+A changelog on `/login` or inside the app is aimed at exactly the right people and is not a defect.
 
-- `/invoice/:token` — the link SMS'd to your client's customers to pay an invoice
-- `/quote/:token` — the link customers open to accept a quote
-- `/login`, `/privacy`, `/terms`, `/delete-account`
+**Two routes are the exception.** `ChangelogOverlay` is mounted in `PwaUpdateLayer`, which wraps
+**every** route in [src/App.tsx:104-213](../../src/App.tsx#L104-L213), so it also renders on the two
+public token pages that are opened by the *tradie's own customer*, never by a tech:
+
+- `/invoice/:token` — built in [api/_lib/quotes.ts](../../api/_lib/quotes.ts) / delivered to `customer_email`
+  and `customer_phone`; Stripe returns the payer here via [api/stripe.ts:365](../../api/stripe.ts#L365)
+- `/quote/:token` — the acceptance link; chase reminders email `customer_email`
+  ([api/_lib/quoteChase.ts:229](../../api/_lib/quoteChase.ts#L229))
 
 A customer who taps the invoice link in their SMS gets a full-screen modal titled **"What's New"**
 reading *"Split the overloaded 15-minute background job…"*, *"Follow-up reminders now process in
@@ -25,11 +29,12 @@ technician…"* — before they can pay.
 
 Screenshot: `03-invoice-customer-sees-changelog.png`
 
-Three separate problems in one:
-1. A member of the public sees internal release notes about background jobs and staff leaderboards.
-2. It sits on the **money path** — it is the last thing between a customer and paying an invoice.
-3. It makes your client look unprofessional to *their* customers, which is the relationship the
-   whole product is meant to protect.
+Why it still matters on those two routes:
+1. It sits on the **money path** — the last thing between a customer and paying an invoice.
+2. The content is internal release notes about background job scheduling and a per-technician sales
+   leaderboard, shown to someone outside the business entirely.
+3. It is your client's reputation with *their* customer that pays for it — the relationship the
+   product exists to protect.
 
 The gate is `shouldShowChangelog()`, which is purely localStorage-based — there is no auth check
 anywhere in [src/components/PwaUpdateLayer.tsx](../../src/components/PwaUpdateLayer.tsx).
@@ -37,22 +42,23 @@ anywhere in [src/components/PwaUpdateLayer.tsx](../../src/components/PwaUpdateLa
 **Fix:** move `PwaUpdateLayer` inside the authenticated route tree, or add a session check to
 `ChangelogGate`. Small change; the blast radius is the reason it's High, not the difficulty.
 
-## 2. MEDIUM — The login form is invisible until the modal is dismissed
+## 2. LOW — The login form is behind the modal on first visit after a release
 
-Same root cause, separate consequence. At both viewports the entire sign-in card is behind the
-overlay on first visit (`01-…` and `04-…`). A returning tradie on a phone in the field has to read
-and dismiss a changelog before they can type a password.
+Downgraded after the owner's scope correction. The audience here is clients and techs, so showing
+them the changelog is intended. The only cost is that the sign-in card is fully hidden until the
+modal is dismissed (`01-…` and `04-…`), which is one extra tap for a tech on a phone in the field,
+once per release.
 
-Fixing #1 fixes this.
+Worth considering only if you fix #1 anyway — dismissing on `/login` rather than blocking it.
 
-## 3. MEDIUM — "Sign in to your franchise" doesn't match who you're selling to
+## 3. LOW — "Sign in to your franchise" reads oddly for a solo tradie
 
 [src/pages/Login.tsx](../../src/pages/Login.tsx) — the sign-in subtitle reads *"Sign in to your
 franchise"*, and the title is *"FieldBourne Companion"*.
 
-fieldbournedigital.com.au sells *"Missed Call Follow-Up for Aussie Tradies"*. A solo sparky who
-signs up there and lands on "your franchise" has to translate. "Companion" is also legacy naming
-from the `tv-magic-companion` era and means nothing to a new user.
+Lower priority than first written, since no stranger reaches this page — signup is not self-serve.
+But a solo sparky onboarded by you still has to translate "your franchise", and "Companion" is
+legacy naming from the `tv-magic-companion` era that means nothing to a new client.
 
 **Fix:** "Sign in to your account" / drop "Companion". Copy-only.
 
