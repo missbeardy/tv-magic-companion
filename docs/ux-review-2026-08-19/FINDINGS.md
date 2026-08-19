@@ -86,44 +86,98 @@ testable before it ships.
 
 ---
 
-## Platform section — structural read only
+## Platform section — reviewed on screen
 
-I could not log in (see below), so this is from the code, not the screen. It is consistent with
-finding it unpleasant to use:
+Logged in as a `platform_admin` on dev. Screenshots `05-`, `06-`, `07-`.
 
-| | |
+### P1. HIGH — A debug panel owns the page, and it shows red on every visit
+
+**Workflow Runs is the only section expanded by default**, and it is a *read-only debugging trace*.
+It sits above Brand templates, Feature switches and Provision franchisee org — i.e. above every
+task you actually came to do.
+
+Worse, the first thing in it is three lines of **red text**:
+
+```
+Contact follow-up last ran: never recorded
+Invoice/quote/booking sweeps last ran: never recorded
+Cron maintenance last ran: never recorded
+```
+
+That is a *status readout*, not an error — on dev it simply means no cron has run. But it is rendered
+in error-red, above the fold, on every single visit. If the page greets you with what looks like
+three failures every time you open it, of course you hate opening it.
+
+**Fix (cheap, high payoff):** collapse Workflow Runs by default, and render "never recorded" in
+muted grey rather than red — reserve red for an actual stale-heartbeat threshold.
+
+### P2. MEDIUM — Six identical cards, no hierarchy, admin mixed with debugging
+
+The page is six visually identical accordions: Org members · Workflow Runs · Brand templates ·
+Feature switches · Inbound pipeline simulator · Provision franchisee org.
+
+**Provisioning a new franchisee** (rare, high-stakes, irreversible-ish) is presented exactly like
+**inspecting workflow runs** (frequent, read-only, zero-risk). Nothing signals which is which.
+
+Two of the six are not administration at all — **Workflow Runs** and **Inbound pipeline simulator**
+are debugging/testing tools. The due diligence review already named workflow-graph observability as
+feature creep, and `dd1` shipped Sentry since, which is where that job now belongs.
+
+**Fix:** split into tabs — *Brands & Orgs* / *Switches* / *Debug* — and put the two debug tools
+behind the last one. Tabs are a far smaller change than a redesign and would remove most of the
+friction.
+
+### P3. MEDIUM — 34 switches behind one collapsed row, no search
+
+`Feature switches` expands to a brand picker plus four category groups:
+
+| Category | On |
 |---|---|
-| `PlatformAdminPage.tsx` | 618 lines, **21 `useState`** |
-| `src/components/platform/*` | 1,931 lines across 10 components |
-| **Total** | ~2,550 lines on one route |
+| Lead Intake | 5/7 |
+| Customer Communication | 6/8 |
+| Team Operations | 8/10 |
+| Sales & Job Completion | 7/9 |
 
-That one page carries: brands, orgs, org members, **34 feature switches**, brand colour editing,
-email + SMS template editing, inbound email routing, an inbound simulator, and the workflow run
-graph (`WorkflowRunsPanel` alone is 516 lines).
+Credit where due: they *are* grouped, with per-category counts — that part is well built. But there
+is **no search and no filter** across 34 toggles, so changing one you can't remember the category of
+means opening all four groups and reading.
 
-Credit where due — the switches *are* grouped by category with per-category enabled counts
-([PlatformFeatureSwitches.tsx](../../src/components/platform/PlatformFeatureSwitches.tsx)), so it
-isn't an undifferentiated wall. But there is **no search and no filter** across 34 switches, and no
-top-level tabbing to separate "I am configuring a brand" from "I am debugging a workflow run".
+This is `dd19`'s point restated from the UI side: the fix is fewer switches, not better switch
+organisation. Note the count has gone 32 → 34 since the review.
 
-Two of those concerns arguably don't belong here at all: the **inbound simulator** and the
-**workflow run graph** are debugging tools, not administration. The due diligence review named the
-workflow-graph observability as feature creep, and `dd1` has since shipped Sentry — which is where
-that job now belongs.
+### P4. MEDIUM — `<html>` is height-locked, so the page scrolls in `<body>`
 
-**Suggestion for tomorrow:** the cheapest real win is splitting this into tabs (Brands / Orgs /
-Switches / Debug) rather than redesigning anything. The second is `dd19` — 34 switches is the
-actual source of the density, and cutting the count beats organising it better.
+Measured on `/platform`:
 
----
+```
+document.documentElement.scrollHeight = 900   (= viewport height)
+document.body.scrollHeight            = 2368
+body overflow                          = hidden auto
+```
+
+The document element is pinned to the viewport and `body` is the scroll container. Consequences:
+
+- **On mobile, the browser URL bar never auto-hides on scroll** — it only collapses on *document*
+  scroll. You permanently lose ~60-100px of vertical space on the exact device the tech uses
+  one-handed in the field.
+- `position: fixed` and sticky elements can behave unexpectedly against a non-document scroller.
+- It is also why the full-page screenshots clip at 900px (`07-`) — the renderer sees a 900px document.
+
+**Fix:** let the document scroll. Usually one `height: 100%` / `overflow: hidden` on a root wrapper.
+
+### P5. LOW — Nav crowding and a naming collision
+
+At 1440px the top nav carries eight items plus five icons. Two of them are **Franchise Settings**
+and **Platform** — both "settings for the business", with no cue about which holds what. On mobile
+the org name truncates to "FieldBourne Dev …".
 
 ## What I couldn't get to, and why
 
-The authenticated app — `/leads`, `/calendar`, `/profile`, `/org-settings`, `/leaderboard`, and the
-Platform section itself.
+The rest of the authenticated app — `/leads`, `/calendar`, `/profile`, `/org-settings`,
+`/leaderboard`, `/reports`. `/leads` is the one that matters most: it is the money path, it is the
+1,394-line screen `dd14` targets, and it is where a tech spends their day.
 
-I created a dev-only user (`uxpass@example.com`) but granting it a `platform_admin` profile row
-required a database write that the permission classifier blocked. I did not work around it.
+The Platform section itself **is** now reviewed (above).
 
-**To unblock, either:** approve that one dev-database write next session, or give me a dev login you
-already have. Dev only — nothing here needs prod.
+Review account was `claude-uxreview@example.com` on **dev**, created for this pass and deleted
+afterwards.
