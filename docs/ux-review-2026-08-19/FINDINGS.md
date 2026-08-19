@@ -171,13 +171,108 @@ At 1440px the top nav carries eight items plus five icons. Two of them are **Fra
 and **Platform** — both "settings for the business", with no cue about which holds what. On mobile
 the org name truncates to "FieldBourne Dev …".
 
+## /leads — reviewed on screen
+
+Signed in as a manager on dev with 21 leads across 6 statuses. Screenshots `09-`, `10-`, `11-`.
+This is the money path and the screen a technician lives in, so it gets measurements, not impressions.
+
+### L1. HIGH — 67% of the phone screen is consumed before the first lead
+
+Measured at 390x844, the first lead's name sits at **564px** down a **844px** viewport. Subtract
+the ~80px bottom nav and roughly **200px is left for leads — about one and a half cards**.
+
+| Consumed by | Approx |
+| --- | --- |
+| App header | 48px |
+| Onboarding tip card | ~180px |
+| "Leads" title + "Manage and track all leads across every stage." | ~70px |
+| Tab strip | ~50px |
+| Column header ("Unassigned  3") | ~55px |
+| **First lead name** | **564px** |
+
+A tradie opening this in the field to see what is on wants leads, not a title telling them they
+are on the leads screen. The subtitle in particular is pure filler on a phone.
+
+### L2. HIGH — the onboarding tips queue, so dismissing one does not give the space back
+
+Dismissing "Contact rounds" immediately replaced it with "Your next move" in the same slot at the
+same height — `09-` and `10-` are before and after, and the first lead stays at exactly 564px.
+
+There are **three** tips (`src/lib/onboardingTips.ts`: `pool_timer`, `contact_rounds`,
+`next_action_cta`) and **all three are on this screen**. So the ~180px is occupied until a
+technician has individually dismissed all of them, on the one screen where space is scarcest.
+
+They are good explanations. The placement is the problem — they sit above the content they
+describe rather than beside it. Gated by the `onboarding_tips` switch if you want them off today.
+
+### L3. HIGH — elapsed time is rendered in raw hours, and stops being readable after two days
+
+Real badges from the board: **"1019h 44m since attempt"**, "997h 4m since attempt", "893h 27m",
+"894h 56m", "321h 27m". That is 42 days, 41 days, 37 days, 37 days and 13 days.
+
+These are the most prominent recurring element on every card — amber, pill-shaped, sitting right
+under the service type — and nobody can read "1019h" as six weeks at a glance. The whole point of
+the badge is urgency, and past about 48 hours it conveys none.
+
+Four separate places format it the same way, with no day rollover:
+
+- `src/components/UnassignedTimer.tsx:8`
+- `src/components/CountdownTimer.tsx:49`
+- `src/lib/contactFollowUp.ts:45`
+- `src/lib/timer.ts:39`
+
+One shared formatter that rolls into days past 48h (`3d 4h`, `6w`) fixes all four, and removes a
+duplication that is already four-way.
+
+### L4. MEDIUM — the html height-lock is app-wide, and it costs most here
+
+Same measurement as `/platform`: `document.documentElement.scrollHeight` is 844 (pinned to the
+viewport) while `document.body.scrollHeight` is 1082. Confirmed on two unrelated routes, so it is
+global, not page-specific.
+
+The consequence lands hardest on this screen: **the mobile URL bar never auto-hides**, because that
+only happens on *document* scroll. Another ~60-100px permanently gone, on the screen that already
+has only ~200px for content. Fixing L1 and L4 together roughly doubles the leads visible per screen.
+
+### L5. MEDIUM — header tap targets are under 44px
+
+T1.5 raised the call and SMS targets, and those hold. The app chrome was not part of that pass:
+
+| Control | Size |
+| --- | --- |
+| Header icons (refresh, notifications, menu) | 30x30, 32x32 |
+| Card disclosure | 24x24 |
+| Tip "Got it" | 16px tall |
+| Help "?" | 42x27 |
+
+These are one-thumb targets on a phone held in a work glove.
+
+### L6. MEDIUM — lead names truncate on desktop, and the name is the identifier
+
+On the desktop board (`11-`): "test-simulat…", "SMS Lead: SMS …", "test-simula…". Fixed-width
+columns cut the one field that tells you which job it is. Also at 1440px — an ordinary laptop —
+the sixth column ("Booking Cancelled") is clipped at the edge and needs horizontal scrolling.
+
+### L7. LOW — status is shown twice per card
+
+Every card carries a status dropdown chip ("Unassigned", "Assigned") while already sitting in the
+column of that name. On mobile, where the column header is directly above, it is pure repetition —
+and it is occupying the top-right of every card, which is prime space.
+
+### Worth saying: the desktop board is good
+
+Six columns, colour-coded, one clear primary action per card (`Assign to Technician`, `Send Quote`,
+`Call Customer`, `Complete Job`) that changes with status. The "next action" idea the tips describe
+is genuinely implemented and works. None of the above is about the concept — it is about how much
+of it survives the trip down to a 390px screen.
+
 ## What I couldn't get to, and why
 
-The rest of the authenticated app — `/leads`, `/calendar`, `/profile`, `/org-settings`,
-`/leaderboard`, `/reports`. `/leads` is the one that matters most: it is the money path, it is the
-1,394-line screen `dd14` targets, and it is where a tech spends their day.
+`/calendar`, `/profile`, `/org-settings`, `/leaderboard` and `/reports`. Also not covered: the lead
+detail sheet, the completion ceremony, and the quote/invoice composers — the deeper flows behind
+`/leads` rather than the board itself.
 
-The Platform section itself **is** now reviewed (above).
+`/leads` and the Platform section **are** now reviewed (above).
 
 Review account was `claude-uxreview@example.com` on **dev**, created for this pass and deleted
 afterwards.
