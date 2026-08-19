@@ -1,12 +1,12 @@
 ---
 id: "dd2-vercel-pro-and-supabase-pro-with-pitr-2026-08-06"
-status: "backlog"
+status: "done"
 priority: "critical"
 assignee: null
 dueDate: null
 created: "2026-08-06T16:00:00.000Z"
-modified: "2026-08-06T19:45:00.000Z"
-completedAt: null
+modified: "2026-08-19T09:00:00.000Z"
+completedAt: "2026-08-19T09:00:00.000Z"
 labels: ["due-diligence", "infrastructure", "legal", "ops"]
 order: "Z1"
 ---
@@ -47,3 +47,12 @@ Production was stood up by cutover script, not migrations. `supabase/migrations/
 **Difficulty:** Easy (the upgrade). Medium (the hub decomposition that follows).
 
 Source: DUE_DILIGENCE_REVIEW.md — Phase 2, C4 + C5.
+
+
+---
+
+## Closed 19-08-2026 — board reconciliation
+
+Owner decision: not proceeding with the paid plans. The Vercel Hobby commercial-use position and the 12-function cap are **accepted, not resolved** — the `api/` hub pattern and the "never add a file under api/" rule in `docs/PROJECT.md` stay permanent, not temporary.
+
+Knock-on: `t27` loses the PITR window it was waiting for. That card is re-scoped rather than closed — its read-only half (capture drift, correct the migration files, dry-run on dev) needs no backup and remains doable.

@@ -1,12 +1,12 @@
 ---
 id: "t1-10-enable-stage3-acks-2026-07-24"
-status: "review"
+status: "done"
 priority: "high"
 assignee: null
 dueDate: "2026-07-24"
 created: "2026-07-24T12:00:00.000Z"
-modified: "2026-08-06T17:00:00.000Z"
-completedAt: null
+modified: "2026-08-19T09:00:00.000Z"
+completedAt: "2026-08-19T09:00:00.000Z"
 labels: ["roadmap", "enablement"]
 order: "a0"
 ---
@@ -29,3 +29,12 @@ Two of the three switches this card asks you to turn on **are already on in prod
 3. Reconcile the stale Stage 3 checkboxes in `SALES_PIPELINE_BACKLOG.md`.
 
 **Verdict: valuable, but rewrite it.** Item 2 is the real work and it is a genuine risk — a live customer-facing SMS path that has never been end-to-end verified. Arguably it should be `critical`, not `high`. Left in Review for you to rescope rather than silently rewriting your card.
+
+
+---
+
+## Closed 19-08-2026 — board reconciliation
+
+Built and pushed (v1.1.121). `lead_ack_sms` and `manager_new_lead_alerts` have been true in prod for `tv-magic` since 31-07-2026.
+
+`lead_ack_email` **defaults off and stays off** — owner's call, recorded here rather than left as an open question.

@@ -1,12 +1,12 @@
 ---
 id: "franchise-email-templates-self-serve-2026-07-27"
-status: "review"
+status: "done"
 priority: "low"
 assignee: null
 dueDate: "2026-07-27"
 created: "2026-07-27T00:00:00.000Z"
-modified: "2026-08-06T17:00:00.000Z"
-completedAt: null
+modified: "2026-08-19T09:00:00.000Z"
+completedAt: "2026-08-19T09:00:00.000Z"
 labels: ["franchise", "email", "templates"]
 order: "a6"
 ---
@@ -29,3 +29,14 @@ A visual block builder in Franchise Settings so franchisees can edit quote, lead
 Brand and per-org email template editors **already exist** in Platform Admin. This card replaces a working founder-operated tool with a self-serve tool for users who do not exist.
 
 **Verdict: park it.** Dropped to `low` and moved to Review. If there is a franchise prospect in the pipeline I do not know about, say so and this changes completely — that is genuinely a differentiated B2B2B asset. Absent that prospect, this is the clearest example of the review's core finding: building because it is buildable.
+
+
+---
+
+## Closed 19-08-2026 — board reconciliation
+
+**Already built** — closed as done, not dropped.
+
+`EmailTemplatesPanel` is wired into `src/pages/OrgSettingsPage.tsx:406`, backed by `EmailTemplateBuilder`, `shared/emailTemplateDocs`, and org → brand → default precedence via `resolveEmailTemplateValue`. Brand-level editing exists separately via `BrandTemplatesEditor` in Platform Admin.
+
+The 06-08 board review called this "THE MOST QUESTIONABLE CARD ON THE BOARD". It had already shipped.

@@ -1,12 +1,12 @@
 ---
 id: "t1-12-self-hosted-web-push-2026-08-06"
-status: "in-progress"
+status: "done"
 priority: "high"
 assignee: null
 dueDate: "2026-08-06"
 created: "2026-08-06T12:00:00.000Z"
-modified: "2026-08-06T17:00:00.000Z"
-completedAt: null
+modified: "2026-08-19T09:00:00.000Z"
+completedAt: "2026-08-19T09:00:00.000Z"
 labels: ["roadmap", "notifications", "reliability"]
 order: "a3"
 ---
@@ -23,3 +23,16 @@ No new Vercel function (Hobby cap is 12/12): sender is `api/_lib/webPush.ts` cal
 **Out of scope:** OneSignal teardown — that is T1.13, once the subscription table plateaus.
 
 **Governing next item** per ROADMAP.md.
+
+
+---
+
+## Closed 19-08-2026 — board reconciliation
+
+**Code complete** — merged in commit `143e2df` (v1.1.155–1.1.167), not started-and-abandoned as the board status suggested.
+
+Shipped: `api/_lib/webPush.ts` (VAPID sender, 404/410 row pruning, failure_count backoff), `api/_lib/pushTransport.ts` (switch routing + per-recipient OneSignal fallback), `api/_lib/pushEndpoints.ts`, `src/lib/webPush.ts`, hardened `public/sw.js` (the `PUSH_SOURCE='fb'` marker gate that fixes the duplicate-notification bug, try/catch on malformed payloads, focus-then-navigate, `pushsubscriptionchange` rotation), `?action=push-rotate` / `?action=push-send` on the send-sms hub, both `push_subscriptions` migrations, the `native_web_push` switch, and `tests/pushTransport.test.ts`.
+
+`src/App.tsx` calls `reconcileSubscription()` unconditionally, so subscriptions have been accumulating in prod ahead of any flip.
+
+**Dark only because `native_web_push` defaults to false.** Flipping it for `tv-magic` plus one device UAT is an owner action, carried to the owner-action list. Unblocks `dd10`.

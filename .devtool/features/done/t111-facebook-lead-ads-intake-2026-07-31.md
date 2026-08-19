@@ -1,12 +1,12 @@
 ---
 id: "t1-11-facebook-lead-ads-intake-2026-07-31"
-status: "in-progress"
+status: "done"
 priority: "high"
 assignee: null
 dueDate: "2026-07-31"
 created: "2026-07-31T00:00:00.000Z"
-modified: "2026-08-06T17:00:00.000Z"
-completedAt: null
+modified: "2026-08-19T09:00:00.000Z"
+completedAt: "2026-08-19T09:00:00.000Z"
 labels: ["roadmap", "t1", "lead-intake"]
 order: "a1"
 ---
@@ -25,3 +25,12 @@ Client started running FB Ads and is hand-copying leads out of Meta Leads Center
 Existing 11 leads in Meta Leads Center go in by hand via Add Lead — no importer built (confirmed decision, forward-only webhooks).
 
 **Depends on:** [[t1-10]] — partially live for `tv-magic` already (see correction above); full T1.10 UAT (incl. `lead_ack_email`) still open separately.
+
+
+---
+
+## Closed 19-08-2026 — board reconciliation
+
+Shipped and live. Endpoint, `inbound_facebook_ads` switch, retry path and tests deployed v1.1.148 (31-07-2026); switch enabled for `tv-magic`.
+
+Remaining steps were never engineering work: build the Make.com scenario against Nick's Facebook Page, and submit one real Lead Ads form as UAT. Carried to the owner-action list rather than held open here.

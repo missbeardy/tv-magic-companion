@@ -1,12 +1,12 @@
 ---
 id: "dd15-accessibility-pass-2026-08-06"
-status: "backlog"
+status: "done"
 priority: "medium"
 assignee: null
 dueDate: null
 created: "2026-08-06T16:00:00.000Z"
-modified: "2026-08-06T17:00:00.000Z"
-completedAt: null
+modified: "2026-08-19T09:00:00.000Z"
+completedAt: "2026-08-19T09:00:00.000Z"
 labels: ["due-diligence", "accessibility", "ux", "frontend"]
 order: "ZH"
 ---
@@ -48,3 +48,12 @@ It matters because: (a) Play Store listings attract accessibility scrutiny, (b) 
 **Difficulty:** Medium — broad but shallow.
 
 Source: DUE_DILIGENCE_REVIEW.md — Phase 3, Phase 9 (Accessibility 3/10).
+
+
+---
+
+## Closed 19-08-2026 — board reconciliation
+
+Owner decision: closed.
+
+Baseline recorded at close (19-08-2026): 27 `aria-label` attributes across `src/components`; 4 components with dialog roles or focus handling (`BottomSheet`, `ChangelogOverlay`, `MobileNavDrawer`, `SmsComposeModal`).

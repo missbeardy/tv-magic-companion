@@ -1,12 +1,12 @@
 ---
 id: "t3-2-compliance-certificates-2026-07-24"
-status: "backlog"
+status: "done"
 priority: "low"
 assignee: null
 dueDate: "2026-07-24"
 created: "2026-07-24T12:00:00.000Z"
-modified: "2026-08-06T17:00:00.000Z"
-completedAt: null
+modified: "2026-08-19T09:00:00.000Z"
+completedAt: "2026-08-19T09:00:00.000Z"
 labels: ["roadmap", "t3"]
 order: "a3"
 ---
@@ -21,3 +21,10 @@ Electrical/plumbing/gas paperwork — promote when targeting those trades.
 Not a nice-to-have: a **market-eligibility gate**. Its absence excludes sparkies, plumbers and gasfitters from the addressable market entirely — both ServiceM8 (higher tiers) and Tradify (Pro) ship it. Promote the moment you target a licensed trade.
 
 Survives the `dd20` Tier 3 prune for that reason.
+
+
+---
+
+## Closed 19-08-2026 — board reconciliation
+
+Owner decision: closed. No customer has asked for this. Supersedes the 06-08 board review's "KEEP (one of two Tier 3 survivors)".

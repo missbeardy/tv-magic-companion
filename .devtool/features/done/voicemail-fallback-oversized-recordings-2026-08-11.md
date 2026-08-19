@@ -1,12 +1,12 @@
 ---
 id: "voicemail-fallback-oversized-recordings-2026-08-11"
-status: "review"
+status: "done"
 priority: "high"
 assignee: null
 dueDate: "2026-08-13T00:00:00.000Z"
 created: "2026-08-11T00:00:00.000Z"
-modified: "2026-08-11T00:00:00.000Z"
-completedAt: null
+modified: "2026-08-19T09:00:00.000Z"
+completedAt: "2026-08-19T09:00:00.000Z"
 labels: ["bugfix", "lead-intake", "voicemail"]
 order: "a1"
 ---
@@ -118,3 +118,14 @@ The audio is not recoverable from the bounce — the DSN is 21 KB against a 554 
 **Difficulty:** Medium.
 
 Source: owner request 11-08-2026 — production leads being lost.
+
+
+---
+
+## Closed 19-08-2026 — board reconciliation
+
+Deployed and green. Live on prod at v1.1.174; cron firing clean on its own schedule; migration applied, IMAP auth and nested folder path verified.
+
+Remaining UAT (leave a >30s voicemail on the 3CX line) is an owner action, carried to the owner-action list.
+
+**Not closed with this card:** `VOICEMAIL_MAILBOX_ORG_ID` is still set on the Vercel **Preview** scope, which shares the live mailbox. Tracked separately as a live safety item.

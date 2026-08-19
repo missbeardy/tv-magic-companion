@@ -1,12 +1,12 @@
 ---
 id: "dd13-get-five-paying-strangers-2026-08-06"
-status: "backlog"
+status: "done"
 priority: "critical"
 assignee: null
 dueDate: null
 created: "2026-08-06T16:00:00.000Z"
-modified: "2026-08-06T17:00:00.000Z"
-completedAt: null
+modified: "2026-08-19T09:00:00.000Z"
+completedAt: "2026-08-19T09:00:00.000Z"
 labels: ["due-diligence", "gtm", "validation", "not-engineering"]
 order: "Z6"
 ---
@@ -34,3 +34,10 @@ Engineering velocity has not been the constraint on this business for a long tim
 **Difficulty:** Hard — and it is the only item on this board that cannot be done at a keyboard.
 
 Source: DUE_DILIGENCE_REVIEW.md — Phase 1, Phase 7, Phase 10 (top-five change #2).
+
+
+---
+
+## Closed 19-08-2026 — board reconciliation
+
+Owner decision: closed. The Tier 3 freeze this card gated is therefore moot — see `dd20`, which now simplifies to deleting the Tier 3 section outright.
