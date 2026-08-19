@@ -11,16 +11,18 @@ vi.mock('web-push', () => ({
   },
 }))
 
-const { sendWebPushToUsers, isWebPushConfigured, WEB_PUSH_SOURCE } = await import(
+const { sendWebPushToUsers, isWebPushConfigured, WEB_PUSH_SOURCE, capPerUser } = await import(
   '../api/_lib/webPush.js'
 )
 
 interface Row {
   id: string
+  user_id: string
   endpoint: string
   p256dh: string
   auth: string
   failure_count: number
+  last_seen_at: string | null
 }
 
 /** Records every write the sender makes so we can assert its bookkeeping. */
@@ -36,7 +38,10 @@ function makeSupabase(rows: Row[], recorder: Recorder): SupabaseClient {
       return {
         select: () => ({
           in: () => ({
-            lt: () => Promise.resolve({ data: rows, error: null }),
+            lt: () => ({
+              // The sender orders newest-seen first so capPerUser drops the right rows.
+              order: () => Promise.resolve({ data: rows, error: null }),
+            }),
           }),
         }),
         update: (patch: Record<string, unknown>) => ({
@@ -61,8 +66,16 @@ function makeSupabase(rows: Row[], recorder: Recorder): SupabaseClient {
   return client as unknown as SupabaseClient
 }
 
-function row(id: string, failure_count = 0): Row {
-  return { id, endpoint: `https://push.example/${id}`, p256dh: 'p', auth: 'a', failure_count }
+function row(id: string, failure_count = 0, user_id = 'u1'): Row {
+  return {
+    id,
+    user_id,
+    endpoint: `https://push.example/${id}`,
+    p256dh: 'p',
+    auth: 'a',
+    failure_count,
+    last_seen_at: null,
+  }
 }
 
 function webPushError(statusCode: number): Error & { statusCode: number } {
@@ -207,7 +220,11 @@ describe('sendWebPushToUsers', () => {
     const client = {
       from: () => ({
         select: () => ({
-          in: () => ({ lt: () => Promise.resolve({ data: null, error: { message: 'boom' } }) }),
+          in: () => ({
+            lt: () => ({
+              order: () => Promise.resolve({ data: null, error: { message: 'boom' } }),
+            }),
+          }),
         }),
       }),
     } as unknown as SupabaseClient
@@ -217,5 +234,58 @@ describe('sendWebPushToUsers', () => {
       sent: 0,
       expired: 0,
     })
+  })
+})
+
+describe('capPerUser — fan-out ceiling', () => {
+  const sub = (user_id: string, endpoint: string, last_seen_at: string | null = null) =>
+    ({
+      id: endpoint,
+      user_id,
+      endpoint,
+      p256dh: 'k',
+      auth: 'a',
+      failure_count: 0,
+      last_seen_at,
+    })
+
+  it('keeps every row when a user is under the cap', () => {
+    const rows = [sub('u1', 'e1'), sub('u1', 'e2'), sub('u2', 'e3')]
+    expect(capPerUser(rows).map((r) => r.endpoint)).toEqual(['e1', 'e2', 'e3'])
+  })
+
+  it('caps a leaked device at five endpoints instead of fanning out to all of them', () => {
+    // The real prod case: one iPhone had 69 rows. Uncapped, one lead alert would
+    // have pushed 69 copies to that phone.
+    const rows = Array.from({ length: 69 }, (_, i) => sub('u1', `e${i}`))
+    const kept = capPerUser(rows)
+    expect(kept).toHaveLength(5)
+    expect(kept.map((r) => r.endpoint)).toEqual(['e0', 'e1', 'e2', 'e3', 'e4'])
+  })
+
+  it('caps each user independently, so one leaky device cannot starve a colleague', () => {
+    const rows = [
+      ...Array.from({ length: 30 }, (_, i) => sub('leaky', `l${i}`)),
+      sub('clean', 'c1'),
+    ]
+    const kept = capPerUser(rows)
+    expect(kept.filter((r) => r.user_id === 'leaky')).toHaveLength(5)
+    expect(kept.filter((r) => r.user_id === 'clean')).toHaveLength(1)
+  })
+
+  it('honours the caller ordering, so newest-seen rows survive the cap', () => {
+    const rows = [
+      sub('u1', 'newest', '2026-08-19T00:00:00Z'),
+      sub('u1', 'older', '2026-08-01T00:00:00Z'),
+      ...Array.from({ length: 10 }, (_, i) => sub('u1', `ancient${i}`, null)),
+    ]
+    const kept = capPerUser(rows)
+    expect(kept[0].endpoint).toBe('newest')
+    expect(kept[1].endpoint).toBe('older')
+    expect(kept).toHaveLength(5)
+  })
+
+  it('returns an empty list unchanged', () => {
+    expect(capPerUser([])).toEqual([])
   })
 })

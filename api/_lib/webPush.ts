@@ -35,16 +35,30 @@ export interface WebPushResult {
 
 interface SubscriptionRow {
   id: string
+  user_id: string
   endpoint: string
   p256dh: string
   auth: string
   failure_count: number
+  last_seen_at: string | null
 }
 
 const EMPTY_RESULT: WebPushResult = { attempted: 0, sent: 0, expired: 0 }
 
 /** Max consecutive soft failures before a row stops being selected for sending. */
 const MAX_FAILURES = 3
+
+/**
+ * Hard ceiling on endpoints contacted per user per send.
+ *
+ * A browser that rotates its subscription leaves the old row behind, so this table
+ * grows one row per rotation per device unless something prunes it. The client-side
+ * prune in `src/lib/webPush.ts` is the real fix, but it only runs when that user
+ * next opens the app — so without a cap here, one lead alert could fan out to dozens
+ * of endpoints on a single phone. Newest-seen rows win; a genuine multi-device user
+ * has nowhere near this many.
+ */
+const MAX_ENDPOINTS_PER_USER = 5
 
 /** Seconds the push service holds an undelivered message. */
 const TTL_SECONDS = 60 * 60 * 24
@@ -55,6 +69,35 @@ export function isWebPushConfigured(): boolean {
       process.env.VAPID_PRIVATE_KEY &&
       process.env.VAPID_SUBJECT
   )
+}
+
+/**
+ * Keep only the newest `MAX_ENDPOINTS_PER_USER` rows per user.
+ *
+ * Input must already be ordered newest-first. Exported for tests: the cap is the
+ * thing standing between a leaked subscription table and a notification flood.
+ */
+export function capPerUser(rows: SubscriptionRow[]): SubscriptionRow[] {
+  const seen = new Map<string, number>()
+  const kept: SubscriptionRow[] = []
+  let dropped = 0
+
+  for (const row of rows) {
+    const n = seen.get(row.user_id) ?? 0
+    if (n >= MAX_ENDPOINTS_PER_USER) {
+      dropped++
+      continue
+    }
+    seen.set(row.user_id, n + 1)
+    kept.push(row)
+  }
+
+  if (dropped > 0) {
+    console.warn(
+      `[WEB_PUSH] capped fan-out: skipped ${dropped} stale endpoint(s) beyond ${MAX_ENDPOINTS_PER_USER}/user`
+    )
+  }
+  return kept
 }
 
 /**
@@ -72,16 +115,17 @@ export async function sendWebPushToUsers(
 
   const { data, error } = await supabase
     .from('push_subscriptions')
-    .select('id, endpoint, p256dh, auth, failure_count')
+    .select('id, user_id, endpoint, p256dh, auth, failure_count, last_seen_at')
     .in('user_id', userIds)
     .lt('failure_count', MAX_FAILURES)
+    .order('last_seen_at', { ascending: false, nullsFirst: false })
 
   if (error) {
     console.error('[WEB_PUSH] subscription lookup failed:', error.message)
     return EMPTY_RESULT
   }
 
-  const subs = (data ?? []) as SubscriptionRow[]
+  const subs = capPerUser((data ?? []) as SubscriptionRow[])
   if (!subs.length) return EMPTY_RESULT
 
   let webpush: typeof import('web-push')

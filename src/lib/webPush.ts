@@ -96,8 +96,13 @@ async function syncSubscription(
   const json = subscription.toJSON()
   if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return false
 
-  // endpoint is UNIQUE — upserting on it is what makes re-subscription idempotent.
-  // A reinstall or a SW rotation produces one row, not many.
+  // endpoint is UNIQUE, so upserting on it keeps *the same* endpoint idempotent.
+  // It does NOT dedupe a rotation: the browser hands us a brand-new endpoint, which
+  // inserts a second row and orphans the first. iOS drops subscriptions often, so on
+  // one iPhone that produced 69 rows in eleven days — and because the sender fans out
+  // to every row a user owns, flipping `native_web_push` on would have pushed 69
+  // copies of one lead alert to one phone. pruneStaleDeviceRows below is what keeps
+  // this table at one row per device.
   const { error } = await supabase.from('push_subscriptions').upsert(
     {
       user_id: userId,
@@ -116,7 +121,42 @@ async function syncSubscription(
     console.error('Push subscription sync failed (non-fatal):', error.message)
     return false
   }
+
+  await pruneStaleDeviceRows(userId, json.endpoint, navigator.userAgent)
   return true
+}
+
+/**
+ * Delete the rows this device left behind when the browser rotated its subscription.
+ *
+ * Scoped deliberately tightly, because a false positive here silently costs someone
+ * their notifications:
+ *   - same `user_id` and same `user_agent` — never another person, never another device
+ *   - never the row we just wrote
+ *   - `last_success_at is null` only — a row that has ever delivered is left alone
+ *     even if it looks redundant
+ *
+ * Best-effort: a failure here leaks a row, which the server-side fan-out cap in
+ * `api/_lib/webPush.ts` already contains. It must never fail the sync.
+ */
+async function pruneStaleDeviceRows(
+  userId: string,
+  keepEndpoint: string,
+  userAgent: string
+): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from('push_subscriptions')
+      .delete()
+      .eq('user_id', userId)
+      .eq('user_agent', userAgent)
+      .neq('endpoint', keepEndpoint)
+      .is('last_success_at', null)
+
+    if (error) console.error('Push subscription prune failed (non-fatal):', error.message)
+  } catch (err) {
+    console.error('Push subscription prune threw (non-fatal):', err)
+  }
 }
 
 /**
