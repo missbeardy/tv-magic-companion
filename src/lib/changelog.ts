@@ -53,6 +53,7 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'The leaderboard now shows you your own standing, how far you are behind the person above, and whether you moved up or down since last week',
     'Weekly nudge (off by default, per brand): a Saturday evening reminder to the manager to post the week, then a Monday 8am notification to the team that opens last week’s leaderboard on a countdown of third, second and first place',
     'Fixed a fault that would have sent one lead alert to a phone dozens of times over: each time a browser quietly reset its notification registration the old one was left behind, and every leftover would have been notified',
+    'Release notes no longer appear to customers opening a quote or invoice link — they are shown to signed-in staff only',
   ],
 }
 
