@@ -4,7 +4,7 @@
 
 **Goal:** Stages 1–10 → Completed (fully automatable end-to-end)  
 **Governing build order:** [ROADMAP.md](ROADMAP.md) (this backlog is a detailed checklist; ROADMAP wins on priority)  
-**Now:** Stage 3.1 — Enable acks for TV Magic (T1.10, deferred pending manager approval)  
+**Now:** Stage 3 is live. `lead_ack_sms` + `manager_new_lead_alerts` have been true in prod for TV Magic since 31-07-2026; `lead_ack_email` stays off by owner decision. T1.10 closed 19-08-2026.  
 **Last shipped:** T2.1 closed-loop (20-07-2026) + Must-Have packages 1–6
 
 ## Progress
@@ -26,7 +26,7 @@
 
 ## Now
 
-- [ ] **3.1** Enable `lead_ack_sms` + `manager_new_lead_alerts` for TV Magic (manager approval — T1.10)
+- [x] **3.1** Enable `lead_ack_sms` + `manager_new_lead_alerts` for TV Magic — **live in prod since 31-07-2026** (enabled out-of-band; discovered and documented 31-07). `lead_ack_email` deliberately off.
 
 ---
 
@@ -42,13 +42,13 @@
 
 ### Stage 3 — Acknowledgment
 
-- [ ] 3.1 Enable switches for TV Magic prod
+- [x] 3.1 Enable switches for TV Magic prod — done 31-07-2026
 - [x] 3.2 Ack SMS on inbound paths (built)
 - [x] 3.3 `notifyManagersNewLead` after insert
 - [x] 3.4 OneSignal push on new lead
 - [x] 3.5 Customer email ack (`lead_ack_email`)
 - [x] 3.6 Ack copy / SLA in brand templates
-- [ ] 3.7 **UAT:** SMS in → customer ack + manager push &lt;60s (blocked on 3.1)
+- [ ] 3.7 **UAT:** SMS in → customer ack + manager push &lt;60s — no longer blocked; 3.1 is live, this is an owner-run browser/device UAT
 
 ### Stage 4 — Quoting
 

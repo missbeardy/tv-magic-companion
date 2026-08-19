@@ -5,7 +5,7 @@ priority: "medium"
 assignee: null
 dueDate: null
 created: "2026-08-06T16:00:00.000Z"
-modified: "2026-08-06T17:00:00.000Z"
+modified: "2026-08-19T17:15:00.000Z"
 completedAt: null
 labels: ["due-diligence", "subtraction", "product", "ux"]
 order: "ZE"
@@ -38,3 +38,12 @@ Every switch is: a branch to test, a support question to answer, a line in the o
 **Difficulty:** Medium — the deletion is easy, the classification decisions are the work.
 
 Source: DUE_DILIGENCE_REVIEW.md — Phase 3, Phase 4, Phase 8 Remove item 27.
+
+
+---
+
+## Verified against the code 19-08-2026
+
+Card quotes **32** switches from the 06-08 review. Actual count today is **34** — `assignment_exclusions`, `weekly_leaderboard_nudge` and `native_web_push` were added since. The catalog is moving away from the target, not toward it.
+
+Adding a key is **six edits**: `FEATURE_SWITCH_KEYS`, `FEATURE_SWITCHES_BY_CATEGORY`, `FEATURE_SWITCH_CATEGORY_BY_KEY` and `FEATURE_SWITCH_MIN_TIERS` in `shared/featureSwitchCatalog.ts`, then `FEATURE_SWITCH_DEFAULTS` and the label/description map in `src/lib/features.ts` — plus a migration inserting into `feature_flag_catalog` and backfilling `brand_feature_switches`. Note there is no `src/lib/featureSwitchCatalog.ts`; the canonical file is the `shared/` one.

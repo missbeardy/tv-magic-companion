@@ -5,7 +5,7 @@ priority: "medium"
 assignee: null
 dueDate: null
 created: "2026-08-06T16:00:00.000Z"
-modified: "2026-08-11T03:30:00.000Z"
+modified: "2026-08-19T17:15:00.000Z"
 completedAt: null
 labels: ["due-diligence", "notifications", "tech-debt", "t1"]
 order: "ZB"
@@ -36,3 +36,14 @@ Two push stacks means: two SDKs, two service-worker code paths sharing one globa
 **Difficulty:** Easy once the gate is met. **Do not start before the subscription table plateaus.**
 
 Source: DUE_DILIGENCE_REVIEW.md — Phase 4, Phase 8 item 14; ROADMAP.md T1.12 "Later".
+
+
+---
+
+## Verified against the code 19-08-2026
+
+Card says teardown must remove "the three REST call sites". There is **one**: `sendViaOneSignal` at `api/_lib/pushTransport.ts:39`. `supabase/functions/notify-message` was already migrated to `?action=push-send`.
+
+Full remaining surface: `react-onesignal` in package.json, `src/lib/oneSignal.ts`, `src/App.tsx` `OneSignalBootstrap`, `public/OneSignalSDKWorker.js`, `public/web-push-handler.js` (a classic-syntax duplicate of the sw.js listeners), the `sendViaOneSignal` branch, `ONESIGNAL_APP_ID`/`ONESIGNAL_API_KEY`, the `onesignal.com` CSP allowances in `vercel.json`, the `globIgnores` entry in `vite.config.ts`, and the sub-processor line in `PrivacyPolicyPage.tsx`. The `PUSH_SOURCE='fb'` gate in `public/sw.js` becomes unnecessary but is harmless to keep.
+
+**Still gated:** `native_web_push` must be ON and `push_subscriptions` plateaued first. T1.12 is code-complete but the switch is still off.

@@ -5,7 +5,7 @@ priority: "high"
 assignee: null
 dueDate: null
 created: "2026-08-06T16:00:00.000Z"
-modified: "2026-08-06T17:00:00.000Z"
+modified: "2026-08-19T17:15:00.000Z"
 completedAt: null
 labels: ["due-diligence", "gtm", "marketing", "sales-assets"]
 order: "Z8"
@@ -43,3 +43,14 @@ Every public claim must trace to a shipped, switch-ON, verified feature. Never c
 **Difficulty:** Medium — mostly non-engineering. **Unblocks `dd13`.**
 
 Source: DUE_DILIGENCE_REVIEW.md — Phase 1 (#2), Phase 8 items 10–12.
+
+
+---
+
+## Verified against the code 19-08-2026
+
+**Premise is out of date.** The card opens "There is no front door." **fieldbournedigital.com.au is live**, titled "Missed Call Follow-Up for Aussie Tradies" — the exact lead-with-the-loss positioning part 3 specifies.
+
+Part 3 (landing page with pricing) therefore appears done or largely done, outside this repo. What may remain is part 1 (the 60-second demo video) and part 2 (the client case study with real `lead_events` numbers).
+
+**Owner to confirm which parts are outstanding** — then this card either closes or shrinks to a one-liner.

@@ -5,7 +5,7 @@ priority: "low"
 assignee: null
 dueDate: null
 created: "2026-08-06T16:00:00.000Z"
-modified: "2026-08-06T17:00:00.000Z"
+modified: "2026-08-19T17:15:00.000Z"
 completedAt: null
 labels: ["due-diligence", "tech-debt", "frontend", "architecture"]
 order: "ZI"
@@ -36,3 +36,12 @@ Consequences: no request deduplication, no cache, no background refetch, no stal
 **Difficulty:** Hard to retrofit. The interim rule is Easy and should be adopted regardless.
 
 Source: DUE_DILIGENCE_REVIEW.md — Phase 2, I5.
+
+
+---
+
+## Verified against the code 19-08-2026
+
+Card quotes **33** raw `supabase.from()` calls in components. Actual count today is **17** across `src/components` + `src/pages` — roughly half what the review claimed. No `@tanstack/react-query` or `swr` in `package.json`.
+
+The debt is real but smaller than carded, which weakens the case for a retrofit further.

@@ -5,7 +5,7 @@ priority: "high"
 assignee: null
 dueDate: null
 created: "2026-08-06T16:00:00.000Z"
-modified: "2026-08-06T17:00:00.000Z"
+modified: "2026-08-19T17:15:00.000Z"
 completedAt: null
 labels: ["due-diligence", "retention", "customer-communication"]
 order: "Z9"
@@ -39,3 +39,17 @@ BUSINESS.md already spots the fix and files it as a "future retention hook." The
 **Difficulty:** Medium.
 
 Source: DUE_DILIGENCE_REVIEW.md — Phase 1 (#4), Phase 7 retention, Phase 8 item 15.
+
+
+---
+
+## Verified against the code 19-08-2026
+
+**The card's central assumption is wrong.** It says "reuse the existing `monthly_org_reports` snapshot job rather than building a new aggregation". Two problems:
+
+1. `public.snapshot_monthly_reporting()` exists as a `SECURITY DEFINER` function but **has no caller anywhere in the repo** — no workflow, no `vercel.json` rewrite, no `cronActions` handler. Scheduling it is part of this card, not a precondition already met.
+2. `monthly_org_reports` has **no revenue column**. It carries funnel counts, rates, timings and `source_breakdown jsonb`. Recovered revenue needs a new column and new SQL inside that function.
+
+Also unresolved: `leads` has **two** origin columns with different value sets and no CHECK constraint — `lead_source` (AI-extracted, prompt-constrained) and `source` (ingestion path; `processVoicemail.ts` writes both `'phone'` and `'voicemail_email'`). Which one defines "inbound origin" must be decided before the aggregation is written, or the headline number is quietly wrong.
+
+Real scope is roughly 2x the card. Zero new Vercel functions needed — follow the existing workflow -> rewrite -> `cronActions` pattern.
