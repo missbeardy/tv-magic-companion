@@ -57,6 +57,10 @@
       "destination": "/api/send-sms?action=cron-maintenance"
     },
     {
+      "source": "/api/cron/leaderboard-nudge",
+      "destination": "/api/send-sms?action=leaderboard-nudge"
+    },
+    {
       "source": "/api/meta-webhook",
       "destination": "/api/inbound-sms?action=meta-webhook"
     },

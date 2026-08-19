@@ -1,0 +1,94 @@
+# Weekly leaderboard nudge — two phases, on different days and about different weeks.
+#
+# GitHub schedules in UTC and does not know about daylight saving, so each phase is
+# scheduled at BOTH UTC hours its Sydney target can land on (AEST = UTC+10, AEDT = UTC+11)
+# and the server picks the right one via `isNudgeWindow`. The wrong-half tick is a cheap
+# no-op that returns `inWindow: false`, and the dedupe makes a double fire safe regardless.
+#
+#   remind → Saturday 17:00 Sydney = 07:00 UTC Sat (AEST) / 06:00 UTC Sat (AEDT)
+#   reveal → Monday   08:00 Sydney = 22:00 UTC Sun (AEST) / 21:00 UTC Sun (AEDT)
+#
+# The Monday reveal therefore runs on a SUNDAY in UTC, and celebrates the week that
+# closed the night before — not the week that has just started.
+#
+# Repo secrets: PLATFORM_URL, CRON_SECRET
+name: Leaderboard nudge
+
+on:
+  schedule:
+    - cron: '0 6,7 * * 6'
+    - cron: '0 21,22 * * 0'
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: Which nudge to send
+        required: true
+        default: reveal
+        type: choice
+        options:
+          - remind
+          - reveal
+      force:
+        description: Ignore the day/hour guard and send now
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  remind:
+    # Saturday-UTC ticks are the Saturday-evening manager reminder.
+    if: github.event_name == 'schedule' && github.event.schedule == '0 6,7 * * 6'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger leaderboard nudge (remind)
+        env:
+          PLATFORM_URL: ${{ secrets.PLATFORM_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$PLATFORM_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "Missing PLATFORM_URL or CRON_SECRET in repo secrets"
+            exit 1
+          fi
+          curl --fail-with-body --max-time 55 -X POST \
+            "${PLATFORM_URL%/}/api/cron/leaderboard-nudge?phase=remind" \
+            -H "Authorization: Bearer ${CRON_SECRET}"
+
+  reveal:
+    # Sunday-UTC ticks are Monday morning in Sydney — the team reveal.
+    if: github.event_name == 'schedule' && github.event.schedule == '0 21,22 * * 0'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger leaderboard nudge (reveal)
+        env:
+          PLATFORM_URL: ${{ secrets.PLATFORM_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$PLATFORM_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "Missing PLATFORM_URL or CRON_SECRET in repo secrets"
+            exit 1
+          fi
+          curl --fail-with-body --max-time 55 -X POST \
+            "${PLATFORM_URL%/}/api/cron/leaderboard-nudge?phase=reveal" \
+            -H "Authorization: Bearer ${CRON_SECRET}"
+
+  manual:
+    # workflow_dispatch — pick the phase, optionally bypass the hour guard for UAT.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger leaderboard nudge (manual)
+        env:
+          PLATFORM_URL: ${{ secrets.PLATFORM_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          PHASE: ${{ inputs.phase }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          if [ -z "$PLATFORM_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "Missing PLATFORM_URL or CRON_SECRET in repo secrets"
+            exit 1
+          fi
+          FORCE_PARAM=""
+          if [ "$FORCE" = "true" ]; then FORCE_PARAM="&force=1"; fi
+          curl --fail-with-body --max-time 55 -X POST \
+            "${PLATFORM_URL%/}/api/cron/leaderboard-nudge?phase=${PHASE}${FORCE_PARAM}" \
+            -H "Authorization: Bearer ${CRON_SECRET}"

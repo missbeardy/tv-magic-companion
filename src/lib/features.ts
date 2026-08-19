@@ -64,6 +64,7 @@ export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   customer_profiles: false,
   customer_import: false,
   onboarding_tips: true,
+  weekly_leaderboard_nudge: false,
 }
 
 export const FEATURE_SWITCH_DEFINITIONS: Record<
@@ -204,6 +205,10 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   onboarding_tips: {
     label: 'In-App Onboarding Tips',
     description: 'Coach tips for pool timer, contact rounds, and next-action CTAs (team mode)',
+  },
+  weekly_leaderboard_nudge: {
+    label: 'Weekly Leaderboard Nudge',
+    description: 'Friday reminder to the manager to post results, then a notification to the team when the week is in',
   },
 }
 

@@ -1698,6 +1698,74 @@ export type Database = {
         }
         Relationships: []
       }
+      weekly_leaderboard_entries: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          jobs_completed: number
+          org_id: string
+          sales_amount: number
+          technician_id: string
+          updated_at: string
+          updated_by: string | null
+          week_start: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          jobs_completed?: number
+          org_id: string
+          sales_amount?: number
+          technician_id: string
+          updated_at?: string
+          updated_by?: string | null
+          week_start: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          jobs_completed?: number
+          org_id?: string
+          sales_amount?: number
+          technician_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_leaderboard_entries_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weekly_leaderboard_entries_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weekly_leaderboard_entries_technician_id_fkey"
+            columns: ["technician_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weekly_leaderboard_entries_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workflow_run_steps: {
         Row: {
           error: Json | null

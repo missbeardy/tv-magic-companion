@@ -49,11 +49,14 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Split the overloaded 15-minute background job so lead follow-up, invoice/quote/booking sweeps, and cleanup each run on their own schedule — a slow chase can no longer time out technician follow-up reminders',
     'Follow-up reminders now process in small batches so a wave of stale leads cannot time out the 15-minute job',
     'Automatic follow-up changes now run entirely on the server, so opening the Leads board no longer edits lead data in the background',
+    'New Leaderboard tab: a weekly Monday-to-Sunday scoreboard of jobs and sales per technician, with a top-three podium everyone on the team can see and managers can fill in each week',
+    'The leaderboard now shows you your own standing, how far you are behind the person above, and whether you moved up or down since last week',
+    'Weekly nudge (off by default, per brand): a Saturday evening reminder to the manager to post the week, then a Monday 8am notification to the team that opens last week’s leaderboard on a countdown of third, second and first place',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.176'
+export const APP_VERSION = '1.1.180'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

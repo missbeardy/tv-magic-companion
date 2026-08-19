@@ -53,4 +53,40 @@ describe('filterNavLinks', () => {
     expect(primary.map((l) => l.to)).toEqual(['/', '/leads', '/calendar'])
     expect(NAV_LINKS.find((l) => l.to === '/activity')?.primaryMobile).toBe(false)
   })
+
+  it('adding Leaderboard did not disturb the three-tab mobile contract', () => {
+    expect(NAV_LINKS.find((l) => l.to === '/leaderboard')?.primaryMobile).toBe(false)
+    expect(NAV_LINKS.filter((l) => l.primaryMobile).map((l) => l.to)).toEqual([
+      '/',
+      '/leads',
+      '/calendar',
+    ])
+  })
+
+  it('gives employees the Leaderboard drawer tab', () => {
+    const labels = filterNavLinks('employee', allowAll).map((l) => l.label)
+    expect(labels).toContain('Leaderboard')
+  })
+
+  it('gives managers and platform admins the Leaderboard drawer tab', () => {
+    expect(filterNavLinks('manager', allowAll).map((l) => l.label)).toContain('Leaderboard')
+    expect(filterNavLinks('platform_admin', allowAll).map((l) => l.label)).toContain('Leaderboard')
+  })
+
+  it('keeps Leaderboard visible with every tier feature denied — it is not Pro-gated', () => {
+    expect(filterNavLinks('employee', denyAll).map((l) => l.label)).toContain('Leaderboard')
+    expect(NAV_LINKS.find((l) => l.to === '/leaderboard')?.feature).toBeNull()
+  })
+
+  it('hides team-only tabs in solo mode', () => {
+    const labels = filterNavLinks('manager', allowAll, true).map((l) => l.label)
+    expect(labels).not.toContain('Leaderboard')
+    expect(labels).not.toContain('Team Activity')
+    expect(labels).toContain('Leads')
+  })
+
+  it('marks exactly the team-only routes as team-only', () => {
+    const teamOnly = NAV_LINKS.filter((l) => l.teamOnly).map((l) => l.to)
+    expect(teamOnly).toEqual(['/activity', '/leaderboard'])
+  })
 })

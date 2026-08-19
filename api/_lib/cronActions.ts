@@ -9,11 +9,14 @@ import { runBookingReminderSweep } from './bookingReminder.js'
 import { purgeOldWorkflowRuns } from './workflowRun.js'
 import { purgeOldNotifications } from './notificationRetention.js'
 import { purgeOldRateLimitHits } from './rateLimit.js'
+import { runLeaderboardNudge } from './leaderboardNudge.js'
+import type { NudgePhase } from '../../shared/leaderboardWeek.js'
 
 export const CRON_KEYS = {
   contactFollowUp: 'contact_follow_up',
   automationSweeps: 'automation_sweeps',
   cronMaintenance: 'cron_maintenance',
+  leaderboardNudge: 'leaderboard_nudge',
 } as const
 
 export function isCronAuthorized(req: VercelRequest): boolean {
@@ -97,6 +100,28 @@ export async function handleAutomationSweepsCron(req: VercelRequest, res: Vercel
     const result = { invoiceChase, quoteChase, bookingReminder }
     await upsertHeartbeat(supabase, CRON_KEYS.automationSweeps, result)
     return result
+  })
+}
+
+/**
+ * Weekly leaderboard nudge. `phase` picks which half runs; `force=1` bypasses the
+ * business-hour guard so the owner can fire a real send on demand during UAT without
+ * waiting for Friday. Both are behind CRON_SECRET.
+ */
+export async function handleLeaderboardNudgeCron(req: VercelRequest, res: VercelResponse) {
+  const rawPhase = Array.isArray(req.query.phase) ? req.query.phase[0] : req.query.phase
+  const phase: NudgePhase = rawPhase === 'remind' ? 'remind' : 'reveal'
+  const rawForce = Array.isArray(req.query.force) ? req.query.force[0] : req.query.force
+  const force = rawForce === '1' || rawForce === 'true'
+
+  return withCronAuth(req, res, `leaderboard-nudge:${phase}`, async (supabase) => {
+    const result = await runLeaderboardNudge(supabase, phase, { force })
+    // Only heartbeat a run that actually did work — an out-of-window tick is a no-op
+    // and would otherwise overwrite the last real result.
+    if (result.inWindow) {
+      await upsertHeartbeat(supabase, CRON_KEYS.leaderboardNudge, { ...result })
+    }
+    return { ...result }
   })
 }
 

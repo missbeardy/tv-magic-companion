@@ -30,3 +30,14 @@ export type _stampInUpdate = Assert<Has<LeadUpdate, 'last_follow_up_reminder_at'
 export type _attemptedAt = Assert<Has<LeadRow, 'last_contact_attempted_at'>>
 export type _attemptRound = Assert<Has<LeadRow, 'contact_attempt_round'>>
 export type _softDelete = Assert<Has<LeadRow, 'deleted_at'>>
+
+// Weekly leaderboard: the page writes these through the typed client, so a missing
+// column here means a broken save, not a silent no-op like the follow-up case above.
+type LeaderboardRow = Database['public']['Tables']['weekly_leaderboard_entries']['Row']
+type LeaderboardInsert = Database['public']['Tables']['weekly_leaderboard_entries']['Insert']
+
+export type _leaderboardWeek = Assert<Has<LeaderboardRow, 'week_start'>>
+export type _leaderboardJobs = Assert<Has<LeaderboardRow, 'jobs_completed'>>
+export type _leaderboardSales = Assert<Has<LeaderboardRow, 'sales_amount'>>
+export type _leaderboardTech = Assert<Has<LeaderboardRow, 'technician_id'>>
+export type _leaderboardUpsertAudit = Assert<Has<LeaderboardInsert, 'updated_by'>>

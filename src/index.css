@@ -242,3 +242,163 @@ html, body {
   outline: none;
   box-shadow: 0 0 0 2px var(--color-primary);
 }
+/* ── Weekly leaderboard motion ─────────────────────────
+   Every animation here is one-shot on mount/data-change and finite. The global
+   prefers-reduced-motion rule above collapses all of them to ~0ms, which is the
+   intended reduced-motion behaviour: the board still renders, it just arrives. */
+
+/* Podium cards rise into place. Stagger comes from --reveal-delay on the element. */
+@keyframes podium-rise {
+  0%   { opacity: 0; transform: translateY(28px) scale(0.94); }
+  60%  { opacity: 1; transform: translateY(-4px) scale(1.01); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.podium-reveal {
+  opacity: 0;
+  animation: podium-rise 0.62s cubic-bezier(0.34, 1.32, 0.64, 1) both;
+  animation-delay: var(--reveal-delay, 0ms);
+}
+
+/* Table rows settle in after the podium. */
+@keyframes row-settle {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.row-reveal {
+  opacity: 0;
+  animation: row-settle 0.36s ease-out both;
+  animation-delay: var(--reveal-delay, 0ms);
+}
+
+/* Sales meters grow from the baseline to their share of the leader's total. */
+@keyframes meter-grow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+.meter-fill {
+  transform-origin: left center;
+  animation: meter-grow 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--reveal-delay, 0ms);
+}
+
+/* Champion card: a slow sheen sweep, then a resting glow. Both are subtle by
+   design — this sits above a data table, not on a slot machine. */
+@keyframes champion-sheen {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(220%); }
+}
+
+.champion-sheen {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 45%;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.28) 50%,
+    transparent 100%
+  );
+  animation: champion-sheen 2.6s ease-in-out 0.7s 2 both;
+}
+
+@keyframes champion-glow {
+  0%, 100% { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12), 0 0 0 0 rgba(255, 193, 7, 0.42); }
+  50%      { box-shadow: 0 14px 38px rgba(0, 0, 0, 0.16), 0 0 0 10px rgba(255, 193, 7, 0); }
+}
+
+.champion-glow {
+  animation: champion-glow 2.8s ease-in-out 1.2s 3 both;
+}
+
+/*
+ * The champion card carries .podium-reveal AND .champion-glow, and both declared the
+ * `animation` SHORTHAND — so the later rule replaced podium-rise outright while
+ * .podium-reveal's `opacity: 0` stayed behind, leaving first place permanently
+ * invisible. Longhands on a compound selector run both animations and cannot be
+ * silently cancelled by whichever class happens to be defined last.
+ */
+.podium-reveal.champion-glow {
+  animation-name: podium-rise, champion-glow;
+  animation-duration: 0.62s, 2.8s;
+  animation-timing-function: cubic-bezier(0.34, 1.32, 0.64, 1), ease-in-out;
+  animation-delay: var(--reveal-delay, 0ms), calc(var(--reveal-delay, 0ms) + 1.2s);
+  animation-iteration-count: 1, 3;
+  animation-fill-mode: both, both;
+}
+
+/* Crown bob on the first-place card. */
+@keyframes crown-float {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50%      { transform: translateY(-5px) rotate(4deg); }
+}
+
+.crown-float {
+  animation: crown-float 2.4s ease-in-out infinite;
+}
+
+/* Medal shine on the podium rank discs. */
+@keyframes medal-shine {
+  0%, 82%, 100% { transform: rotate(0deg) scale(1); }
+  88%           { transform: rotate(-9deg) scale(1.08); }
+  94%           { transform: rotate(9deg) scale(1.08); }
+}
+
+.medal-shine {
+  animation: medal-shine 4.5s ease-in-out 1.4s infinite;
+}
+
+/* Week switch: the board slides in from the direction you navigated. */
+@keyframes week-in-from-right {
+  from { opacity: 0; transform: translateX(22px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes week-in-from-left {
+  from { opacity: 0; transform: translateX(-22px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.week-enter-back  { animation: week-in-from-left 0.32s ease-out both; }
+.week-enter-fwd   { animation: week-in-from-right 0.32s ease-out both; }
+
+/* Loading skeleton — a moving sweep reads as "working", a static grey block
+   reads as "broken". */
+@keyframes skeleton-sweep {
+  0%   { background-position: -320px 0; }
+  100% { background-position: 320px 0; }
+}
+
+.skeleton-sweep {
+  background-image: linear-gradient(90deg, #f1f3f5 0%, #e5e7eb 50%, #f1f3f5 100%);
+  background-size: 320px 100%;
+  background-repeat: no-repeat;
+  animation: skeleton-sweep 1.25s linear infinite;
+}
+
+/* The weekly reveal. The podium cards reuse .podium-reveal above — staging them by
+   mount order is what makes the sequence; only the curtain needs its own motion. */
+@keyframes reveal-curtain {
+  0%   { opacity: 0; transform: translateY(-10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.reveal-curtain {
+  animation: reveal-curtain 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* The global reduced-motion rule flattens duration but not delay, so a staggered
+   reveal would still hold its cards invisible for their stagger. These arrive at once. */
+@media (prefers-reduced-motion: reduce) {
+  .podium-reveal,
+  .podium-reveal.champion-glow,
+  .row-reveal,
+  .meter-fill,
+  .reveal-curtain {
+    animation-delay: 0ms !important;
+  }
+}

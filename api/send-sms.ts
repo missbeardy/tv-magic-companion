@@ -25,6 +25,7 @@ import {
   handleAutomationSweepsCron,
   handleContactFollowUpCron,
   handleCronMaintenance,
+  handleLeaderboardNudgeCron,
 } from './_lib/cronActions.js'
 import { notifyOrgUser } from './_lib/notifyUser.js'
 import { handlePushRotate, handlePushSend } from './_lib/pushEndpoints.js'
@@ -741,6 +742,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   }
   if (action === 'cron-maintenance') {
     return handleCronMaintenance(req, res)
+  }
+  if (action === 'leaderboard-nudge') {
+    return handleLeaderboardNudgeCron(req, res)
   }
 
   // Web Push (T1.12) — both are session-less by necessity and carry their own auth.

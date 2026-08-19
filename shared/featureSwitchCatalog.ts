@@ -36,6 +36,7 @@ export const FEATURE_SWITCH_KEYS = [
   'customer_import',
   'onboarding_tips',
   'native_web_push',
+  'weekly_leaderboard_nudge',
 ] as const
 
 export type FeatureSwitchKey = (typeof FEATURE_SWITCH_KEYS)[number]
@@ -59,7 +60,7 @@ export const FEATURE_SWITCH_CATEGORY_LABELS: Record<FeatureSwitchCategory, strin
 export const FEATURE_SWITCHES_BY_CATEGORY: Record<FeatureSwitchCategory, readonly FeatureSwitchKey[]> = {
   lead_intake: ['inbound_sms', 'inbound_email', 'inbound_calls', 'inbound_messenger', 'inbound_facebook_ads', 'customer_linking', 'customer_import'],
   customer_communication: ['missed_call_hookback_sms', 'lead_ack_sms', 'lead_ack_email', 'customer_ontheway_sms', 'booking_confirm', 'booking_reminder_sms', 'review_requests', 'auto_review_on_paid'],
-  team_operations: ['manager_new_lead_alerts', 'smart_assign_badge', 'inbound_auto_assign', 'assignment_exclusions', 'tech_location', 'internal_messaging', 'customer_profiles', 'onboarding_tips', 'native_web_push'],
+  team_operations: ['manager_new_lead_alerts', 'smart_assign_badge', 'inbound_auto_assign', 'assignment_exclusions', 'tech_location', 'internal_messaging', 'customer_profiles', 'onboarding_tips', 'native_web_push', 'weekly_leaderboard_nudge'],
   sales_job_completion: ['quote_esign', 'completion_upsells', 'one_tap_invoice', 'invoice_chase', 'quote_chase', 'price_list', 'invoice_card_payments', 'accounting_export', 'xero_live_sync'],
 }
 
@@ -88,6 +89,7 @@ export const FEATURE_SWITCH_CATEGORY_BY_KEY: Record<FeatureSwitchKey, FeatureSwi
   customer_profiles: 'team_operations',
   onboarding_tips: 'team_operations',
   native_web_push: 'team_operations',
+  weekly_leaderboard_nudge: 'team_operations',
   quote_esign: 'sales_job_completion',
   completion_upsells: 'sales_job_completion',
   one_tap_invoice: 'sales_job_completion',
@@ -133,4 +135,5 @@ export const FEATURE_SWITCH_MIN_TIERS: Record<FeatureSwitchKey, SubscriptionTier
   customer_import: 'basic',
   onboarding_tips: 'basic',
   native_web_push: 'basic',
+  weekly_leaderboard_nudge: 'basic',
 }

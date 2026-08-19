@@ -58,6 +58,7 @@ describe('featureSwitchCatalog categories', () => {
       'customer_profiles',
       'onboarding_tips',
       'native_web_push',
+      'weekly_leaderboard_nudge',
     ])
     expect(FEATURE_SWITCHES_BY_CATEGORY.sales_job_completion).toEqual([
       'quote_esign',
