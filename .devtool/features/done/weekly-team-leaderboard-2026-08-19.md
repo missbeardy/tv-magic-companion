@@ -1,13 +1,13 @@
 ---
 id: "weekly-team-leaderboard-2026-08-19"
-status: "review"
+status: "done"
 priority: "medium"
 assignee: null
 epic: null
-dueDate: null
+dueDate: "2026-08-19"
 created: "2026-08-19T00:00:00.000Z"
-modified: "2026-08-19T00:00:00.000Z"
-completedAt: null
+modified: "2026-08-19T16:00:00.000Z"
+completedAt: "2026-08-19T16:00:00.000Z"
 labels: ["feature", "team-operations"]
 order: "a2"
 ---
@@ -121,19 +121,48 @@ board, with the load itself being the moment.
   boundaries), `tests/leaderboardNudge.test.ts` (17, incl. every skip path and the dedupe),
   plus reveal / You-card / movement coverage on the page. 774 total.
 
-## Not done yet
+## Shipped to production 19-08-2026 (v1.1.180, commit `ffa1486`)
 
-- [x] `20260819120000` (leaderboard table) applied to **dev** by the owner, 19-08-2026.
-- [ ] `20260819130000` (nudge switch) applied to **dev**.
-- [ ] Both migrations applied to **prod**. Prod was stood up by `production_cutover.sql`,
-      not migrations, so apply via the Management API and confirm the table, trigger,
-      policies, and catalog row landed before the code goes live.
-- [ ] `weekly_leaderboard_nudge` enabled for `tv-magic` in Platform Admin — the cron is a
-      no-op until then, by construction.
-- [ ] Confirm the technicians have actually granted notification permission. The reveal
-      works for everyone; the nudge that drives them to it does not reach anyone who never
-      tapped Allow.
-- [ ] Visual check in a real browser — the motion (podium reveal, count-up, meter
-      growth, sheen, week-slide) was verified only as shipped CSS + passing tests.
-- [ ] No `weekly_leaderboard_entries` rows exist anywhere, so the page renders its
-      all-zero state until a manager enters a first week.
+Deployed with `readyState: READY`, `target: production`, aliased at
+`tv-magic-companion.vercel.app`. Source pushed to `main` — git, prod and both databases
+agree.
+
+**Migrations verified rather than assumed** (the standing lesson from the messaging
+migration that was absent from prod despite being reported as applied):
+
+| | dev | prod |
+| --- | --- | --- |
+| `20260819120000` leaderboard table | ✅ | ✅ trigger, 3 policies, 3 CHECKs, RLS on |
+| `20260819130000` nudge switch | ✅ | ✅ catalog row, **off** for both brands |
+
+Smoke checks on the public alias: `/api/cron/leaderboard-nudge` → **401** (module loaded,
+cron auth ran), `/api/cron/contact-follow-up` → **401**, `GET /api/send-sms` → **405**,
+`/leaderboard` → **200**. A 500 on the first would have meant the `send-sms` hub was down,
+taking cron, booking confirmations and public quote links with it.
+
+Prod reach at ship time: **TV Magic South Brisbane has 4 visible employees**, so Nick's
+team has the tab now. `fieldbourne` orgs have none, so the tab is inert there.
+
+## Still open (deliberately)
+
+- [ ] **`weekly_leaderboard_nudge` is off for `tv-magic`.** Owner's call to enable in
+      Platform Admin. Until then the cron runs and sends nothing, by construction.
+- [ ] **Push permission coverage is unknown.** The reveal works for everyone; the nudge
+      that drives people to it reaches nobody who never tapped Allow. Worth measuring
+      before judging whether the notification half earns its keep.
+- [ ] **Prod has zero leaderboard rows.** Nick sees the all-zero state until he posts a
+      first week. That is also why no nudge can fire yet — the reveal skips an empty board.
+- [ ] **The motion has never been fully verified in a browser.** One real check happened
+      and it found a genuine bug (first place invisible); the fix for it, and the rest of
+      the sequence, have only been verified as shipped CSS and passing tests.
+
+## Follow-ups worth considering, not scheduled
+
+- No **history view** across weeks — each week loads on its own. The most likely next ask
+  for anyone using this daily.
+- Nothing derives the numbers from the pipeline, and that is deliberate. A "prefill from
+  completed leads" button is the obvious next request; it should stay a *suggestion* a
+  manager overrides, never an automatic write.
+- `notifyOrgUser` still uses a free-form `type` as a transport switch. This feature routed
+  around it rather than adding another special case; see
+  `contact-follow-up-lifecycle-rebuild-2026-08-18` Phase 3 for the real fix.
