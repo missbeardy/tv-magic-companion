@@ -193,7 +193,13 @@ export async function enablePush(
     const synced = await syncSubscription(subscription, userId, orgId)
     if (!synced) return { ok: false, reason: 'error' }
 
-    await supabase.from('profiles').update({ push_enabled: true }).eq('id', userId)
+    // Clear the opt-out as well as setting the flag — otherwise a user who once turned
+    // notifications off could never turn them back on: reconcileSubscription would keep
+    // bailing on the stale push_disabled_at and undo this on the next app load.
+    await supabase
+      .from('profiles')
+      .update({ push_enabled: true, push_disabled_at: null })
+      .eq('id', userId)
     return { ok: true }
   } catch (err) {
     console.error('enablePush failed (non-fatal):', err)
@@ -204,7 +210,13 @@ export async function enablePush(
 /** Unsubscribe this device and delete its server row. */
 export async function disablePush(userId: string): Promise<void> {
   try {
-    await supabase.from('profiles').update({ push_enabled: false }).eq('id', userId)
+    // Stamping push_disabled_at is what makes this an *explicit* opt-out that
+    // reconcileSubscription will honour on every subsequent load. push_enabled is kept in
+    // sync only for clients deployed before v1.1.181.
+    await supabase
+      .from('profiles')
+      .update({ push_enabled: false, push_disabled_at: new Date().toISOString() })
+      .eq('id', userId)
 
     if (!isPushSupported()) return
     const registration = await navigator.serviceWorker.ready
@@ -236,12 +248,17 @@ export async function reconcileSubscription(
     // Honour an explicit opt-out. Browser permission stays "granted" after we
     // unsubscribe — without this check, every app load would re-create the row
     // the user just deleted via Profile → Turn off.
+    // Read push_disabled_at, NOT push_enabled. push_enabled is a boolean defaulting to
+    // false, so it cannot distinguish "explicitly turned off" from "never asked" — and
+    // while native_web_push was off nothing ever set it, so every user read as a refusal
+    // and could never be migrated off OneSignal. push_disabled_at is written only by
+    // disablePush(), so null genuinely means "no opt-out recorded".
     const { data: prefs } = await supabase
       .from('profiles')
-      .select('push_enabled')
+      .select('push_disabled_at')
       .eq('id', userId)
       .maybeSingle()
-    if (prefs?.push_enabled === false) return
+    if (prefs?.push_disabled_at) return
 
     const registration = await navigator.serviceWorker.ready
     let subscription = await registration.pushManager.getSubscription()

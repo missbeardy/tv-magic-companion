@@ -1346,6 +1346,7 @@ export type Database = {
           manager_id: string | null
           org_id: string | null
           phone: string | null
+          push_disabled_at: string | null
           push_enabled: boolean
           role: string
           suburb: string | null
@@ -1369,6 +1370,7 @@ export type Database = {
           manager_id?: string | null
           org_id?: string | null
           phone?: string | null
+          push_disabled_at?: string | null
           push_enabled?: boolean
           role?: string
           suburb?: string | null
@@ -1392,6 +1394,7 @@ export type Database = {
           manager_id?: string | null
           org_id?: string | null
           phone?: string | null
+          push_disabled_at?: string | null
           push_enabled?: boolean
           role?: string
           suburb?: string | null

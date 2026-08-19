@@ -41,3 +41,13 @@ export type _leaderboardJobs = Assert<Has<LeaderboardRow, 'jobs_completed'>>
 export type _leaderboardSales = Assert<Has<LeaderboardRow, 'sales_amount'>>
 export type _leaderboardTech = Assert<Has<LeaderboardRow, 'technician_id'>>
 export type _leaderboardUpsertAudit = Assert<Has<LeaderboardInsert, 'updated_by'>>
+
+type ProfileRow = Database['public']['Tables']['profiles']['Row']
+type ProfileUpdate = Database['public']['Tables']['profiles']['Update']
+
+// v1.1.181 / migration 20260819140000. reconcileSubscription() reads this to decide whether a
+// user has explicitly opted out of push; enablePush()/disablePush() write it. push_enabled
+// could not express "never asked" (boolean, default false), which made every unasked user look
+// like a refusal and blocked the OneSignal migration for six of eight TV Magic techs.
+export type _pushDisabledInRow = Assert<Has<ProfileRow, 'push_disabled_at'>>
+export type _pushDisabledInUpdate = Assert<Has<ProfileUpdate, 'push_disabled_at'>>

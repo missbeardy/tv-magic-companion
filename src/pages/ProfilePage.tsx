@@ -104,9 +104,11 @@ export default function ProfilePage() {
   const [showCreateEmployee, setShowCreateEmployee] = useState(false)
   const [notifStatus, setNotifStatus] = useState<'idle' | 'success' | 'denied'>('idle')
   const [notifSaving, setNotifSaving] = useState(false)
-  // Explicit opt-in flag from profiles.push_enabled. Browser Notification.permission
-  // stays "granted" after unsubscribe, so we must not treat permission alone as "on".
-  const [pushEnabled, setPushEnabled] = useState(false)
+  // Explicit opt-OUT stamp from profiles.push_disabled_at. Browser Notification.permission
+  // stays "granted" after unsubscribe, so permission alone is not "on" — but the absence of
+  // an opt-out must not read as "off" either, which is what push_enabled's default-false got
+  // wrong. Only disablePush() sets this.
+  const [pushDisabled, setPushDisabled] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const { isFeatureEnabled, featureSwitchesLoading } = useOrg()
   const nativePushEnabled = !featureSwitchesLoading && isFeatureEnabled('native_web_push')
@@ -117,7 +119,7 @@ export default function ProfilePage() {
 
     supabase
       .from('profiles')
-      .select('suburb, phone, avatar_url, location_enabled, push_enabled')
+      .select('suburb, phone, avatar_url, location_enabled, push_disabled_at')
       .eq('id', profile.id)
       .single()
       .then(({ data }) => {
@@ -126,7 +128,7 @@ export default function ProfilePage() {
           setPhone(data.phone ?? '')
           setAvatarUrl(data.avatar_url ?? '')
           setLocationEnabled(data.location_enabled ?? false)
-          setPushEnabled(data.push_enabled === true)
+          setPushDisabled(Boolean(data.push_disabled_at))
         }
       })
   }, [profile])
@@ -139,7 +141,7 @@ export default function ProfilePage() {
       if (nativePushEnabled) {
         const result = await enablePush(profile.id, profile.org_id ?? null)
         if (result.ok) {
-          setPushEnabled(true)
+          setPushDisabled(false)
           setNotifStatus('success')
         } else {
           setNotifStatus('denied')
@@ -158,7 +160,7 @@ export default function ProfilePage() {
     if (!profile) return
     setNotifSaving(true)
     await disablePush(profile.id)
-    setPushEnabled(false)
+    setPushDisabled(true)
     setNotifStatus('idle')
     setNotifSaving(false)
   }
@@ -249,11 +251,11 @@ export default function ProfilePage() {
 
   const notifPermission = typeof Notification !== 'undefined' ? Notification.permission : 'default'
   const iosNeedsInstall = nativePushEnabled && isIosSafariNotInstalled()
-  // Native path: "on" means the user opted in (push_enabled / local success), not
-  // merely that the browser still remembers a prior permission grant.
-  const deviceNotificationsOn = nativePushEnabled
-    ? notifStatus === 'success' || (pushEnabled && notifPermission === 'granted')
-    : notifPermission === 'granted' || notifStatus === 'success'
+  // Both branches now agree for anyone who has never opted out, so flipping
+  // native_web_push no longer silently flips this toggle from on to off under the user.
+  // "On" means the browser grants permission and no explicit opt-out is recorded.
+  const deviceNotificationsOn =
+    notifStatus === 'success' || (!pushDisabled && notifPermission === 'granted')
 
   return (
     <div className="min-h-screen bg-gray-50">
