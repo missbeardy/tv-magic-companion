@@ -1,12 +1,12 @@
 ---
 id: "dd20-prune-tier-3-to-two-items-2026-08-06"
-status: "backlog"
+status: "done"
 priority: "low"
 assignee: null
 dueDate: null
 created: "2026-08-06T16:00:00.000Z"
-modified: "2026-08-11T03:20:00.000Z"
-completedAt: null
+modified: "2026-08-19T11:00:00.000Z"
+completedAt: "2026-08-19T11:00:00.000Z"
 labels: ["due-diligence", "subtraction", "roadmap", "governance"]
 order: "ZF"
 ---
@@ -42,3 +42,23 @@ Tier 3 holds twelve items. Ten of them will never be built in their current form
 **Difficulty:** Easy — it is a decision, not a build.
 
 Source: DUE_DILIGENCE_REVIEW.md — Phase 4, Phase 8 Remove item 26.
+
+
+---
+
+## Done 19-08-2026
+
+Tier 3 deleted from `ROADMAP.md` entirely, not pruned to two.
+
+The card wanted T3.2 (compliance certificates) and T3.3 (recurring jobs) kept, but the owner closed
+both the same day — "no one has asked for this" — so nothing survived. Also closed that day: T3.5,
+T3.11, T3.12. Deleted without a card: T3.4, T3.7, T3.8, T3.9, T3.10. T3.1 (Xero) and T3.6 (social,
+removed by `dd18`) were already resolved and keep their Shipped-log rows.
+
+The section is replaced by a short note recording why, so a future session does not reinstate the
+list. Governance text updated with it: the Tier 3 freeze in the banner, in Governance rule 0, and in
+the strategy anchor all referenced a tier that no longer exists.
+
+Nothing is lost — closed items keep their cards in `.devtool/features/done/` and `git log` holds the
+specs. A real customer request is now what starts one of these, not a paragraph written before
+anyone asked.

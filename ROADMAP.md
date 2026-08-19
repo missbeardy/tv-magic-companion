@@ -4,7 +4,7 @@
 >
 > An independent end-to-end technical and product due diligence review was run on 06-08-2026 (v1.1.154) and **adopted by the owner as the governing roadmap**. It supersedes the tier ordering below.
 >
-> **What changed:** the Critical list (`dd1`–`dd6`, `dd13` on the Kanban board) comes before all Tier 1/2/3 work. **Tier 3 is frozen** — no T3.x item may be promoted or built until five paying strangers exist (`dd13`). No new feature work while `dd1` (observability) is open.
+> **What changed:** the Critical list (`dd1`–`dd6`, `dd13` on the Kanban board) came before all other work. **Superseded 19-08-2026:** `dd1` shipped (v1.1.167), so the no-new-feature-work rule is lifted; `dd2` and `dd13` were closed by owner decision; and **Tier 3 no longer exists** — `dd20` deleted it, so the freeze it described has nothing left to freeze. See the Tier 3 section below for what happened to each item.
 >
 > **This document remains authoritative for:** the shipped log, the T1.x/T2.x specs and their "done when" criteria, and the strategy anchor — all of which the review builds on rather than replaces. Sessions should read both.
 
@@ -17,7 +17,7 @@
 
 ## Governance (read first, every session)
 
-0. **[DUE_DILIGENCE_REVIEW.md](DUE_DILIGENCE_REVIEW.md) sets priority order as of 06-08-2026.** Work its Critical list (`dd1`–`dd6`, `dd13`) before anything below. Tier 3 is frozen until `dd13` completes. Its "Rules for now" section applies to every session.
+0. **[DUE_DILIGENCE_REVIEW.md](DUE_DILIGENCE_REVIEW.md) still sets priority order,** but its Critical list is now clear: `dd1`, `dd3`–`dd8` and `dd18` shipped; `dd2` and `dd13` were closed by owner decision on 19-08-2026. Its "Rules for now" section still applies, **except** the Tier 3 freeze — `dd20` deleted Tier 3 outright, so there is nothing left to promote from it. The surviving rule worth keeping: **subtraction beats addition** — check `dd19` before adding anything.
 1. **This doc governs what gets built.** If a session is asked to build something not listed here, push back, get explicit owner confirmation, and add it to a tier (same block format, dated) *before* writing code.
 2. **One item per session** unless items are explicitly marked as bundleable. Work top-down within a tier unless the owner reorders.
 3. **Standing conventions apply to every item:** ask whether a per-brand feature switch is needed (switches gate server endpoints, not just UI); bump `src/lib/changelog.ts` + `package.json`; update + version-bump `docs/SALES_PIPELINE_WORKFLOW.md` for any pipeline behaviour change; pure logic goes in `src/lib/`/`shared/` with vitest tests.
@@ -28,7 +28,7 @@
 
 - **The current client** (Nick — TV Magic South Brisbane, the only real production org) uses this daily **in the field on a phone**. The UX review found the top churn risks are all *silent write failures on the money path* — the app sometimes loses completions, notes, and status changes on weak signal while telling the user it succeeded. Tier 1 is almost entirely "every write confirms or queues."
 - **The sellable wedge** (competitive review) is **"never lose a lead"**: missed enquiry → auto-SMS → parsed lead with countdown → quote → e-sign → booked, automatically. Neither ServiceM8 ($29/mo, unlimited users, free tier) nor Tradify (Xero sync on every plan) does this, and it sidesteps data-migration fear by being sellable as a front-door layer *beside* an incumbent tool. Tier 2 is finishing that wedge plus everything a stranger needs to trust and start using the product.
-- **Tier 3** is market-expanding or positioning-dependent (e.g. live Xero sync only becomes a must if we pitch as a full ServiceM8 *replacement* rather than a front-door add-on — see T2.9).
+- **Tier 3 was deleted on 19-08-2026** (`dd20`). It held market-expanding, positioning-dependent work — the kind that only becomes a must if we pitch as a full ServiceM8 *replacement* rather than a front-door add-on (see T2.9). Keeping it written down made unrequested work look sanctioned; a real customer request is now the only thing that starts one of those specs.
 
 ---
 
@@ -237,23 +237,27 @@
 
 ---
 
-## Tier 3 — Nice-to-have / positioning-dependent
+## Tier 3 — closed 19-08-2026 (`dd20`)
 
-*Build only after Tiers 1–2, or when T2.9 or a real customer pulls one forward. Each gets a full spec block when promoted.*
+The twelve-item Tier 3 wishlist has been deleted. Two shipped (**T3.1** Xero live sync, v1.1.144 —
+see the Shipped log; **T3.6** social posting, removed by `dd18`) and the remaining ten are gone.
 
-- [x] **T3.1 Xero live sync (OAuth, push invoices/contacts).** Shipped v1.1.144 (23-07-2026). OAuth connect + date-range push of sent ACCREC invoices (tax inclusive); feature switch `xero_live_sync`. Not full two-way accounting sync — payments/contacts pull still deferred. CSV export remains.
-- [ ] **T3.2 Compliance certificates / forms** (electrical safety, plumbing compliance, gas). Legally required paperwork for licensed trades — its absence excludes sparkies/plumbers/gasfitters from the market entirely. Promote when targeting those trades.
-- [ ] **T3.3 Recurring jobs** (maintenance contracts, test-and-tag). Exists even in ServiceM8's free tier; matters the moment a prospect does repeat servicing.
-- [ ] **T3.4 Timesheets + job costing / materials.** Tradify Pro / ServiceM8 Premium territory; needed for the 2–10-person team market more than for solos.
-- [ ] **T3.5 Native Meta Messenger webhook + hybrid bot.** Finish `api/_lib/metaWebhook.ts` (currently logs + TODO) to remove the Botpress/Make dependency from the FB lead path. Until then the Botpress path is the supported one.
-- [x] **T3.6 Social posting: revive or remove.** Removed (decision: delete). Dropped `SocialPage`, Zernio `api/social-post`, caption generation, and the Pro `social` tier gate — frees a Vercel function slot.
-- [ ] **T3.7 Supplier catalogs / purchase orders.** Deliberately out of scope for solo service trades (price-list favourites cover them); needed for materials-heavy quoting.
-- [ ] **T3.8 Customer-facing live "on my way" tracking** (Uber-style link). On-the-way SMS exists; live tracking is polish.
-- [ ] **T3.9 MYOB CSV export variant.** Same builder as the Xero CSV, different column map — build only if a real prospect asks.
-- [ ] **T3.10 Cross-device persistence for drafts/onboarding** (profiles-backed instead of localStorage). Documented v2 of the draft + tips systems.
-- [ ] **T3.11 Self-serve signup + automated trial.** Deferred from T2.6; only worth building with real inbound demand.
-- [ ] **T3.12 Card surcharge option** (`card_surcharge_percent`, capped at cost of acceptance per AU rules). Documented fast-follow from the Pay Now work.
+**Why it was removed rather than kept "for later".** The due diligence review argued that a
+ten-item list nobody intends to build is not a plan, it is pressure — it makes unrequested work
+look sanctioned. Its evidence was T3.1 itself: T2.9 decided *and documented* that Xero live sync
+stayed in Tier 3 under the front-door positioning, and it shipped three days later. Not because a
+customer asked, but because it was on the list and it was buildable.
 
+The two the review wanted to keep — **T3.2** compliance certificates and **T3.3** recurring jobs —
+were closed by the owner on 19-08-2026 ("no one has asked for this"), so nothing survived and the
+section goes entirely. Also closed that day: **T3.5** native Meta Messenger webhook,
+**T3.11** self-serve signup, **T3.12** card surcharge. Deleted without a card: **T3.4** timesheets,
+**T3.7** supplier catalogs, **T3.8** live tracking, **T3.9** MYOB CSV, **T3.10** cross-device drafts.
+
+None of this is lost — every closed item keeps its Kanban card in `.devtool/features/done/` with
+the reasoning recorded, and `git log` holds the specs. **If a real customer asks for one of these,
+that is the signal to write a fresh spec block against what they actually said** — not to restore
+a paragraph written before anyone had asked.
 ---
 
 ## Adding items
