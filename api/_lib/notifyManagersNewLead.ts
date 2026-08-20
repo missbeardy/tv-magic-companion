@@ -28,11 +28,15 @@ export async function notifyManagersNewLead(
     throw new Error('Server not configured')
   }
 
+  // Hidden test profiles were never filtered here, so a profile hidden everywhere else still
+  // received real new-lead alerts — two mechanisms disagreeing about what "hidden" means.
   const { data: managers } = await supabase
     .from('profiles')
     .select('id, phone')
     .eq('org_id', lead.org_id)
     .in('role', [...OPERATIONAL_MANAGER_ROLES])
+    .eq('is_hidden_test_profile', false)
+    .is('departed_at', null)
 
   if (!managers?.length) {
     return { notified: 0, skipped: 'No managers found for org' }

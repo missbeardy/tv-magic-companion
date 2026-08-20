@@ -68,6 +68,10 @@ function mockSupabase(data: Partial<TableData> = {}, options: { insertError?: st
         filters.or = expr
         return self
       },
+      is: (col: string, val: unknown) => {
+        filters[`is:${col}`] = val
+        return self
+      },
       insert: (rows: Record<string, unknown>[]) => {
         if (options.insertError) {
           return Promise.resolve({ error: { message: options.insertError } })
@@ -81,7 +85,11 @@ function mockSupabase(data: Partial<TableData> = {}, options: { insertError?: st
         if (table === 'weekly_leaderboard_entries') rows = tables.entries
         if (table === 'profiles') {
           const roles = (filters['in:role'] as string[]) ?? []
-          rows = tables.profiles.filter((p) => roles.includes(p.role as string))
+          rows = tables.profiles.filter(
+            (p) =>
+              roles.includes(p.role as string) &&
+              !('is:departed_at' in filters && p.departed_at)
+          )
         }
         if (table === 'notifications') {
           const type = filters['eq:type'] as string

@@ -376,6 +376,11 @@ export default function ReportsPage() {
                               <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 capitalize">
                                 {row.role.replace('_', ' ')}
                               </span>
+                              {row.departed && (
+                                <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                  Departed
+                                </span>
+                              )}
                             </div>
                           </td>
                           <td className="px-4 py-3 text-right text-gray-700">{row.assignments}</td>

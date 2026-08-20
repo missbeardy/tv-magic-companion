@@ -13,7 +13,7 @@ function roleMatches(required: UserRole, actual: UserRole): boolean {
 }
 
 export default function ProtectedRoute({ children, requiredRole }: Props) {
-  const { user, profile, loading } = useAuth()
+  const { user, profile, loading, signOut } = useAuth()
 
   if (loading) {
     return (
@@ -39,6 +39,27 @@ export default function ProtectedRoute({ children, requiredRole }: Props) {
           <a href="/login" className="inline-block text-sm text-brand-secondary hover:underline">
             Back to sign in
           </a>
+        </div>
+      </div>
+    )
+  }
+
+  // Login blocks a fresh sign-in, but someone marked departed mid-session still holds a
+  // valid Supabase session until it expires. This is the gate that closes that window.
+  if (profile.departed_at) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+        <div className="max-w-sm card p-6 space-y-3 text-center">
+          <p className="font-display font-semibold text-gray-900">This account is no longer active</p>
+          <p className="text-sm text-gray-500">
+            Your access has been closed. Contact your manager if this is wrong.
+          </p>
+          <button
+            onClick={() => void signOut()}
+            className="text-sm text-brand-secondary hover:underline"
+          >
+            Sign out
+          </button>
         </div>
       </div>
     )

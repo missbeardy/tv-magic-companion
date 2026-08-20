@@ -18,6 +18,8 @@ export interface Profile {
   lng?: number | null
   location_updated_at?: string | null
   location_enabled?: boolean
+  /** Set once this person has left. NULL means active. Blocks app access. */
+  departed_at?: string | null
 }
 
 interface AuthContextType {

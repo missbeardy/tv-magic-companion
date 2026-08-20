@@ -54,11 +54,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Weekly nudge (off by default, per brand): a Saturday evening reminder to the manager to post the week, then a Monday 8am notification to the team that opens last week’s leaderboard on a countdown of third, second and first place',
     'Fixed a fault that would have sent one lead alert to a phone dozens of times over: each time a browser quietly reset its notification registration the old one was left behind, and every leftover would have been notified',
     'Release notes no longer appear to customers opening a quote or invoice link — they are shown to signed-in staff only',
+    'Team members who have left can now be marked as departed: they stop being auto-assigned, stop receiving alerts, drop off the current leaderboard and lose app access, while every lead, job and past leaderboard week they earned stays in the record and visible to managers',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.181'
+export const APP_VERSION = '1.1.182'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

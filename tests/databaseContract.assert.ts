@@ -51,3 +51,8 @@ type ProfileUpdate = Database['public']['Tables']['profiles']['Update']
 // like a refusal and blocked the OneSignal migration for six of eight TV Magic techs.
 export type _pushDisabledInRow = Assert<Has<ProfileRow, 'push_disabled_at'>>
 export type _pushDisabledInUpdate = Assert<Has<ProfileUpdate, 'push_disabled_at'>>
+
+// v1.1.182 / migration 20260820120000. Every roster read filters on this, and the platform
+// admin panel writes it, so a missing column here is a broken exclusion rather than a no-op.
+export type _departedInRow = Assert<Has<ProfileRow, 'departed_at'>>
+export type _departedInUpdate = Assert<Has<ProfileUpdate, 'departed_at'>>

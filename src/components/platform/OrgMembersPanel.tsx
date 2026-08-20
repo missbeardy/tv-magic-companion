@@ -13,6 +13,7 @@ interface MemberRow {
   phone: string | null
   role: string
   is_hidden_test_profile: boolean
+  departed_at: string | null
 }
 
 interface Props {
@@ -36,7 +37,7 @@ export default function OrgMembersPanel({ orgs, onMessage }: Props) {
     setLoadError('')
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, phone, role, is_hidden_test_profile')
+      .select('id, full_name, phone, role, is_hidden_test_profile, departed_at')
       .eq('org_id', orgId)
       .order('full_name')
 
@@ -86,11 +87,44 @@ export default function OrgMembersPanel({ orgs, onMessage }: Props) {
     }
   }
 
+  async function toggleDeparted(member: MemberRow) {
+    setSavingId(member.id)
+    try {
+      const headers = await getAuthHeaders()
+      const res = await fetch('/api/create-user?action=set-departed', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileId: member.id, departed: !member.departed_at }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        onMessage(data.error ?? 'Failed to update profile', true)
+        return
+      }
+      onMessage(
+        data.departed
+          ? `${data.fullName ?? member.full_name} marked as departed — history kept, no new work or access`
+          : `${data.fullName ?? member.full_name} reinstated`
+      )
+      await loadMembers(selectedOrgId)
+    } catch {
+      onMessage('Failed to update profile', true)
+    } finally {
+      setSavingId(null)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <p className="text-xs text-gray-500">
-        Hidden test profiles stay in the database for testing but are excluded from assign modals,
-        auto-assign, and team roster views (visible only to you).
+        <strong className="font-medium text-gray-700">Hidden test profile</strong> is for accounts
+        that are not real people: they are excluded from assign modals, auto-assign and team roster
+        views (visible only to you), and scrubbed from reporting.
+      </p>
+      <p className="text-xs text-gray-500">
+        <strong className="font-medium text-gray-700">Departed</strong> is for someone who has left:
+        they stop being assigned work, stop receiving alerts, and lose app access, but every lead,
+        job and leaderboard week they earned stays in the record, marked as departed.
       </p>
 
       <div>
@@ -128,6 +162,7 @@ export default function OrgMembersPanel({ orgs, onMessage }: Props) {
                 <th className="px-3 py-2 font-medium">Phone</th>
                 <th className="px-3 py-2 font-medium">Role</th>
                 <th className="px-3 py-2 font-medium">Hidden test profile</th>
+                <th className="px-3 py-2 font-medium">Employment</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -152,6 +187,24 @@ export default function OrgMembersPanel({ orgs, onMessage }: Props) {
                         : member.is_hidden_test_profile
                           ? 'Hidden'
                           : 'Visible'}
+                    </button>
+                  </td>
+                  <td className="px-3 py-2">
+                    <button
+                      type="button"
+                      disabled={savingId === member.id}
+                      onClick={() => void toggleDeparted(member)}
+                      className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                        member.departed_at
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      } disabled:opacity-50`}
+                    >
+                      {savingId === member.id
+                        ? 'Saving…'
+                        : member.departed_at
+                          ? 'Departed'
+                          : 'Active'}
                     </button>
                   </td>
                 </tr>

@@ -126,14 +126,25 @@ export default function LeaderboardPage() {
       try {
         // Last week comes along for the ride so the board can show movement. It is the
         // cheapest way to give someone who is not winning a reason to open this.
+        // The roster includes people who have left so past weeks keep their results; the
+        // merge then drops them from the current week, which is about who is working now.
         const [employees, entries, priorEntries] = await Promise.all([
-          fetchOrgProfiles({ roles: ['employee'] }),
+          fetchOrgProfiles({ roles: ['employee'], includeDeparted: true }),
           fetchWeekEntries(orgId, weekStart),
           fetchWeekEntries(orgId, addWeeks(weekStart, -1)),
         ])
         if (cancelled) return
-        setRows(sortLeaderboardRows(mergeRosterWithEntries(employees, entries)))
-        setPreviousRows(sortLeaderboardRows(mergeRosterWithEntries(employees, priorEntries)))
+        const keepDeparted = !isCurrentWeek(weekStart)
+        setRows(
+          sortLeaderboardRows(
+            mergeRosterWithEntries(employees, entries, { keepDepartedWithEntries: keepDeparted })
+          )
+        )
+        setPreviousRows(
+          sortLeaderboardRows(
+            mergeRosterWithEntries(employees, priorEntries, { keepDepartedWithEntries: true })
+          )
+        )
       } catch (err) {
         if (cancelled) return
         setError(err instanceof Error ? err.message : 'Could not load the leaderboard')
@@ -890,6 +901,11 @@ function TableRow({
               {isViewer && (
                 <span className="badge badge-grey shrink-0" aria-label="This is you">
                   You
+                </span>
+              )}
+              {row.departed && (
+                <span className="badge badge-grey shrink-0" aria-label="No longer with the team">
+                  Departed
                 </span>
               )}
               {!editing && <MovementBadge delta={movement} />}

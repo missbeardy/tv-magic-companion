@@ -258,6 +258,34 @@ describe('aggregateReportingData', () => {
     })
   })
 
+  describe('someone who has left', () => {
+    const profiles: AgentProfileRow[] = [
+      { id: 'employee-1', full_name: 'Bob Tech', role: 'employee' },
+      { id: 'gone-1', full_name: 'Mitch Singe', role: 'employee', departed_at: '2026-06-21T00:00:00.000Z' },
+    ]
+
+    it('is absent from a period they did no work in', () => {
+      const result = aggregateReportingData([], [], profiles)
+      expect(result.agentRows.map((r) => r.agentId)).toEqual(['employee-1'])
+    })
+
+    it('keeps a period they worked in, marked as departed', () => {
+      const events: LeadEventRow[] = [
+        {
+          lead_id: 'lead-1',
+          event_type: 'completed',
+          created_at: '2026-06-03T06:00:00.000Z',
+          created_by: 'gone-1',
+          actor_id: 'gone-1',
+          payload: null,
+        },
+      ]
+      const result = aggregateReportingData(events, [], profiles)
+      const gone = result.agentRows.find((r) => r.agentId === 'gone-1')
+      expect(gone).toMatchObject({ name: 'Mitch Singe', completed: 1, departed: true })
+    })
+  })
+
   it('handles empty input safely', () => {
     const result = aggregateReportingData([], [], [])
     expect(result.summary.leadsReceived).toBe(0)

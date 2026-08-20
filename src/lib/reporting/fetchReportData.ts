@@ -83,12 +83,18 @@ function createEmptySummary(): TeamSummary {
   }
 }
 
-function createEmptyAgentActivity(agentId: string, name: string, role: AgentProfileRow['role']): AgentActivity {
+function createEmptyAgentActivity(
+  agentId: string,
+  name: string,
+  role: AgentProfileRow['role'],
+  departed = false
+): AgentActivity {
   return {
     ...createEmptySummary(),
     agentId,
     name,
     role,
+    departed,
   }
 }
 
@@ -208,7 +214,7 @@ async function fetchLeads(orgId: string, period: ReportPeriod): Promise<LeadRow[
 async function fetchOrgProfiles(orgId: string): Promise<AgentProfileRow[]> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, full_name, role')
+    .select('id, full_name, role, departed_at')
     .eq('org_id', orgId)
     .in('role', MANAGER_ROLES)
 
@@ -311,7 +317,10 @@ function buildAgentRowsFromSnapshot(
   const profileById = new Map(profiles.map((profile) => [profile.id, profile]))
   const agentRowsById = new Map<string, AgentActivity>()
 
+  // Someone who has left gets no empty seed row: they appear in a month only if that
+  // month's snapshot actually holds activity for them.
   for (const profile of profiles) {
+    if (profile.departed_at) continue
     agentRowsById.set(profile.id, createEmptyAgentActivity(profile.id, profile.full_name, profile.role))
   }
 
@@ -321,7 +330,13 @@ function buildAgentRowsFromSnapshot(
 
     const profile = profileById.get(agentId)
     const existing =
-      agentRowsById.get(agentId) ?? createEmptyAgentActivity(agentId, profile?.full_name ?? 'Unknown user', profile?.role ?? 'employee')
+      agentRowsById.get(agentId) ??
+      createEmptyAgentActivity(
+        agentId,
+        profile?.full_name ?? 'Unknown user',
+        profile?.role ?? 'employee',
+        Boolean(profile?.departed_at)
+      )
 
     const snapshotRole = toRole(getValue(snapshot, ['agent_role', 'role']))
     const snapshotName = toStringValue(getValue(snapshot, ['agent_name', 'full_name', 'name']))

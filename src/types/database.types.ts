@@ -1332,6 +1332,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          departed_at: string | null
           email: string
           excluded_service_keywords: string[]
           first_name: string | null
@@ -1356,6 +1357,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          departed_at?: string | null
           email: string
           excluded_service_keywords?: string[]
           first_name?: string | null
@@ -1380,6 +1382,7 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string
+          departed_at?: string | null
           email?: string
           excluded_service_keywords?: string[]
           first_name?: string | null

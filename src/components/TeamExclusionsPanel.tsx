@@ -17,8 +17,8 @@ export default function TeamExclusionsPanel() {
     // Drop hidden profiles outright. fetchOrgProfiles keeps them visible to
     // whoever hid them (profileVisibility.ts), but auto-assign filters on
     // `is_hidden_test_profile = false` unconditionally — so a hidden person can
-    // never be auto-assigned and an exclusion on them would do nothing. In
-    // practice the flag is also used to retire staff who have left.
+    // never be auto-assigned and an exclusion on them would do nothing. People
+    // who have left are already excluded by fetchOrgProfiles.
     setTeam(rows.filter((p) => !p.is_hidden_test_profile))
     setLoading(false)
   }, [fetchOrgProfiles])

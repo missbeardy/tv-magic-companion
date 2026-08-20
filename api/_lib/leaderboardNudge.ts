@@ -223,6 +223,7 @@ export async function runLeaderboardNudge(
         .eq('org_id', orgId)
         .in('role', wantedRoles)
         .or('is_hidden_test_profile.is.null,is_hidden_test_profile.eq.false')
+        .is('departed_at', null)
 
       if (profilesError) throw new Error(profilesError.message)
 

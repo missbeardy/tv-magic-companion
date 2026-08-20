@@ -70,6 +70,13 @@ export default function Login() {
         return
       }
 
+      if (profileData.departed_at) {
+        setError('This account is no longer active. Contact your manager if this is wrong.')
+        await supabase.auth.signOut()
+        setLoadingForm(false)
+        return
+      }
+
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) {
         setError('Sign in succeeded but no session was returned. Try again.')

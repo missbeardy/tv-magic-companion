@@ -1,12 +1,12 @@
 ---
 id: "departed-employees-2026-08-19"
-status: "backlog"
+status: "review"
 priority: "medium"
 assignee: null
 epic: "Team management"
 dueDate: null
 created: "2026-08-19T10:30:00.000Z"
-modified: "2026-08-19T10:30:00.000Z"
+modified: "2026-08-20T12:20:00.000Z"
 completedAt: null
 labels: ["team", "data-retention", "roadmap"]
 order: "Z2"
@@ -81,6 +81,29 @@ something with no meaningful "off" state. Flagged per the standing convention ra
 - `is_hidden_test_profile` means only "test account" again, consistently across auto-assign *and* manager alerts
 
 **Difficulty:** Medium — one column, but many read sites.
+
+## Built — v1.1.182, 20-08-2026
+
+Migration `20260820120000_departed_employees.sql` adds the column and carries the Mitch Singe
+fix (guarded on the hidden flag, so it is a no-op in dev and on any re-run). **Not yet applied
+to dev or prod.**
+
+Two decisions worth recording, because neither is in the spec above:
+
+- **What counts as "a week they actually worked"** is *a saved leaderboard entry for that
+  week*, not `departed_at` compared against the week's dates. Comparing dates would put an
+  unscored zero row on every week before someone's last day; the entry is the proof.
+  `mergeRosterWithEntries` takes `keepDepartedWithEntries`, which `LeaderboardPage` sets from
+  `!isCurrentWeek(weekStart)`. Same shape in reporting: a departed profile gets no empty seed
+  row, so they surface in a month only when an event or snapshot names them.
+- **`fetchOrgProfiles` excludes departed people by default** and takes `includeDeparted` for
+  the history views. That one seam covers the assign modal, calendar, leads page, team
+  workload and `TeamExclusionsPanel` without touching any of them.
+
+App access is client-enforced in two places, matching how the rest of this codebase gates:
+`Login.tsx` blocks a fresh sign-in, and `ProtectedRoute` closes the window on a session that
+was already live when the person was marked departed. RLS is unchanged — a departed user can
+still read their own row, exactly as a hidden test profile can.
 
 ## Related
 

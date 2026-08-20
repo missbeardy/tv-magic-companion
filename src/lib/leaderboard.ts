@@ -23,6 +23,8 @@ export interface LeaderboardRow {
   salesAmount: number
   /** False when the technician has no saved row for the week (shown as zeros). */
   hasEntry: boolean
+  /** This person has left. Only ever true on a past week they scored in. */
+  departed: boolean
 }
 
 /** What a manager has typed but not yet saved, keyed by technician id. */
@@ -196,23 +198,37 @@ export function validateSales(raw: string): ValidationResult {
  * The roster is authoritative, not the saved rows: every visible employee appears
  * (zeros if unscored), and a saved row for someone since hidden by `profileVisibility`
  * or moved off `employee` does not resurrect them onto the board.
+ *
+ * Someone who has left is the exception, and only for a past week: they keep the weeks
+ * they actually scored in and vanish from the rest. A saved entry is the proof they
+ * worked that week — better than comparing `departed_at` to the week, which would put
+ * an unscored zero row on every week before someone's last day.
  */
 export function mergeRosterWithEntries(
-  employees: Pick<OrgProfile, 'id' | 'full_name' | 'avatar_url'>[],
-  entries: WeeklyLeaderboardEntryRow[]
+  employees: Pick<OrgProfile, 'id' | 'full_name' | 'avatar_url' | 'departed_at'>[],
+  entries: WeeklyLeaderboardEntryRow[],
+  options?: { keepDepartedWithEntries?: boolean }
 ): LeaderboardRow[] {
   const byTech = new Map(entries.map((e) => [e.technician_id, e]))
-  return employees.map((employee) => {
+  const rows: LeaderboardRow[] = []
+
+  for (const employee of employees) {
     const entry = byTech.get(employee.id)
-    return {
+    const departed = Boolean(employee.departed_at)
+    if (departed && !(options?.keepDepartedWithEntries && entry)) continue
+
+    rows.push({
       technicianId: employee.id,
       name: employee.full_name || 'Unnamed',
       avatarUrl: employee.avatar_url ?? null,
       jobsCompleted: entry ? Number(entry.jobs_completed) : 0,
       salesAmount: entry ? Number(entry.sales_amount) : 0,
       hasEntry: Boolean(entry),
-    }
-  })
+      departed,
+    })
+  }
+
+  return rows
 }
 
 /**

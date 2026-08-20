@@ -108,12 +108,16 @@ export function aggregateReportingData(
       agentId,
       name: profile?.full_name || fallbackName || 'Unknown user',
       role: profile?.role || fallbackRole || 'employee',
+      departed: Boolean(profile?.departed_at),
     }
     agentMap.set(agentId, row)
     return row
   }
 
+  // Someone who has left gets no empty seed row: they appear in a period only when an
+  // event in it names them, which keeps their history without haunting later months.
   for (const profile of profiles) {
+    if (profile.departed_at) continue
     ensureAgent(profile.id, profile.full_name, profile.role)
   }
 

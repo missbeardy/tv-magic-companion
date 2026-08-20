@@ -29,6 +29,7 @@ export interface AgentProfileRow {
   id: string
   full_name: string
   role: 'manager' | 'employee' | 'platform_admin'
+  departed_at?: string | null
 }
 
 export interface TeamSummary {
@@ -48,6 +49,8 @@ export interface AgentActivity extends TeamSummary {
   agentId: string
   name: string
   role: AgentProfileRow['role']
+  /** This person has left. They only appear in periods they were active in. */
+  departed: boolean
 }
 
 export interface ConversionMetric {

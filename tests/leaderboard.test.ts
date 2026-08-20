@@ -65,6 +65,7 @@ function row(
     jobsCompleted: jobs,
     salesAmount: sales,
     hasEntry: true,
+    departed: false,
   }
 }
 
@@ -165,6 +166,33 @@ describe('mergeRosterWithEntries', () => {
   it('falls back to a placeholder rather than rendering an empty name', () => {
     const merged = mergeRosterWithEntries([{ id: 'tech-3', full_name: '', avatar_url: null }], [])
     expect(merged[0].name).toBe('Unnamed')
+  })
+
+  describe('someone who has left', () => {
+    const departed = { id: 'tech-9', full_name: 'Mitch Singe', avatar_url: null, departed_at: '2026-06-21T00:00:00.000Z' }
+
+    it('is off the current week even with a saved row', () => {
+      const merged = mergeRosterWithEntries([...roster, departed], [entry('tech-9', 3, 700)])
+      expect(merged.map((r) => r.technicianId)).not.toContain('tech-9')
+    })
+
+    it('keeps a past week they scored in, marked as departed', () => {
+      const merged = mergeRosterWithEntries([...roster, departed], [entry('tech-9', 3, 700)], {
+        keepDepartedWithEntries: true,
+      })
+      expect(merged.find((r) => r.technicianId === 'tech-9')).toMatchObject({
+        salesAmount: 700,
+        hasEntry: true,
+        departed: true,
+      })
+    })
+
+    it('does not appear as a zero row on a past week they did not work', () => {
+      const merged = mergeRosterWithEntries([...roster, departed], [entry('tech-1', 4, 900)], {
+        keepDepartedWithEntries: true,
+      })
+      expect(merged.map((r) => r.technicianId)).not.toContain('tech-9')
+    })
   })
 })
 

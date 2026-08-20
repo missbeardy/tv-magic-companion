@@ -53,6 +53,7 @@ export async function applyTeamInboundAssignment(
     .eq('org_id', orgId)
     .in('role', ['employee', 'manager'])
     .eq('is_hidden_test_profile', false)
+    .is('departed_at', null)
     .order('created_at', { ascending: true })
 
   if (!profiles?.length) {
