@@ -42,6 +42,16 @@ export type _leaderboardSales = Assert<Has<LeaderboardRow, 'sales_amount'>>
 export type _leaderboardTech = Assert<Has<LeaderboardRow, 'technician_id'>>
 export type _leaderboardUpsertAudit = Assert<Has<LeaderboardInsert, 'updated_by'>>
 
+// Weekly prize: the leaderboard's manager-authored spotlight, same "typed client writes
+// it" reasoning as the leaderboard rows above.
+type WeeklyPrizeRow = Database['public']['Tables']['weekly_prizes']['Row']
+type WeeklyPrizeInsert = Database['public']['Tables']['weekly_prizes']['Insert']
+
+export type _prizeWeek = Assert<Has<WeeklyPrizeRow, 'week_start'>>
+export type _prizeVisible = Assert<Has<WeeklyPrizeRow, 'is_visible'>>
+export type _prizePhoto = Assert<Has<WeeklyPrizeRow, 'photo_url'>>
+export type _prizeUpsertAudit = Assert<Has<WeeklyPrizeInsert, 'updated_by'>>
+
 type ProfileRow = Database['public']['Tables']['profiles']['Row']
 type ProfileUpdate = Database['public']['Tables']['profiles']['Update']
 

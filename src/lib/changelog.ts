@@ -43,23 +43,15 @@ export function formatChangelogDate(date: string): string {
  * after Monday, set `weekStarts` to that Monday (use getCurrentReleaseWeekId()).
  */
 export const WEEKLY_CHANGELOG: WeeklyChangelog = {
-  weekStarts: '17-08-2026', // Monday — update on first push after each Monday
-  title: 'Background jobs stay on time',
+  weekStarts: '24-08-2026', // Monday — update on first push after each Monday
+  title: 'Weekly prize spotlight',
   items: [
-    'Split the overloaded 15-minute background job so lead follow-up, invoice/quote/booking sweeps, and cleanup each run on their own schedule — a slow chase can no longer time out technician follow-up reminders',
-    'Follow-up reminders now process in small batches so a wave of stale leads cannot time out the 15-minute job',
-    'Automatic follow-up changes now run entirely on the server, so opening the Leads board no longer edits lead data in the background',
-    'New Leaderboard tab: a weekly Monday-to-Sunday scoreboard of jobs and sales per technician, with a top-three podium everyone on the team can see and managers can fill in each week',
-    'The leaderboard now shows you your own standing, how far you are behind the person above, and whether you moved up or down since last week',
-    'Weekly nudge (off by default, per brand): a Saturday evening reminder to the manager to post the week, then a Monday 8am notification to the team that opens last week’s leaderboard on a countdown of third, second and first place',
-    'Fixed a fault that would have sent one lead alert to a phone dozens of times over: each time a browser quietly reset its notification registration the old one was left behind, and every leftover would have been notified',
-    'Release notes no longer appear to customers opening a quote or invoice link — they are shown to signed-in staff only',
-    'Team members who have left can now be marked as departed: they stop being auto-assigned, stop receiving alerts, drop off the current leaderboard and lose app access, while every lead, job and past leaderboard week they earned stays in the record and visible to managers',
+    'New "Up for grabs this week" prize banner on the Leaderboard: managers can post a prize (with an optional photo) and switch it on or off for the team, fresh each week',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.182'
+export const APP_VERSION = '1.1.183'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

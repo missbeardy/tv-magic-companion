@@ -1772,6 +1772,70 @@ export type Database = {
           },
         ]
       }
+      weekly_prizes: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string
+          id: string
+          is_visible: boolean
+          org_id: string
+          photo_url: string | null
+          title: string
+          updated_at: string
+          updated_by: string | null
+          week_start: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          is_visible?: boolean
+          org_id: string
+          photo_url?: string | null
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+          week_start: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          is_visible?: boolean
+          org_id?: string
+          photo_url?: string | null
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_prizes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weekly_prizes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weekly_prizes_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workflow_run_steps: {
         Row: {
           error: Json | null

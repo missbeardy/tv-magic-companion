@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react'
 import NavBar from '../components/NavBar'
+import WeeklyPrizeCard from '../components/WeeklyPrizeCard'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { useOrgProfiles } from '../hooks/useOrgProfiles'
@@ -45,6 +46,7 @@ import {
   type LeaderboardDraft,
   type LeaderboardRow,
 } from '../lib/leaderboard'
+import { fetchWeekPrize, type WeeklyPrizeRow } from '../lib/weeklyPrize'
 
 /** Medal treatment for the top three. Rank is also spelled out, never colour alone. */
 const MEDALS = [
@@ -91,6 +93,7 @@ export default function LeaderboardPage() {
   const [navDirection, setNavDirection] = useState<'fwd' | 'back'>('fwd')
   const [rows, setRows] = useState<LeaderboardRow[]>([])
   const [previousRows, setPreviousRows] = useState<LeaderboardRow[]>([])
+  const [prize, setPrize] = useState<WeeklyPrizeRow | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -128,10 +131,11 @@ export default function LeaderboardPage() {
         // cheapest way to give someone who is not winning a reason to open this.
         // The roster includes people who have left so past weeks keep their results; the
         // merge then drops them from the current week, which is about who is working now.
-        const [employees, entries, priorEntries] = await Promise.all([
+        const [employees, entries, priorEntries, weekPrize] = await Promise.all([
           fetchOrgProfiles({ roles: ['employee'], includeDeparted: true }),
           fetchWeekEntries(orgId, weekStart),
           fetchWeekEntries(orgId, addWeeks(weekStart, -1)),
+          fetchWeekPrize(orgId, weekStart),
         ])
         if (cancelled) return
         const keepDeparted = !isCurrentWeek(weekStart)
@@ -145,11 +149,13 @@ export default function LeaderboardPage() {
             mergeRosterWithEntries(employees, priorEntries, { keepDepartedWithEntries: true })
           )
         )
+        setPrize(weekPrize)
       } catch (err) {
         if (cancelled) return
         setError(err instanceof Error ? err.message : 'Could not load the leaderboard')
         setRows([])
         setPreviousRows([])
+        setPrize(null)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -404,6 +410,18 @@ export default function LeaderboardPage() {
                   This week’s results
                 </p>
               </section>
+            )}
+
+            {!revealing && orgId && editorId && (
+              <WeeklyPrizeCard
+                orgId={orgId}
+                weekStart={weekStart}
+                editorId={editorId}
+                prize={prize}
+                canEdit={canEdit}
+                primary={primary}
+                onSaved={() => setReloadToken((t) => t + 1)}
+              />
             )}
 
             {/* Week totals — a hero row, not a chart: three single numbers. */}

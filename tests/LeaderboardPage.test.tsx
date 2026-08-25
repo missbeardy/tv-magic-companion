@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchOrgProfilesMock = vi.fn()
 const upsertMock = vi.fn()
+const prizeUpsertMock = vi.fn()
+const prizeUploadMock = vi.fn()
 
 let currentProfile: {
   id: string
@@ -17,6 +19,8 @@ let currentProfile: {
 /** Entries keyed by `week_start`, so the page's this-week/last-week pair can differ. */
 let entriesByWeek: Record<string, unknown[]> = {}
 let entriesError: { message: string } | null = null
+/** Prize row keyed by `week_start`; absent/`null` means no prize saved for that week. */
+let prizesByWeek: Record<string, unknown | null> = {}
 
 vi.mock('../src/components/NavBar', () => ({ default: () => null }))
 
@@ -39,7 +43,7 @@ vi.mock('../src/hooks/useOrgProfiles', () => ({
 }))
 
 vi.mock('../src/lib/supabase', () => {
-  function makeQuery() {
+  function makeEntriesQuery() {
     let week = ''
     const query = {
       select: () => query,
@@ -57,9 +61,36 @@ vi.mock('../src/lib/supabase', () => {
     }
     return query
   }
-  // A fresh builder per `.from()` — the page runs two week queries concurrently, and a
+
+  // The prize fetch ends the chain in `.maybeSingle()` rather than awaiting the
+  // builder directly, so this query needs its own terminal method.
+  function makePrizeQuery() {
+    let week = ''
+    const query = {
+      select: () => query,
+      eq: (column: string, value: string) => {
+        if (column === 'week_start') week = value
+        return query
+      },
+      upsert: (...args: unknown[]) => prizeUpsertMock(...args),
+      maybeSingle: () => Promise.resolve({ data: prizesByWeek[week] ?? null, error: null }),
+    }
+    return query
+  }
+
+  // A fresh builder per `.from()` — the page runs concurrent week queries, and a
   // shared builder would let the second overwrite the first's week filter.
-  return { supabase: { from: () => makeQuery() } }
+  return {
+    supabase: {
+      from: (table: string) => (table === 'weekly_prizes' ? makePrizeQuery() : makeEntriesQuery()),
+      storage: {
+        from: () => ({
+          upload: (...args: unknown[]) => prizeUploadMock(...args),
+          getPublicUrl: () => ({ data: { publicUrl: 'https://example.com/prize.jpg' } }),
+        }),
+      },
+    },
+  }
 })
 
 import LeaderboardPage from '../src/pages/LeaderboardPage'
@@ -111,6 +142,31 @@ function savedEntry(technicianId: string, jobs: number, sales: number, week = TH
   }
 }
 
+function savedPrize(
+  overrides: Partial<{
+    title: string
+    description: string
+    photo_url: string | null
+    is_visible: boolean
+  }> = {},
+  week = THIS_WEEK
+) {
+  return {
+    id: `prize-${week}`,
+    org_id: 'org-1',
+    week_start: week,
+    title: 'Movie tickets',
+    description: 'Top seller of the week wins',
+    photo_url: null,
+    is_visible: true,
+    created_at: '2026-08-17T00:00:00.000Z',
+    updated_at: '2026-08-17T00:00:00.000Z',
+    created_by: 'mgr-1',
+    updated_by: 'mgr-1',
+    ...overrides,
+  }
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   // Reduced motion by default: count-up tweens land on their final value immediately,
@@ -119,9 +175,12 @@ beforeEach(() => {
   currentProfile = { id: 'emp-1', full_name: 'Ava Bell', role: 'employee', org_id: 'org-1' }
   entriesByWeek = {}
   entriesError = null
+  prizesByWeek = {}
   localStorage.clear()
   fetchOrgProfilesMock.mockResolvedValue(ROSTER)
   upsertMock.mockResolvedValue({ error: null })
+  prizeUpsertMock.mockResolvedValue({ error: null })
+  prizeUploadMock.mockResolvedValue({ error: null })
 })
 
 afterEach(() => {
@@ -523,5 +582,121 @@ describe('LeaderboardPage — movement against last week', () => {
 
     expect(screen.queryByText(/place from last week/)).not.toBeInTheDocument()
     expect(screen.queryByText('No change from last week')).not.toBeInTheDocument()
+  })
+})
+
+describe('LeaderboardPage — this week’s prize', () => {
+  it('shows nothing when no prize has ever been saved for the week', async () => {
+    render()
+    await screen.findByText('The week is still wide open')
+
+    expect(screen.queryByText('Up for grabs this week')).not.toBeInTheDocument()
+  })
+
+  it('stays hidden from everyone while switched off, even with content saved', async () => {
+    prizesByWeek = { [THIS_WEEK]: savedPrize({ is_visible: false }) }
+    render()
+    await screen.findByText('The week is still wide open')
+
+    expect(screen.queryByText('Up for grabs this week')).not.toBeInTheDocument()
+    expect(screen.queryByText('Movie tickets')).not.toBeInTheDocument()
+  })
+
+  it('shows the prize to everyone once switched on', async () => {
+    prizesByWeek = { [THIS_WEEK]: savedPrize() }
+    render()
+
+    expect(await screen.findByText('Movie tickets')).toBeInTheDocument()
+    expect(screen.getByText('Top seller of the week wins')).toBeInTheDocument()
+  })
+
+  it('shows the photo next to the text when one is attached', async () => {
+    prizesByWeek = {
+      [THIS_WEEK]: savedPrize({ photo_url: 'https://example.com/voucher.jpg' }),
+    }
+    const { container } = render()
+    await screen.findByText('Movie tickets')
+
+    const photo = container.querySelector('img[src="https://example.com/voucher.jpg"]')
+    expect(photo).toBeInTheDocument()
+  })
+
+  it('has no photo frame to extend the text into when no photo is set', async () => {
+    prizesByWeek = { [THIS_WEEK]: savedPrize({ photo_url: null }) }
+    const { container } = render()
+    const card = await screen.findByLabelText("This week's prize")
+
+    expect(within(card).queryByRole('img')).not.toBeInTheDocument()
+    expect(container.querySelector('img')).not.toBeInTheDocument()
+  })
+
+  it('gives an employee no way to add or edit a prize', async () => {
+    render()
+    await screen.findByText('The week is still wide open')
+
+    expect(screen.queryByText('Add a prize for this week')).not.toBeInTheDocument()
+
+    prizesByWeek = { [THIS_WEEK]: savedPrize() }
+    cleanup()
+    render()
+    await screen.findByText('Movie tickets')
+    expect(screen.queryByLabelText("Edit this week's prize")).not.toBeInTheDocument()
+  })
+
+  describe('as a manager', () => {
+    beforeEach(() => {
+      currentProfile = { id: 'mgr-1', full_name: 'Mo Reed', role: 'manager', org_id: 'org-1' }
+    })
+
+    it('offers to add a prize when none is set yet', async () => {
+      render()
+      expect(await screen.findByText('Add a prize for this week')).toBeInTheDocument()
+    })
+
+    it('creates and switches on a prize', async () => {
+      render()
+      fireEvent.click(await screen.findByText('Add a prize for this week'))
+
+      fireEvent.change(screen.getByLabelText('Prize'), {
+        target: { value: '$100 fuel voucher' },
+      })
+      fireEvent.click(screen.getByLabelText('Toggle prize visibility'))
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+      await waitFor(() => expect(prizeUpsertMock).toHaveBeenCalledTimes(1))
+      const [payload, options] = prizeUpsertMock.mock.calls[0]
+      expect(payload).toEqual(
+        expect.objectContaining({
+          org_id: 'org-1',
+          week_start: THIS_WEEK,
+          title: '$100 fuel voucher',
+          is_visible: true,
+          updated_by: 'mgr-1',
+        })
+      )
+      expect(options).toEqual({ onConflict: 'org_id,week_start' })
+    })
+
+    it('refuses to save a blank title', async () => {
+      render()
+      fireEvent.click(await screen.findByText('Add a prize for this week'))
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+      expect(prizeUpsertMock).not.toHaveBeenCalled()
+    })
+
+    it('can switch an existing prize back off', async () => {
+      prizesByWeek = { [THIS_WEEK]: savedPrize({ is_visible: true }) }
+      render()
+      fireEvent.click(await screen.findByLabelText("Edit this week's prize"))
+
+      fireEvent.click(screen.getByLabelText('Toggle prize visibility'))
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+      await waitFor(() => expect(prizeUpsertMock).toHaveBeenCalledTimes(1))
+      expect(prizeUpsertMock.mock.calls[0][0]).toEqual(
+        expect.objectContaining({ is_visible: false })
+      )
+    })
   })
 })
