@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.tests.json",
     "lint": "eslint .",
     "verify:changelog": "node scripts/verify-changelog.mjs",
+  "audit:prod": "node scripts/audit-prod-config.mjs",
     "prebuild": "node scripts/verify-changelog.mjs && npm run typecheck",
     "stitch:push": "node scripts/stitch/push-to-stitch.mjs",
     "db:types": "supabase gen types typescript --project-id $SUPABASE_DEV_PROJECT_ID --schema public > src/types/database.types.ts"
