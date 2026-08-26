@@ -7,7 +7,7 @@ import NavBar from '../components/NavBar'
 import CreateEmployeeModal from '../components/CreateEmployeeModal'
 import TeamExclusionsPanel from '../components/TeamExclusionsPanel'
 import { promptForNotifications } from '../lib/oneSignal'
-import { disablePush, enablePush, isIosSafariNotInstalled } from '../lib/webPush'
+import { disablePush, enablePush, isDeviceSubscribed, isIosSafariNotInstalled } from '../lib/webPush'
 import { useOrg } from '../context/OrgContext'
 import { isManagerRole } from '../lib/roles'
 import { deleteMyAccount } from '../lib/accountDeletion'
@@ -109,6 +109,9 @@ export default function ProfilePage() {
   // an opt-out must not read as "off" either, which is what push_enabled's default-false got
   // wrong. Only disablePush() sets this.
   const [pushDisabled, setPushDisabled] = useState(false)
+  // Does this device still have a live push_subscriptions row? null = not yet checked,
+  // or checked and unknowable. Only an outright `false` means "cannot be delivered to".
+  const [deviceSubscribed, setDeviceSubscribed] = useState<boolean | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const { isFeatureEnabled, featureSwitchesLoading } = useOrg()
   const nativePushEnabled = !featureSwitchesLoading && isFeatureEnabled('native_web_push')
@@ -133,6 +136,19 @@ export default function ProfilePage() {
       })
   }, [profile])
 
+  // Browser permission alone cannot tell us whether delivery works — the row backing it
+  // may have been pruned server-side after the push service reported the endpoint gone.
+  useEffect(() => {
+    if (!profile || !nativePushEnabled) return
+    let cancelled = false
+    isDeviceSubscribed(profile.id).then((state) => {
+      if (!cancelled) setDeviceSubscribed(state)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [profile, nativePushEnabled])
+
   // Must stay inside the click handler — iOS only honours requestPermission()
   // from a real user gesture.
   async function handleEnableNotifications() {
@@ -142,6 +158,7 @@ export default function ProfilePage() {
         const result = await enablePush(profile.id, profile.org_id ?? null)
         if (result.ok) {
           setPushDisabled(false)
+          setDeviceSubscribed(true)
           setNotifStatus('success')
         } else {
           setNotifStatus('denied')
@@ -161,6 +178,7 @@ export default function ProfilePage() {
     setNotifSaving(true)
     await disablePush(profile.id)
     setPushDisabled(true)
+    setDeviceSubscribed(false)
     setNotifStatus('idle')
     setNotifSaving(false)
   }
@@ -254,8 +272,18 @@ export default function ProfilePage() {
   // Both branches now agree for anyone who has never opted out, so flipping
   // native_web_push no longer silently flips this toggle from on to off under the user.
   // "On" means the browser grants permission and no explicit opt-out is recorded.
+  // Permission granted and no opt-out, but the row that makes delivery possible is gone.
+  // The browser will keep reporting "granted" forever in this state, so without an explicit
+  // check the panel claims notifications work while every one of them is dropped.
+  const deviceNeedsRepair =
+    nativePushEnabled &&
+    !pushDisabled &&
+    notifStatus !== 'success' &&
+    notifPermission === 'granted' &&
+    deviceSubscribed === false
   const deviceNotificationsOn =
-    notifStatus === 'success' || (!pushDisabled && notifPermission === 'granted')
+    notifStatus === 'success' ||
+    (!pushDisabled && notifPermission === 'granted' && !deviceNeedsRepair)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -314,6 +342,20 @@ export default function ProfilePage() {
                 iPhone and iPad only allow notifications once the app is installed. Tap Share, then
                 “Add to Home Screen”, and open FieldBourne from the new icon.
               </p>
+            </div>
+          ) : deviceNeedsRepair ? (
+            <div className="space-y-2">
+              <div className="bg-amber-50 text-amber-700 text-sm p-3 rounded-lg">
+                ⚠️ This device is no longer reachable, so notifications are not being
+                delivered. Your browser still allows them — the subscription behind them
+                expired. Re-register to start receiving them again.
+              </div>
+              <button
+                onClick={handleEnableNotifications}
+                className="w-full min-h-[44px] bg-[#00B4C5] text-white py-3 rounded-lg text-sm font-semibold hover:bg-[#009aaa] transition"
+              >
+                🔄 Re-register this device
+              </button>
             </div>
           ) : deviceNotificationsOn ? (
             <div className="space-y-2">

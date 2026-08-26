@@ -88,6 +88,51 @@ export function isIosSafariNotInstalled(): boolean {
   return isIos && isSafari
 }
 
+/**
+ * Does this user still have a row for `endpoint`?
+ *
+ * `null` means the lookup itself failed, which is NOT the same as "no row" — the
+ * sender deletes a row only when the push service says the endpoint is gone, so a
+ * missing row is a real signal and a failed query is no signal at all. Callers must
+ * treat the two differently or a flaky network reads as a broken device.
+ */
+async function serverRowExists(userId: string, endpoint: string): Promise<boolean | null> {
+  const { data, error } = await supabase
+    .from('push_subscriptions')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('endpoint', endpoint)
+    .maybeSingle()
+
+  if (error) {
+    console.error('Push subscription lookup failed (non-fatal):', error.message)
+    return null
+  }
+  return Boolean(data)
+}
+
+/**
+ * Whether this device can actually receive a push right now.
+ *
+ * Browser permission is not the answer: it stays `granted` long after the row that
+ * makes delivery possible has been pruned, which is how a device ends up showing
+ * "notifications are enabled" while receiving nothing. Returns `null` when it cannot
+ * tell — never treat that as "broken".
+ */
+export async function isDeviceSubscribed(userId: string): Promise<boolean | null> {
+  if (!isPushSupported() || !isWebPushConfigured()) return null
+
+  try {
+    const registration = await navigator.serviceWorker.ready
+    const subscription = await registration.pushManager.getSubscription()
+    if (!subscription) return false
+    return await serverRowExists(userId, subscription.endpoint)
+  } catch (err) {
+    console.error('isDeviceSubscribed failed (non-fatal):', err)
+    return null
+  }
+}
+
 async function syncSubscription(
   subscription: PushSubscription,
   userId: string,
@@ -275,6 +320,20 @@ export async function reconcileSubscription(
     // granted under OneSignal's key and has just been migrated. Re-subscribe under
     // ours without prompting: permission is origin-scoped, not per-key.
     if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY!),
+      })
+    } else if ((await serverRowExists(userId, subscription.endpoint)) === false) {
+      // The sender deletes the row the moment the push service reports this endpoint
+      // gone (404/410), but the browser keeps handing the dead subscription back. A
+      // plain upsert would resurrect the row, the next send would prune it again, and
+      // the device would silently receive nothing forever. The missing row is the only
+      // signal we get, so spend it on a fresh endpoint.
+      //
+      // Strictly `=== false`: serverRowExists returns null when the query failed, and
+      // churning subscriptions on a flaky network would be worse than doing nothing.
+      await subscription.unsubscribe()
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY!),

@@ -10,6 +10,9 @@
     },
     "api/inbound-email.ts": {
       "maxDuration": 60
+    },
+    "api/inbound-sms.ts": {
+      "maxDuration": 60
     }
   },
   "headers": [

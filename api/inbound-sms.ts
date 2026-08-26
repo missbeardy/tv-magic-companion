@@ -12,6 +12,7 @@ import { computeTwilioSignature } from './_lib/twilioSignature.js'
 import { readRawBody } from './_lib/rawBody.js'
 import { extractFromSms } from './_lib/extractLead.js'
 import { checkRateLimit, rateLimitIdentifier } from './_lib/rateLimit.js'
+import { captureServerException } from './_lib/sentry.js'
 
 /**
  * Disable Vercel's default body parser so the Meta webhook can verify its
@@ -51,6 +52,12 @@ function verifyTwilioSignature(req: VercelRequest, authToken: string): boolean {
   }
 }
 
+/** Twilio only needs an empty TwiML ack; send it and move on. */
+function respondOk(res: VercelResponse): void {
+  res.setHeader('Content-Type', 'text/xml')
+  res.status(200).send('<Response></Response>')
+}
+
 async function handler(req: VercelRequest, res: VercelResponse) {
   const action = typeof req.query.action === 'string' ? req.query.action : undefined
 
@@ -73,37 +80,38 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   const identifier = rateLimitIdentifier(req.headers['x-forwarded-for'] as string | undefined)
   const allowed = await checkRateLimit({ scope: 'inbound-sms', identifier, limit: 60, windowMs: 60_000 })
   if (!allowed) {
-    res.setHeader('Content-Type', 'text/xml')
-    return res.status(200).send('<Response></Response>')
+    return respondOk(res)
   }
 
   const authToken = process.env.TWILIO_AUTH_TOKEN
   if (!authToken) {
     console.error('Missing TWILIO_AUTH_TOKEN')
-    res.setHeader('Content-Type', 'text/xml')
-    return res.status(200).send('<Response></Response>')
+    return respondOk(res)
   }
 
   if (!verifyTwilioSignature(req, authToken)) {
     console.warn('Invalid signature')
-    res.setHeader('Content-Type', 'text/xml')
-    return res.status(200).send('<Response></Response>')
+    return respondOk(res)
   }
 
+  const body = req.body as Record<string, string>
+  const smsText = body.Body || ''
+  const fromNumber = body.From || ''
+  const toNumber = body.To || ''
+
+  // Twilio gives a webhook ~15s, and this pipeline routinely runs longer (Claude
+  // extraction, manager notifications, the ack SMS). That was surfacing as a 502 /
+  // error 11200 on every single inbound message even though the lead itself saved
+  // fine. Acknowledge Twilio first, then finish the work on the still-live
+  // invocation — withObservability keeps the container alive until this resolves.
+  respondOk(res)
+
+  if (!smsText.trim()) return
+
   try {
-    const body = req.body as Record<string, string>
-    const smsText = body.Body || ''
-    const fromNumber = body.From || ''
-    const toNumber = body.To || ''
-
-    if (!smsText.trim()) {
-      res.setHeader('Content-Type', 'text/xml')
-      return res.status(200).send('<Response></Response>')
-    }
-
     console.log(`SMS from ${fromNumber} to ${toNumber}`)
 
-    const { orgId, source } = await resolveOrgIdFromDid(supabase, toNumber)
+    const { orgId } = await resolveOrgIdFromDid(supabase, toNumber)
 
     if (!orgId) {
       console.error('No org_id – lead rejected')
@@ -113,16 +121,14 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         reason: 'no_mapping',
         payload: body,
       })
-      res.setHeader('Content-Type', 'text/xml')
-      return res.status(200).send('<Response></Response>')
+      return
     }
 
     const { isFeatureEnabledForOrg } = await import('./_lib/featureSwitches.js')
     const inboundEnabled = await isFeatureEnabledForOrg(orgId, 'inbound_sms')
     if (!inboundEnabled) {
       console.log(`Inbound SMS disabled for org ${orgId}`)
-      res.setHeader('Content-Type', 'text/xml')
-      return res.status(200).send('<Response></Response>')
+      return
     }
 
     let parsedForAck: { customer_name?: string; phone?: string; service_type?: string } = {}
@@ -190,18 +196,15 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       leadId = result.leadId
     } catch (insertErr) {
       console.error('SMS raw-first insert failed:', insertErr)
-      res.setHeader('Content-Type', 'text/xml')
-      return res.status(200).send('<Response></Response>')
+      return
     }
 
     console.log(`Lead saved: ${leadId} with org ${orgId}`)
-
-    res.setHeader('Content-Type', 'text/xml')
-    return res.status(200).send('<Response></Response>')
   } catch (err) {
+    // Twilio was acked above, so nothing here can reach the caller — report it
+    // instead of swallowing it.
     console.error('Unhandled error:', err)
-    res.setHeader('Content-Type', 'text/xml')
-    return res.status(200).send('<Response></Response>')
+    captureServerException(err, { route: '/api/inbound-sms', method: 'POST' })
   }
 }
 
