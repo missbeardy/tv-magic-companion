@@ -1,13 +1,13 @@
 ---
 id: "repair-rotted-push-subscriptions-2026-08-26"
-status: "in-progress"
+status: "done"
 priority: "high"
 assignee: null
 epic: "Notifications"
 dueDate: null
 created: "2026-08-26T05:50:00.000Z"
-modified: "2026-08-26T05:50:00.000Z"
-completedAt: null
+modified: "2026-08-26T06:05:00.000Z"
+completedAt: "2026-08-26T06:05:00.000Z"
 labels: ["push", "bug", "t1-12"]
 order: "Z0"
 ---
@@ -90,6 +90,18 @@ consistent with `dd19`'s push to stop growing the catalog.
 - `null` vs `false` covered by tests
 
 **Difficulty:** Low — one helper, one branch, one panel state.
+
+## Built — v1.1.184, 26-08-2026
+
+Shipped to prod in the same deploy as the inbound-SMS 502 fix. `isDeviceSubscribed` returns
+`boolean | null`; `null` (unsupported, unconfigured, or a failed lookup) deliberately reads as
+"on" so a flaky query cannot nag a healthy device, and reconcile's new branch is gated on a
+strict `=== false` for the same reason. 8 tests added to `tests/webPushClient.test.ts`.
+
+**Outstanding: one-device UAT.** The repair panel and re-register button are live but have not
+been exercised by a real rotted device — `Demo Manager` was in exactly that state when this was
+written and is the natural test. Confirm `last_success_at` moves for the new endpoint on the
+next send.
 
 ## Related
 
