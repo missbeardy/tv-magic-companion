@@ -64,6 +64,10 @@
       "destination": "/api/send-sms?action=leaderboard-nudge"
     },
     {
+      "source": "/api/cron/inbound-probe",
+      "destination": "/api/send-sms?action=inbound-probe"
+    },
+    {
       "source": "/api/meta-webhook",
       "destination": "/api/inbound-sms?action=meta-webhook"
     },

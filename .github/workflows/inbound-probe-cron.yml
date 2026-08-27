@@ -1,0 +1,29 @@
+# Synthetic inbound probe — the check that would have caught the 26-08-2026 outage,
+# where the SMS webhook returned a clean 200 for a day while saving nothing.
+#
+# Everything else we monitor asks "did the endpoint answer?". This asks "did the work
+# actually happen?", which is the only question that outage would have failed.
+#
+# Repo secrets: PLATFORM_URL (e.g. https://tv-magic-companion.vercel.app), CRON_SECRET
+name: Inbound probe cron
+
+on:
+  schedule:
+    - cron: '20 * * * *'
+  workflow_dispatch:
+
+jobs:
+  inbound-probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger /api/cron/inbound-probe
+        env:
+          PLATFORM_URL: ${{ secrets.PLATFORM_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$PLATFORM_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "Missing PLATFORM_URL or CRON_SECRET in repo secrets"
+            exit 1
+          fi
+          curl --fail-with-body --max-time 55 -X POST "${PLATFORM_URL%/}/api/cron/inbound-probe" \
+            -H "Authorization: Bearer ${CRON_SECRET}"

@@ -10,6 +10,7 @@ import { purgeOldWorkflowRuns } from './workflowRun.js'
 import { purgeOldNotifications } from './notificationRetention.js'
 import { purgeOldRateLimitHits } from './rateLimit.js'
 import { runLeaderboardNudge } from './leaderboardNudge.js'
+import { runInboundProbe } from './inboundProbe.js'
 import type { NudgePhase } from '../../shared/leaderboardWeek.js'
 
 export const CRON_KEYS = {
@@ -17,6 +18,7 @@ export const CRON_KEYS = {
   automationSweeps: 'automation_sweeps',
   cronMaintenance: 'cron_maintenance',
   leaderboardNudge: 'leaderboard_nudge',
+  inboundProbe: 'inbound_probe',
 } as const
 
 export function isCronAuthorized(req: VercelRequest): boolean {
@@ -120,6 +122,36 @@ export async function handleLeaderboardNudgeCron(req: VercelRequest, res: Vercel
     // and would otherwise overwrite the last real result.
     if (result.inWindow) {
       await upsertHeartbeat(supabase, CRON_KEYS.leaderboardNudge, { ...result })
+    }
+    return { ...result }
+  })
+}
+
+/**
+ * Synthetic inbound probe — see _lib/inboundProbe.ts for why this exists.
+ *
+ * Runs on its own schedule rather than inside automation-sweeps: it spends up to 20s
+ * waiting on a round trip, and a canary that shares a timeout budget with three business
+ * sweeps eventually gets dropped to protect them.
+ *
+ * The heartbeat is written for both outcomes — a failed probe is exactly the run whose
+ * result must be visible — and the previous verdict is read first so alerting can be
+ * edge-triggered.
+ */
+export async function handleInboundProbeCron(req: VercelRequest, res: VercelResponse) {
+  return withCronAuth(req, res, 'inbound-probe', async (supabase) => {
+    const { data: previous } = await supabase
+      .from('cron_heartbeats')
+      .select('last_result')
+      .eq('cron_key', CRON_KEYS.inboundProbe)
+      .maybeSingle()
+    const previousOk = (previous?.last_result as { ok?: boolean } | null)?.ok !== false
+
+    const result = await runInboundProbe(supabase, previousOk)
+    await upsertHeartbeat(supabase, CRON_KEYS.inboundProbe, { ...result })
+
+    if (!result.ok) {
+      throw new Error(result.failure ?? 'Inbound probe failed')
     }
     return { ...result }
   })

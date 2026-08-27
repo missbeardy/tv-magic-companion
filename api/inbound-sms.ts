@@ -14,6 +14,7 @@ import { extractFromSms } from './_lib/extractLead.js'
 import { checkRateLimit, rateLimitIdentifier } from './_lib/rateLimit.js'
 import { captureServerException } from './_lib/sentry.js'
 import { waitUntil } from '@vercel/functions'
+import { matchInboundProbe, recordInboundProbeEcho } from './_lib/inboundProbe.js'
 
 /**
  * Disable Vercel's default body parser so the Meta webhook can verify its
@@ -107,6 +108,15 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   respondOk(res)
 
   if (!smsText.trim()) return
+
+  // The synthetic probe stops here. It exists to prove this continuation runs at all, so
+  // it must travel the same waitUntil path as a real enquiry — and must never create a
+  // lead, assign a technician or notify anyone.
+  const probe = matchInboundProbe(smsText)
+  if (probe) {
+    waitUntil(recordInboundProbeEcho(supabase, probe.nonce))
+    return
+  }
 
   const pipeline = finishInboundSms({ body, smsText, fromNumber, toNumber })
 

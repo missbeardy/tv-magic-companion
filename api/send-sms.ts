@@ -25,6 +25,7 @@ import {
   handleAutomationSweepsCron,
   handleContactFollowUpCron,
   handleCronMaintenance,
+  handleInboundProbeCron,
   handleLeaderboardNudgeCron,
 } from './_lib/cronActions.js'
 import { notifyOrgUser } from './_lib/notifyUser.js'
@@ -745,6 +746,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   }
   if (action === 'leaderboard-nudge') {
     return handleLeaderboardNudgeCron(req, res)
+  }
+  if (action === 'inbound-probe') {
+    return handleInboundProbeCron(req, res)
   }
 
   // Web Push (T1.12) — both are session-less by necessity and carry their own auth.
