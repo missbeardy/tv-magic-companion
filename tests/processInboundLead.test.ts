@@ -16,6 +16,20 @@ vi.mock('../api/_lib/missedCallHookbackSms.js', () => ({
   sendMissedCallHookbackIfEnabled: vi.fn().mockResolvedValue(true),
 }))
 
+// Unmocked, these two reach the network. `api/_lib/loadLocalEnv.ts` loads `.env.local`
+// into process.env at import time, so on a developer machine `getSupabaseAdmin()` returns
+// a real service-role client and the customer-linking switch costs three live round-trips
+// (~1.5s, latency-dependent) against the 5s default timeout — that is what made this test
+// fail at random. `track` likewise posts a real event to PostHog. CI has neither key, so
+// `false` is exactly what the switch resolves to there; no assertion here depends on it.
+vi.mock('../api/_lib/featureSwitches.js', () => ({
+  isFeatureEnabledForOrg: vi.fn().mockResolvedValue(false),
+}))
+
+vi.mock('../api/_lib/analytics.js', () => ({
+  track: vi.fn(),
+}))
+
 const { mockRecorder } = vi.hoisted(() => ({
   mockRecorder: {
     step: vi.fn().mockResolvedValue(undefined),

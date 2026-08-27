@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 import React from 'react'
-import { cleanup, fireEvent, render as rtlRender, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render as rtlRender, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -122,6 +122,27 @@ function setReducedMotion(reduced: boolean) {
   })) as unknown as typeof window.matchMedia
 }
 
+/**
+ * The reveal is a timed sequence — the runner-up card at 1500ms, the winner at 2400ms,
+ * the settled board at 3500ms. Waiting on real elapsed time raced those steps against the
+ * scheduler: the gap between two cards is only 900ms, so a worker that stalled (a busy CI
+ * runner, GC, a parallel test file) let the *next* card land before the assertion ran, and
+ * "the winner is not on screen yet" failed at random. These two drive the clock instead, so
+ * every step is observed at exactly its own moment.
+ *
+ * Callers must `vi.useFakeTimers()` first; the shared afterEach hands the real ones back.
+ */
+async function advanceReveal(ms: number) {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms)
+  })
+}
+
+/** Let the mocked week queries resolve and React commit, without moving the clock. */
+async function settle() {
+  await advanceReveal(0)
+}
+
 const ROSTER = [
   { id: 'tech-1', full_name: 'Ava Bell', avatar_url: null },
   { id: 'tech-2', full_name: 'Zed Cruz', avatar_url: null },
@@ -187,6 +208,8 @@ afterEach(() => {
   // vitest runs without `globals`, so Testing Library never registers its own
   // auto-cleanup — without this every render stacks up in the same document.
   cleanup()
+  // Harmless when the test never faked them; the reveal tests always do.
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -367,38 +390,50 @@ describe('LeaderboardPage — the weekly reveal', () => {
   })
 
   it('plays the reveal when the Friday notification sends them here', async () => {
+    vi.useFakeTimers()
     setReducedMotion(false)
     render('/leaderboard?reveal=1')
+    await settle()
 
-    expect(await screen.findByText('This week’s results')).toBeInTheDocument()
+    expect(screen.getByText('This week’s results')).toBeInTheDocument()
     // The board is still behind the curtain: no table, no totals.
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Week totals')).not.toBeInTheDocument()
   })
 
   it('builds bottom-up — third place lands before the winner', async () => {
+    vi.useFakeTimers()
     setReducedMotion(false)
     render('/leaderboard?reveal=1')
-    await screen.findByText('This week’s results')
+    await settle()
+    expect(screen.getByText('This week’s results')).toBeInTheDocument()
 
     // Only two technicians, so 2nd is the last card before the winner.
+    expect(screen.queryByText('Ava Bell')).not.toBeInTheDocument()
     expect(screen.queryByText('Zed Cruz')).not.toBeInTheDocument()
-    await waitFor(() => expect(screen.getByText('Ava Bell')).toBeInTheDocument(), {
-      timeout: 3000,
-    })
+
+    await advanceReveal(1500)
+    expect(screen.getByText('Ava Bell')).toBeInTheDocument()
     expect(screen.queryByText('Zed Cruz')).not.toBeInTheDocument()
-  }, 20000)
+
+    // Only now, at 2400ms, does the winner arrive.
+    await advanceReveal(900)
+    expect(screen.getByText('Zed Cruz')).toBeInTheDocument()
+  })
 
   it('settles into the full board once the sequence finishes', async () => {
+    vi.useFakeTimers()
     setReducedMotion(false)
     render('/leaderboard?reveal=1')
+    await settle()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
 
-    await waitFor(() => expect(screen.getByRole('table')).toBeInTheDocument(), {
-      timeout: 15000,
-    })
+    // 3500ms: the last step hands the page back.
+    await advanceReveal(3500)
+    expect(screen.getByRole('table')).toBeInTheDocument()
     expect(screen.queryByText('This week’s results')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Week totals')).toBeInTheDocument()
-  }, 20000)
+  })
 
   it('skips straight to the board under reduced motion', async () => {
     setReducedMotion(true)
@@ -472,10 +507,12 @@ describe('LeaderboardPage — the Monday notification link', () => {
   })
 
   it('reveals a past week when the link asks for it', async () => {
+    vi.useFakeTimers()
     setReducedMotion(false)
     render(`/leaderboard?reveal=1&week=${LAST_WEEK}`)
+    await settle()
 
-    expect(await screen.findByText('This week’s results')).toBeInTheDocument()
+    expect(screen.getByText('This week’s results')).toBeInTheDocument()
   })
 
   it('does not reveal a past week reached by the arrows', async () => {
