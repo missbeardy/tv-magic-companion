@@ -13,6 +13,7 @@ import { readRawBody } from './_lib/rawBody.js'
 import { extractFromSms } from './_lib/extractLead.js'
 import { checkRateLimit, rateLimitIdentifier } from './_lib/rateLimit.js'
 import { captureServerException } from './_lib/sentry.js'
+import { waitUntil } from '@vercel/functions'
 
 /**
  * Disable Vercel's default body parser so the Meta webhook can verify its
@@ -102,11 +103,43 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   // Twilio gives a webhook ~15s, and this pipeline routinely runs longer (Claude
   // extraction, manager notifications, the ack SMS). That was surfacing as a 502 /
   // error 11200 on every single inbound message even though the lead itself saved
-  // fine. Acknowledge Twilio first, then finish the work on the still-live
-  // invocation — withObservability keeps the container alive until this resolves.
+  // fine. Acknowledge Twilio first, then finish the work via waitUntil.
   respondOk(res)
 
   if (!smsText.trim()) return
+
+  const pipeline = finishInboundSms({ body, smsText, fromNumber, toNumber })
+
+  // The Platform Admin simulator invokes this handler in-process (invokeApiHandler)
+  // and must not report a result before the lead exists, so it asks to be awaited.
+  // A real Twilio webhook hands the pipeline to waitUntil instead — see below.
+  if (req.headers['x-inbound-await'] === '1') {
+    await pipeline
+    return
+  }
+
+  waitUntil(pipeline)
+}
+
+/**
+ * The pipeline that runs after Twilio has been acked.
+ *
+ * MUST be handed to `waitUntil` rather than merely awaited: Vercel freezes the
+ * invocation the moment the response is flushed, so plain post-response work stops
+ * dead at its first await. v1.1.184 acked Twilio correctly — killing the 11200s —
+ * and then silently dropped every lead for a day, because the handler's next line
+ * after respondOk() was a Supabase round-trip that never resumed. The logs showed
+ * `SMS from … to …` (synchronous, same tick) and nothing after it.
+ *
+ * Same pattern as deliverQuoteWithinBudget in _lib/quotes.ts.
+ */
+async function finishInboundSms(input: {
+  body: Record<string, string>
+  smsText: string
+  fromNumber: string
+  toNumber: string
+}): Promise<void> {
+  const { body, smsText, fromNumber, toNumber } = input
 
   try {
     console.log(`SMS from ${fromNumber} to ${toNumber}`)

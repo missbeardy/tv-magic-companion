@@ -49,11 +49,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'New "Up for grabs this week" prize banner on the Leaderboard: managers can post a prize (with an optional photo) and switch it on or off for the team, fresh each week',
     'Fixed: a phone could stop receiving notifications while your Profile still showed them as switched on. Profile now spots it and gives you a one-tap "Re-register this device"',
     'Fixed: text-message enquiries are now acknowledged to the phone network straight away, so they stop being recorded as failed even though the lead saved fine',
+    'Fixed: for one day that acknowledgement was arriving before the enquiry had been saved, so text-message leads stopped appearing in the app. They save again, and the four that were missed have been added back',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.184'
+export const APP_VERSION = '1.1.185'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

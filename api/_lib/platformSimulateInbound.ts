@@ -241,6 +241,9 @@ async function simulateSms(parentReq: VercelRequest, baseUrl: string, text: stri
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       'x-twilio-signature': signature,
+      // Tells the handler to await its post-ack pipeline rather than deferring it to
+      // waitUntil, so this simulated run reports a result that has actually happened.
+      'x-inbound-await': '1',
     },
     body: formBody,
   })
