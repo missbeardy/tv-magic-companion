@@ -108,6 +108,10 @@
       "destination": "/api/inbound-email?action=voicemail-poll"
     },
     {
+      "source": "/api/cron/messenger-suburb-timeout",
+      "destination": "/api/send-sms?action=messenger-suburb-timeout"
+    },
+    {
       "source": "/api/xero-oauth-callback",
       "destination": "/api/xero?action=oauth-callback"
     },

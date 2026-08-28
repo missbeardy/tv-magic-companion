@@ -13,19 +13,38 @@ vi.mock('../api/_lib/processInboundLead.js', () => ({
   processInboundLead: vi.fn(),
 }))
 
+vi.mock('../api/_lib/inboundLeadDedup.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../api/_lib/inboundLeadDedup.js')>()
+  return {
+    ...actual,
+    findDuplicateFacebookMessengerLead: vi.fn(),
+  }
+})
+
 import {
   parseFacebookLeadBody,
   buildFacebookLeadDetails,
   facebookLeadFallbackParse,
   handleInboundFacebookLead,
+  assembleMessengerLeadDetails,
+  inferFacebookServiceType,
 } from '../api/_lib/handleInboundFacebookLead'
 import { isFeatureEnabledForOrg } from '../api/_lib/featureSwitches'
 import { captureUnroutedInbound } from '../api/_lib/captureUnroutedInbound'
 import { processInboundLead } from '../api/_lib/processInboundLead'
+import { findDuplicateFacebookMessengerLead } from '../api/_lib/inboundLeadDedup'
 
 const mockIsFeatureEnabled = vi.mocked(isFeatureEnabledForOrg)
 const mockCaptureUnrouted = vi.mocked(captureUnroutedInbound)
 const mockProcessInboundLead = vi.mocked(processInboundLead)
+const mockFindDuplicate = vi.mocked(findDuplicateFacebookMessengerLead)
+
+const unsetAgentFields = {
+  conversation_id: null,
+  suburb: null,
+  service_needed: null,
+  out_of_area: false,
+}
 
 function mockRes() {
   const res = {
@@ -86,6 +105,7 @@ describe('parseFacebookLeadBody', () => {
         website: null,
         channel: 'messenger',
         form_name: null,
+        ...unsetAgentFields,
       },
     })
   })
@@ -155,6 +175,7 @@ describe('parseFacebookLeadBody', () => {
         website: null,
         channel: 'messenger',
         form_name: null,
+        ...unsetAgentFields,
       },
     })
   })
@@ -175,6 +196,28 @@ describe('parseFacebookLeadBody', () => {
       ok: false,
       error: 'org is required',
     })
+  })
+
+  it('assembles a technician card only when the Gen-AI agent sends structured fields', () => {
+    const result = parseFacebookLeadBody({
+      org: 'default',
+      name: 'Jane Citizen',
+      phone: '0412345678',
+      conversation_id: 'conv_abc123',
+      suburb: 'Annerley',
+      service_needed: 'Wall mount 75 inch plaster',
+      out_of_area: false,
+      message: 'Asked about price',
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.data.conversation_id).toBe('conv_abc123')
+    expect(result.data.suburb).toBe('Annerley')
+    expect(result.data.message).toContain('Facebook Messenger — TV Magic South Brisbane')
+    expect(result.data.message).toContain('Suburb: Annerley')
+    expect(result.data.message).toContain('Service: Wall mount 75 inch plaster')
+    expect(result.data.message).toContain('Out of area: no')
+    expect(result.data.message).toContain('Notes: Asked about price')
   })
 })
 
@@ -206,6 +249,25 @@ describe('facebookLeadFallbackParse', () => {
     expect(fields.service_type).toBe('TV Aerial')
     expect(fields.phone).toBe('+61412345678')
   })
+
+  it('detects wall mounting and Starlink from newer keywords', () => {
+    expect(inferFacebookServiceType('Can you wall mount a 75 inch?')).toBe('Wall Mounting')
+    expect(inferFacebookServiceType('Need Starlink on the roof')).toBe('Starlink')
+    expect(inferFacebookServiceType('TV is pixelating, no signal')).toBe('Reception Repair')
+  })
+
+  it('builds a readable card for technicians', () => {
+    const card = assembleMessengerLeadDetails({
+      name: 'Jane',
+      phone: '0412345678',
+      message: 'Asked about price',
+      suburb: 'Annerley',
+      serviceNeeded: 'Wall mount',
+      outOfArea: false,
+    })
+    expect(card).toContain('Suburb: Annerley')
+    expect(card).toContain('Out of area: no')
+  })
 })
 
 describe('handleInboundFacebookLead', () => {
@@ -216,6 +278,7 @@ describe('handleInboundFacebookLead', () => {
     vi.clearAllMocks()
     mockIsFeatureEnabled.mockResolvedValue(true)
     mockProcessInboundLead.mockResolvedValue({ leadId: 'lead-abc', savedLead: null })
+    mockFindDuplicate.mockResolvedValue(null)
   })
 
   afterEach(() => {
@@ -345,6 +408,48 @@ describe('handleInboundFacebookLead', () => {
     await handleInboundFacebookLead(req, res, mockSupabase({ id: 'org-1' }))
     expect(mockProcessInboundLead).toHaveBeenCalled()
     expect(res.statusCode).toBe(200)
+    expect(res.body).toEqual({ success: true, lead_id: 'lead-abc' })
+  })
+
+  it('returns an existing lead when the Gen-AI agent retries the same conversation', async () => {
+    mockFindDuplicate.mockResolvedValue({ id: 'lead-existing' })
+    const req = mockReq({
+      headers: { 'x-inbound-secret': 'test-inbound-secret' },
+      body: {
+        org: 'default',
+        name: 'Jane Doe',
+        phone: '0412 345 678',
+        conversation_id: 'conv_abc123',
+        suburb: 'Annerley',
+        service_needed: 'Wall mount',
+      },
+    })
+    const res = mockRes()
+    await handleInboundFacebookLead(req, res, mockSupabase({ id: 'org-1' }))
+    expect(mockProcessInboundLead).not.toHaveBeenCalled()
+    expect(res.body).toEqual({ success: true, lead_id: 'lead-existing', duplicate: true })
+  })
+
+  it('does not treat a structured-bot payload as a duplicate lookup hit', async () => {
+    const req = mockReq({
+      headers: { 'x-inbound-secret': 'test-inbound-secret' },
+      body: {
+        org: 'default',
+        name: 'Jane Doe',
+        phone: '0412 345 678',
+        message: 'Need a TV aerial',
+      },
+    })
+    const res = mockRes()
+    await handleInboundFacebookLead(req, res, mockSupabase({ id: 'org-1' }))
+    expect(mockFindDuplicate).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-1',
+      'facebook_messenger',
+      null,
+      '+61412345678'
+    )
+    expect(mockProcessInboundLead).toHaveBeenCalled()
     expect(res.body).toEqual({ success: true, lead_id: 'lead-abc' })
   })
 })

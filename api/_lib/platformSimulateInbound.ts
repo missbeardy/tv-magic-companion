@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import './loadLocalEnv.js'
+import { createHmac } from 'crypto'
 import { authenticateRequest } from './auth.js'
 import { getPlatformUrl } from './platformUrl.js'
 import { getSupabaseAdmin } from './supabaseAdmin.js'
@@ -51,12 +52,12 @@ async function dispatchInboundHandler(
 
   if (pathname === '/api/inbound-sms' && query.action === 'meta-webhook') {
     const handler = (await import('../inbound-sms.js')).default
-    const body = typeof init.body === 'string' ? JSON.parse(init.body) : {}
+    const raw = typeof init.body === 'string' ? init.body : JSON.stringify(init.body ?? {})
     return invokeApiHandler(handler, {
       method: 'POST',
       url: pathname,
       headers,
-      body,
+      body: raw,
       query,
     })
   }
@@ -400,10 +401,18 @@ async function simulateMetaMessaging(
     ],
   }
 
+  const raw = JSON.stringify(payload)
+  const appSecret = process.env.META_APP_SECRET
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (appSecret) {
+    headers['x-hub-signature-256'] =
+      `sha256=${createHmac('sha256', appSecret).update(raw).digest('hex')}`
+  }
+
   return dispatchInboundHandler(parentReq, baseUrl, '/api/inbound-sms?action=meta-webhook', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    headers,
+    body: raw,
   })
 }
 

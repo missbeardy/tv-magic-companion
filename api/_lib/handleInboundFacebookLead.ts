@@ -3,6 +3,10 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ExtractionStatus } from './extractLead.js'
 import { captureUnroutedInbound } from './captureUnroutedInbound.js'
 import { isFeatureEnabledForOrg } from './featureSwitches.js'
+import {
+  findDuplicateFacebookMessengerLead,
+  parseConversationId,
+} from './inboundLeadDedup.js'
 import { formatAuPhoneForSms } from './phone.js'
 import { processInboundLead } from './processInboundLead.js'
 import {
@@ -11,6 +15,9 @@ import {
   type ExtractedLeadFields,
 } from './rawFirstLead.js'
 import { safeCompareSecret } from './timingSafeCompare.js'
+
+const LEGACY_DETAILS_MAX = 500
+const STRUCTURED_DETAILS_MAX = 1500
 
 /** Messenger bot (Botpress) vs Facebook Lead Ads instant form (Make.com). */
 export type FacebookLeadChannel = 'messenger' | 'lead_ads'
@@ -25,6 +32,11 @@ export interface FacebookLeadBody {
   website?: string | null
   channel: FacebookLeadChannel
   form_name?: string | null
+  /** Present only on the Gen-AI agent path. Omitted by the live structured bot. */
+  conversation_id?: string | null
+  suburb?: string | null
+  service_needed?: string | null
+  out_of_area: boolean
 }
 
 interface FacebookChannelConfig {
@@ -40,7 +52,7 @@ const FACEBOOK_CHANNELS: Record<FacebookLeadChannel, FacebookChannelConfig> = {
     featureKey: 'inbound_messenger',
     source: 'facebook_messenger',
     leadSource: 'Facebook Messenger',
-    createdNote: 'Lead captured from Facebook Messenger via Botpress (raw-first)',
+    createdNote: 'Lead captured from Facebook Messenger (raw-first)',
     logLabel: 'inbound Facebook Messenger',
   },
   lead_ads: {
@@ -58,6 +70,107 @@ export type ParseFacebookLeadResult =
 
 function trimString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
+}
+
+function parseOutOfArea(value: unknown): boolean {
+  if (value === true || value === 1) return true
+  if (typeof value === 'string') {
+    const v = value.trim().toLowerCase()
+    return v === 'true' || v === 'yes' || v === '1'
+  }
+  return false
+}
+
+const FACEBOOK_SERVICE_TYPES = [
+  'TV Aerial',
+  'Wall Mounting',
+  'Starlink',
+  'Reception Repair',
+  'TV Points',
+  'Home Theatre',
+  'Satellite Dish',
+  'CCTV',
+  'MATV',
+  'VAST TV',
+  'Sound Bar',
+  'Video Wall',
+  'Electrical',
+  'Home Automation',
+  'Universal Remotes',
+  'Other',
+  'General Enquiry',
+] as const
+
+/** Keyword fallback when Claude extraction is unavailable. More specific phrases first. */
+export function inferFacebookServiceType(text: string): string {
+  const combined = text.toLowerCase()
+  if (combined.includes('starlink')) return 'Starlink'
+  if (combined.includes('video wall')) return 'Video Wall'
+  if (/\b(wall\s*mount|hang(ing)? (the )?tv|mount the tv)\b/.test(combined)) return 'Wall Mounting'
+  if (
+    combined.includes('home theatre') ||
+    combined.includes('home theater') ||
+    combined.includes('home cinema') ||
+    combined.includes('media room') ||
+    /\bthx\b/.test(combined)
+  ) {
+    return 'Home Theatre'
+  }
+  if (combined.includes('sound bar') || combined.includes('soundbar')) return 'Sound Bar'
+  if (combined.includes('tv point') || combined.includes('extra point') || combined.includes('tv outlet')) {
+    return 'TV Points'
+  }
+  if (
+    combined.includes('reception') ||
+    combined.includes('pixelat') ||
+    combined.includes('pixilat') ||
+    combined.includes('no signal') ||
+    combined.includes('missing channel')
+  ) {
+    return 'Reception Repair'
+  }
+  if (combined.includes('matv')) return 'MATV'
+  if (combined.includes('cctv')) return 'CCTV'
+  if (combined.includes('vast')) return 'VAST TV'
+  if (combined.includes('satellite') || combined.includes('foxtel')) return 'Satellite Dish'
+  if (combined.includes('aerial') || combined.includes('antenna')) return 'TV Aerial'
+  if (combined.includes('electrical') || combined.includes('electrician')) return 'Electrical'
+  if (combined.includes('automation')) return 'Home Automation'
+  if (combined.includes('remote')) return 'Universal Remotes'
+  return 'General Enquiry'
+}
+
+/**
+ * Technician-readable card used only when the Gen-AI agent sends structured fields.
+ * The live structured bot never sends these, so its details string stays unchanged.
+ */
+export function assembleMessengerLeadDetails(input: {
+  name: string
+  phone: string
+  message: string
+  suburb: string | null
+  serviceNeeded: string | null
+  outOfArea: boolean
+}): string {
+  const lines = [
+    'Facebook Messenger — TV Magic South Brisbane',
+    `Name: ${input.name}`,
+    `Phone: ${input.phone}`,
+    input.suburb ? `Suburb: ${input.suburb}` : null,
+    input.serviceNeeded ? `Service: ${input.serviceNeeded}` : null,
+    `Out of area: ${input.outOfArea ? 'yes' : 'no'}`,
+    input.message ? `Notes: ${input.message}` : null,
+  ]
+  return lines.filter((line): line is string => Boolean(line)).join('\n').slice(0, STRUCTURED_DETAILS_MAX)
+}
+
+function shouldAssembleMessengerCard(body: {
+  conversation_id: string | null
+  suburb: string | null
+  service_needed: string | null
+  out_of_area: boolean
+}): boolean {
+  return Boolean(body.conversation_id || body.suburb || body.service_needed || body.out_of_area)
 }
 
 /**
@@ -111,14 +224,35 @@ export function parseFacebookLeadBody(body: unknown): ParseFacebookLeadResult {
   const org = trimString(record.org)
   const name = trimString(record.name)
   const phone = trimString(record.phone)
-  const message = trimString(record.message)
+  const rawMessage = trimString(record.message)
   const city = trimString(record.city) || null
   const email = trimString(record.email) || null
   const formName = trimString(record.form_name) || null
+  const conversationId = parseConversationId(record.conversation_id)
+  const suburb = trimString(record.suburb) || null
+  const serviceNeeded = trimString(record.service_needed) || null
+  const outOfArea = parseOutOfArea(record.out_of_area)
 
   if (!org) return { ok: false, error: 'org is required', status: 400 }
   if (!name) return { ok: false, error: 'name is required', status: 400 }
   if (!phone) return { ok: false, error: 'phone is required', status: 400 }
+
+  const structured = {
+    conversation_id: conversationId,
+    suburb,
+    service_needed: serviceNeeded,
+    out_of_area: outOfArea,
+  }
+  const message = shouldAssembleMessengerCard(structured)
+    ? assembleMessengerLeadDetails({
+        name,
+        phone,
+        message: rawMessage,
+        suburb: suburb || city,
+        serviceNeeded,
+        outOfArea,
+      })
+    : buildFacebookLeadDetails(rawMessage, city, channel, formName)
 
   return {
     ok: true,
@@ -126,12 +260,13 @@ export function parseFacebookLeadBody(body: unknown): ParseFacebookLeadResult {
       org,
       name,
       phone,
-      message: buildFacebookLeadDetails(message, city, channel, formName),
+      message,
       city,
       email,
       website: null,
       channel,
       form_name: formName,
+      ...structured,
     },
   }
 }
@@ -141,24 +276,21 @@ export function facebookLeadFallbackParse(
   phone: string,
   message: string,
   email: string | null,
-  city?: string | null
+  city?: string | null,
+  suburb?: string | null,
+  serviceNeeded?: string | null
 ): ExtractedLeadFields {
-  const combined = message.toLowerCase()
-  let service_type = 'General Enquiry'
-  if (combined.includes('aerial') || combined.includes('antenna')) service_type = 'TV Aerial'
-  else if (combined.includes('satellite')) service_type = 'Satellite Dish'
-  else if (combined.includes('cctv')) service_type = 'CCTV'
-  else if (combined.includes('automation')) service_type = 'Home Automation'
-
-  const addressMatch = message.match(/(?:address|located at)[:\s]*(.+?)(?:\n|$)/i)
-  const address = addressMatch?.[1]?.trim() ?? (city?.trim() || null)
+  const service_type = inferFacebookServiceType(`${serviceNeeded ?? ''} ${message}`)
+  const addressMatch = message.match(/(?:address|located at|suburb)[:\s]*(.+?)(?:\n|$)/i)
+  const address = suburb?.trim() || addressMatch?.[1]?.trim() || city?.trim() || null
+  const detailsMax = suburb || serviceNeeded ? STRUCTURED_DETAILS_MAX : LEGACY_DETAILS_MAX
 
   return pickExtractedFields({
     name,
     phone: formatAuPhoneForSms(phone),
     email,
     service_type,
-    details: message.slice(0, 500),
+    details: message.slice(0, detailsMax),
     address,
   })
 }
@@ -184,7 +316,7 @@ Fields:
 - name: full name (or null)
 - phone: phone number (or null)
 - email: email address (or null)
-- service_type: one of "TV Aerial", "Satellite Dish", "CCTV", "Home Automation", "Other", "General Enquiry"
+- service_type: one of ${FACEBOOK_SERVICE_TYPES.map((value) => `"${value}"`).join(', ')}
 - details: brief summary (1-2 sentences)
 - address: street address if mentioned (or null)
 
@@ -230,35 +362,36 @@ function verifyInboundSecret(req: VercelRequest): boolean {
   return safeCompareSecret(incoming, process.env.INBOUND_SECRET)
 }
 
-/**
- * POST /api/inbound-facebook-lead — Facebook → lead.
- * `channel: "messenger"` (default) = Botpress Studio; `channel: "lead_ads"` = Make.com Lead Ads.
- */
-export async function handleInboundFacebookLead(
-  req: VercelRequest,
-  res: VercelResponse,
-  supabase: SupabaseClient
-): Promise<void> {
-  if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed' })
-    return
-  }
+export type IngestFacebookLeadResult =
+  | { success: true; lead_id: string; duplicate?: true; partial?: true }
+  | { skipped: true; reason: string; org?: string }
+  | { error: string; status: number }
 
-  if (!verifyInboundSecret(req)) {
-    res.status(401).json({ error: 'Unauthorized' })
-    return
-  }
-
-  const parsed = parseFacebookLeadBody(req.body)
-  if (!parsed.ok) {
-    res.status(parsed.status).json({ error: parsed.error })
-    return
-  }
-
-  const { org, name, phone, message, city, email: rawEmail, channel, form_name: formName } = parsed.data
+/** Shared insert path for Botpress HTTP and the native Meta Messenger bot. */
+export async function ingestParsedFacebookLead(
+  supabase: SupabaseClient,
+  data: FacebookLeadBody,
+  rawPayload: unknown
+): Promise<IngestFacebookLeadResult> {
+  const {
+    org,
+    name,
+    phone,
+    message,
+    city,
+    email: rawEmail,
+    channel,
+    form_name: formName,
+    conversation_id: conversationId,
+    suburb,
+    service_needed: serviceNeeded,
+    out_of_area: outOfArea,
+  } = data
   const email = rawEmail ?? null
   const normalizedPhone = formatAuPhoneForSms(phone)
   const config = FACEBOOK_CHANNELS[channel]
+  const detailsMax =
+    conversationId || suburb || serviceNeeded || outOfArea ? STRUCTURED_DETAILS_MAX : LEGACY_DETAILS_MAX
 
   const { data: orgRow, error: orgError } = await supabase
     .from('orgs')
@@ -268,8 +401,7 @@ export async function handleInboundFacebookLead(
 
   if (orgError) {
     console.error('Facebook lead: org lookup failed', orgError.message)
-    res.status(500).json({ error: 'Org lookup failed' })
-    return
+    return { error: 'Org lookup failed', status: 500 }
   }
 
   if (!orgRow?.id) {
@@ -278,18 +410,28 @@ export async function handleInboundFacebookLead(
       channel: 'facebook_lead',
       identifier: org,
       reason: 'no_mapping',
-      payload: req.body,
+      payload: rawPayload,
     })
-    res.status(200).json({ skipped: true, reason: 'unknown_org', org })
-    return
+    return { skipped: true, reason: 'unknown_org', org }
   }
 
   const orgId = orgRow.id
   const channelEnabled = await isFeatureEnabledForOrg(orgId, config.featureKey)
   if (!channelEnabled) {
     console.log(`${config.logLabel} disabled for org ${orgId}`)
-    res.status(200).json({ skipped: true, reason: `${config.featureKey}_disabled` })
-    return
+    return { skipped: true, reason: `${config.featureKey}_disabled` }
+  }
+
+  const duplicate = await findDuplicateFacebookMessengerLead(
+    supabase,
+    orgId,
+    config.source,
+    conversationId ?? null,
+    normalizedPhone
+  )
+  if (duplicate) {
+    console.log(`${config.logLabel} duplicate conversation, returning existing lead ${duplicate.id}`)
+    return { success: true, lead_id: duplicate.id, duplicate: true }
   }
 
   let extractedForAck: ExtractedLeadFields = facebookLeadFallbackParse(
@@ -297,7 +439,9 @@ export async function handleInboundFacebookLead(
     normalizedPhone,
     message,
     email,
-    city
+    city,
+    suburb,
+    serviceNeeded
   )
 
   try {
@@ -311,15 +455,21 @@ export async function handleInboundFacebookLead(
           phone: normalizedPhone,
           email,
           service_type: extractedForAck.service_type || 'General Enquiry',
-          details: message.slice(0, 500),
+          details: message.slice(0, detailsMax),
           address: extractedForAck.address ?? null,
           source: config.source,
           lead_source: config.leadSource,
-          raw_email: JSON.stringify(req.body),
+          raw_email: JSON.stringify(rawPayload),
         }),
       createdEvent: {
         note: config.createdNote,
-        payload: { source: config.source, org_slug: org, ...(formName ? { form_name: formName } : {}) },
+        payload: {
+          source: config.source,
+          org_slug: org,
+          ...(formName ? { form_name: formName } : {}),
+          ...(conversationId ? { conversation_id: conversationId } : {}),
+          ...(outOfArea ? { out_of_area: true } : {}),
+        },
       },
       extract: async () => {
         let extractionStatus: ExtractionStatus = 'fallback'
@@ -332,7 +482,15 @@ export async function handleInboundFacebookLead(
         )
         const extracted =
           claudeExtracted ??
-          facebookLeadFallbackParse(name, normalizedPhone, message, email, city)
+          facebookLeadFallbackParse(
+            name,
+            normalizedPhone,
+            message,
+            email,
+            city,
+            suburb,
+            serviceNeeded
+          )
         extractionStatus = claudeExtracted ? 'succeeded' : 'fallback'
         extractedForAck = extracted
         return { updateFields: extracted, extractionStatus }
@@ -361,13 +519,46 @@ export async function handleInboundFacebookLead(
       },
     })
 
-    res.status(200).json({
+    return {
       success: true,
       lead_id: result.leadId,
       ...(result.partial ? { partial: true } : {}),
-    })
+    }
   } catch (err) {
     console.error('Facebook lead processing error:', err)
-    res.status(500).json({ error: 'Lead processing failed' })
+    return { error: 'Lead processing failed', status: 500 }
   }
+}
+
+/**
+ * POST /api/inbound-facebook-lead — Facebook → lead.
+ * `channel: "messenger"` (default) = Botpress or native Meta bot; `channel: "lead_ads"` = Make.com.
+ */
+export async function handleInboundFacebookLead(
+  req: VercelRequest,
+  res: VercelResponse,
+  supabase: SupabaseClient
+): Promise<void> {
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' })
+    return
+  }
+
+  if (!verifyInboundSecret(req)) {
+    res.status(401).json({ error: 'Unauthorized' })
+    return
+  }
+
+  const parsed = parseFacebookLeadBody(req.body)
+  if (!parsed.ok) {
+    res.status(parsed.status).json({ error: parsed.error })
+    return
+  }
+
+  const result = await ingestParsedFacebookLead(supabase, parsed.data, req.body)
+  if ('error' in result) {
+    res.status(result.status).json({ error: result.error })
+    return
+  }
+  res.status(200).json(result)
 }

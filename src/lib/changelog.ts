@@ -50,11 +50,13 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Fixed: a phone could stop receiving notifications while your Profile still showed them as switched on. Profile now spots it and gives you a one-tap "Re-register this device"',
     'Fixed: text-message enquiries are now acknowledged to the phone network straight away, so they stop being recorded as failed even though the lead saved fine',
     'Fixed: for one day that acknowledgement was arriving before the enquiry had been saved, so text-message leads stopped appearing in the app. They save again, and the four that were missed have been added back',
+    'Facebook Messenger leads from a future Gen-AI bot can include suburb and the job on the card; the live Messenger bot is unchanged and can be switched back in Botpress in one step',
+    'Native Facebook Messenger receptionist in the companion: same South Brisbane capture (name, mobile, suburb wait) without Botpress, once the Page webhook is pointed at /api/meta-webhook',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.186'
+export const APP_VERSION = '1.1.188'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

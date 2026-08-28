@@ -11,6 +11,7 @@ import { purgeOldNotifications } from './notificationRetention.js'
 import { purgeOldRateLimitHits } from './rateLimit.js'
 import { runLeaderboardNudge } from './leaderboardNudge.js'
 import { runInboundProbe } from './inboundProbe.js'
+import { runMessengerSuburbTimeout } from './runMessengerSuburbTimeout.js'
 import type { NudgePhase } from '../../shared/leaderboardWeek.js'
 
 export const CRON_KEYS = {
@@ -19,6 +20,7 @@ export const CRON_KEYS = {
   cronMaintenance: 'cron_maintenance',
   leaderboardNudge: 'leaderboard_nudge',
   inboundProbe: 'inbound_probe',
+  messengerSuburbTimeout: 'messenger_suburb_timeout',
 } as const
 
 export function isCronAuthorized(req: VercelRequest): boolean {
@@ -153,6 +155,14 @@ export async function handleInboundProbeCron(req: VercelRequest, res: VercelResp
     if (!result.ok) {
       throw new Error(result.failure ?? 'Inbound probe failed')
     }
+    return { ...result }
+  })
+}
+
+export async function handleMessengerSuburbTimeoutCron(req: VercelRequest, res: VercelResponse) {
+  return withCronAuth(req, res, 'messenger-suburb-timeout', async (supabase) => {
+    const result = await runMessengerSuburbTimeout(supabase)
+    await upsertHeartbeat(supabase, CRON_KEYS.messengerSuburbTimeout, { ...result })
     return { ...result }
   })
 }

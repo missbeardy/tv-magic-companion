@@ -820,6 +820,81 @@ export type Database = {
           },
         ]
       }
+      messenger_sessions: {
+        Row: {
+          awaiting_suburb_until: string | null
+          conversation_id: string
+          created_at: string
+          id: string
+          lead_id: string | null
+          messages: Json
+          name: string | null
+          org_id: string
+          out_of_area: boolean
+          page_id: string
+          phone: string | null
+          phone_ask_count: number
+          psid: string
+          service_needed: string | null
+          state: string
+          suburb: string | null
+          updated_at: string
+        }
+        Insert: {
+          awaiting_suburb_until?: string | null
+          conversation_id: string
+          created_at?: string
+          id?: string
+          lead_id?: string | null
+          messages?: Json
+          name?: string | null
+          org_id: string
+          out_of_area?: boolean
+          page_id: string
+          phone?: string | null
+          phone_ask_count?: number
+          psid: string
+          service_needed?: string | null
+          state?: string
+          suburb?: string | null
+          updated_at?: string
+        }
+        Update: {
+          awaiting_suburb_until?: string | null
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          lead_id?: string | null
+          messages?: Json
+          name?: string | null
+          org_id?: string
+          out_of_area?: boolean
+          page_id?: string
+          phone?: string | null
+          phone_ask_count?: number
+          psid?: string
+          service_needed?: string | null
+          state?: string
+          suburb?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messenger_sessions_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messenger_sessions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       monthly_agent_reports: {
         Row: {
           agent_id: string

@@ -27,6 +27,7 @@ import {
   handleCronMaintenance,
   handleInboundProbeCron,
   handleLeaderboardNudgeCron,
+  handleMessengerSuburbTimeoutCron,
 } from './_lib/cronActions.js'
 import { notifyOrgUser } from './_lib/notifyUser.js'
 import { handlePushRotate, handlePushSend } from './_lib/pushEndpoints.js'
@@ -749,6 +750,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   }
   if (action === 'inbound-probe') {
     return handleInboundProbeCron(req, res)
+  }
+  if (action === 'messenger-suburb-timeout') {
+    return handleMessengerSuburbTimeoutCron(req, res)
   }
 
   // Web Push (T1.12) — both are session-less by necessity and carry their own auth.

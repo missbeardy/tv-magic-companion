@@ -21,6 +21,12 @@ export function formatAuPhoneForSms(phone: string): string {
   return `+${digits}`
 }
 
+/** True for an Australian mobile (04… / +614…). Landlines are not enough for a technician call-back. */
+export function isAuMobile(phone: string): boolean {
+  const digits = phone.replace(/\D/g, '')
+  return /^(?:04\d{8}|4\d{8}|614\d{8})$/.test(digits)
+}
+
 /** True when two AU phone strings refer to the same number. */
 export function phonesEqual(a: string, b: string): boolean {
   const da = a.replace(/\D/g, '')

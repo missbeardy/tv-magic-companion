@@ -1,0 +1,26 @@
+# Recovers suburb-wait Messenger sessions that went quiet.
+# Vercel Hobby crons are daily-only; GitHub Actions every 5 minutes is the closest
+# to the 90s wait (a late reply still submits with suburb — this job is the silent path).
+# Repo secrets: PLATFORM_URL, CRON_SECRET
+name: Messenger suburb timeout cron
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  messenger-suburb-timeout:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger /api/cron/messenger-suburb-timeout
+        env:
+          PLATFORM_URL: ${{ secrets.PLATFORM_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$PLATFORM_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "Skip: set PLATFORM_URL and CRON_SECRET in repo secrets"
+            exit 0
+          fi
+          curl -fsS --max-time 55 -X POST "${PLATFORM_URL%/}/api/cron/messenger-suburb-timeout" \
+            -H "Authorization: Bearer ${CRON_SECRET}"

@@ -1,6 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createHmac, timingSafeEqual } from 'crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { isFeatureEnabledForOrg } from './featureSwitches.js'
+import { handleMessengerUserMessage } from './messengerBot.js'
+import { captureServerException } from './sentry.js'
 
 export function verifyMetaWebhookSignature(
   rawBody: string,
@@ -30,7 +33,48 @@ export async function resolveOrgIdFromFacebookPageId(
   return data?.org_id ?? null
 }
 
-/** GET verify + POST events — MVP scaffold; bot logic follows in next iteration. */
+interface MessagingEvent {
+  sender?: { id?: string }
+  recipient?: { id?: string }
+  message?: { text?: string; mid?: string; is_echo?: boolean }
+}
+
+async function processMessagingEvents(
+  supabase: SupabaseClient,
+  entries: Array<{ id?: string; messaging?: MessagingEvent[] }>
+): Promise<void> {
+  for (const entry of entries) {
+    const pageId = entry.id ?? ''
+    if (!pageId) continue
+    const orgId = await resolveOrgIdFromFacebookPageId(supabase, pageId)
+    if (!orgId) {
+      console.warn('Meta Messenger: no org mapped for page', pageId)
+      continue
+    }
+
+    const enabled = await isFeatureEnabledForOrg(orgId, 'inbound_messenger')
+    if (!enabled) {
+      console.log('Native Messenger skipped — inbound_messenger off', orgId)
+      continue
+    }
+
+    for (const event of entry.messaging ?? []) {
+      if (event.message?.is_echo) continue
+      const text = event.message?.text?.trim()
+      const senderId = event.sender?.id
+      if (!text || !senderId || senderId === pageId) continue
+
+      try {
+        await handleMessengerUserMessage(supabase, orgId, pageId, senderId, text)
+      } catch (err) {
+        console.error('Native Messenger turn failed', { pageId, senderId, err })
+        captureServerException(err, { route: '/api/meta-webhook', pageId })
+      }
+    }
+  }
+}
+
+/** GET verify + POST events for the native Messenger receptionist. */
 export async function handleMetaWebhook(
   req: VercelRequest,
   res: VercelResponse,
@@ -57,7 +101,6 @@ export async function handleMetaWebhook(
     return
   }
 
-  // Fail closed: without the app secret we cannot authenticate the sender.
   const appSecret = process.env.META_APP_SECRET
   if (!appSecret) {
     console.error('META_APP_SECRET not configured; rejecting Meta webhook')
@@ -74,14 +117,7 @@ export async function handleMetaWebhook(
 
   let body: {
     object?: string
-    entry?: Array<{
-      id?: string
-      messaging?: Array<{
-        sender?: { id?: string }
-        recipient?: { id?: string }
-        message?: { text?: string; mid?: string }
-      }>
-    }>
+    entry?: Array<{ id?: string; messaging?: MessagingEvent[] }>
   }
   try {
     body = rawBody ? JSON.parse(rawBody) : {}
@@ -95,22 +131,11 @@ export async function handleMetaWebhook(
     return
   }
 
-  for (const entry of body.entry ?? []) {
-    const pageId = entry.id ?? ''
-    const orgId = pageId ? await resolveOrgIdFromFacebookPageId(supabase, pageId) : null
-
-    for (const event of entry.messaging ?? []) {
-      const text = event.message?.text?.trim()
-      const senderId = event.sender?.id
-      console.log('Meta Messenger event', {
-        pageId,
-        orgId: orgId ?? 'unmapped',
-        senderId,
-        textPreview: text?.slice(0, 80),
-      })
-      // TODO: conversation state, hybrid bot, lead insert (Step 9)
-    }
+  try {
+    await processMessagingEvents(supabase, body.entry ?? [])
+  } catch (err) {
+    console.error('Native Messenger batch failed', err)
+    captureServerException(err, { route: '/api/meta-webhook' })
   }
-
   res.status(200).json({ received: true })
 }
