@@ -1,13 +1,13 @@
 ---
 id: "orphan-edge-functions-2026-08-26"
-status: "backlog"
+status: "done"
 priority: "high"
 assignee: null
 epic: "Tech debt"
 dueDate: null
 created: "2026-08-26T06:30:00.000Z"
-modified: "2026-08-26T06:30:00.000Z"
-completedAt: null
+modified: "2026-08-31T00:00:00.000Z"
+completedAt: "2026-08-31T00:00:00.000Z"
 labels: ["tech-debt", "security", "edge-functions"]
 order: "ZL"
 ---
@@ -61,6 +61,26 @@ invisible failure.
 
 - Each of the three is either committed to the repo or removed from the project
 - `npm run audit:prod` reports no `edge-orphan` findings
+
+## Resolution (31-08-2026)
+
+Pulled each deployed eszip body and extracted the original source from its embedded
+source map. Checked prod for anything still wiring them up: `information_schema.triggers`,
+the full history of `supabase_functions.hooks`, and `cron.job` — none reference any of the
+three function names, ever. No call site in the repo either.
+
+- `create-employee` — created users with a raw password and, when no auth header was sent,
+  trusted a client-supplied `org_id` with no role check at all. Fully superseded by
+  `api/create-user.ts` (invite-based, validates the caller is a manager, blocks cross-org
+  and privilege-escalation). The orphan was strictly less secure than what replaced it.
+- `update-org` — did check the caller was a manager, but is fully superseded by the direct
+  RLS-protected `orgs` update in `src/pages/OrgSettingsPage.tsx`.
+- `notify-lead-expired` — sent a lead-expiry push via OneSignal, which is on the dd10
+  teardown path. Confirmed dead, not just deprecated: nothing in prod invokes it.
+
+All three confirmed dead and deleted from the Supabase project via the Management API
+(`DELETE /v1/projects/<ref>/functions/<slug>`). `npm run audit:prod` reports no
+`edge-orphan` findings and the `Prod config audit` GitHub Actions workflow is green again.
 
 ## Related
 
