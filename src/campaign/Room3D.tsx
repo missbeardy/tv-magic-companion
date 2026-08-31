@@ -350,17 +350,14 @@ export default function Room3D() {
 function OrbitHint({ isMobile }: { isMobile: boolean }) {
   return (
     <p className="campaign-orbit-hint pointer-events-none absolute bottom-2 right-2 z-10 sm:bottom-3 sm:right-3">
+      {/* A vertical drag glyph. This was a ‹ › chevron pair, which read as
+          carousel controls and invited a tap that did nothing. */}
       <span className="campaign-orbit-arrow" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M15 6 9 12l6 6" />
+          <path d="M12 4v16M8 7.5 12 3.5l4 4M8 16.5l4 4 4-4" />
         </svg>
       </span>
       <span>{isMobile ? 'Drag the TV · or use the height slider' : 'Drag the TV to move it · drag the room to look around'}</span>
-      <span className="campaign-orbit-arrow campaign-orbit-arrow-r" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-          <path d="m9 6 6 6-6 6" />
-        </svg>
-      </span>
     </p>
   )
 }

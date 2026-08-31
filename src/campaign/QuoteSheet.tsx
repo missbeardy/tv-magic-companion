@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import AddressAutocomplete from '../components/AddressAutocomplete'
 import { usePlacement } from './usePlacement'
 import { formatMm, zoneLabel } from './placementMath'
+import { PROOF_POINTS } from './proof'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 
 export default function QuoteSheet() {
@@ -78,9 +79,9 @@ export default function QuoteSheet() {
               another TV.
             </p>
             <dl className="mt-6 grid grid-cols-3 gap-2 border-t border-white/25 pt-6 sm:gap-3">
-              <Stat n="460,000+" l="TVs mounted" />
-              <Stat n="6,000+" l="5-star reviews" />
-              <Stat n="22+" l="Years" />
+              {PROOF_POINTS.map((point) => (
+                <Stat key={point.label} n={point.value} l={point.label} />
+              ))}
             </dl>
           </div>
           <ul className="mt-8 grid gap-4 text-sm text-[var(--c-body)] sm:grid-cols-3">
@@ -167,17 +168,23 @@ export default function QuoteSheet() {
                   </div>
                 </div>
                 {error && <p className="mt-3 text-sm text-[var(--c-coral)]">{error}</p>}
-                <button type="submit" className="campaign-btn mt-6 w-full" disabled={sending}>
-                  {sending ? 'Sending…' : 'Book a free quote'}
-                </button>
-                <div className="mt-8 border-t border-[var(--c-line)] pt-5">
-                  <p className="campaign-laser-label text-[var(--c-navy)]">Summary</p>
-                  <ul className="mt-3 space-y-1 text-sm text-[var(--c-body)]">
+                {/* Sits above the button, not below it: this is what ties the
+                    visualiser session to the lead, and it should be the last
+                    thing read before tapping rather than a receipt afterwards. */}
+                <div className="mt-6 border border-[var(--c-line)] bg-[var(--c-wall)]/35 px-4 py-3">
+                  <p className="campaign-laser-label text-[var(--c-navy)]">You’re asking about</p>
+                  <ul className="mt-2 space-y-1 text-sm text-[var(--c-body)]">
                     <li>{snapshot.product.label}</li>
                     <li>{formatMm(snapshot.centreHeightMm)} centre · {formatMm(snapshot.ceilingHeightMm)} ceiling</li>
                     <li>{zoneLabel(snapshot.zone)}</li>
                   </ul>
                 </div>
+                <button type="submit" className="campaign-btn mt-4 w-full" disabled={sending}>
+                  {sending ? 'Sending…' : 'Book a free quote'}
+                </button>
+                <p className="mt-3 text-center text-xs text-[var(--c-body)]">
+                  No obligation. A technician quotes on site — we’ll call to confirm a time.
+                </p>
               </motion.form>
             )}
           </AnimatePresence>

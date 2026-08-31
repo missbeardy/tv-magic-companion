@@ -50,11 +50,16 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Quotes from /visualise create a real lead and auto-assign a technician',
     'Your wall is the default visualiser tab; 3D room uses real furniture models',
     '/visualise stays in the browser instead of opening the installed FieldBourne app',
+    '/visualise on a phone now leads with the headline, the promise and the trust numbers before the wall',
+    'Every button on /visualise now meets WCAG AA contrast — the old cyan was unreadable in daylight',
+    'The visualiser tells you the TV can be dragged, and gives it a grab handle',
+    'Pick a TV size without leaving the wall, and set ceiling height from presets instead of a keypad',
+    'The 3D room loads about five times faster — 2.9 MB of textures down to 625 KB',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.192'
+export const APP_VERSION = '1.1.193'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

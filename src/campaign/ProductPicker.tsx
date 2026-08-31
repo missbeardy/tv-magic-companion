@@ -9,17 +9,19 @@ export default function ProductPicker() {
   const reduced = usePrefersReducedMotion()
 
   return (
-    <section id="catalog" className="border-t border-[var(--c-line)] px-4 py-10 sm:px-5 md:px-10 md:py-16">
+    <section id="catalog" className="scroll-mt-16 border-t border-[var(--c-line)] px-4 py-10 sm:px-5 md:px-10 md:py-16">
       <div className="mx-auto max-w-6xl">
         <h2 className="campaign-display text-2xl uppercase sm:text-3xl md:text-5xl">
-          Pick what goes on the wall<span className="text-[var(--c-cyan)]">.</span>
+          Pick what goes on the wall<span className="text-[var(--c-cyan-ink)]">.</span>
         </h2>
         <p className="mt-3 max-w-xl text-sm text-[var(--c-body)] sm:text-base">
           White-label sizes — your TV, soundbar, video wall, speakers or art. Designed. Delivered.
           Installed.
         </p>
 
-        <div className="-mx-4 mt-6 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:mt-8 sm:flex-wrap sm:overflow-visible sm:px-0" role="tablist" aria-label="Product type">
+        {/* Five short words: wrapping them beats a scroller that cut "Speakers"
+            mid-word and hid "Art" entirely at 390px. */}
+        <div className="mt-6 flex flex-wrap gap-2 sm:mt-8" role="tablist" aria-label="Product type">
           {PRODUCT_KINDS.map((kind) => {
             const active = kindFilter === kind.id
             return (
@@ -29,9 +31,9 @@ export default function ProductPicker() {
                 role="tab"
                 aria-selected={active}
                 onClick={() => setKindFilter(kind.id)}
-                className={`min-h-10 shrink-0 rounded-none border px-3 py-2 text-[10px] font-bold uppercase tracking-[0.12em] sm:px-4 sm:text-xs sm:tracking-[0.14em] ${
+                className={`min-h-11 shrink-0 rounded-none border px-3 py-2 text-[10px] font-bold uppercase tracking-[0.12em] sm:px-4 sm:text-xs sm:tracking-[0.14em] ${
                   active
-                    ? 'border-[var(--c-cyan)] bg-[var(--c-cyan)] text-white'
+                    ? 'border-[var(--c-cyan-ink)] bg-[var(--c-cyan-ink)] text-white'
                     : 'border-[var(--c-navy)] text-[var(--c-navy)]'
                 }`}
               >
@@ -41,7 +43,7 @@ export default function ProductPicker() {
           })}
         </div>
 
-        <div className="-mx-4 mt-4 flex snap-x snap-mandatory gap-2 overflow-x-auto px-4 pb-2 sm:mx-0 sm:mt-6 sm:gap-3 sm:px-0">
+        <div className="campaign-scroll-x -mx-4 mt-4 flex snap-x snap-mandatory gap-2 overflow-x-auto px-4 pb-2 sm:mx-0 sm:mt-6 sm:gap-3 sm:px-0">
           {visibleCatalog.map((item, index) => {
             const selected = item.id === productId
             return (
@@ -56,11 +58,11 @@ export default function ProductPicker() {
                 aria-pressed={selected}
                 aria-label={item.label}
                 className={`relative min-w-[5.75rem] shrink-0 snap-start border bg-white px-2 py-3 text-left sm:min-w-[7.5rem] sm:px-3 sm:py-4 ${
-                  selected ? 'border-[var(--c-cyan)] border-2' : 'border-[var(--c-navy)]/40'
+                  selected ? 'border-[var(--c-cyan-ink)] border-2' : 'border-[var(--c-navy)]/40'
                 }`}
               >
                 {selected && (
-                  <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--c-cyan)] text-white">
+                  <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--c-cyan-ink)] text-white">
                     <svg viewBox="0 0 12 12" className="h-3 w-3" aria-hidden>
                       <path d="M2 6.2 L4.6 9 L10 3.2" fill="none" stroke="currentColor" strokeWidth="1.6" />
                     </svg>
@@ -68,12 +70,16 @@ export default function ProductPicker() {
                 )}
                 <ProductGlyph
                   item={item}
-                  className={`h-10 w-full ${selected ? 'text-[var(--c-cyan)]' : 'text-[var(--c-navy)]'}`}
+                  className={`h-10 w-full ${selected ? 'text-[var(--c-cyan-ink)]' : 'text-[var(--c-navy)]'}`}
                 />
                 <span className="mt-3 block font-[Maven_Pro,sans-serif] text-sm font-bold text-[var(--c-navy)]">
                   {item.shortLabel}
                 </span>
-                <span className="mt-0.5 block text-[11px] text-[var(--c-body)]">{item.label}</span>
+                {/* The second line used to restate the first ("43\"" then
+                    "43\" TV"); the dimensions are what people actually need. */}
+                <span className="mt-0.5 block text-[11px] tabular-nums text-[var(--c-body)]">
+                  {item.widthMm} × {item.heightMm} mm
+                </span>
               </motion.button>
             )
           })}
