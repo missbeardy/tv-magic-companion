@@ -77,7 +77,7 @@ function Hero({ reduced }: { reduced: boolean }) {
       </motion.div>
       <motion.div
         style={{ y }}
-        className="order-1 h-[min(62dvh,560px)] min-h-[320px] border-[var(--c-line)] lg:order-2 lg:h-auto lg:min-h-[100dvh] lg:border-l"
+        className="order-1 h-[min(78dvh,680px)] min-h-[420px] border-[var(--c-line)] lg:order-2 lg:h-auto lg:min-h-[100dvh] lg:border-l"
       >
         <VisualiserStage />
       </motion.div>

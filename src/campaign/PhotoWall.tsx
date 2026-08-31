@@ -3,9 +3,8 @@ import { motion } from 'motion/react'
 import { compressImage } from '../lib/imageCompression'
 import { usePlacement } from './usePlacement'
 import { MountedProductFace } from './ProductGlyph'
-import { pxPerMm, yFracFromFloor, SEATED_EYE_MM, ZONE_HALF_MM } from './placementMath'
+import { pxPerMm, yFracFromFloor } from './placementMath'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
-import { IdealSnapBadge } from './DimensionReadout'
 
 function containedRect(img: HTMLImageElement): { left: number; top: number; width: number; height: number } {
   const natural = img.naturalWidth / img.naturalHeight
@@ -126,15 +125,6 @@ export default function PhotoWall() {
   const topFrac = ready
     ? yFracFromFloor(snapshot.centreHeightMm + product.heightMm / 2, ceilingHeightMm, calibration!.ceilingY, calibration!.floorY)
     : 0.3
-  const zoneTop = ready
-    ? yFracFromFloor(SEATED_EYE_MM + ZONE_HALF_MM, ceilingHeightMm, calibration!.ceilingY, calibration!.floorY)
-    : 0
-  const zoneBot = ready
-    ? yFracFromFloor(SEATED_EYE_MM - ZONE_HALF_MM, ceilingHeightMm, calibration!.ceilingY, calibration!.floorY)
-    : 0
-  const centreFrac = ready
-    ? yFracFromFloor(centreHeightMm, ceilingHeightMm, calibration!.ceilingY, calibration!.floorY)
-    : 0.5
 
   function onPointerDown(e: PointerEvent<HTMLDivElement>) {
     if (!ready) return
@@ -200,7 +190,33 @@ export default function PhotoWall() {
   }
 
   return (
-    <div className="relative h-full min-h-0 overflow-hidden bg-[#1a1c24]">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex shrink-0 items-center gap-2 border-b border-[var(--c-line)] bg-white px-2 py-1">
+        <button
+          type="button"
+          className="min-h-9 px-2.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--c-navy)] underline-offset-4 hover:underline"
+          onClick={() => {
+            setPhoto(null)
+            setCalStep(null)
+          }}
+        >
+          Change photo
+        </button>
+        {photoUrl && !calStep && (
+          <button
+            type="button"
+            className="min-h-9 px-2.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--c-navy)] underline-offset-4 hover:underline"
+            onClick={() => {
+              setCalibration(null)
+              setCalStep('ceiling')
+            }}
+          >
+            Recalibrate
+          </button>
+        )}
+        <p className="ml-auto hidden text-[10px] text-[var(--c-body)] sm:block">Drag the TV to set height</p>
+      </div>
+      <div className="relative min-h-0 flex-1 overflow-hidden bg-[#1a1c24]">
       <img
         ref={imgRef}
         src={photoUrl}
@@ -221,112 +237,28 @@ export default function PhotoWall() {
           </div>
         )}
         {ready && (
-          <>
-            <div
-              className="campaign-ideal-band pointer-events-none absolute left-0 right-0"
-              style={{
-                top: `${zoneTop * 100}%`,
-                height: `${Math.max(0, zoneBot - zoneTop) * 100}%`,
-              }}
-            />
-            <div
-              className="pointer-events-none absolute left-[8%] right-0 border-t border-dashed border-[var(--c-cyan)]"
-              style={{ top: `${centreFrac * 100}%` }}
-            />
-            <motion.div
-              className="absolute cursor-grab touch-none active:cursor-grabbing"
-              style={{
-                left: (box.width - widthPx) / 2,
-                top: topFrac * box.height,
-                width: widthPx,
-                height: heightPx,
-              }}
-              animate={reduced ? undefined : { boxShadow: '0 12px 32px rgba(0,0,0,0.35)' }}
-              onPointerDown={onPointerDown}
-              onPointerMove={onPointerMove}
-              onPointerUp={onPointerUp}
-              onPointerCancel={onPointerUp}
-            >
-              <MountedProductFace item={product} width={widthPx} height={heightPx} />
-            </motion.div>
-            <div
-              className="campaign-ideal-line pointer-events-none absolute left-0 right-0 z-20"
-              style={{ top: `${((zoneTop + zoneBot) / 2) * 100}%` }}
-            />
-            <IdealSnapBadge className="pointer-events-auto absolute left-2 z-30 -translate-y-1/2" style={{ top: `${((zoneTop + zoneBot) / 2) * 100}%` }} />
-            <LaserStack
-              centreFrac={centreFrac}
-              topFrac={topFrac}
-              heightPx={heightPx}
-              snapshotFloor={snapshot.floorToBottom}
-              snapshotCeil={snapshot.ceilingToTop}
-              centre={centreHeightMm}
-            />
-          </>
-        )}
-      </div>
-      <div className="absolute right-2 top-14 z-30 flex max-w-[calc(100%-1rem)] gap-1 sm:right-3 sm:top-3 sm:gap-2 md:top-3">
-        <button
-          type="button"
-          className="campaign-btn campaign-btn-ghost bg-white/90 px-3 py-2 text-[10px]"
-          onClick={() => {
-            setPhoto(null)
-            setCalStep(null)
-          }}
-        >
-          Change photo
-        </button>
-        {photoUrl && !calStep && (
-          <button
-            type="button"
-            className="campaign-btn bg-[var(--c-navy)] px-3 py-2 text-[10px]"
-            onClick={() => {
-              setCalibration(null)
-              setCalStep('ceiling')
+          <motion.div
+            className="absolute cursor-grab touch-none active:cursor-grabbing"
+            style={{
+              left: (box.width - widthPx) / 2,
+              top: topFrac * box.height,
+              width: widthPx,
+              height: heightPx,
             }}
+            animate={reduced ? undefined : { boxShadow: '0 12px 32px rgba(0,0,0,0.35)' }}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
           >
-            Recalibrate
-          </button>
+            <MountedProductFace item={product} width={widthPx} height={heightPx} />
+          </motion.div>
         )}
       </div>
       {error && (
         <p className="absolute bottom-3 left-3 right-3 z-30 bg-white/90 px-3 py-2 text-sm text-[var(--c-coral)]">{error}</p>
       )}
+      </div>
     </div>
-  )
-}
-
-function LaserStack({
-  centreFrac,
-  topFrac,
-  heightPx,
-  snapshotFloor,
-  snapshotCeil,
-  centre,
-}: {
-  centreFrac: number
-  topFrac: number
-  heightPx: number
-  snapshotFloor: number
-  snapshotCeil: number
-  centre: number
-}) {
-  return (
-    <>
-      <div className="pointer-events-none absolute left-[6%] w-px campaign-laser" style={{ top: 0, height: `${topFrac * 100}%` }} />
-      <p className="campaign-laser-label pointer-events-none absolute left-[7%] top-[4%] hidden sm:block">
-        {Math.round(snapshotCeil)} mm to ceiling
-      </p>
-      <p className="campaign-laser-label pointer-events-none absolute left-[7%] hidden sm:block" style={{ top: `calc(${centreFrac * 100}% - 1.1rem)` }}>
-        {Math.round(centre)} mm centre
-      </p>
-      <div
-        className="pointer-events-none absolute left-[6%] w-px campaign-laser"
-        style={{ top: `calc(${topFrac * 100}% + ${heightPx}px)`, bottom: 0 }}
-      />
-      <p className="campaign-laser-label pointer-events-none absolute bottom-[4%] left-[7%] hidden sm:block">
-        {Math.round(snapshotFloor)} mm to floor
-      </p>
-    </>
   )
 }

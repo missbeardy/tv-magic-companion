@@ -8,7 +8,6 @@ import { SEATED_EYE_MM, ZONE_HALF_MM, clampCentreMm } from './placementMath'
 import { useIsMobile } from './useIsMobile'
 import { ProductMesh } from './room/ProductMesh'
 import { plasterTexture, sofaFabricTexture, woodFloorTexture } from './room/textures'
-import { IdealSnapBadge } from './DimensionReadout'
 
 function m(mm: number) {
   return mm / 1000
@@ -354,10 +353,6 @@ export default function Room3D() {
           <RoomContents orbitEnabled={orbitEnabled} setOrbitEnabled={setOrbitEnabled} isMobile={isMobile} />
         </Suspense>
       </Canvas>
-      <IdealSnapBadge className="absolute left-2 top-[52%] z-10 -translate-y-1/2 sm:left-3" />
-      <p className="pointer-events-none absolute bottom-2 left-2 z-10 max-w-[46%] campaign-laser-label bg-white/85 px-2 py-1 text-[10px] leading-tight text-[var(--c-navy)] sm:bottom-3 sm:left-3 sm:text-[0.68rem]">
-        Drag the TV to set height
-      </p>
       <OrbitHint isMobile={isMobile} />
     </div>
   )

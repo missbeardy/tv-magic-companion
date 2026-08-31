@@ -2,7 +2,6 @@ import { lazy, Suspense } from 'react'
 import { usePlacement } from './usePlacement'
 import PhotoWall from './PhotoWall'
 import DimensionReadout from './DimensionReadout'
-import { formatMm } from './placementMath'
 
 const Room3D = lazy(() => import('./Room3D'))
 
@@ -16,7 +15,6 @@ export default function VisualiserStage() {
     setWallWidthMm,
     viewingDistanceMm,
     setViewingDistanceMm,
-    snapshot,
   } = usePlacement()
 
   return (
@@ -46,13 +44,6 @@ export default function VisualiserStage() {
             Your wall
           </button>
         </div>
-        <p
-          className={`truncate text-[10px] font-bold uppercase tracking-[0.08em] md:hidden ${
-            snapshot.zone === 'in' ? 'text-[var(--c-cyan)]' : 'text-[var(--c-coral)]'
-          }`}
-        >
-          {formatMm(snapshot.centreHeightMm)} · {zoneShort(snapshot.zone)}
-        </p>
       </div>
 
       <div className="relative min-h-0 flex-1">
@@ -69,10 +60,14 @@ export default function VisualiserStage() {
             <Room3D />
           </Suspense>
         )}
-        <DimensionReadout />
       </div>
+      <DimensionReadout />
 
-      <div className="grid grid-cols-3 gap-2 border-t border-[var(--c-line)] bg-white px-2 py-2 sm:gap-4 sm:px-4 sm:py-4">
+      <div
+        className={`grid gap-2 border-t border-[var(--c-line)] bg-white px-2 py-2 sm:gap-4 sm:px-4 sm:py-4 ${
+          viewMode === 'photo' ? 'grid-cols-1' : 'grid-cols-3'
+        }`}
+      >
         <NumberField
           id="ceiling-height"
           label="Ceiling height"
@@ -81,31 +76,29 @@ export default function VisualiserStage() {
           max={3600}
           onChange={setCeilingHeightMm}
         />
-        <NumberField
-          id="wall-width"
-          label="Wall width"
-          value={wallWidthMm}
-          min={2400}
-          max={8000}
-          onChange={setWallWidthMm}
-        />
-        <NumberField
-          id="viewing-distance"
-          label="Sofa distance"
-          value={viewingDistanceMm}
-          min={1500}
-          max={6000}
-          onChange={setViewingDistanceMm}
-        />
+        {viewMode === '3d' && (
+          <>
+            <NumberField
+              id="wall-width"
+              label="Wall width"
+              value={wallWidthMm}
+              min={2400}
+              max={8000}
+              onChange={setWallWidthMm}
+            />
+            <NumberField
+              id="viewing-distance"
+              label="Sofa distance"
+              value={viewingDistanceMm}
+              min={1500}
+              max={6000}
+              onChange={setViewingDistanceMm}
+            />
+          </>
+        )}
       </div>
     </div>
   )
-}
-
-function zoneShort(zone: 'above' | 'in' | 'below') {
-  if (zone === 'in') return 'ideal spot'
-  if (zone === 'above') return 'too high'
-  return 'too low'
 }
 
 function NumberField({
