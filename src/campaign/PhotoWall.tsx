@@ -5,6 +5,7 @@ import { usePlacement } from './usePlacement'
 import { MountedProductFace } from './ProductGlyph'
 import { pxPerMm, yFracFromFloor } from './placementMath'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
+import { useIsMobile } from './useIsMobile'
 
 function containedRect(img: HTMLImageElement): { left: number; top: number; width: number; height: number } {
   const natural = img.naturalWidth / img.naturalHeight
@@ -59,6 +60,7 @@ export default function PhotoWall() {
     setViewMode,
   } = usePlacement()
   const reduced = usePrefersReducedMotion()
+  const isMobile = useIsMobile()
   const imgRef = useRef<HTMLImageElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const cameraRef = useRef<HTMLInputElement>(null)
@@ -66,7 +68,17 @@ export default function PhotoWall() {
   const [calStep, setCalStep] = useState<'ceiling' | 'floor' | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  /** Drops away the first time someone drags, so the nudge is not permanent. */
+  const [hasDragged, setHasDragged] = useState(false)
   const dragOrigin = useRef<{ y: number; centre: number } | null>(null)
+
+  function showSampleWall() {
+    const url = createSampleWall()
+    if (url) {
+      setPhoto(url, true)
+      setCalStep(null)
+    }
+  }
 
   const measure = useCallback(() => {
     const img = imgRef.current
@@ -130,6 +142,7 @@ export default function PhotoWall() {
     if (!ready) return
     e.currentTarget.setPointerCapture(e.pointerId)
     dragOrigin.current = { y: e.clientY, centre: centreHeightMm }
+    setHasDragged(true)
   }
 
   function onPointerMove(e: PointerEvent<HTMLDivElement>) {
@@ -152,30 +165,56 @@ export default function PhotoWall() {
           We’ll scale it from ceiling to floor so you can drag the mount live. Or stay in 3D.
         </p>
         {error && <p className="text-sm text-[var(--c-coral)]">{error}</p>}
-        <div className="flex w-full max-w-sm flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-center">
-          <button type="button" className="campaign-btn" disabled={busy} onClick={() => fileRef.current?.click()}>
-            {busy ? 'Loading…' : 'Upload photo'}
-          </button>
-          <button type="button" className="campaign-btn campaign-btn-ghost" disabled={busy} onClick={() => cameraRef.current?.click()}>
-            Use camera
-          </button>
-          <button
-            type="button"
-            className="campaign-btn campaign-btn-ghost"
-            onClick={() => {
-              const url = createSampleWall()
-              if (url) {
-                setPhoto(url, true)
-                setCalStep(null)
-              }
-            }}
-          >
-            Try a sample wall
-          </button>
-        </div>
-        <button type="button" className="text-sm text-[var(--c-navy)] underline-offset-4 hover:underline" onClick={() => setViewMode('3d')}>
-          Orbit the 3D room instead
-        </button>
+        {/* On a phone the person is usually standing in the room, so the camera
+            is the highest-intent action and the sample wall is the one-tap way
+            to see the point. Upload leads on desktop, where there is no camera
+            worth using. */}
+        {isMobile ? (
+          <>
+            <div className="flex w-full max-w-sm flex-col gap-2">
+              <button type="button" className="campaign-btn" disabled={busy} onClick={() => cameraRef.current?.click()}>
+                {busy ? 'Loading…' : 'Take a photo of your wall'}
+              </button>
+              <button type="button" className="campaign-btn campaign-btn-ghost" onClick={showSampleWall}>
+                Try a sample wall
+              </button>
+            </div>
+            <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm">
+              <button
+                type="button"
+                className="min-h-11 px-1 text-[var(--c-navy)] underline underline-offset-4"
+                disabled={busy}
+                onClick={() => fileRef.current?.click()}
+              >
+                Upload a photo
+              </button>
+              <button
+                type="button"
+                className="min-h-11 px-1 text-[var(--c-navy)] underline underline-offset-4"
+                onClick={() => setViewMode('3d')}
+              >
+                3D room
+              </button>
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="flex w-full max-w-sm flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-center">
+              <button type="button" className="campaign-btn" disabled={busy} onClick={() => fileRef.current?.click()}>
+                {busy ? 'Loading…' : 'Upload photo'}
+              </button>
+              <button type="button" className="campaign-btn campaign-btn-ghost" disabled={busy} onClick={() => cameraRef.current?.click()}>
+                Use camera
+              </button>
+              <button type="button" className="campaign-btn campaign-btn-ghost" onClick={showSampleWall}>
+                Try a sample wall
+              </button>
+            </div>
+            <button type="button" className="text-sm text-[var(--c-navy)] underline-offset-4 hover:underline" onClick={() => setViewMode('3d')}>
+              Orbit the 3D room instead
+            </button>
+          </>
+        )}
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => void onFile(e.target.files?.[0])} />
         <input
           ref={cameraRef}
@@ -191,10 +230,10 @@ export default function PhotoWall() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-center gap-2 border-b border-[var(--c-line)] bg-white px-2 py-1">
+      <div className="flex shrink-0 items-center gap-1 border-b border-[var(--c-line)] bg-white px-1 py-1">
         <button
           type="button"
-          className="min-h-9 px-2.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--c-navy)] underline-offset-4 hover:underline"
+          className="min-h-11 px-2.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--c-navy)] underline-offset-4 hover:underline"
           onClick={() => {
             setPhoto(null)
             setCalStep(null)
@@ -205,7 +244,7 @@ export default function PhotoWall() {
         {photoUrl && !calStep && (
           <button
             type="button"
-            className="min-h-9 px-2.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--c-navy)] underline-offset-4 hover:underline"
+            className="min-h-11 px-2.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--c-navy)] underline-offset-4 hover:underline"
             onClick={() => {
               setCalibration(null)
               setCalStep('ceiling')
@@ -214,7 +253,14 @@ export default function PhotoWall() {
             Recalibrate
           </button>
         )}
-        <p className="ml-auto hidden text-[10px] text-[var(--c-body)] sm:block">Drag the TV to set height</p>
+        {/* This used to be desktop-only, which left the one gesture the whole
+            page depends on with no instruction on the platform that needs it
+            most. */}
+        {ready && (
+          <p className="ml-auto shrink-0 pr-1.5 text-right text-[10px] leading-tight text-[var(--c-body)]">
+            Drag the TV to set height
+          </p>
+        )}
       </div>
       <div className="relative min-h-0 flex-1 overflow-hidden bg-[#1a1c24]">
       <img
@@ -252,6 +298,7 @@ export default function PhotoWall() {
             onPointerCancel={onPointerUp}
           >
             <MountedProductFace item={product} width={widthPx} height={heightPx} />
+            <span className="campaign-grab" data-hint={!hasDragged} aria-hidden="true" />
           </motion.div>
         )}
       </div>

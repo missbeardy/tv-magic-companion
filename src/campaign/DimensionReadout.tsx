@@ -17,7 +17,7 @@ export default function DimensionReadout() {
       <div className="flex items-end gap-2">
         {rows.map((row) => (
           <div key={row.label} className="min-w-0 flex-1">
-            <p className="campaign-laser-label truncate text-[9px] text-[var(--c-cyan)] sm:text-[0.68rem]">
+            <p className="campaign-laser-label truncate text-[9px] text-[var(--c-cyan-ink)] sm:text-[0.68rem]">
               {row.label}
             </p>
             <p className="font-[Maven_Pro,sans-serif] text-[12px] font-bold tabular-nums text-[var(--c-navy)] sm:text-base">
@@ -27,8 +27,8 @@ export default function DimensionReadout() {
         ))}
         <button
           type="button"
-          className={`ml-1 shrink-0 px-2 py-1.5 text-[9px] font-bold uppercase tracking-[0.1em] sm:text-[10px] ${
-            inZone ? 'bg-[var(--c-cyan)] text-white' : 'bg-[var(--c-coral)] text-white'
+          className={`ml-1 min-h-11 shrink-0 px-3 text-[10px] font-bold uppercase leading-tight tracking-[0.1em] ${
+            inZone ? 'bg-[var(--c-cyan-ink)] text-white' : 'bg-[var(--c-coral)] text-white'
           }`}
           onClick={() => setCentreHeightMm(SEATED_EYE_MM)}
         >

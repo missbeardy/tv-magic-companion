@@ -1,8 +1,16 @@
 /* Campaign-only. Do not import from the staff PWA. */
 .campaign {
+  /* Bright cyan is a GRAPHICS token: laser marks and overlays on the photo/3D
+     stage, where nothing has to be read against it. It measures 2.38:1 on white,
+     which fails both the 4.5:1 text threshold and the 3:1 non-text one. */
   --c-cyan: #14bac1;
+  /* Use this anywhere text sits on the colour or the colour sits on white:
+     buttons, labels, borders, focus rings. 5.26:1 on white. */
+  --c-cyan-ink: #00787f;
   --c-navy: #005aa9;
-  --c-coral: #e44e56;
+  /* 4.71:1 — works both as white-on-coral (guarantee card) and coral-on-white
+     (form errors). Was #e44e56 at 3.80:1, which failed in both directions. */
+  --c-coral: #d33a43;
   --c-ink: #1a1c24;
   --c-body: #6c6d74;
   --c-paper: #ffffff;
@@ -17,12 +25,12 @@
 }
 
 .campaign ::selection {
-  background: var(--c-cyan);
+  background: var(--c-cyan-ink);
   color: #fff;
 }
 
 .campaign :focus-visible {
-  outline: 2px solid var(--c-cyan);
+  outline: 2px solid var(--c-cyan-ink);
   outline-offset: 3px;
 }
 
@@ -49,7 +57,7 @@
   gap: 0.5rem;
   border: 0;
   border-radius: 0;
-  background: var(--c-cyan);
+  background: var(--c-cyan-ink);
   color: #fff;
   font-family: 'Maven Pro', sans-serif;
   font-weight: 700;
@@ -62,7 +70,7 @@
 }
 
 .campaign-btn:hover {
-  background: #0ea5ac;
+  background: #005f66;
 }
 
 .campaign-btn:active {
@@ -102,7 +110,7 @@
 
 .campaign-input:focus {
   outline: none;
-  border-color: var(--c-cyan);
+  border-color: var(--c-cyan-ink);
 }
 
 .campaign-hp {
@@ -142,7 +150,7 @@
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  background: #14bac1;
+  background: var(--c-cyan-ink);
   color: #fff;
   border: 0;
   padding: 0.4rem 0.6rem;
@@ -151,7 +159,7 @@
 }
 
 .campaign-ideal-badge[data-on='true'] {
-  background: #14bac1;
+  background: var(--c-cyan-ink);
   outline: 2px solid #fff;
 }
 
@@ -177,7 +185,7 @@
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--c-cyan);
+  color: var(--c-cyan-ink);
   font-variant-numeric: tabular-nums;
 }
 
@@ -200,7 +208,7 @@
   display: flex;
   width: 1rem;
   height: 1rem;
-  color: var(--c-cyan);
+  color: var(--c-cyan-ink);
 }
 
 .campaign-orbit-arrow svg {
@@ -211,7 +219,7 @@
 .campaign-height-rail {
   pointer-events: auto;
   position: absolute;
-  left: 0.35rem;
+  left: 0.5rem;
   top: 2.6rem;
   bottom: 3.4rem;
   z-index: 10;
@@ -219,6 +227,11 @@
   flex-direction: column;
   align-items: center;
   gap: 0.35rem;
+  padding: 0.5rem 0.25rem;
+  /* Sits over the render, so it needs its own ground to read as a control
+     rather than a stray line drawn on the furniture. */
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 4px 18px rgba(0, 90, 169, 0.16);
   font-family: 'Maven Pro', sans-serif;
   font-size: 0.58rem;
   font-weight: 800;
@@ -227,58 +240,111 @@
   color: var(--c-navy);
 }
 
+/* `appearance: slider-vertical` is non-standard and Chrome warns it is going
+   away; writing-mode + direction is the standard replacement. */
 .campaign-height-rail input[type='range'] {
-  width: 1.55rem;
+  width: 2.75rem;
   flex: 1;
-  appearance: slider-vertical;
   writing-mode: vertical-lr;
   direction: rtl;
-  accent-color: var(--c-cyan);
+  accent-color: var(--c-cyan-ink);
   cursor: ns-resize;
+  background: transparent;
 }
 
+.campaign-height-rail input[type='range']::-webkit-slider-thumb {
+  width: 1.6rem;
+  height: 1.6rem;
+}
+
+.campaign-height-rail input[type='range']::-moz-range-thumb {
+  width: 1.6rem;
+  height: 1.6rem;
+}
+
+/* The hint describes a vertical drag, so the glyph nudges vertically. It used
+   to be a pair of ‹ › chevrons, which read as carousel controls. */
 @media (prefers-reduced-motion: no-preference) {
   .campaign-orbit-arrow {
-    animation: campaign-orbit-nudge-l 1.6s ease-in-out infinite;
-  }
-  .campaign-orbit-arrow-r {
-    animation-name: campaign-orbit-nudge-r;
+    animation: campaign-orbit-nudge 1.8s ease-in-out infinite;
   }
 }
 
-@keyframes campaign-orbit-nudge-l {
+@keyframes campaign-orbit-nudge {
   0%,
   100% {
-    transform: translateX(0);
+    transform: translateY(-2px);
     opacity: 1;
   }
   50% {
-    transform: translateX(-3px);
-    opacity: 0.55;
-  }
-}
-
-@keyframes campaign-orbit-nudge-r {
-  0%,
-  100% {
-    transform: translateX(0);
-    opacity: 1;
-  }
-  50% {
-    transform: translateX(3px);
-    opacity: 0.55;
+    transform: translateY(2px);
+    opacity: 0.6;
   }
 }
 
 .campaign-progress {
   transform-origin: 0 50%;
-  background: var(--c-cyan);
+  background: var(--c-cyan-ink);
   height: 3px;
 }
 
 @media (max-width: 767px) {
   .campaign-btn {
     min-height: 44px;
+  }
+}
+
+/* The staff PWA sets `html, body { height: 100% }` so the app shell scrolls
+   `body` rather than the viewport. On this public marketing route that breaks
+   window-based scroll tracking (the progress rule and the hero parallax both
+   read 0 forever) and stops iOS Safari collapsing its URL bar, which costs
+   ~60px of stage on the device that can least spare it. VisualisePage adds this
+   class to <html> and <body> on mount and removes it on unmount. */
+.campaign-root {
+  height: auto;
+  min-height: 100%;
+}
+
+/* Horizontal strips fade at both edges so it reads as scrollable. */
+.campaign-scroll-x {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 1.25rem, #000 calc(100% - 1.25rem), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 1.25rem, #000 calc(100% - 1.25rem), transparent);
+  scrollbar-width: none;
+}
+
+.campaign-scroll-x::-webkit-scrollbar {
+  display: none;
+}
+
+/* Grab handle on the mounted product, so the drag gesture has an affordance
+   and not just a caption. */
+.campaign-grab {
+  position: absolute;
+  left: 50%;
+  top: -0.55rem;
+  translate: -50% 0;
+  width: 2.25rem;
+  height: 0.3rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .campaign-grab[data-hint='true'] {
+    animation: campaign-grab-pulse 1.9s ease-in-out 3;
+  }
+}
+
+@keyframes campaign-grab-pulse {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.92;
+  }
+  50% {
+    transform: translateY(-3px);
+    opacity: 1;
   }
 }
 

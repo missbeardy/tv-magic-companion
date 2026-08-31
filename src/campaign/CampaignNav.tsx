@@ -20,7 +20,7 @@ export default function CampaignNav() {
         </a>
         <nav className="hidden items-center gap-6 text-sm font-semibold text-[var(--c-ink)] md:flex" aria-label="Campaign">
           {LINKS.map((link) => (
-            <a key={link.href} href={link.href} className="hover:text-[var(--c-cyan)]">
+            <a key={link.href} href={link.href} className="hover:text-[var(--c-cyan-ink)]">
               {link.label}
             </a>
           ))}
