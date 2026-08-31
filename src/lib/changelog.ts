@@ -47,11 +47,13 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
   title: 'See it on your wall',
   items: [
     'New public wall visualiser at /visualise: drag a TV onto a 3D room or a photo of your wall, with a sitting-height guide, then book a quote',
+    'Quotes from /visualise create a real lead and auto-assign a technician',
+    'Your wall is the default visualiser tab; 3D room uses real furniture models',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.190'
+export const APP_VERSION = '1.1.191'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

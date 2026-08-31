@@ -14,6 +14,13 @@ test.describe('visualise campaign', () => {
   })
 
   test('quote form shows a success state', async ({ page }) => {
+    await page.route('**/api/campaign-quote', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, lead_id: 'e2e-lead' }),
+      })
+    })
     await page.goto('/visualise')
     await page.getByRole('textbox', { name: /name/i }).fill('Alex Test')
     await page.getByRole('textbox', { name: /phone/i }).fill('0400000000')

@@ -104,6 +104,10 @@
       "destination": "/api/inbound-email?action=facebook-lead"
     },
     {
+      "source": "/api/campaign-quote",
+      "destination": "/api/inbound-email?action=campaign-quote"
+    },
+    {
       "source": "/api/cron/voicemail-poll",
       "destination": "/api/inbound-email?action=voicemail-poll"
     },

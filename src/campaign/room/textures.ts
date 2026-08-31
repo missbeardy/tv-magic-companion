@@ -64,20 +64,26 @@ let screen: CanvasTexture | null = null
 export function tvScreenTexture(): CanvasTexture {
   if (screen) return screen
   screen = makeCanvasTexture((ctx, s) => {
-    const g = ctx.createLinearGradient(0, 0, s, s)
-    g.addColorStop(0, '#1a2744')
-    g.addColorStop(0.45, '#3d2a22')
-    g.addColorStop(1, '#0c1220')
+    const g = ctx.createLinearGradient(0, 0, s, s * 0.85)
+    g.addColorStop(0, '#152033')
+    g.addColorStop(0.35, '#3a4658')
+    g.addColorStop(0.62, '#8a6a4a')
+    g.addColorStop(1, '#12151c')
     ctx.fillStyle = g
     ctx.fillRect(0, 0, s, s)
-    ctx.fillStyle = '#c9a36a'
+    ctx.fillStyle = '#d7c4a2'
     ctx.beginPath()
-    ctx.ellipse(s * 0.72, s * 0.38, s * 0.18, s * 0.08, -0.4, 0, Math.PI * 2)
+    ctx.ellipse(s * 0.7, s * 0.4, s * 0.22, s * 0.1, -0.35, 0, Math.PI * 2)
     ctx.fill()
-    ctx.fillStyle = 'rgba(255,255,255,0.08)'
-    ctx.fillRect(0, 0, s, s * 0.08)
-    ctx.fillStyle = 'rgba(20,186,193,0.35)'
-    ctx.fillRect(s * 0.08, s * 0.78, s * 0.28, 8)
+    ctx.fillStyle = 'rgba(255,255,255,0.14)'
+    ctx.fillRect(0, 0, s, s * 0.07)
+    ctx.fillStyle = 'rgba(255,255,255,0.05)'
+    ctx.beginPath()
+    ctx.moveTo(s * 0.55, 0)
+    ctx.lineTo(s, 0)
+    ctx.lineTo(s, s * 0.45)
+    ctx.closePath()
+    ctx.fill()
   }, 512)
   screen.wrapS = screen.wrapT = RepeatWrapping
   screen.repeat.set(1, 1)

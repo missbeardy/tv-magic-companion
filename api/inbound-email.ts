@@ -40,6 +40,10 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const { handleInboundFacebookLead } = await import('./_lib/handleInboundFacebookLead.js')
     return handleInboundFacebookLead(req, res, supabase)
   }
+  if (action === 'campaign-quote') {
+    const { handleCampaignQuote } = await import('./_lib/handleCampaignQuote.js')
+    return handleCampaignQuote(req, res, supabase)
+  }
   if (action === 'voicemail-poll') {
     // Lazily imported so the CloudMailin hot path never loads the IMAP client.
     const { handleVoicemailPoll } = await import('./_lib/handleVoicemailPoll.js')

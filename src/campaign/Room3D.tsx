@@ -1,13 +1,15 @@
-import { Suspense, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useLayoutEffect, useMemo, useRef, useState, type ComponentRef } from 'react'
 import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber'
 import { ContactShadows, OrbitControls } from '@react-three/drei'
-import { PMREMGenerator, TOUCH } from 'three'
+import { PMREMGenerator, Plane, Raycaster, TOUCH, Vector2, Vector3, type Camera } from 'three'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import { usePlacement } from './usePlacement'
 import { SEATED_EYE_MM, ZONE_HALF_MM, clampCentreMm } from './placementMath'
 import { useIsMobile } from './useIsMobile'
 import { ProductMesh } from './room/ProductMesh'
-import { plasterTexture, sofaFabricTexture, woodFloorTexture } from './room/textures'
+import { SofaModel } from './room/SofaModel'
+import { PlantModel, SideTableModel } from './room/RoomFurniture'
+import { plasterTexture, woodFloorTexture } from './room/textures'
 
 function m(mm: number) {
   return mm / 1000
@@ -32,70 +34,6 @@ function IndoorEnvironment() {
   return null
 }
 
-function Sofa({ z }: { z: number }) {
-  const fabric = useMemo(() => sofaFabricTexture(), [])
-  // TV wall is z=0. Seat opens toward -Z; backrest sits on +Z (room interior).
-  return (
-    <group position={[-0.35, 0, z]}>
-      <mesh position={[0, 0.2, 0.02]} castShadow>
-        <boxGeometry args={[2.1, 0.16, 0.9]} />
-        <meshStandardMaterial map={fabric} roughness={0.92} />
-      </mesh>
-      <mesh position={[-0.52, 0.38, -0.12]} castShadow>
-        <boxGeometry args={[0.88, 0.16, 0.52]} />
-        <meshStandardMaterial map={fabric} roughness={0.9} color="#7a818c" />
-      </mesh>
-      <mesh position={[0.52, 0.38, -0.12]} castShadow>
-        <boxGeometry args={[0.88, 0.16, 0.52]} />
-        <meshStandardMaterial map={fabric} roughness={0.9} color="#7a818c" />
-      </mesh>
-      <mesh position={[0, 0.78, 0.42]} castShadow>
-        <boxGeometry args={[2.1, 0.88, 0.18]} />
-        <meshStandardMaterial map={fabric} roughness={0.9} />
-      </mesh>
-      <mesh position={[-0.5, 0.58, 0.28]} rotation={[-0.35, 0, 0]} castShadow>
-        <boxGeometry args={[0.72, 0.42, 0.14]} />
-        <meshStandardMaterial map={fabric} roughness={0.88} color="#6e7580" />
-      </mesh>
-      <mesh position={[0.5, 0.58, 0.28]} rotation={[-0.35, 0, 0]} castShadow>
-        <boxGeometry args={[0.72, 0.42, 0.14]} />
-        <meshStandardMaterial map={fabric} roughness={0.88} color="#6e7580" />
-      </mesh>
-      <mesh position={[-1.12, 0.5, 0]} castShadow>
-        <boxGeometry args={[0.16, 0.52, 0.9]} />
-        <meshStandardMaterial map={fabric} roughness={0.88} />
-      </mesh>
-      <mesh position={[1.12, 0.5, 0]} castShadow>
-        <boxGeometry args={[0.16, 0.52, 0.9]} />
-        <meshStandardMaterial map={fabric} roughness={0.88} />
-      </mesh>
-    </group>
-  )
-}
-
-function Plant({ position }: { position: [number, number, number] }) {
-  return (
-    <group position={position}>
-      <mesh position={[0, 0.12, 0]}>
-        <cylinderGeometry args={[0.11, 0.09, 0.24, 20]} />
-        <meshStandardMaterial color="#6b3f2a" roughness={0.8} />
-      </mesh>
-      <mesh position={[0, 0.48, 0]}>
-        <sphereGeometry args={[0.22, 16, 12]} />
-        <meshStandardMaterial color="#2f6b45" roughness={0.7} />
-      </mesh>
-      <mesh position={[0.12, 0.62, 0.04]}>
-        <sphereGeometry args={[0.14, 14, 10]} />
-        <meshStandardMaterial color="#3d8a58" roughness={0.7} />
-      </mesh>
-      <mesh position={[-0.1, 0.58, -0.06]}>
-        <sphereGeometry args={[0.12, 14, 10]} />
-        <meshStandardMaterial color="#245c38" roughness={0.7} />
-      </mesh>
-    </group>
-  )
-}
-
 function WindowLight({ width, height, depth }: { width: number; height: number; depth: number }) {
   return (
     <group position={[-width / 2 + 0.03, height * 0.62, depth * 0.42]} rotation={[0, Math.PI / 2, 0]}>
@@ -111,52 +49,123 @@ function WindowLight({ width, height, depth }: { width: number; height: number; 
   )
 }
 
-function IdealHeightMark({
-  width,
-  zoneY,
-  zoneH,
-  laserZ,
-}: {
-  width: number
-  zoneY: number
-  zoneH: number
-  laserZ: number
-}) {
-  const bandW = width * 0.98
+function IdealHeightMark({ width, zoneY, zoneH }: { width: number; zoneY: number; zoneH: number }) {
   const skip = () => {}
-  const postX = width * 0.5 - 0.08
+  const postX = width * 0.47
   return (
     <group>
-      <mesh position={[0, zoneY, 0.008]} raycast={skip}>
-        <planeGeometry args={[bandW, zoneH]} />
-        <meshBasicMaterial color="#14bac1" transparent opacity={0.4} depthWrite={false} />
-      </mesh>
-      <mesh position={[0, zoneY + zoneH / 2, 0.012]} raycast={skip}>
-        <planeGeometry args={[bandW, 0.02]} />
-        <meshBasicMaterial color="#14bac1" />
-      </mesh>
-      <mesh position={[0, zoneY - zoneH / 2, 0.012]} raycast={skip}>
-        <planeGeometry args={[bandW, 0.02]} />
-        <meshBasicMaterial color="#14bac1" />
-      </mesh>
       <mesh position={[-postX, zoneY, 0.014]} raycast={skip}>
-        <planeGeometry args={[0.12, zoneH + 0.08]} />
-        <meshBasicMaterial color="#14bac1" />
+        <planeGeometry args={[0.055, zoneH]} />
+        <meshBasicMaterial color="#14bac1" transparent opacity={0.8} depthWrite={false} />
       </mesh>
       <mesh position={[postX, zoneY, 0.014]} raycast={skip}>
-        <planeGeometry args={[0.12, zoneH + 0.08]} />
-        <meshBasicMaterial color="#14bac1" />
-      </mesh>
-      <mesh position={[0, zoneY, laserZ]} raycast={skip}>
-        <planeGeometry args={[bandW, 0.022]} />
-        <meshBasicMaterial color="#14bac1" />
-      </mesh>
-      <mesh position={[0, zoneY, laserZ + 0.002]} raycast={skip}>
-        <planeGeometry args={[bandW, 0.008]} />
-        <meshBasicMaterial color="#ffffff" />
+        <planeGeometry args={[0.055, zoneH]} />
+        <meshBasicMaterial color="#14bac1" transparent opacity={0.8} depthWrite={false} />
       </mesh>
     </group>
   )
+}
+
+function wallYFromPointer(
+  clientX: number,
+  clientY: number,
+  canvas: HTMLCanvasElement,
+  camera: Camera,
+  wallPlane: Plane,
+): number | null {
+  const rect = canvas.getBoundingClientRect()
+  const ndc = new Vector2(
+    ((clientX - rect.left) / rect.width) * 2 - 1,
+    -((clientY - rect.top) / rect.height) * 2 + 1,
+  )
+  const ray = new Raycaster()
+  ray.setFromCamera(ndc, camera)
+  const hit = new Vector3()
+  if (!ray.ray.intersectPlane(wallPlane, hit)) return null
+  return hit.y * 1000
+}
+
+function DraggableProduct({
+  setOrbitEnabled,
+}: {
+  setOrbitEnabled: (on: boolean) => void
+}) {
+  const { product, centreHeightMm, ceilingHeightMm, setCentreHeightMm } = usePlacement()
+  const { gl, camera } = useThree()
+  const dragging = useRef(false)
+  const wallPlane = useMemo(() => new Plane(new Vector3(0, 0, 1), 0), [])
+  const centreY = m(centreHeightMm)
+  const hitW = m(product.widthMm) * 1.18
+  const hitH = m(product.heightMm) * 1.28
+
+  function applyClient(clientX: number, clientY: number) {
+    const y = wallYFromPointer(clientX, clientY, gl.domElement, camera, wallPlane)
+    if (y == null) return
+    setCentreHeightMm(clampCentreMm(y, ceilingHeightMm, product.heightMm))
+  }
+
+  function endDrag(e: ThreeEvent<PointerEvent>) {
+    dragging.current = false
+    setOrbitEnabled(true)
+    gl.domElement.style.cursor = ''
+    try {
+      gl.domElement.releasePointerCapture(e.pointerId)
+    } catch {
+      /* already released */
+    }
+  }
+
+  return (
+    <group
+      position={[0, centreY, m(product.depthMm) / 2 + 0.025]}
+      onPointerOver={() => {
+        gl.domElement.style.cursor = 'ns-resize'
+      }}
+      onPointerOut={() => {
+        if (!dragging.current) gl.domElement.style.cursor = ''
+      }}
+      onPointerDown={(e: ThreeEvent<PointerEvent>) => {
+        e.stopPropagation()
+        dragging.current = true
+        setOrbitEnabled(false)
+        gl.domElement.setPointerCapture(e.pointerId)
+        applyClient(e.clientX, e.clientY)
+      }}
+      onPointerMove={(e: ThreeEvent<PointerEvent>) => {
+        if (!dragging.current) return
+        e.stopPropagation()
+        applyClient(e.clientX, e.clientY)
+      }}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+    >
+      <mesh visible={false} position={[0, 0, m(product.depthMm) / 2 + 0.02]}>
+        <planeGeometry args={[hitW, hitH]} />
+      </mesh>
+      <ProductMesh item={product} />
+    </group>
+  )
+}
+
+function SyncCamera({
+  depth,
+  height,
+  width,
+  isMobile,
+}: {
+  depth: number
+  height: number
+  width: number
+  isMobile: boolean
+}) {
+  const { camera } = useThree()
+  useLayoutEffect(() => {
+    const side = Math.min(width * 0.4, isMobile ? 1.65 : 1.9)
+    camera.position.set(side, isMobile ? 1.4 : 1.5, depth * 0.92 + (isMobile ? 1.35 : 1.6))
+    camera.lookAt(0, Math.min(height * 0.38, 1.12), depth * 0.32)
+    camera.updateProjectionMatrix()
+  }, [camera, depth, height, isMobile, width])
+  return null
 }
 
 function RoomContents({
@@ -168,30 +177,24 @@ function RoomContents({
   setOrbitEnabled: (on: boolean) => void
   isMobile: boolean
 }) {
-  const {
-    product,
-    ceilingHeightMm,
-    wallWidthMm,
-    viewingDistanceMm,
-    centreHeightMm,
-    setCentreHeightMm,
-  } = usePlacement()
-  const dragging = useRef(false)
+  const { ceilingHeightMm, wallWidthMm, viewingDistanceMm } = usePlacement()
+  const orbitRef = useRef<ComponentRef<typeof OrbitControls>>(null)
+
+  function setOrbit(on: boolean) {
+    if (orbitRef.current) orbitRef.current.enabled = on
+    setOrbitEnabled(on)
+  }
   const width = m(wallWidthMm)
   const height = m(ceilingHeightMm)
   const depth = m(viewingDistanceMm)
-  const centreY = m(centreHeightMm)
   const wood = useMemo(() => woodFloorTexture(), [])
   const plaster = useMemo(() => plasterTexture(), [])
   const zoneY = m(SEATED_EYE_MM)
   const zoneH = m(ZONE_HALF_MM * 2)
 
-  function applyPoint(e: ThreeEvent<PointerEvent>) {
-    setCentreHeightMm(clampCentreMm(e.point.y * 1000, ceilingHeightMm, product.heightMm))
-  }
-
   return (
     <>
+      <SyncCamera width={width} depth={depth} height={height} isMobile={isMobile} />
       <color attach="background" args={['#d9cfc4']} />
       <IndoorEnvironment />
       <ambientLight intensity={0.28} />
@@ -204,34 +207,12 @@ function RoomContents({
       />
       <pointLight position={[-width / 2 + 0.4, height * 0.7, depth * 0.45]} intensity={18} distance={6} color="#ffe8b8" />
 
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, depth / 2]} receiveShadow>
-        <planeGeometry args={[width * 1.5, depth]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, depth / 2 + 0.35]} receiveShadow>
+        <planeGeometry args={[width * 1.6, depth + 1.4]} />
         <meshStandardMaterial map={wood} roughness={0.78} />
       </mesh>
 
-      <mesh
-        position={[0, height / 2, 0]}
-        receiveShadow
-        onPointerDown={(e) => {
-          dragging.current = true
-          setOrbitEnabled(false)
-          e.stopPropagation()
-          applyPoint(e)
-        }}
-        onPointerMove={(e) => {
-          if (!dragging.current) return
-          e.stopPropagation()
-          applyPoint(e)
-        }}
-        onPointerUp={() => {
-          dragging.current = false
-          setOrbitEnabled(true)
-        }}
-        onPointerLeave={() => {
-          dragging.current = false
-          setOrbitEnabled(true)
-        }}
-      >
+      <mesh position={[0, height / 2, 0]} receiveShadow>
         <planeGeometry args={[width, height]} />
         <meshStandardMaterial map={plaster} roughness={0.92} />
       </mesh>
@@ -274,41 +255,35 @@ function RoomContents({
         <meshStandardMaterial color="#8d4c42" roughness={0.95} envMapIntensity={0} />
       </mesh>
 
-      <IdealHeightMark
-        width={width}
-        zoneY={zoneY}
-        zoneH={zoneH}
-        laserZ={m(product.depthMm) + 0.06}
-      />
+      <IdealHeightMark width={width} zoneY={zoneY} zoneH={zoneH} />
 
-      <group position={[0, centreY, m(product.depthMm) / 2 + 0.025]}>
-        <ProductMesh item={product} />
-      </group>
+      <DraggableProduct setOrbitEnabled={setOrbit} />
 
       <WindowLight width={width} height={height} depth={depth} />
-      <Sofa z={depth * 0.76} />
-      <Plant position={[width * 0.38, 0, depth * 0.28]} />
-      <mesh position={[-width * 0.36, 0.28, depth * 0.3]}>
-        <cylinderGeometry args={[0.18, 0.2, 0.56, 24]} />
-        <meshStandardMaterial color="#cfc6b8" roughness={0.55} />
-      </mesh>
+      <Suspense fallback={null}>
+        <SofaModel z={depth * 0.7} />
+        <SideTableModel position={[1.42, 0, depth * 0.76]} rotationY={-0.4} />
+        <PlantModel position={[1.42, 0.52, depth * 0.76]} height={0.3} rotationY={0.35} />
+        <PlantModel position={[-1.48, 0, depth * 0.3]} height={0.7} rotationY={0.8} />
+      </Suspense>
 
       {!isMobile && (
-        <ContactShadows position={[0, 0.003, depth * 0.76]} opacity={0.28} scale={4.2} blur={2.4} far={1.8} />
+        <ContactShadows position={[0, 0.003, depth * 0.7]} opacity={0.32} scale={4.2} blur={2.4} far={1.8} />
       )}
 
       <OrbitControls
+        ref={orbitRef}
         enabled={orbitEnabled}
         enablePan={false}
-        enableDamping
-        dampingFactor={0.08}
-        minDistance={isMobile ? 2.4 : 2.2}
-        maxDistance={isMobile ? 6.5 : 8}
+        enableDamping={!isMobile}
+        dampingFactor={0.12}
+        minDistance={isMobile ? 2.6 : 2.5}
+        maxDistance={isMobile ? 8.5 : 10}
         minPolarAngle={Math.PI / 3.4}
-        maxPolarAngle={Math.PI / 2.08}
-        target={[0, height * 0.42, depth * 0.28]}
+        maxPolarAngle={Math.PI / 2.02}
+        target={[0, Math.min(height * 0.4, 1.15), depth * 0.28]}
         autoRotate={false}
-        rotateSpeed={isMobile ? 0.7 : 0.9}
+        rotateSpeed={isMobile ? 0.55 : 0.85}
         touches={{ ONE: TOUCH.ROTATE, TWO: TOUCH.DOLLY_PAN }}
       />
     </>
@@ -316,7 +291,7 @@ function RoomContents({
 }
 
 export default function Room3D() {
-  const { setViewMode } = usePlacement()
+  const { setViewMode, product, centreHeightMm, setCentreHeightMm, ceilingHeightMm } = usePlacement()
   const isMobile = useIsMobile()
   const [orbitEnabled, setOrbitEnabled] = useState(true)
   const [webgl] = useState(() => {
@@ -327,6 +302,8 @@ export default function Room3D() {
       return false
     }
   })
+  const minCentre = product.heightMm / 2 + 20
+  const maxCentre = ceilingHeightMm - product.heightMm / 2 - 20
 
   if (!webgl) {
     return (
@@ -345,7 +322,7 @@ export default function Room3D() {
       <Canvas
         shadows={!isMobile}
         dpr={isMobile ? 1 : [1, 1.5]}
-        camera={{ position: isMobile ? [1.45, 1.32, 3.35] : [2.05, 1.4, 3.85], fov: isMobile ? 50 : 40, near: 0.1, far: 40 }}
+        camera={{ position: isMobile ? [1.65, 1.4, 4.7] : [1.9, 1.5, 5.15], fov: isMobile ? 50 : 40, near: 0.1, far: 40 }}
         gl={{ antialias: !isMobile, alpha: false, powerPreference: isMobile ? 'low-power' : 'high-performance' }}
         className="h-full w-full"
       >
@@ -353,6 +330,18 @@ export default function Room3D() {
           <RoomContents orbitEnabled={orbitEnabled} setOrbitEnabled={setOrbitEnabled} isMobile={isMobile} />
         </Suspense>
       </Canvas>
+      <label className="campaign-height-rail">
+        <span>Height</span>
+        <input
+          type="range"
+          min={Math.round(minCentre)}
+          max={Math.round(maxCentre)}
+          step={5}
+          value={Math.round(centreHeightMm)}
+          aria-label="TV centre height in millimetres"
+          onChange={(e) => setCentreHeightMm(Number(e.target.value))}
+        />
+      </label>
       <OrbitHint isMobile={isMobile} />
     </div>
   )
@@ -366,7 +355,7 @@ function OrbitHint({ isMobile }: { isMobile: boolean }) {
           <path d="M15 6 9 12l6 6" />
         </svg>
       </span>
-      <span>{isMobile ? 'Drag to rotate · pinch to zoom' : 'Drag to rotate'}</span>
+      <span>{isMobile ? 'Drag the TV · or use the height slider' : 'Drag the TV to move it · drag the room to look around'}</span>
       <span className="campaign-orbit-arrow campaign-orbit-arrow-r" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
           <path d="m9 6 6 6-6 6" />

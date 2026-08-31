@@ -11,22 +11,51 @@ export default function QuoteSheet() {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [address, setAddress] = useState('')
+  const [honeypot, setHoneypot] = useState('')
   const [error, setError] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [sending, setSending] = useState(false)
 
-  function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setError('')
     if (!name.trim() || !phone.trim() || !address.trim()) {
       setError('Name, phone and address are required.')
       return
     }
-    // TODO: POST to an existing inbound hub (facebook-lead or send-sms public action).
-    // Payload shape for the next pass:
-    // { channel: 'campaign', form_name: 'TV Wall Mounting — visualise', name, phone, address,
-    //   productId: snapshot.product.id, centreHeightMm, ceilingHeightMm, wallWidthMm, viewingDistanceMm }
-    void snapshot
-    setSubmitted(true)
+    setSending(true)
+    try {
+      const res = await fetch('/api/campaign-quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          phone: phone.trim(),
+          address: address.trim(),
+          website: honeypot,
+          productId: snapshot.product.id,
+          productLabel: snapshot.product.label,
+          productKind: snapshot.product.kind,
+          centreHeightMm: snapshot.centreHeightMm,
+          ceilingHeightMm: snapshot.ceilingHeightMm,
+          wallWidthMm: snapshot.wallWidthMm,
+          viewingDistanceMm: snapshot.viewingDistanceMm,
+          floorToBottom: snapshot.floorToBottom,
+          ceilingToTop: snapshot.ceilingToTop,
+          zone: snapshot.zone,
+        }),
+      })
+      const payload = (await res.json().catch(() => null)) as { error?: string } | null
+      if (!res.ok) {
+        setError(payload?.error || 'Could not send the quote. Try again.')
+        return
+      }
+      setSubmitted(true)
+    } catch {
+      setError('Could not send the quote. Check your connection and try again.')
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
@@ -126,10 +155,20 @@ export default function QuoteSheet() {
                       className="campaign-input"
                     />
                   </Field>
+                  <div className="campaign-hp" aria-hidden="true">
+                    <label htmlFor="quote-website">Website</label>
+                    <input
+                      id="quote-website"
+                      tabIndex={-1}
+                      autoComplete="off"
+                      value={honeypot}
+                      onChange={(e) => setHoneypot(e.target.value)}
+                    />
+                  </div>
                 </div>
                 {error && <p className="mt-3 text-sm text-[var(--c-coral)]">{error}</p>}
-                <button type="submit" className="campaign-btn mt-6 w-full">
-                  Book a free quote
+                <button type="submit" className="campaign-btn mt-6 w-full" disabled={sending}>
+                  {sending ? 'Sending…' : 'Book a free quote'}
                 </button>
                 <div className="mt-8 border-t border-[var(--c-line)] pt-5">
                   <p className="campaign-laser-label text-[var(--c-navy)]">Summary</p>

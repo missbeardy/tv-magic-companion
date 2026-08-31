@@ -24,7 +24,7 @@ export function PlacementProvider({ children }: { children: ReactNode }) {
   const [wallWidthMm, setWallWidthMm] = useState(DEFAULT_WALL_WIDTH_MM)
   const [viewingDistanceMm, setViewingDistanceMm] = useState(DEFAULT_VIEWING_DISTANCE_MM)
   const [centreRaw, setCentreRaw] = useState(SEATED_EYE_MM)
-  const [viewMode, setViewMode] = useState<ViewMode>('3d')
+  const [viewMode, setViewMode] = useState<ViewMode>('photo')
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [calibration, setCalibration] = useState<Calibration | null>(null)
 

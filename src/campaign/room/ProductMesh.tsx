@@ -22,34 +22,42 @@ export function ProductMesh({ item }: { item: CatalogItem }) {
 
 function TelevisionMesh({ w, h, d }: { w: number; h: number; d: number }) {
   const screen = useMemo(() => tvScreenTexture(), [])
-  const inset = 0.012
+  const bezel = Math.min(0.01, w * 0.012)
+  const glassW = w - bezel * 2
+  const glassH = h - bezel * 2
+  const bodyD = Math.max(d, 0.038)
   return (
     <group>
-      <mesh>
-        <boxGeometry args={[w, h, d]} />
-        <meshStandardMaterial color="#121212" roughness={0.32} metalness={0.55} />
+      <mesh position={[0, 0, -0.004]}>
+        <boxGeometry args={[w + 0.004, h + 0.004, bodyD]} />
+        <meshStandardMaterial color="#0a0a0a" roughness={0.28} metalness={0.72} envMapIntensity={1.1} />
       </mesh>
-      <mesh position={[0, 0, d / 2 + 0.0015]}>
-        <planeGeometry args={[w - inset * 2, h - inset * 2]} />
+      <mesh position={[0, 0, bodyD / 2 - 0.002]}>
+        <boxGeometry args={[w, h, 0.006]} />
+        <meshStandardMaterial color="#141414" roughness={0.22} metalness={0.55} />
+      </mesh>
+      <mesh position={[0, 0, bodyD / 2 + 0.002]}>
+        <planeGeometry args={[glassW, glassH]} />
         <meshPhysicalMaterial
           map={screen}
           emissiveMap={screen}
           emissive="#ffffff"
-          emissiveIntensity={0.42}
-          roughness={0.08}
-          metalness={0.15}
+          emissiveIntensity={0.55}
+          roughness={0.04}
+          metalness={0.05}
           clearcoat={1}
-          clearcoatRoughness={0.06}
-          envMapIntensity={1.3}
+          clearcoatRoughness={0.04}
+          reflectivity={1}
+          envMapIntensity={1.6}
         />
       </mesh>
-      <mesh position={[0, -h / 2 + 0.004, d / 2 + 0.002]}>
-        <boxGeometry args={[w * 0.18, 0.004, 0.003]} />
-        <meshStandardMaterial color="#14bac1" emissive="#14bac1" emissiveIntensity={0.6} />
+      <mesh position={[0, -h / 2 + 0.003, bodyD / 2 + 0.003]}>
+        <boxGeometry args={[w * 0.12, 0.003, 0.002]} />
+        <meshStandardMaterial color="#14bac1" emissive="#14bac1" emissiveIntensity={0.45} />
       </mesh>
-      <mesh position={[0, 0, -d / 2 - 0.006]}>
-        <boxGeometry args={[0.12, 0.12, 0.012]} />
-        <meshStandardMaterial color="#3a3a3a" metalness={0.7} roughness={0.4} />
+      <mesh position={[0, 0, -bodyD / 2 - 0.008]}>
+        <boxGeometry args={[0.1, 0.1, 0.01]} />
+        <meshStandardMaterial color="#2c2c2c" metalness={0.75} roughness={0.35} />
       </mesh>
     </group>
   )

@@ -24,17 +24,6 @@ export default function VisualiserStage() {
           <button
             type="button"
             role="tab"
-            aria-selected={viewMode === '3d'}
-            className={`min-h-10 px-2.5 py-2 text-[10px] font-bold uppercase tracking-[0.12em] sm:px-3 sm:text-xs sm:tracking-[0.14em] ${
-              viewMode === '3d' ? 'bg-[var(--c-navy)] text-white' : 'text-[var(--c-navy)]'
-            }`}
-            onClick={() => setViewMode('3d')}
-          >
-            3D room
-          </button>
-          <button
-            type="button"
-            role="tab"
             aria-selected={viewMode === 'photo'}
             className={`min-h-10 px-2.5 py-2 text-[10px] font-bold uppercase tracking-[0.12em] sm:px-3 sm:text-xs sm:tracking-[0.14em] ${
               viewMode === 'photo' ? 'bg-[var(--c-navy)] text-white' : 'text-[var(--c-navy)]'
@@ -42,6 +31,17 @@ export default function VisualiserStage() {
             onClick={() => setViewMode('photo')}
           >
             Your wall
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === '3d'}
+            className={`min-h-10 px-2.5 py-2 text-[10px] font-bold uppercase tracking-[0.12em] sm:px-3 sm:text-xs sm:tracking-[0.14em] ${
+              viewMode === '3d' ? 'bg-[var(--c-navy)] text-white' : 'text-[var(--c-navy)]'
+            }`}
+            onClick={() => setViewMode('3d')}
+          >
+            3D room
           </button>
         </div>
       </div>
