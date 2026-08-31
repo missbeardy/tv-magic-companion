@@ -73,7 +73,7 @@ function mockReq(body: unknown, method = 'POST'): VercelRequest {
     method,
     headers: { 'x-forwarded-for': '1.1.1.1' },
     body,
-  } as VercelRequest
+  } as unknown as VercelRequest
 }
 
 function mockSupabase(orgRow: { id: string } | null) {
