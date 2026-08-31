@@ -1,7 +1,7 @@
 {
   "name": "tv-magic-companion",
   "private": true,
-  "version": "1.1.188",
+  "version": "1.1.189",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,10 +11,11 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.tests.json",
     "lint": "eslint .",
     "verify:changelog": "node scripts/verify-changelog.mjs",
-  "audit:prod": "node scripts/audit-prod-config.mjs",
+    "audit:prod": "node scripts/audit-prod-config.mjs",
     "prebuild": "node scripts/verify-changelog.mjs && npm run typecheck",
     "stitch:push": "node scripts/stitch/push-to-stitch.mjs",
     "db:types": "supabase gen types typescript --project-id $SUPABASE_DEV_PROJECT_ID --schema public > src/types/database.types.ts"
@@ -23,6 +24,8 @@
     "@anthropic-ai/sdk": "^0.104.2",
     "@dnd-kit/core": "^6.1.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@react-three/drei": "^10.7.8",
+    "@react-three/fiber": "^9.7.0",
     "@sentry/node": "^10.69.0",
     "@sentry/react": "^10.69.0",
     "@supabase/supabase-js": "^2.108.2",
@@ -31,6 +34,7 @@
     "canvas-confetti": "^1.9.4",
     "imapflow": "^1.6.6",
     "lucide-react": "^1.17.0",
+    "motion": "^13.1.1",
     "posthog-js": "^1.413.2",
     "posthog-node": "^5.48.0",
     "react": "^19.2.6",
@@ -41,11 +45,13 @@
     "resend": "^6.12.4",
     "stripe": "^17.7.0",
     "svix": "^1.95.2",
+    "three": "^0.185.1",
     "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@google/stitch-sdk": "^0.1.0",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.3.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",

@@ -34,6 +34,11 @@ dist-ssr
 repomix-output.xml
 .vercel
 
+# Playwright
+/playwright-report
+/test-results
+/e2e/screenshots
+
 # Real voicemail samples dropped in the repo root for debugging — these contain
 # live customer phone numbers in both the filename and the body. Scrubbed copies
 # live in tests/fixtures/ and are the only versions that may be committed.

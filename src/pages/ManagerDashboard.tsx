@@ -17,7 +17,7 @@ import { getMonthStart } from '../lib/reporting/dateRange'
 import { fetchReportingData } from '../lib/reporting/fetchReportData'
 import { getPreviousMonthStart, markManagerBriefSeen, shouldShowManagerBrief } from '../lib/managerBrief'
 import {
-  Inbox, ClipboardCheck, Clock, TrendingUp, AlertCircle, FileBarChart
+  Inbox, ClipboardCheck, Clock, TrendingUp, AlertCircle, FileBarChart, type LucideIcon
 } from 'lucide-react'
 
 interface StatsRow {
@@ -47,7 +47,7 @@ interface ManagerMonthlyBrief {
 function StatCard({ label, value, icon: Icon, colour, onClick }: {
   label: string
   value: number
-  icon: React.ElementType
+  icon: LucideIcon
   colour: string
   onClick?: () => void
 }) {

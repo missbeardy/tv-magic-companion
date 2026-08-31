@@ -11,7 +11,7 @@ import TeamWorkloadPanel from '../components/TeamWorkloadPanel'
 import TeamActivityTeaser from '../components/TeamActivityTeaser'
 import { useTeamWorkload } from '../hooks/useTeamWorkload'
 import { useTechLocation } from '../hooks/useTechLocation'
-import { Inbox, CalendarDays, Zap } from 'lucide-react'
+import { Inbox, CalendarDays, Zap, type LucideIcon } from 'lucide-react'
 
 interface Stats {
   booked: number
@@ -21,7 +21,7 @@ interface Stats {
 function StatCard({ label, value, icon: Icon, colour, onClick }: {
   label: string
   value: number
-  icon: React.ElementType
+  icon: LucideIcon
   colour: string
   onClick?: () => void
 }) {

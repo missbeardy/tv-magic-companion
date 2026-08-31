@@ -33,6 +33,7 @@ const TermsOfServicePage = lazy(() => import('./pages/TermsOfServicePage'))
 const DeleteAccountPage = lazy(() => import('./pages/DeleteAccountPage'))
 // Lazy for the same reason: a scoreboard is not on the login -> leads critical path.
 const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage'))
+const VisualisePage = lazy(() => import('./pages/VisualisePage'))
 import { useTechLocation } from './hooks/useTechLocation'
 import { initOneSignal, setOneSignalUser, clearOneSignalUser } from './lib/oneSignal'
 import { reconcileSubscription } from './lib/webPush'
@@ -113,6 +114,7 @@ function App() {
               <Route path="/invoice/:token" element={<InvoiceStatusPage />} />
               <Route path="/privacy" element={<PrivacyPolicyPage />} />
               <Route path="/terms" element={<TermsOfServicePage />} />
+              <Route path="/visualise" element={<VisualisePage />} />
               <Route path="/delete-account" element={<DeleteAccountPage />} />
               <Route path="/set-password" element={<SetPasswordPage />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />

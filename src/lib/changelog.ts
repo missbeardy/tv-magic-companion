@@ -43,20 +43,15 @@ export function formatChangelogDate(date: string): string {
  * after Monday, set `weekStarts` to that Monday (use getCurrentReleaseWeekId()).
  */
 export const WEEKLY_CHANGELOG: WeeklyChangelog = {
-  weekStarts: '24-08-2026', // Monday — update on first push after each Monday
-  title: 'Prize spotlight, and notifications that tell you the truth',
+  weekStarts: '31-08-2026', // Monday — update on first push after each Monday
+  title: 'See it on your wall',
   items: [
-    'New "Up for grabs this week" prize banner on the Leaderboard: managers can post a prize (with an optional photo) and switch it on or off for the team, fresh each week',
-    'Fixed: a phone could stop receiving notifications while your Profile still showed them as switched on. Profile now spots it and gives you a one-tap "Re-register this device"',
-    'Fixed: text-message enquiries are now acknowledged to the phone network straight away, so they stop being recorded as failed even though the lead saved fine',
-    'Fixed: for one day that acknowledgement was arriving before the enquiry had been saved, so text-message leads stopped appearing in the app. They save again, and the four that were missed have been added back',
-    'Facebook Messenger leads from a future Gen-AI bot can include suburb and the job on the card; the live Messenger bot is unchanged and can be switched back in Botpress in one step',
-    'Native Facebook Messenger receptionist in the companion: same South Brisbane capture (name, mobile, suburb wait) without Botpress, once the Page webhook is pointed at /api/meta-webhook',
+    'New public wall visualiser at /visualise: drag a TV onto a 3D room or a photo of your wall, with a sitting-height guide, then book a quote',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.188'
+export const APP_VERSION = '1.1.189'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
