@@ -1,12 +1,12 @@
 ---
 id: "visualise-mobile-uplift-2026-08-31"
-status: "review"
+status: "done"
 priority: "high"
 assignee: null
 dueDate: null
 created: "2026-08-31T04:00:00.000Z"
 modified: "2026-08-31T05:00:00.000Z"
-completedAt: null
+completedAt: "2026-08-31T05:20:00.000Z"
 labels: ["campaign", "ux", "accessibility"]
 order: "ZD"
 ---
