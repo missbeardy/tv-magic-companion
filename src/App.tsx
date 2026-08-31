@@ -42,6 +42,7 @@ import { useOrg } from './context/OrgContext'
 import PwaUpdateLayer from './components/PwaUpdateLayer'
 import OfflineBanner from './components/OfflineBanner'
 import ToastHost from './components/ToastHost'
+import { isPublicSitePath } from './lib/publicSite'
 
 function Dashboard() {
   const { profile, loading } = useAuth()
@@ -88,6 +89,7 @@ function OneSignalBootstrap() {
   useEffect(() => {
     if (featureSwitchesLoading) return
     if (isFeatureEnabled('native_web_push')) return
+    if (isPublicSitePath(window.location.pathname)) return
     initOneSignal().catch(err =>
       console.error('OneSignal init failed:', err)
     )

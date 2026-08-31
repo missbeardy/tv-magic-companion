@@ -4,6 +4,7 @@ import {
   shouldPromptForWaitingWorker,
 } from '../lib/pwaUpdateAck'
 import { APP_VERSION } from '../lib/changelog'
+import { isPublicSitePath } from '../lib/publicSite'
 
 // The DOM `ServiceWorker` type has no stable per-worker id, so we dedupe the
 // update prompt per app release: `APP_VERSION` bumps every deploy (enforced by
@@ -38,6 +39,7 @@ export function usePwaUpdate() {
 
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
+    if (isPublicSitePath(window.location.pathname)) return
 
     let intervalId: ReturnType<typeof setInterval> | undefined
     let reloaded = false

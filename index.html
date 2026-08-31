@@ -13,6 +13,22 @@
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icon-512.png" />
     <title>FieldBourne</title>
+    <script>
+      (function () {
+        var path = location.pathname
+        var isPublic =
+          /^\/(visualise|privacy|terms|delete-account)(\/|$)/.test(path) ||
+          /^\/(quote|invoice)\//.test(path)
+        if (!isPublic) return
+        var manifest = document.querySelector('link[rel="manifest"]')
+        if (manifest) manifest.remove()
+        document
+          .querySelectorAll('meta[name="apple-mobile-web-app-capable"],meta[name="mobile-web-app-capable"]')
+          .forEach(function (el) {
+            el.setAttribute('content', 'no')
+          })
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -49,11 +49,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'New public wall visualiser at /visualise: drag a TV onto a 3D room or a photo of your wall, with a sitting-height guide, then book a quote',
     'Quotes from /visualise create a real lead and auto-assign a technician',
     'Your wall is the default visualiser tab; 3D room uses real furniture models',
+    '/visualise stays in the browser instead of opening the installed FieldBourne app',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.191'
+export const APP_VERSION = '1.1.192'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

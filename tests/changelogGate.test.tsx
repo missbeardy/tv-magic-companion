@@ -45,6 +45,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  window.history.pushState({}, '', '/')
 })
 
 function renderLayer() {
@@ -82,6 +83,16 @@ describe('ChangelogGate — signed-out visitors', () => {
     renderLayer()
 
     expect(screen.getByTestId('changelog')).toBeTruthy()
+  })
+
+  it('does not show it on /visualise even when staff are signed in', () => {
+    mockUseAuth.mockReturnValue({ user: { id: 'u1' }, loading: false })
+    window.history.pushState({}, '', '/visualise')
+
+    renderLayer()
+
+    expect(screen.queryByTestId('changelog')).toBeNull()
+    expect(screen.getByText('page content')).toBeTruthy()
   })
 
   it('renders children regardless of session, so gating cannot blank the app', () => {
