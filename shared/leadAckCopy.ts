@@ -2,9 +2,6 @@
 
 export const LEAD_ACK_TEMPLATE_KEY = 'lead_ack_sms'
 
-export const LEAD_ACK_EMAIL_SUBJECT_KEY = 'lead_ack_email_subject'
-export const LEAD_ACK_EMAIL_HTML_KEY = 'lead_ack_email_html'
-
 export const LEAD_ACK_CALLBACK_WINDOW = 'within 2 business hours'
 
 export const LEAD_ACK_SMS_FALLBACK =

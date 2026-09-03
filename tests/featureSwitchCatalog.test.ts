@@ -36,12 +36,9 @@ describe('featureSwitchCatalog categories', () => {
       'inbound_messenger',
       'inbound_facebook_ads',
       'customer_linking',
-      'customer_import',
     ])
     expect(FEATURE_SWITCHES_BY_CATEGORY.customer_communication).toEqual([
-      'missed_call_hookback_sms',
       'lead_ack_sms',
-      'lead_ack_email',
       'customer_ontheway_sms',
       'booking_confirm',
       'booking_reminder_sms',
@@ -54,7 +51,6 @@ describe('featureSwitchCatalog categories', () => {
       'inbound_auto_assign',
       'assignment_exclusions',
       'tech_location',
-      'internal_messaging',
       'customer_profiles',
       'onboarding_tips',
       'native_web_push',
@@ -64,12 +60,8 @@ describe('featureSwitchCatalog categories', () => {
       'quote_esign',
       'completion_upsells',
       'one_tap_invoice',
-      'invoice_chase',
-      'quote_chase',
-      'price_list',
       'invoice_card_payments',
       'accounting_export',
-      'xero_live_sync',
     ])
   })
 })

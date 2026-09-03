@@ -16,7 +16,7 @@ import {
 
 /**
  * Deliberately small. Each message is an IMAP download + storage upload + Whisper +
- * GPT extraction + lead insert + hookback SMS, against a 60s Hobby function ceiling.
+ * GPT extraction + lead insert, against a 60s Hobby function ceiling.
  * The 5-minute cron cadence drains any backlog instead.
  */
 const BATCH_SIZE = 2

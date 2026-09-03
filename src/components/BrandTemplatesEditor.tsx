@@ -3,12 +3,9 @@ import { ChevronDown, ChevronRight, RotateCcw, Save } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import {
   EDITABLE_SMS_TEMPLATE_KEYS,
-  LEAD_ACK_EMAIL_HTML_KEY,
-  LEAD_ACK_EMAIL_SUBJECT_KEY,
   QUOTE_EMAIL_TEMPLATE_KEY_HTML,
   QUOTE_EMAIL_TEMPLATE_KEY_SUBJECT,
   SMS_TEMPLATE_META,
-  buildLeadAckEmailPreview,
   buildQuoteEmailPreview,
   buildSmsTemplatePreview,
   getDefaultEmailTemplates,
@@ -28,13 +25,6 @@ const QUOTE_PLACEHOLDER_HINTS = [
   '{{termsBlock}}',
   '{{senderBlock}}',
   '{{primaryColor}}',
-]
-
-const LEAD_ACK_EMAIL_PLACEHOLDERS = [
-  '{{org.name}}',
-  '{{customerName}}',
-  '{{callbackWindow}}',
-  '{{orgPhoneBlock}}',
 ]
 
 interface BrandTemplatesEditorProps {
@@ -78,17 +68,10 @@ export default function BrandTemplatesEditor({
   const [html, setHtml] = useState(
     () => emailTemplates[QUOTE_EMAIL_TEMPLATE_KEY_HTML] ?? emailDefaults[QUOTE_EMAIL_TEMPLATE_KEY_HTML]
   )
-  const [ackEmailSubject, setAckEmailSubject] = useState(
-    () => emailTemplates[LEAD_ACK_EMAIL_SUBJECT_KEY] ?? emailDefaults[LEAD_ACK_EMAIL_SUBJECT_KEY]
-  )
-  const [ackEmailHtml, setAckEmailHtml] = useState(
-    () => emailTemplates[LEAD_ACK_EMAIL_HTML_KEY] ?? emailDefaults[LEAD_ACK_EMAIL_HTML_KEY]
-  )
   const [smsDraft, setSmsDraft] = useState(() => initialSmsState(smsTemplates, brandName))
   const [savingEmail, setSavingEmail] = useState(false)
   const [savingSms, setSavingSms] = useState(false)
   const [showQuotePreview, setShowQuotePreview] = useState(false)
-  const [showAckEmailPreview, setShowAckEmailPreview] = useState(false)
   const [previewSmsKey, setPreviewSmsKey] = useState<EditableSmsTemplateKey | null>(null)
 
   const quotePreview = useMemo(
@@ -96,28 +79,20 @@ export default function BrandTemplatesEditor({
     [subject, html, primaryColor]
   )
 
-  const ackEmailPreview = useMemo(
-    () => buildLeadAckEmailPreview(ackEmailSubject, ackEmailHtml, brandName),
-    [ackEmailSubject, ackEmailHtml, brandName]
-  )
 
   const isQuoteCustom =
     subject !== emailDefaults[QUOTE_EMAIL_TEMPLATE_KEY_SUBJECT] ||
     html !== emailDefaults[QUOTE_EMAIL_TEMPLATE_KEY_HTML]
-
-  const isAckEmailCustom =
-    ackEmailSubject !== emailDefaults[LEAD_ACK_EMAIL_SUBJECT_KEY] ||
-    ackEmailHtml !== emailDefaults[LEAD_ACK_EMAIL_HTML_KEY]
 
   const isSmsCustom = isSmsTemplatesCustom(
     Object.fromEntries(EDITABLE_SMS_TEMPLATE_KEYS.map((key) => [key, smsDraft[key]])),
     brandName
   )
 
-  const isCustom = isQuoteCustom || isAckEmailCustom || isSmsCustom
+  const isCustom = isQuoteCustom || isSmsCustom
 
   async function handleSaveEmail() {
-    if (!subject.trim() || !html.trim() || !ackEmailSubject.trim() || !ackEmailHtml.trim()) {
+    if (!subject.trim() || !html.trim()) {
       onError('All email template fields are required.')
       return
     }
@@ -126,8 +101,6 @@ export default function BrandTemplatesEditor({
       ...emailTemplates,
       [QUOTE_EMAIL_TEMPLATE_KEY_SUBJECT]: subject.trim(),
       [QUOTE_EMAIL_TEMPLATE_KEY_HTML]: html.trim(),
-      [LEAD_ACK_EMAIL_SUBJECT_KEY]: ackEmailSubject.trim(),
-      [LEAD_ACK_EMAIL_HTML_KEY]: ackEmailHtml.trim(),
     }
     const { error } = await supabase.from('brands').update({ email_templates: merged }).eq('id', brandId)
     setSavingEmail(false)
@@ -158,11 +131,6 @@ export default function BrandTemplatesEditor({
   function handleResetQuote() {
     setSubject(emailDefaults[QUOTE_EMAIL_TEMPLATE_KEY_SUBJECT])
     setHtml(emailDefaults[QUOTE_EMAIL_TEMPLATE_KEY_HTML])
-  }
-
-  function handleResetAckEmail() {
-    setAckEmailSubject(emailDefaults[LEAD_ACK_EMAIL_SUBJECT_KEY])
-    setAckEmailHtml(emailDefaults[LEAD_ACK_EMAIL_HTML_KEY])
   }
 
   function handleResetSms(key: EditableSmsTemplateKey) {
@@ -249,6 +217,14 @@ export default function BrandTemplatesEditor({
               >
                 <RotateCcw size={12} /> Reset quote email
               </button>
+              <button
+                type="button"
+                onClick={handleSaveEmail}
+                disabled={savingEmail}
+                className="btn-primary text-xs px-3 py-1.5 rounded-lg font-semibold inline-flex items-center gap-1 disabled:opacity-50"
+              >
+                <Save size={12} /> {savingEmail ? 'Saving…' : 'Save email templates'}
+              </button>
             </div>
             {showQuotePreview && (
               <div className="rounded-xl border border-gray-200 overflow-hidden bg-white">
@@ -260,77 +236,6 @@ export default function BrandTemplatesEditor({
                   srcDoc={quotePreview.html}
                   sandbox=""
                   className="w-full min-h-[240px] border-0 bg-white"
-                />
-              </div>
-            )}
-          </section>
-
-          {/* Lead ack email */}
-          <section className="space-y-4 border-t border-gray-100 pt-6">
-            <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wide">Lead acknowledgement email</h4>
-            <p className="text-xs text-gray-500">
-              Sent for email-only inbound leads when Lead Acknowledgement Email is enabled. Set your SLA in{' '}
-              <code className="text-[10px]">{'{{callbackWindow}}'}</code> or write it directly in the body.
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {LEAD_ACK_EMAIL_PLACEHOLDERS.map((token) => (
-                <code key={token} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
-                  {token}
-                </code>
-              ))}
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Subject line</label>
-              <input
-                value={ackEmailSubject}
-                onChange={(e) => setAckEmailSubject(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">HTML body</label>
-              <textarea
-                value={ackEmailHtml}
-                onChange={(e) => setAckEmailHtml(e.target.value)}
-                rows={8}
-                spellCheck={false}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs font-mono leading-relaxed"
-              />
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowAckEmailPreview((v) => !v)}
-                className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50"
-              >
-                {showAckEmailPreview ? 'Hide preview' : 'Preview ack email'}
-              </button>
-              <button
-                type="button"
-                onClick={handleResetAckEmail}
-                className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 inline-flex items-center gap-1"
-              >
-                <RotateCcw size={12} /> Reset ack email
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveEmail}
-                disabled={savingEmail}
-                className="btn-primary text-xs px-3 py-1.5 rounded-lg font-semibold inline-flex items-center gap-1 disabled:opacity-50"
-              >
-                <Save size={12} /> {savingEmail ? 'Saving…' : 'Save email templates'}
-              </button>
-            </div>
-            {showAckEmailPreview && (
-              <div className="rounded-xl border border-gray-200 overflow-hidden bg-white">
-                <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 text-xs text-gray-600">
-                  <span className="font-semibold text-gray-700">Subject:</span> {ackEmailPreview.subject}
-                </div>
-                <iframe
-                  title={`Ack email preview — ${brandName}`}
-                  srcDoc={ackEmailPreview.html}
-                  sandbox=""
-                  className="w-full min-h-[200px] border-0 bg-white"
                 />
               </div>
             )}

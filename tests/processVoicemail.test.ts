@@ -272,7 +272,6 @@ describe('processVoicemail', () => {
     mockProcessInboundLead.mockResolvedValue({
       leadId: 'lead-1',
       savedLead: { id: 'lead-1', name: 'Jane' },
-      hookbackSent: true,
     })
     vi.stubGlobal(
       'fetch',

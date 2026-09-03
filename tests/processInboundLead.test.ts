@@ -8,13 +8,7 @@ vi.mock('../api/_lib/leadAckSms.js', () => ({
   sendLeadAckSmsIfEnabled: vi.fn(),
 }))
 
-vi.mock('../api/_lib/leadAckEmail.js', () => ({
-  sendLeadAckEmailIfEnabled: vi.fn(),
-}))
 
-vi.mock('../api/_lib/missedCallHookbackSms.js', () => ({
-  sendMissedCallHookbackIfEnabled: vi.fn().mockResolvedValue(true),
-}))
 
 // Unmocked, these two reach the network. `api/_lib/loadLocalEnv.ts` loads `.env.local`
 // into process.env at import time, so on a developer machine `getSupabaseAdmin()` returns
@@ -50,8 +44,6 @@ vi.mock('../api/_lib/workflowRun.js', () => ({
 import { processInboundLead } from '../api/_lib/processInboundLead'
 import { notifyManagersNewLead } from '../api/_lib/notifyManagersNewLead'
 import { sendLeadAckSmsIfEnabled } from '../api/_lib/leadAckSms'
-import { sendLeadAckEmailIfEnabled } from '../api/_lib/leadAckEmail'
-import { sendMissedCallHookbackIfEnabled } from '../api/_lib/missedCallHookbackSms'
 import { startWorkflowRun } from '../api/_lib/workflowRun'
 import * as rawFirstLead from '../api/_lib/rawFirstLead'
 
@@ -121,10 +113,9 @@ describe('processInboundLead', () => {
     expect(leadsUpdate).toHaveBeenCalledWith({ extraction_status: 'succeeded' })
     expect(notifyManagersNewLead).toHaveBeenCalled()
     expect(sendLeadAckSmsIfEnabled).toHaveBeenCalled()
-    expect(sendMissedCallHookbackIfEnabled).not.toHaveBeenCalled()
   })
 
-  it('skips extraction and sends hookback for missed-call style input', async () => {
+  it('skips extraction for missed-call style input', async () => {
     const leadEventsInsert = vi.fn().mockResolvedValue({})
     const leadsUpdate = vi.fn().mockReturnValue({
       eq: vi.fn().mockResolvedValue({ error: null }),
@@ -158,20 +149,12 @@ describe('processInboundLead', () => {
         service_type: 'Other',
         status: 'unassigned',
       }),
-      followUp: {
-        type: 'hookback',
-        source: '3cx_missed_call',
-        resolvePhone: () => '+61411111111',
-        resolveCustomerName: () => 'there',
-      },
       logLabel: 'missed call',
     })
 
     expect(result.leadId).toBe('lead-2')
-    expect(result.hookbackSent).toBe(true)
     expect(updateSpy).not.toHaveBeenCalled()
     expect(leadsUpdate).toHaveBeenCalledWith({ extraction_status: 'skipped' })
-    expect(sendMissedCallHookbackIfEnabled).toHaveBeenCalled()
     expect(sendLeadAckSmsIfEnabled).not.toHaveBeenCalled()
   })
 
@@ -242,7 +225,6 @@ describe('processInboundLead', () => {
     const supabase = { from } as unknown as Parameters<typeof processInboundLead>[0]['supabase']
 
     vi.spyOn(rawFirstLead, 'updateLeadFromExtraction').mockResolvedValue()
-    vi.mocked(sendLeadAckEmailIfEnabled).mockResolvedValue(true)
 
     await processInboundLead({
       supabase,
@@ -262,20 +244,11 @@ describe('processInboundLead', () => {
         type: 'ack',
         source: 'email',
         resolvePhone: () => null,
-        resolveEmail: () => 'pat@example.com',
         resolveCustomerName: () => 'Pat',
       },
       logLabel: 'inbound email',
     })
 
     expect(sendLeadAckSmsIfEnabled).not.toHaveBeenCalled()
-    expect(sendLeadAckEmailIfEnabled).toHaveBeenCalledWith(
-      expect.objectContaining({
-        orgId: 'org-1',
-        leadId: 'lead-3',
-        toEmail: 'pat@example.com',
-        source: 'email',
-      })
-    )
   })
 })

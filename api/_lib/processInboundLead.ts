@@ -2,8 +2,6 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ExtractionStatus } from './extractLead.js'
 import { notifyManagersNewLead } from './notifyManagersNewLead.js'
 import { sendLeadAckSmsIfEnabled } from './leadAckSms.js'
-import { sendLeadAckEmailIfEnabled } from './leadAckEmail.js'
-import { sendMissedCallHookbackIfEnabled } from './missedCallHookbackSms.js'
 import {
   pickExtractedFields,
   updateLeadFromExtraction,
@@ -61,12 +59,10 @@ export type ProcessInboundLeadExtractFn = (
 ) => Promise<ProcessInboundLeadExtractionResult | null | void>
 
 export interface ProcessInboundLeadFollowUp {
-  type: 'ack' | 'hookback'
+  type: 'ack'
   source: string
   resolvePhone: (ctx: ProcessInboundLeadContext) => string | null | undefined
   resolveCustomerName: (ctx: ProcessInboundLeadContext) => string
-  /** Used for email ack when no phone is available (ack type only). */
-  resolveEmail?: (ctx: ProcessInboundLeadContext) => string | null | undefined
 }
 
 export interface ProcessInboundLeadContext {
@@ -115,13 +111,12 @@ export interface ProcessInboundLeadInput {
 export interface ProcessInboundLeadResult {
   leadId: string
   savedLead: SavedLeadRow | null
-  hookbackSent?: boolean
   partial?: boolean
 }
 
 /**
  * Shared inbound lead pipeline: insert → created event → extraction/update →
- * fetch saved lead → notify managers → ack or hookback SMS.
+ * fetch saved lead → notify managers → lead acknowledgement SMS.
  */
 export async function processInboundLead(
   input: ProcessInboundLeadInput
@@ -174,7 +169,6 @@ export async function processInboundLead(
 
   let extraction: ProcessInboundLeadExtractionResult | null = null
   let savedLead: SavedLeadRow | null = null
-  let hookbackSent = false
   let partial = false
 
   try {
@@ -372,25 +366,13 @@ export async function processInboundLead(
       const toPhone = followUp.resolvePhone(ctx)
       if (toPhone) {
         try {
-          let sent = false
-          if (followUp.type === 'ack') {
-            sent = await sendLeadAckSmsIfEnabled({
-              orgId,
-              leadId,
-              toPhone,
-              customerName: followUp.resolveCustomerName(ctx),
-              source: followUp.source as 'sms' | 'email',
-            })
-          } else {
-            hookbackSent = await sendMissedCallHookbackIfEnabled({
-              orgId,
-              leadId,
-              toPhone,
-              customerName: followUp.resolveCustomerName(ctx),
-              source: followUp.source as 'phone' | '3cx_missed_call' | 'voicemail_email',
-            })
-            sent = hookbackSent
-          }
+          const sent = await sendLeadAckSmsIfEnabled({
+            orgId,
+            leadId,
+            toPhone,
+            customerName: followUp.resolveCustomerName(ctx),
+            source: followUp.source as 'sms' | 'email',
+          })
           await recorder.step('follow_up_sms', 'succeeded', {
             output: { type: followUp.type, channel: 'sms', sent },
           })
@@ -401,31 +383,6 @@ export async function processInboundLead(
             output: { type: followUp.type, channel: 'sms', sent: false },
           })
           partial = true
-        }
-      } else if (followUp.type === 'ack' && followUp.resolveEmail) {
-        const toEmail = followUp.resolveEmail(ctx)
-        if (toEmail) {
-          try {
-            const sent = await sendLeadAckEmailIfEnabled({
-              orgId,
-              leadId,
-              toEmail,
-              customerName: followUp.resolveCustomerName(ctx),
-              source: followUp.source,
-            })
-            await recorder.step('follow_up_sms', 'succeeded', {
-              output: { type: followUp.type, channel: 'email', sent },
-            })
-          } catch (followUpErr) {
-            console.error(`${logLabel} follow-up email ack failed:`, followUpErr)
-            await recorder.step('follow_up_sms', 'failed', {
-              error: followUpErr,
-              output: { type: followUp.type, channel: 'email', sent: false },
-            })
-            partial = true
-          }
-        } else {
-          await recorder.step('follow_up_sms', 'skipped')
         }
       } else {
         await recorder.step('follow_up_sms', 'skipped')
@@ -442,5 +399,5 @@ export async function processInboundLead(
     }
   }
 
-  return { leadId, savedLead, hookbackSent, partial: partial || undefined }
+  return { leadId, savedLead, partial: partial || undefined }
 }

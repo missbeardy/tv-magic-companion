@@ -15,24 +15,6 @@ export const WORKFLOWS = {
       { id: 'follow_up_sms', label: 'Ack / hookback SMS' },
     ],
   },
-  invoice_chase: {
-    label: 'Invoice Chase',
-    steps: [
-      { id: 'load_invoice', label: 'Load overdue invoice' },
-      { id: 'policy_check', label: 'Chase policy check' },
-      { id: 'send_reminder', label: 'Send reminder (SMS/email)' },
-      { id: 'record_chase', label: 'Record chase on invoice' },
-    ],
-  },
-  quote_chase: {
-    label: 'Quote Follow-Up',
-    steps: [
-      { id: 'load_quote', label: 'Load sent quote' },
-      { id: 'policy_check', label: 'Follow-up policy check' },
-      { id: 'send_follow_up', label: 'Send follow-up (SMS/email)' },
-      { id: 'record_follow_up', label: 'Record follow-up on quote' },
-    ],
-  },
   booking_reminder: {
     label: 'Booking Reminder',
     steps: [
@@ -51,16 +33,6 @@ export type InboundLeadStepId = (typeof WORKFLOWS.inbound_lead.steps)[number]['i
 /** Step ids recorded by processInboundLead — used for registry conformance tests. */
 export const INBOUND_LEAD_STEP_IDS: readonly InboundLeadStepId[] =
   WORKFLOWS.inbound_lead.steps.map((s) => s.id)
-
-export type InvoiceChaseStepId = (typeof WORKFLOWS.invoice_chase.steps)[number]['id']
-
-export const INVOICE_CHASE_STEP_IDS: readonly InvoiceChaseStepId[] =
-  WORKFLOWS.invoice_chase.steps.map((s) => s.id)
-
-export type QuoteChaseStepId = (typeof WORKFLOWS.quote_chase.steps)[number]['id']
-
-export const QUOTE_CHASE_STEP_IDS: readonly QuoteChaseStepId[] =
-  WORKFLOWS.quote_chase.steps.map((s) => s.id)
 
 export type BookingReminderStepId = (typeof WORKFLOWS.booking_reminder.steps)[number]['id']
 

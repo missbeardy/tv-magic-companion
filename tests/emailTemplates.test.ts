@@ -1,11 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   buildQuoteEmailFromBrand,
-  buildLeadAckEmailFromBrand,
   buildInvoiceEmailFromOrg,
   escapeHtml,
   getDefaultQuoteEmailTemplates,
-  getDefaultLeadAckEmailTemplates,
   getDefaultInvoiceEmailTemplates,
   nl2brHtml,
   resolveEmailTemplateValue,
@@ -97,16 +95,6 @@ describe('emailTemplates', () => {
     expect(subject).toBe('Franchise subject Westside')
   })
 
-  it('builds lead ack with org override', () => {
-    const { subject } = buildLeadAckEmailFromBrand(
-      getDefaultLeadAckEmailTemplates(),
-      { 'org.name': 'Ack Org', customerName: 'Pat', callbackWindow: 'soon', orgPhoneBlock: '' },
-      undefined,
-      { lead_ack_email_subject: 'Got it — {{org.name}}' }
-    )
-    expect(subject).toBe('Got it — Ack Org')
-  })
-
   it('builds invoice falling back to brand when org empty', () => {
     const { subject } = buildInvoiceEmailFromOrg(
       {},
@@ -145,9 +133,6 @@ describe('emailTemplateDocs', () => {
     expect(getDefaultEmailTemplateDoc('quote').subject).toBe(
       getDefaultQuoteEmailTemplates().customer_quote_request_subject
     )
-    expect(getDefaultEmailTemplateDoc('lead_ack').subject).toBe(
-      getDefaultLeadAckEmailTemplates().lead_ack_email_subject
-    )
     expect(getDefaultEmailTemplateDoc('invoice').subject).toBe(
       getDefaultInvoiceEmailTemplates().customer_invoice_subject
     )
@@ -164,7 +149,7 @@ describe('emailTemplateDocs', () => {
         buttonHref: '',
         showLogo: false,
       },
-      { templateId: 'lead_ack' }
+      { templateId: 'quote' }
     )
     expect(html).toContain('Hello &lt;b&gt;{{customerName}}&lt;/b&gt;')
   })

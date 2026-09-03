@@ -1,21 +1,13 @@
 import { Plus, X } from 'lucide-react'
 import type { LineItem } from '../lib/lineItems'
-import type { PriceListItem } from '../lib/priceList'
 
 interface Props {
   items: LineItem[]
   onChange: (items: LineItem[]) => void
-  priceListItems?: PriceListItem[]
-  onUseChip?: (item: PriceListItem) => void
   disabled?: boolean
 }
 
-export default function LineItemsEditor({ items, onChange, priceListItems, onUseChip, disabled }: Props) {
-  function addChip(item: PriceListItem) {
-    onChange([...items, { label: item.label, amount: item.amount }])
-    onUseChip?.(item)
-  }
-
+export default function LineItemsEditor({ items, onChange, disabled }: Props) {
   function addBlankLine() {
     onChange([...items, { label: '', amount: 0 }])
   }
@@ -30,21 +22,6 @@ export default function LineItemsEditor({ items, onChange, priceListItems, onUse
 
   return (
     <div className="space-y-2">
-      {priceListItems && priceListItems.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {priceListItems.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => addChip(item)}
-              disabled={disabled}
-              className="text-xs px-2.5 py-1.5 rounded-full border border-gray-200 hover:bg-gray-50 disabled:opacity-50"
-            >
-              {item.label} — ${item.amount.toFixed(2)}
-            </button>
-          ))}
-        </div>
-      )}
 
       {items.length > 0 && (
         <div className="space-y-1.5">

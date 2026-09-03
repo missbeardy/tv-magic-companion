@@ -183,7 +183,7 @@ export type VoicemailResult =
   | { outcome: 'already_processed'; dedupKey: string }
   | { outcome: 'enriched_existing'; leadId: string; extractionStatus: string }
   | { outcome: 'logged_to_existing'; leadId: string }
-  | { outcome: 'created'; leadId: string; hookbackSent?: boolean; partial?: boolean; transcriptionFailed: boolean }
+  | { outcome: 'created'; leadId: string; partial?: boolean; transcriptionFailed: boolean }
 
 interface VoicemailClaim {
   id: string
@@ -410,13 +410,6 @@ export async function processVoicemail(input: VoicemailInput): Promise<Voicemail
       service_type: savedLead?.service_type || 'General Enquiry',
       status: savedLead?.status || 'unassigned',
     }),
-    followUp: {
-      type: 'hookback',
-      source: 'voicemail_email',
-      resolvePhone: ({ savedLead }) =>
-        savedLead?.phone ? formatAuPhoneForSms(String(savedLead.phone)) : normalizedPhone,
-      resolveCustomerName: ({ savedLead }) => savedLead?.name || 'there',
-    },
     logLabel: 'voicemail email',
     run: {
       workflowKey: 'inbound_lead',
@@ -434,7 +427,6 @@ export async function processVoicemail(input: VoicemailInput): Promise<Voicemail
   return {
     outcome: 'created',
     leadId: result.leadId,
-    hookbackSent: result.hookbackSent,
     partial: result.partial,
     transcriptionFailed,
   }

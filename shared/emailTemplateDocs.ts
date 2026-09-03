@@ -1,6 +1,6 @@
 /** Simple franchise email templates — one body + optional CTA; system fields appended per type. */
 
-export type EmailTemplateId = 'quote' | 'lead_ack' | 'invoice'
+export type EmailTemplateId = 'quote' | 'invoice'
 
 /** Editable franchise email document (simple one-window model). */
 export interface EmailTemplateDoc {
@@ -35,11 +35,10 @@ interface LegacyEmailTemplateDoc {
 
 export type EmailTemplateDocsMap = Partial<Record<EmailTemplateId, EmailTemplateDoc>>
 
-export const EMAIL_TEMPLATE_IDS: EmailTemplateId[] = ['quote', 'lead_ack', 'invoice']
+export const EMAIL_TEMPLATE_IDS: EmailTemplateId[] = ['quote', 'invoice']
 
 export const EMAIL_TEMPLATE_LABELS: Record<EmailTemplateId, string> = {
   quote: 'Quote email',
-  lead_ack: 'Lead acknowledgement',
   invoice: 'Invoice email',
 }
 
@@ -50,10 +49,6 @@ export const EMAIL_TEMPLATE_STORAGE_KEYS: Record<
   quote: {
     subject: 'customer_quote_request_subject',
     html: 'customer_quote_request_html',
-  },
-  lead_ack: {
-    subject: 'lead_ack_email_subject',
-    html: 'lead_ack_email_html',
   },
   invoice: {
     subject: 'customer_invoice_subject',
@@ -70,7 +65,6 @@ export const EMAIL_TEMPLATE_PLACEHOLDERS: Record<EmailTemplateId, string[]> = {
     '{{totalAmount}}',
     '{{acceptanceUrl}}',
   ],
-  lead_ack: ['{{org.name}}', '{{customerName}}', '{{callbackWindow}}'],
   invoice: [
     '{{org.name}}',
     '{{customerName}}',
@@ -87,7 +81,6 @@ const TEMPLATE_FOOTER_HTML: Record<EmailTemplateId, string> = {
   quote: `{{gstLine}}
   <p><strong>Scope:</strong><br/>{{scopeHtml}}</p>
   {{termsBlock}}{{senderBlock}}`,
-  lead_ack: `{{orgPhoneBlock}}`,
   invoice: `{{abnLine}}
   {{gstLine}}
   {{lineItemsHtml}}
@@ -97,7 +90,6 @@ const TEMPLATE_FOOTER_HTML: Record<EmailTemplateId, string> = {
 
 const DEFAULT_BUTTON_HREF: Record<EmailTemplateId, string> = {
   quote: '{{acceptanceUrl}}',
-  lead_ack: '',
   invoice: '',
 }
 
@@ -189,20 +181,6 @@ export function getDefaultEmailTemplateDoc(id: EmailTemplateId): EmailTemplateDo
 Amount: {{totalAmount}}`,
         buttonLabel: 'Review & sign quote',
         buttonHref: '{{acceptanceUrl}}',
-        showLogo: true,
-      }
-    case 'lead_ack':
-      return {
-        version: 2,
-        subject: 'We received your enquiry — {{org.name}}',
-        heading: '',
-        body: `Hi {{customerName}},
-
-Thanks for contacting {{org.name}}. We've received your enquiry and will call you {{callbackWindow}}.
-
-— {{org.name}}`,
-        buttonLabel: '',
-        buttonHref: '',
         showLogo: true,
       }
     case 'invoice':

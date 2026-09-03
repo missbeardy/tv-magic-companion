@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import {
-  buildLeadAckEmailPreview,
   buildQuoteEmailPreview,
   buildSmsTemplatePreview,
   getDefaultEmailTemplates,
@@ -25,7 +24,7 @@ describe('buildQuoteEmailPreview', () => {
   })
 })
 
-describe('brand SMS and ack email previews', () => {
+describe('brand SMS and quote email previews', () => {
   it('builds lead ack SMS preview with callback SLA', () => {
     const defaults = getDefaultSmsTemplates('FieldBourne')
     const preview = buildSmsTemplatePreview('lead_ack_sms', defaults.lead_ack_sms, 'FieldBourne')
@@ -33,14 +32,4 @@ describe('brand SMS and ack email previews', () => {
     expect(preview).toContain('within 2 business hours')
   })
 
-  it('builds lead ack email preview', () => {
-    const defaults = getDefaultEmailTemplates()
-    const { subject, html } = buildLeadAckEmailPreview(
-      defaults.lead_ack_email_subject,
-      defaults.lead_ack_email_html,
-      'FieldBourne'
-    )
-    expect(subject).toContain('FieldBourne')
-    expect(html).toContain('within 2 business hours')
-  })
 })

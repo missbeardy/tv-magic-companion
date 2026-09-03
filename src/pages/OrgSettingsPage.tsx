@@ -7,11 +7,8 @@ import NavBar from '../components/NavBar';
 import UpsellSettingsPanel from '../components/settings/UpsellSettingsPanel';
 import EmailTemplatesPanel from '../components/settings/EmailTemplatesPanel';
 import SettingsAccordion from '../components/settings/SettingsAccordion';
-import PriceListSettingsPanel from '../components/settings/PriceListSettingsPanel';
 import AccountingExportPanel from '../components/settings/AccountingExportPanel';
-import XeroConnectPanel from '../components/settings/XeroConnectPanel';
 import StripeConnectPanel from '../components/settings/StripeConnectPanel';
-import CustomerImportPanel from '../components/CustomerImportPanel';
 import BillingPanel from '../components/BillingPanel';
 import { formatAbn, isValidAbnFormat } from '../../shared/gst';
 
@@ -416,19 +413,9 @@ export default function OrgSettingsPage() {
           <AccountingExportPanel orgId={orgId} />
         )}
 
-        {orgId && !featureSwitchesLoading && isFeatureEnabled('xero_live_sync') && (
-          <XeroConnectPanel />
-        )}
-
-        {orgId && !featureSwitchesLoading && isFeatureEnabled('price_list') && (
-          <PriceListSettingsPanel orgId={orgId} />
-        )}
-
         {orgId && !featureSwitchesLoading && isFeatureEnabled('invoice_card_payments') && (
           <StripeConnectPanel />
         )}
-
-        <CustomerImportPanel />
 
         <BillingPanel />
 

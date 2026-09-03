@@ -6,7 +6,6 @@ import type { ReviewRequestLead } from '../lib/reviewRequest'
 import { useOrg } from '../context/OrgContext'
 import { gstComponentOf } from '../../shared/gst'
 import { nonEmptyLineItems, sumLineItems, type LineItem } from '../lib/lineItems'
-import { fetchActivePriceListItems, recordPriceListItemUsage, type PriceListItem } from '../lib/priceList'
 import LineItemsEditor from './LineItemsEditor'
 
 interface Props {
@@ -21,12 +20,10 @@ interface Props {
 export default function InvoiceStep({ lead, onDone, onCancel }: Props) {
   const { org, isFeatureEnabled } = useOrg()
   const gstRegistered = org?.gst_registered !== false
-  const priceListEnabled = isFeatureEnabled('price_list')
   const [amount, setAmount] = useState('')
   const [customerEmail, setCustomerEmail] = useState(lead.email?.trim() ?? '')
   const [quoteId, setQuoteId] = useState<string | null>(null)
   const [lineItems, setLineItems] = useState<LineItem[]>([])
-  const [priceListItems, setPriceListItems] = useState<PriceListItem[]>([])
   const [pdfPath, setPdfPath] = useState<string | null>(null)
   const [pdfFileName, setPdfFileName] = useState<string | null>(null)
   const [loadingAmount, setLoadingAmount] = useState(true)
@@ -79,25 +76,8 @@ export default function InvoiceStep({ lead, onDone, onCancel }: Props) {
   }, [lead.id])
 
   useEffect(() => {
-    if (!priceListEnabled || !org?.id) return
-    let cancelled = false
-    fetchActivePriceListItems(org.id)
-      .then((items) => {
-        if (!cancelled) setPriceListItems(items)
-      })
-      .catch((err) => console.error('Failed to load price list:', err))
-    return () => {
-      cancelled = true
-    }
-  }, [priceListEnabled, org?.id])
-
-  useEffect(() => {
     if (lineItems.length > 0) setAmount(String(sumLineItems(lineItems)))
   }, [lineItems])
-
-  function handleUseChip(item: PriceListItem) {
-    recordPriceListItemUsage(item)
-  }
 
   async function handlePerJobPdfUpload(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -214,8 +194,6 @@ export default function InvoiceStep({ lead, onDone, onCancel }: Props) {
         <LineItemsEditor
           items={lineItems}
           onChange={setLineItems}
-          priceListItems={priceListEnabled ? priceListItems : undefined}
-          onUseChip={handleUseChip}
           disabled={sending}
         />
       </div>

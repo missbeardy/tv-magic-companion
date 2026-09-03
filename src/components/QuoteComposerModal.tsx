@@ -13,7 +13,6 @@ import { openDeviceSms } from '../lib/onTheWaySms'
 import { formatAuPhoneForSms } from '../lib/phone'
 import { gstComponentOf } from '../../shared/gst'
 import { nonEmptyLineItems, sumLineItems, type LineItem } from '../lib/lineItems'
-import { fetchActivePriceListItems, recordPriceListItemUsage, type PriceListItem } from '../lib/priceList'
 import LineItemsEditor from './LineItemsEditor'
 
 interface LeadLite {
@@ -38,13 +37,11 @@ export default function QuoteComposerModal({ lead, onClose, onSent }: Props) {
   const { profile } = useAuth()
   const { org, isFeatureEnabled } = useOrg()
   const gstRegistered = org?.gst_registered !== false
-  const priceListEnabled = isFeatureEnabled('price_list')
   const [scope, setScope] = useState(defaultScope(lead.service_type))
   const [terms, setTerms] = useState('Payment due on completion unless agreed otherwise.')
   const [totalAmount, setTotalAmount] = useState('180')
   const [expiryDays, setExpiryDays] = useState('7')
   const [lineItems, setLineItems] = useState<LineItem[]>([])
-  const [priceListItems, setPriceListItems] = useState<PriceListItem[]>([])
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [acceptanceUrl, setAcceptanceUrl] = useState('')
@@ -61,25 +58,8 @@ export default function QuoteComposerModal({ lead, onClose, onSent }: Props) {
   }
 
   useEffect(() => {
-    if (!priceListEnabled || !org?.id) return
-    let cancelled = false
-    fetchActivePriceListItems(org.id)
-      .then((items) => {
-        if (!cancelled) setPriceListItems(items)
-      })
-      .catch((err) => console.error('Failed to load price list:', err))
-    return () => {
-      cancelled = true
-    }
-  }, [priceListEnabled, org?.id])
-
-  useEffect(() => {
     if (lineItems.length > 0) setTotalAmount(String(sumLineItems(lineItems)))
   }, [lineItems])
-
-  function handleUseChip(item: PriceListItem) {
-    recordPriceListItemUsage(item)
-  }
 
   useEffect(() => {
     if (!profile?.id || draftRestoredRef.current) return
@@ -296,8 +276,6 @@ export default function QuoteComposerModal({ lead, onClose, onSent }: Props) {
                 <LineItemsEditor
                   items={lineItems}
                   onChange={setLineItems}
-                  priceListItems={priceListEnabled ? priceListItems : undefined}
-                  onUseChip={handleUseChip}
                 />
               </div>
 

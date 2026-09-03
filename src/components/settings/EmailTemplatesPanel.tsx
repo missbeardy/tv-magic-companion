@@ -13,7 +13,6 @@ import {
   type EmailTemplateId,
 } from '../../../shared/emailTemplateDocs'
 import {
-  LEAD_ACK_EMAIL_PREVIEW_VARS,
   QUOTE_EMAIL_PREVIEW_VARS,
 } from '../../lib/brandTemplates'
 import { INVOICE_EMAIL_PREVIEW_VARS } from '../../lib/invoiceTemplates'
@@ -31,7 +30,6 @@ interface Props {
 
 const PREVIEW_VARS: Record<EmailTemplateId, Record<string, string>> = {
   quote: { ...QUOTE_EMAIL_PREVIEW_VARS },
-  lead_ack: { ...LEAD_ACK_EMAIL_PREVIEW_VARS },
   invoice: { ...INVOICE_EMAIL_PREVIEW_VARS },
 }
 
@@ -46,7 +44,6 @@ export default function EmailTemplatesPanel({
   const [docs, setDocs] = useState<EmailTemplateDocsMap>({})
   const [drafts, setDrafts] = useState<Record<EmailTemplateId, EmailTemplateDoc>>({
     quote: getDefaultEmailTemplateDoc('quote'),
-    lead_ack: getDefaultEmailTemplateDoc('lead_ack'),
     invoice: getDefaultEmailTemplateDoc('invoice'),
   })
   const [paymentInstructions, setPaymentInstructions] = useState('')
@@ -79,7 +76,6 @@ export default function EmailTemplatesPanel({
       setDocs(loadedDocs)
       setDrafts({
         quote: loadedDocs.quote ?? getDefaultEmailTemplateDoc('quote'),
-        lead_ack: loadedDocs.lead_ack ?? getDefaultEmailTemplateDoc('lead_ack'),
         invoice: loadedDocs.invoice ?? getDefaultEmailTemplateDoc('invoice'),
       })
       setPaymentInstructions((data?.invoice_payment_instructions as string) ?? '')

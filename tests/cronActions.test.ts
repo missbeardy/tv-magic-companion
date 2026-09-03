@@ -7,12 +7,6 @@ vi.mock('../api/_lib/supabaseAdmin.js', () => ({
 vi.mock('../api/_lib/runContactFollowUpCron.js', () => ({
   runContactFollowUpCron: vi.fn(),
 }))
-vi.mock('../api/_lib/invoiceChase.js', () => ({
-  runInvoiceChaseSweep: vi.fn(),
-}))
-vi.mock('../api/_lib/quoteChase.js', () => ({
-  runQuoteChaseSweep: vi.fn(),
-}))
 vi.mock('../api/_lib/bookingReminder.js', () => ({
   runBookingReminderSweep: vi.fn(),
 }))
@@ -28,8 +22,6 @@ vi.mock('../api/_lib/rateLimit.js', () => ({
 
 import { getSupabaseAdmin } from '../api/_lib/supabaseAdmin'
 import { runContactFollowUpCron } from '../api/_lib/runContactFollowUpCron'
-import { runInvoiceChaseSweep } from '../api/_lib/invoiceChase'
-import { runQuoteChaseSweep } from '../api/_lib/quoteChase'
 import { runBookingReminderSweep } from '../api/_lib/bookingReminder'
 import { purgeOldWorkflowRuns } from '../api/_lib/workflowRun'
 import { purgeOldNotifications } from '../api/_lib/notificationRetention'
@@ -42,8 +34,6 @@ import {
 
 const mockAdmin = vi.mocked(getSupabaseAdmin)
 const mockFollowUp = vi.mocked(runContactFollowUpCron)
-const mockInvoice = vi.mocked(runInvoiceChaseSweep)
-const mockQuote = vi.mocked(runQuoteChaseSweep)
 const mockBooking = vi.mocked(runBookingReminderSweep)
 const mockWorkflowPurge = vi.mocked(purgeOldWorkflowRuns)
 const mockNotificationPurge = vi.mocked(purgeOldNotifications)
@@ -102,8 +92,6 @@ describe('cron action isolation', () => {
     process.env = { ...env, CRON_SECRET: 'test-secret' }
     vi.clearAllMocks()
     mockFollowUp.mockResolvedValue(followUpResult)
-    mockInvoice.mockResolvedValue(sweepResult)
-    mockQuote.mockResolvedValue(sweepResult)
     mockBooking.mockResolvedValue(sweepResult)
     mockWorkflowPurge.mockResolvedValue(purgeResult)
     mockNotificationPurge.mockResolvedValue(purgeResult)
@@ -150,8 +138,6 @@ describe('cron action isolation', () => {
     expect(res.statusCode).toBe(200)
     expect(res.body).toMatchObject({ ok: true, ...followUpResult })
     expect(mockFollowUp).toHaveBeenCalledTimes(1)
-    expect(mockInvoice).not.toHaveBeenCalled()
-    expect(mockQuote).not.toHaveBeenCalled()
     expect(mockBooking).not.toHaveBeenCalled()
     expect(mockWorkflowPurge).not.toHaveBeenCalled()
     expect(mockNotificationPurge).not.toHaveBeenCalled()
@@ -164,7 +150,7 @@ describe('cron action isolation', () => {
     )
   })
 
-  it('automation invokes exactly the three sweep dependencies', async () => {
+  it('automation invokes exactly the booking reminder sweep', async () => {
     const { upsert } = mockSupabase()
     const res = createRes()
     await handleAutomationSweepsCron(createReq('Bearer test-secret'), res)
@@ -172,12 +158,8 @@ describe('cron action isolation', () => {
     expect(res.statusCode).toBe(200)
     expect(res.body).toMatchObject({
       ok: true,
-      invoiceChase: sweepResult,
-      quoteChase: sweepResult,
       bookingReminder: sweepResult,
     })
-    expect(mockInvoice).toHaveBeenCalledTimes(1)
-    expect(mockQuote).toHaveBeenCalledTimes(1)
     expect(mockBooking).toHaveBeenCalledTimes(1)
     expect(mockFollowUp).not.toHaveBeenCalled()
     expect(mockWorkflowPurge).not.toHaveBeenCalled()
@@ -204,8 +186,6 @@ describe('cron action isolation', () => {
     expect(mockNotificationPurge).toHaveBeenCalledTimes(1)
     expect(mockRateLimitPurge).toHaveBeenCalledTimes(1)
     expect(mockFollowUp).not.toHaveBeenCalled()
-    expect(mockInvoice).not.toHaveBeenCalled()
-    expect(mockQuote).not.toHaveBeenCalled()
     expect(mockBooking).not.toHaveBeenCalled()
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({ cron_key: 'cron_maintenance' })
@@ -214,12 +194,12 @@ describe('cron action isolation', () => {
 
   it('a thrown dependency produces a failed result and does not write a success heartbeat', async () => {
     const { upsert } = mockSupabase()
-    mockInvoice.mockRejectedValue(new Error('invoice chase timed out'))
+    mockBooking.mockRejectedValue(new Error('booking reminder timed out'))
     const res = createRes()
     await handleAutomationSweepsCron(createReq('Bearer test-secret'), res)
 
     expect(res.statusCode).toBe(500)
-    expect(res.body).toMatchObject({ error: 'invoice chase timed out' })
+    expect(res.body).toMatchObject({ error: 'booking reminder timed out' })
     expect(upsert).not.toHaveBeenCalled()
   })
 })

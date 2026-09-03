@@ -3,8 +3,6 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseAdmin } from './supabaseAdmin.js'
 import { loadLocalEnvIfNeeded } from './loadLocalEnv.js'
 import { runContactFollowUpCron } from './runContactFollowUpCron.js'
-import { runInvoiceChaseSweep } from './invoiceChase.js'
-import { runQuoteChaseSweep } from './quoteChase.js'
 import { runBookingReminderSweep } from './bookingReminder.js'
 import { purgeOldWorkflowRuns } from './workflowRun.js'
 import { purgeOldNotifications } from './notificationRetention.js'
@@ -98,10 +96,8 @@ export async function handleContactFollowUpCron(req: VercelRequest, res: VercelR
 
 export async function handleAutomationSweepsCron(req: VercelRequest, res: VercelResponse) {
   return withCronAuth(req, res, 'automation-sweeps', async (supabase) => {
-    const invoiceChase = await runInvoiceChaseSweep(supabase)
-    const quoteChase = await runQuoteChaseSweep(supabase)
     const bookingReminder = await runBookingReminderSweep(supabase)
-    const result = { invoiceChase, quoteChase, bookingReminder }
+    const result = { bookingReminder }
     await upsertHeartbeat(supabase, CRON_KEYS.automationSweeps, result)
     return result
   })
