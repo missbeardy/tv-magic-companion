@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { waitUntil } from '@vercel/functions'
 import type { ExtractionStatus } from './extractLead.js'
 import { captureUnroutedInbound } from './captureUnroutedInbound.js'
 import { isFeatureEnabledForOrg } from './featureSwitches.js'
@@ -367,11 +368,17 @@ export type IngestFacebookLeadResult =
   | { skipped: true; reason: string; org?: string }
   | { error: string; status: number }
 
+export interface IngestFacebookLeadOptions {
+  /** Fires once the lead row exists, before extraction/notifications/ack SMS. */
+  onLeadInserted?: (leadId: string) => void
+}
+
 /** Shared insert path for Botpress HTTP and the native Meta Messenger bot. */
 export async function ingestParsedFacebookLead(
   supabase: SupabaseClient,
   data: FacebookLeadBody,
-  rawPayload: unknown
+  rawPayload: unknown,
+  options: IngestFacebookLeadOptions = {}
 ): Promise<IngestFacebookLeadResult> {
   const {
     org,
@@ -448,6 +455,7 @@ export async function ingestParsedFacebookLead(
     const result = await processInboundLead({
       supabase,
       orgId,
+      onLeadInserted: options.onLeadInserted,
       insertLead: () =>
         insertRawFirstLead(supabase, orgId, {
           org_id: orgId,
@@ -555,7 +563,36 @@ export async function handleInboundFacebookLead(
     return
   }
 
-  const result = await ingestParsedFacebookLead(supabase, parsed.data, req.body)
+  let releaseAck: (leadId: string) => void = () => {}
+  const inserted = new Promise<string>((resolve) => {
+    releaseAck = resolve
+  })
+
+  const work = ingestParsedFacebookLead(supabase, parsed.data, req.body, {
+    onLeadInserted: releaseAck,
+  })
+
+  // The full pipeline runs 18-26s in prod (Claude extraction, manager alerts, ack
+  // SMS). Botpress gives its tool call far less, so it was telling customers their
+  // enquiry had failed — and handing out the technician's number — on leads that had
+  // already saved and, in one case, been booked. Answer as soon as the row exists.
+  //
+  // The tail MUST go to waitUntil, not a bare promise: Vercel freezes the invocation
+  // when the response flushes, which silently dropped every inbound SMS for a day.
+  // See api/inbound-sms.ts.
+  waitUntil(work)
+
+  const settled = await Promise.race([
+    inserted.then((leadId) => ({ leadId })),
+    work.then((result) => ({ result })),
+  ])
+
+  if ('leadId' in settled) {
+    res.status(200).json({ success: true, lead_id: settled.leadId })
+    return
+  }
+
+  const result = settled.result
   if ('error' in result) {
     res.status(result.status).json({ error: result.error })
     return

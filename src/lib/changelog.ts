@@ -43,23 +43,16 @@ export function formatChangelogDate(date: string): string {
  * after Monday, set `weekStarts` to that Monday (use getCurrentReleaseWeekId()).
  */
 export const WEEKLY_CHANGELOG: WeeklyChangelog = {
-  weekStarts: '31-08-2026', // Monday — update on first push after each Monday
-  title: 'See it on your wall',
+  weekStarts: '14-09-2026', // Monday — update on first push after each Monday
+  title: 'Messenger leads stop telling customers they failed',
   items: [
-    'New public wall visualiser at /visualise: drag a TV onto a 3D room or a photo of your wall, with a sitting-height guide, then book a quote',
-    'Quotes from /visualise create a real lead and auto-assign a technician',
-    'Your wall is the default visualiser tab; 3D room uses real furniture models',
-    '/visualise stays in the browser instead of opening the installed FieldBourne app',
-    '/visualise on a phone now leads with the headline, the promise and the trust numbers before the wall',
-    'Every button on /visualise now meets WCAG AA contrast — the old cyan was unreadable in daylight',
-    'The visualiser tells you the TV can be dragged, and gives it a grab handle',
-    'Pick a TV size without leaving the wall, and set ceiling height from presets instead of a keypad',
-    'The 3D room loads about five times faster — 2.9 MB of textures down to 625 KB',
+    'Facebook Messenger enquiries are confirmed the moment the lead is saved, instead of after the alerts and ack SMS finish',
+    'The chat bot no longer apologises and hands out the technician’s number for leads that actually landed',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.193'
+export const APP_VERSION = '1.1.194'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

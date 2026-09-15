@@ -93,6 +93,12 @@ export interface ProcessInboundLeadInput {
   /** Channel-specific extraction; omit for missed-call (no AI step). */
   extract?: ProcessInboundLeadExtractFn
   /**
+   * Fires the moment the lead row exists, before the slow tail (extraction,
+   * notifications, ack SMS). Lets an HTTP caller answer a webhook that cannot
+   * wait for the full pipeline.
+   */
+  onLeadInserted?: (leadId: string) => void
+  /**
    * Columns to select after pipeline. Default includes the contact fields the
    * customer linker needs (phone/email/address). Callers that override this
    * MUST keep those columns for customer linking to work.
@@ -127,6 +133,7 @@ export async function processInboundLead(
     insertLead,
     createdEvent,
     extract,
+    onLeadInserted,
     selectColumns = 'name, service_type, status, phone, email, address',
     buildNotify,
     followUp,
@@ -165,6 +172,7 @@ export async function processInboundLead(
     throw insertErr
   }
 
+  onLeadInserted?.(leadId)
   await recorder.attachLead(leadId)
 
   let extraction: ProcessInboundLeadExtractionResult | null = null

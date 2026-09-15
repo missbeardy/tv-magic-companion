@@ -430,6 +430,35 @@ describe('handleInboundFacebookLead', () => {
     expect(res.body).toEqual({ success: true, lead_id: 'lead-existing', duplicate: true })
   })
 
+  it('answers as soon as the lead row exists, without waiting for the slow tail', async () => {
+    let finishPipeline: () => void = () => {}
+    const tail = new Promise<void>((resolve) => {
+      finishPipeline = resolve
+    })
+    mockProcessInboundLead.mockImplementation(async (input) => {
+      input.onLeadInserted?.('lead-fast')
+      await tail
+      return { leadId: 'lead-fast', savedLead: null }
+    })
+
+    const req = mockReq({
+      headers: { 'x-inbound-secret': 'test-inbound-secret' },
+      body: {
+        org: 'default',
+        name: 'Jane Doe',
+        phone: '0412 345 678',
+        conversation_id: 'conv_abc123',
+      },
+    })
+    const res = mockRes()
+
+    await handleInboundFacebookLead(req, res, mockSupabase({ id: 'org-1' }))
+
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toEqual({ success: true, lead_id: 'lead-fast' })
+    finishPipeline()
+  })
+
   it('does not treat a structured-bot payload as a duplicate lookup hit', async () => {
     const req = mockReq({
       headers: { 'x-inbound-secret': 'test-inbound-secret' },

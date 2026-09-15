@@ -102,6 +102,11 @@ Hardcode `org` to `default` for South Brisbane.
 
 ### Responses
 
+The endpoint answers as soon as the lead row exists (usually 1–6s); extraction, manager
+alerts and the ack SMS finish after the response. Do not set the Botpress tool's timeout
+below ~15s — before v1.1.194 the whole pipeline ran inline at 18–26s and the agent told
+customers their enquiry had failed on leads that had already saved.
+
 | Status | Body | Meaning |
 |--|--|--|
 | `200` | `{ "success": true, "lead_id": "uuid" }` | Lead created |
