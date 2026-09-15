@@ -52,18 +52,38 @@ flushes, which silently dropped every inbound SMS for a day
 ([inbound-sms-frozen-after-ack](done/inbound-sms-frozen-after-ack-2026-08-27.md)).
 The native Meta bot and the suburb-timeout cron pass no hook and still await in full.
 
-## Still open: the `wf-error` card
+## The `wf-error` card — cause confirmed, and it is not ours
 
-A second, different failure — `origin: workflow://wf-error/node/nd-58fca56e01/card/ins-2762f70004`,
-Botpress's generic *"Sorry, an error occurred"*. Seen 05-09 23:33:59 and twice on 06-09
-in `conv_01M1SZVSQMYNQJ9C0TRQKNER1D` after Andrew Burton's lead had already saved.
+`origin: workflow://wf-error/node/nd-58fca56e01/card/ins-2762f70004` is Botpress's generic
+*"Sorry, an error occurred"*. The card that actually throws is the Execute Code card
+`ins-cefc2248d6` in the **suburb-timeout branch** of the Botpress workflow:
 
-None of those three moments has a `workflow_run`, a lead, or an `unrouted_inbound` row —
-so the request either never arrived or was rejected at validation, both of which leave no
-trace. Leading theory: the agent re-fires the submit tool at "I'll make a note…" moments
-with no name/phone, and `parseFacebookLeadBody` returns a hard `400`, which throws the
-card. Needs the failing card's logged status from Botpress to confirm.
+```js
+if (!user.awaitingSuburb) {
+  throw new Error('Timeout: awaitingSuburb was ' + user.awaitingSuburb)
+}
+const name = String(user.pendingName || '').trim()
+const phone = String(user.pendingPhone || '').trim()
+```
 
-If confirmed, the fix is to return `200 { skipped: true, reason: 'incomplete' }` for a
-Messenger payload missing name/phone, so a mid-conversation tool call cannot hard-error at
-the customer. Honeypot and auth stay `400`/`401`.
+The 90s suburb timer fires regardless of what the customer did in the meantime. If they
+already answered — clearing `awaitingSuburb` — the guard trips and **throws**, which
+Botpress surfaces to the customer as the generic error. The author meant it as an early
+exit; an uncaught throw in an Execute Code card is customer-facing.
+
+This explains every trace-less occurrence: the throw happens *before* the lines that read
+name/phone and call our webhook, so no request is ever made — hence no `workflow_run`, no
+lead, no `unrouted_inbound` row. My earlier 400-from-`parseFacebookLeadBody` theory was
+wrong. **No app-side change is needed.**
+
+Fix belongs in Botpress Studio — invert the guard so the branch simply does nothing:
+
+```js
+if (user.awaitingSuburb) {
+  /* existing submit */
+}
+```
+
+Better still, put `user.awaitingSuburb === true` on the transition into the card so it
+never runs. Worth checking while in there: `conv_01M1SWY9PSHK8H0WKG43AAA1R5` threw this on
+06-09 00:08:57 and produced no lead until 14-09, so a real enquiry may have been dropped.
