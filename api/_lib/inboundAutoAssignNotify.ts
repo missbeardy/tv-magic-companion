@@ -91,6 +91,7 @@ export async function notifyInboundAutoAssign(input: InboundAutoAssignNotifyInpu
       toPhone: assignee.phone,
       smsBody,
       whatsAppMessage,
+      orgId,
     })
   } catch (err) {
     console.error('Inbound auto-assign WhatsApp failed (non-fatal):', err)

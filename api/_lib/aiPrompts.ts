@@ -20,7 +20,7 @@ export function buildLeadExtractionPrompt(input: LeadExtractionPromptInput): str
   "phone": "phone number or empty string",
   "email": "email address or empty string",
   "address": "full street address including suburb and postcode if present, or empty string",
-  "service_type": "one of: TV Aerial, Satellite Dish, Home Automation, CCTV, General Repair, Other",
+  "service_type": "type of service requested, or Other",
   "lead_source": "where the lead came from — one of: Website, Google, Facebook, Referral, Phone, Email, Unknown",
   "details": "brief summary of the job details or empty string"
 }

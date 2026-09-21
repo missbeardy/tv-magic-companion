@@ -63,6 +63,7 @@ export default function PlatformAdminPage() {
   const [orgs, setOrgs] = useState<OrgRow[]>([])
   const [featureCatalog, setFeatureCatalog] = useState<FeatureCatalogRow[]>([])
   const [brandSwitchRows, setBrandSwitchRows] = useState<Record<string, boolean>>({})
+  const [orgSwitchRows, setOrgSwitchRows] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -116,7 +117,7 @@ export default function PlatformAdminPage() {
       )
     }
 
-    const [catalogRes, brandSwitchRes] = await Promise.all([
+    const [catalogRes, brandSwitchRes, orgSwitchRes] = await Promise.all([
       supabase
         .from('feature_flag_catalog')
         .select('feature_key, label, description, default_enabled, min_tier, category')
@@ -124,6 +125,10 @@ export default function PlatformAdminPage() {
       supabase
         .from('brand_feature_switches')
         .select('brand_id, feature_key, enabled')
+        .in('feature_key', [...FEATURE_SWITCH_KEYS]),
+      supabase
+        .from('org_feature_switch_overrides')
+        .select('org_id, feature_key, enabled')
         .in('feature_key', [...FEATURE_SWITCH_KEYS]),
     ])
 
@@ -141,6 +146,7 @@ export default function PlatformAdminPage() {
         }))
       )
       setBrandSwitchRows({})
+      setOrgSwitchRows({})
     } else {
       const catalog = (catalogRes.data as FeatureCatalogRow[]) ?? []
       setFeatureCatalog(
@@ -163,6 +169,14 @@ export default function PlatformAdminPage() {
         brandMap[`${row.brand_id}:${row.feature_key}`] = row.enabled
       }
       setBrandSwitchRows(brandMap)
+
+      const orgMap: Record<string, boolean> = {}
+      if (!orgSwitchRes.error) {
+        for (const row of (orgSwitchRes.data ?? []) as Array<{ org_id: string; feature_key: string; enabled: boolean }>) {
+          orgMap[`${row.org_id}:${row.feature_key}`] = row.enabled
+        }
+      }
+      setOrgSwitchRows(orgMap)
     }
 
     setLoading(false)
@@ -252,23 +266,27 @@ export default function PlatformAdminPage() {
       const payload = buildBrandTransferPayload(brandFull)
 
       const orgSlug = newOrgSlug.trim().toLowerCase().replace(/\s+/g, '-')
-      const { error: insertError } = await supabase.from('orgs').insert({
-        name: newOrgName.trim(),
-        slug: orgSlug,
-        inbound_email_tag: orgSlug,
-        subscription_tier: newOrgTier,
-        operation_mode: newOrgOperationMode,
-        ...payload,
-      })
+      const { data: created, error: insertError } = await supabase
+        .from('orgs')
+        .insert({
+          name: newOrgName.trim(),
+          slug: orgSlug,
+          inbound_email_tag: orgSlug,
+          subscription_tier: newOrgTier,
+          operation_mode: newOrgOperationMode,
+          ...payload,
+        })
+        .select('id')
+        .single()
 
       if (insertError) throw insertError
 
-      if (applySoloPreset && newOrgBrandId) {
+      if (applySoloPreset && created?.id) {
         const headers = await getAuthHeaders()
         const presetRes = await fetch('/api/leads?action=apply-solo-preset', {
           method: 'POST',
           headers,
-          body: JSON.stringify({ brandId: newOrgBrandId }),
+          body: JSON.stringify({ orgId: created.id }),
         })
         if (!presetRes.ok) {
           const body = (await presetRes.json().catch(() => ({}))) as { error?: string }
@@ -341,6 +359,52 @@ export default function PlatformAdminPage() {
     } else {
       setBrandSwitchRows((prev) => ({ ...prev, [`${brandId}:${feature}`]: enabled }))
       setSuccess('Feature defaults updated.')
+    }
+    setSavingSwitchKey(null)
+  }
+
+  function orgOverrideValue(orgId: string, feature: FeatureSwitchKey): boolean | null {
+    const key = `${orgId}:${feature}`
+    if (key in orgSwitchRows) return orgSwitchRows[key]
+    return null
+  }
+
+  async function updateOrgOverride(orgId: string, feature: FeatureSwitchKey, value: 'inherit' | 'on' | 'off') {
+    setSavingSwitchKey(`org:${orgId}:${feature}`)
+    setSwitchesError('')
+    if (value === 'inherit') {
+      const { error: deleteError } = await supabase
+        .from('org_feature_switch_overrides')
+        .delete()
+        .eq('org_id', orgId)
+        .eq('feature_key', feature)
+      if (deleteError) {
+        setSwitchesError(deleteError.message)
+      } else {
+        setOrgSwitchRows((prev) => {
+          const next = { ...prev }
+          delete next[`${orgId}:${feature}`]
+          return next
+        })
+        setSuccess('Org switch set to inherit brand default.')
+      }
+    } else {
+      const { error: saveError } = await supabase.from('org_feature_switch_overrides').upsert(
+        {
+          org_id: orgId,
+          feature_key: feature,
+          enabled: value === 'on',
+          updated_by: profile?.id ?? null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'org_id,feature_key' }
+      )
+      if (saveError) {
+        setSwitchesError(saveError.message)
+      } else {
+        setOrgSwitchRows((prev) => ({ ...prev, [`${orgId}:${feature}`]: value === 'on' }))
+        setSuccess('Org switch override saved.')
+      }
     }
     setSavingSwitchKey(null)
   }
@@ -438,9 +502,8 @@ export default function PlatformAdminPage() {
 
         <PlatformAdminSection id="feature-switches" title="Feature switches" icon={ToggleLeft}>
           <p className="text-xs text-gray-500">
-            Tier features (Reports, AI parsing) turn on automatically when a franchise upgrades.
-            Feature switches below are manual rollout controls per brand — all franchises under a brand share the same
-            setting.
+            Feature switches are per brand by default. Select a franchisee to override one org with Inherit / On / Off.
+            Subscription tier is for billing display only.
           </p>
           {switchesError && (
             <div className="bg-amber-50 border border-amber-200 text-amber-700 text-xs p-3 rounded-xl">
@@ -458,6 +521,8 @@ export default function PlatformAdminPage() {
               catalogByKey={catalogByKey}
               brandSwitchValue={brandSwitchValue}
               onToggle={updateBrandSwitch}
+              orgOverrideValue={orgOverrideValue}
+              onOrgOverrideChange={updateOrgOverride}
               savingSwitchKey={savingSwitchKey}
               missingFeaturesForBrand={missingFeaturesForSelectedBrand}
               onBrandColorsUpdated={handleBrandColorsUpdated}

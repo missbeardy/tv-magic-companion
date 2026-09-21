@@ -7,8 +7,7 @@ interface Props {
   onSend: (text: string) => void
 }
 
-/** Free-text SMS composer. The technician types the message, then Send hands it
- *  to the device SMS app. */
+/** Free-text SMS composer. Send uses in-app SMS when two-way is on, otherwise the device SMS app. */
 export default function SmsComposeModal({ customerName, onCancel, onSend }: Props) {
   const [text, setText] = useState('')
   const trimmed = text.trim()

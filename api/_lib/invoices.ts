@@ -81,6 +81,13 @@ async function nextInvoiceNumber(orgId: string): Promise<string> {
   return `${prefix}${String(seq).padStart(4, '0')}`
 }
 
+/** True when a storage path is empty or lives under this org's folder. */
+export function invoicePdfPathBelongsToOrg(orgId: string, path: string | null | undefined): boolean {
+  const trimmed = path?.trim() ?? ''
+  if (!trimmed) return true
+  return trimmed.startsWith(`${orgId}/`)
+}
+
 async function downloadPdfAttachment(storagePath: string, filename: string): Promise<TransactionalEmailAttachment | null> {
   const supabase = getSupabaseAdmin()
   if (!supabase) return null
@@ -93,18 +100,31 @@ async function downloadPdfAttachment(storagePath: string, filename: string): Pro
   return { filename, content: buffer }
 }
 
-async function collectPdfAttachments(
+async function addPdfIfOwned(
+  orgId: string,
+  rawPath: string | null | undefined,
+  filename: string,
+  attachments: TransactionalEmailAttachment[]
+): Promise<void> {
+  const path = rawPath?.trim()
+  if (!path) return
+  if (!invoicePdfPathBelongsToOrg(orgId, path)) {
+    console.error('[INVOICE_PDF_PATH_REJECTED]', { orgId, path })
+    return
+  }
+  const pdf = await downloadPdfAttachment(path, filename)
+  if (pdf) attachments.push(pdf)
+}
+
+export async function collectPdfAttachments(
+  orgId: string,
   orgPdfTemplatePath: string | null | undefined,
   perJobPdfPath: string | null | undefined
 ): Promise<TransactionalEmailAttachment[]> {
   const attachments: TransactionalEmailAttachment[] = []
-  if (orgPdfTemplatePath?.trim()) {
-    const orgPdf = await downloadPdfAttachment(orgPdfTemplatePath.trim(), 'invoice-template.pdf')
-    if (orgPdf) attachments.push(orgPdf)
-  }
-  if (perJobPdfPath?.trim() && perJobPdfPath !== orgPdfTemplatePath?.trim()) {
-    const jobPdf = await downloadPdfAttachment(perJobPdfPath.trim(), 'invoice.pdf')
-    if (jobPdf) attachments.push(jobPdf)
+  await addPdfIfOwned(orgId, orgPdfTemplatePath, 'invoice-template.pdf', attachments)
+  if (perJobPdfPath?.trim() && perJobPdfPath.trim() !== orgPdfTemplatePath?.trim()) {
+    await addPdfIfOwned(orgId, perJobPdfPath, 'invoice.pdf', attachments)
   }
   return attachments
 }
@@ -203,7 +223,11 @@ export async function createAndSendInvoice(input: InvoiceSendInput) {
     input.brandEmailTemplates
   )
 
-  const attachments = await collectPdfAttachments(input.orgPdfTemplatePath, input.pdfStoragePath)
+  const attachments = await collectPdfAttachments(
+    input.orgId,
+    input.orgPdfTemplatePath,
+    input.pdfStoragePath
+  )
 
   const emailResult = await sendTransactionalEmail({
     to: customerEmail,

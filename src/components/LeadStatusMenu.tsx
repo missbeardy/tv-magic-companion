@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { runLeadUpdate } from '../lib/offlineWrites'
 import { showToast } from '../lib/toast'
+import { leadTransitionConflictMessage } from '../lib/leadTransition'
 import { sendNotification } from '../lib/notify'
 import { useAuth } from '../context/AuthContext'
 import { logLeadEvent } from '../lib/leadEvents'
@@ -137,8 +138,13 @@ export default function LeadStatusMenu({
       return false
     }
 
-    const writeResult = await runLeadUpdate(leadId, updatePayload)
+    const writeResult = await runLeadUpdate(leadId, updatePayload, fromStatus)
     if (!writeResult.ok) {
+      if (writeResult.conflict) {
+        showToast({ variant: 'error', message: leadTransitionConflictMessage(fromStatus) })
+        onUpdated()
+        return false
+      }
       showToast({
         variant: 'error',
         message: writeResult.network

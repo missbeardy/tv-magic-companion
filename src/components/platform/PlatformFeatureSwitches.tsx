@@ -43,6 +43,8 @@ interface Props {
   catalogByKey: Partial<Record<FeatureSwitchKey, CatalogRow>>
   brandSwitchValue: (brandId: string, feature: FeatureSwitchKey) => boolean
   onToggle: (brandId: string, feature: FeatureSwitchKey, enabled: boolean) => void
+  orgOverrideValue: (orgId: string, feature: FeatureSwitchKey) => boolean | null
+  onOrgOverrideChange: (orgId: string, feature: FeatureSwitchKey, value: 'inherit' | 'on' | 'off') => void
   savingSwitchKey: string | null
   missingFeaturesForBrand: FeatureSwitchKey[]
   onBrandColorsUpdated: (brandId: string, primaryColor: string, secondaryColor: string) => void
@@ -105,6 +107,8 @@ export default function PlatformFeatureSwitches({
   catalogByKey,
   brandSwitchValue,
   onToggle,
+  orgOverrideValue,
+  onOrgOverrideChange,
   savingSwitchKey,
   missingFeaturesForBrand,
   onBrandColorsUpdated,
@@ -164,7 +168,7 @@ export default function PlatformFeatureSwitches({
             ))}
           </select>
           <p className="text-[10px] text-gray-400 mt-1">
-            Pick a franchisee to jump to its brand — switches apply to the whole brand, not individual orgs.
+            Pick a franchisee to set Inherit / On / Off for that org. Brand default still applies when Inherit is selected.
           </p>
         </div>
       )}
@@ -273,7 +277,9 @@ export default function PlatformFeatureSwitches({
                   {features.map((feature) => {
                     const enabled = brandSwitchValue(selectedBrandId, feature)
                     const rowKey = `brand:${selectedBrandId}:${feature}`
-                    const isSaving = savingSwitchKey === rowKey
+                    const orgValue = selectedOrgId ? orgOverrideValue(selectedOrgId, feature) : null
+                    const orgRowKey = selectedOrgId ? `org:${selectedOrgId}:${feature}` : null
+                    const isSaving = savingSwitchKey === rowKey || (orgRowKey != null && savingSwitchKey === orgRowKey)
 
                     return (
                       <li
@@ -293,21 +299,46 @@ export default function PlatformFeatureSwitches({
                             {featureDescription(feature, catalogByKey)}
                           </p>
                         </div>
-                        <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-0.5">
-                          <input
-                            type="checkbox"
-                            className="sr-only peer"
-                            checked={enabled}
-                            disabled={isSaving}
-                            onChange={() => onToggle(selectedBrandId, feature, !enabled)}
-                          />
-                          <div
-                            className="relative w-11 h-6 rounded-full bg-gray-200 peer-checked:bg-emerald-500 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[var(--color-primary)]/30 peer-disabled:opacity-50 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"
-                          />
-                          <span className="sr-only">
-                            {isSaving ? 'Saving…' : enabled ? 'On' : 'Off'}
-                          </span>
-                        </label>
+                        <div className="flex flex-col items-end gap-2 shrink-0 mt-0.5">
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="sr-only peer"
+                              checked={enabled}
+                              disabled={isSaving}
+                              onChange={() => onToggle(selectedBrandId, feature, !enabled)}
+                            />
+                            <div
+                              className="relative w-11 h-6 rounded-full bg-gray-200 peer-checked:bg-emerald-500 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[var(--color-primary)]/30 peer-disabled:opacity-50 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"
+                            />
+                            <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                              Brand default
+                            </span>
+                          </label>
+                          {selectedOrgId && (
+                            <label className="flex items-center gap-2 text-xs text-gray-600">
+                              <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                                Org
+                              </span>
+                              <select
+                                value={orgValue === true ? 'on' : orgValue === false ? 'off' : 'inherit'}
+                                disabled={isSaving}
+                                onChange={(e) =>
+                                  onOrgOverrideChange(
+                                    selectedOrgId,
+                                    feature,
+                                    e.target.value as 'inherit' | 'on' | 'off'
+                                  )
+                                }
+                                className="border border-gray-200 rounded-md px-2 py-1 text-xs bg-white"
+                              >
+                                <option value="inherit">Inherit</option>
+                                <option value="on">On</option>
+                                <option value="off">Off</option>
+                              </select>
+                            </label>
+                          )}
+                        </div>
                       </li>
                     )
                   })}

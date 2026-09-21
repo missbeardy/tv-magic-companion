@@ -13,6 +13,7 @@ import {
 import BottomSheet from './BottomSheet'
 import CustomerHistorySheet from './CustomerHistorySheet'
 import SmsComposeModal from './SmsComposeModal'
+import LeadSmsThread from './LeadSmsThread'
 import LeadPhotos from './LeadPhotos'
 import LeadVoicemail from './LeadVoicemail'
 import { canAddLeadPhotos } from '../lib/leadPhotoStorage'
@@ -45,6 +46,8 @@ interface Props {
   onSharePhoto: (lead: KanbanLead) => void
   quoteEnabled: boolean
   smsEnabled: boolean
+  twoWaySmsEnabled?: boolean
+  smsSending?: boolean
   customerProfilesEnabled?: boolean
   hideAssignPool?: boolean
   onRefresh: () => void
@@ -91,6 +94,8 @@ export default function LeadDetailSheet({
   onSharePhoto,
   quoteEnabled,
   smsEnabled,
+  twoWaySmsEnabled = false,
+  smsSending = false,
   customerProfilesEnabled = false,
   hideAssignPool = false,
   onRefresh,
@@ -237,18 +242,21 @@ export default function LeadDetailSheet({
             lead={lead}
             orgId={profile.org_id}
             actorId={profile.id}
-            smsEnabled={smsEnabled}
+            smsEnabled={smsEnabled || twoWaySmsEnabled}
             onCall={() => onCall(lead)}
             onSms={() => setComposeOpen(true)}
             onSaved={onRefresh}
           />
         )}
 
-        {lead.last_manual_sms_text && (
-          <div className="rounded-lg bg-red-50 border border-red-100 p-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-red-600 mb-1">SMS sent</p>
-            <p className="text-sm text-gray-700 whitespace-pre-wrap">{lead.last_manual_sms_text}</p>
-          </div>
+        {profile?.org_id && (
+          <LeadSmsThread
+            leadId={lead.id}
+            orgId={profile.org_id}
+            twoWayEnabled={twoWaySmsEnabled}
+            sending={smsSending}
+            onSend={(text) => onSendManualSms(lead, text)}
+          />
         )}
 
         {profile?.org_id && (

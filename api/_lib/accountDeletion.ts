@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendEmployeeAlertToPhone } from './sendEmployeeAlert.js'
+import { OPERATIONAL_MANAGER_ROLES } from './managerRoles.js'
 
 /**
  * "Delete my account" scope — the deletion matrix, verified against the live schema 07-08-2026.
@@ -25,9 +26,25 @@ export async function deleteOwnAccount(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { data: profile } = await supabase
     .from('profiles')
-    .select('avatar_url')
+    .select('avatar_url, org_id, role')
     .eq('id', userId)
     .maybeSingle()
+
+  if (
+    profile?.org_id &&
+    OPERATIONAL_MANAGER_ROLES.includes(profile.role as (typeof OPERATIONAL_MANAGER_ROLES)[number])
+  ) {
+    const { count } = await supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('org_id', profile.org_id)
+      .in('role', [...OPERATIONAL_MANAGER_ROLES])
+      .is('deleted_at', null)
+      .neq('id', userId)
+    if (!count) {
+      return { ok: false, error: 'Cannot delete the last manager for this organisation.' }
+    }
+  }
 
   if (profile?.avatar_url) {
     const path = `${userId}/avatar.${profile.avatar_url.split('.').pop()?.split('?')[0] ?? 'png'}`

@@ -29,10 +29,20 @@ describe('feature switch resolution matrix', () => {
     ).toBe(false)
   })
 
-  it('requires tier and switch for effective access', () => {
+  it('requires switch on; tier no longer blocks', () => {
     const on = getDefaultFeatureSwitchState()
     on.quote_esign = true
     expect(canAccessFeatureSwitch('quote_esign', 'pro', on)).toBe(true)
-    expect(canAccessFeatureSwitch('quote_esign', 'basic', on)).toBe(false)
+    expect(canAccessFeatureSwitch('quote_esign', 'basic', on)).toBe(true)
+  })
+
+  it('org override wins over brand', () => {
+    expect(
+      resolveFeatureSwitchValue('two_way_sms', {
+        catalogDefault: false,
+        brandValue: true,
+        orgValue: false,
+      })
+    ).toBe(false)
   })
 })

@@ -3,6 +3,7 @@ import {
   extractFromEmail,
   extractFromSms,
   extractFromVoicemailTranscript,
+  loadOrgExtractionContext,
   type ExtractionRunResult,
 } from './extractLead.js'
 import {
@@ -13,6 +14,7 @@ import {
 } from './handleInboundFacebookLead.js'
 import { formatAuPhoneForSms } from './phone.js'
 import { setLeadExtractionStatus } from './processInboundLead.js'
+import { getSupabaseAdmin } from './supabaseAdmin.js'
 import {
   pickExtractedFields,
   updateLeadFromExtraction,
@@ -81,21 +83,24 @@ export async function runLeadExtractionRetry(
 ): Promise<ExtractionRunResult> {
   const source = lead.source ?? ''
 
+  const extractionOpts = await loadOrgExtractionContext(getSupabaseAdmin(), lead.org_id)
+
   if (source === 'sms' && lead.raw_sms) {
     const { body, from } = parseSmsRaw(lead.raw_sms)
     const fromNumber = from || lead.phone || ''
-    return extractFromSms(body, fromNumber)
+    return extractFromSms(body, fromNumber, extractionOpts)
   }
 
   if (source === 'email' && lead.raw_email) {
-    return extractFromEmail(lead.raw_email, 'Inbound email', lead.email || 'Unknown Sender')
+    return extractFromEmail(lead.raw_email, 'Inbound email', lead.email || 'Unknown Sender', extractionOpts)
   }
 
   if (source === 'phone' && lead.raw_email) {
     return extractFromVoicemailTranscript(
       lead.raw_email,
       'Voicemail',
-      lead.phone || 'Unknown'
+      lead.phone || 'Unknown',
+      extractionOpts
     )
   }
 
@@ -111,7 +116,8 @@ export async function runLeadExtractionRetry(
       normalizedPhone,
       fb.message,
       fb.email,
-      channel
+      channel,
+      extractionOpts
     )
     if (claude) {
       return { fields: claude, status: 'succeeded' }
@@ -122,7 +128,10 @@ export async function runLeadExtractionRetry(
         normalizedPhone,
         fb.message,
         fb.email,
-        fb.city
+        fb.city,
+        null,
+        null,
+        extractionOpts.serviceTypes
       ),
       status: 'fallback',
     }

@@ -133,6 +133,7 @@ export async function notifyManagersNewLead(
           toPhone: manager.phone,
           smsBody: message,
           whatsAppMessage: waMessage,
+          orgId: lead.org_id,
         })
         if (!result.sent) {
           console.error(`Failed to send manager alert to ${manager.phone}:`, result.error ?? result.skipped)

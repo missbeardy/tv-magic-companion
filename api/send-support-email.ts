@@ -2,6 +2,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { authenticateRequest } from './_lib/auth.js';
 import { escapeHtml, nl2brHtml } from './_lib/emailTemplates.js';
+import { getDefaultNoreplyEmail } from './_lib/platformUrl.js';
 import { withObservability } from './_lib/observability.js';
 import { checkRateLimit, rateLimitIdentifier } from './_lib/rateLimit.js';
 
@@ -90,12 +91,12 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       try {
         const { Resend } = await import('resend');
         const resend = new Resend(RESEND_API_KEY);
-        const FROM_EMAIL = process.env.EMAIL_FROM || 'noreply@tv-magic-companion.com';
+        const FROM_EMAIL = process.env.EMAIL_FROM || getDefaultNoreplyEmail();
         const { error } = await resend.emails.send({
           from: FROM_EMAIL,
           to: adminEmail,
           replyTo: userEmail,
-          subject: `[TVMagic Support] ${typeLabel}: ${cleanTitle}`,
+          subject: `[FieldBourne Support] ${typeLabel}: ${cleanTitle}`,
           html: htmlContent,
         });
         if (error) throw new Error(error.message);

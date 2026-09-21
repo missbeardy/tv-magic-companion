@@ -13,7 +13,6 @@ import {
 import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { supabase } from '../lib/supabase'
-import { asLeadUpdate } from '../lib/dbTypes'
 import { useAuth } from '../context/AuthContext'
 import { useOrg } from '../context/OrgContext'
 import NavBar from '../components/NavBar'
@@ -64,29 +63,19 @@ import OnboardingTip from '../components/OnboardingTip'
 import { enqueueContactAttempt } from '../lib/offlineQueue'
 import { completeLeadOrEnqueue, runLeadUpdate } from '../lib/offlineWrites'
 import { showToast } from '../lib/toast'
+import { leadTransitionConflictMessage } from '../lib/leadTransition'
 import { saveLeadsCache, loadLeadsCache } from '../lib/scheduleCache'
 import { loadCompletionDraft, clearCompletionDraft } from '../lib/completionDraft'
+import { getAuthHeaders } from '../lib/apiAuth'
+import {
+  fetchLeadBoardBadges,
+  LEADS_BOARD_LIMIT,
+  leadsBoardOrFilter,
+} from '../lib/leadsBoardQuery'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
 type Lead = KanbanLead
-
-interface LeadInvoiceSummary {
-  lead_id: string
-  id: string
-  status: string
-  invoice_number: string
-  created_at: string
-}
-
-interface LeadQuoteSummary {
-  lead_id: string
-  status: string
-  accepted_at: string | null
-  created_at: string
-  total_amount: number | null
-  scope: string | null
-}
 
 // ── Drag-and-drop: Droppable Column Wrapper (desktop only) ───────────────
 
@@ -236,6 +225,8 @@ export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [boardTruncated, setBoardTruncated] = useState(false)
+  const [smsSending, setSmsSending] = useState(false)
   const [staleSince, setStaleSince] = useState<number | null>(null)
   const [showAddLead, setShowAddLead] = useState(false)
   const [activeTip, setActiveTip] = useState<OnboardingTipDef | null>(null)
@@ -258,6 +249,7 @@ export default function LeadsPage() {
   const quoteFeatureEnabled = !featureSwitchesLoading && isFeatureEnabled('quote_esign')
   const reviewFeatureEnabled = !featureSwitchesLoading && isFeatureEnabled('review_requests')
   const onTheWayFeatureEnabled = !featureSwitchesLoading && isFeatureEnabled('customer_ontheway_sms')
+  const twoWaySmsEnabled = !featureSwitchesLoading && isFeatureEnabled('two_way_sms')
   const customerProfilesEnabled = !featureSwitchesLoading && isFeatureEnabled('customer_profiles')
 
   const fetchLeads = useCallback(async () => {
@@ -268,13 +260,14 @@ export default function LeadsPage() {
       .select('*, profiles!leads_assigned_to_fkey(full_name, avatar_url)')
       .eq('org_id', profile.org_id)
       .is('deleted_at', null)
+      .or(leadsBoardOrFilter())
       .order('created_at', { ascending: false })
 
     if (profile?.role === 'employee') {
       query = query.or(`status.eq.unassigned,assigned_to.eq.${profile.id}`)
     }
 
-    const { data, error } = await query
+    const { data, error } = await query.limit(LEADS_BOARD_LIMIT + 1)
     if (error) {
       console.error('fetchLeads failed:', error.message)
       // Fall back to the last good copy so today's jobs stay visible offline.
@@ -291,13 +284,16 @@ export default function LeadsPage() {
             : 'Could not load leads. Check your connection and try again.'
         )
       }
+      setBoardTruncated(false)
       setLoading(false)
       return
     }
     setFetchError(null)
     setStaleSince(null)
     if (data) {
-      const baseLeads = data as Lead[]
+      const truncated = data.length > LEADS_BOARD_LIMIT
+      setBoardTruncated(truncated)
+      const baseLeads = (truncated ? data.slice(0, LEADS_BOARD_LIMIT) : data) as Lead[]
       if (baseLeads.length === 0) {
         setLeads([])
         if (profile?.id) void saveLeadsCache(profile.id, [])
@@ -306,87 +302,24 @@ export default function LeadsPage() {
       }
 
       const leadIds = baseLeads.map((lead) => lead.id)
-      let quoteRows: LeadQuoteSummary[] = []
-      try {
-        const quotesRes = await supabase
-          .from('quotes')
-          .select('lead_id, status, accepted_at, created_at, total_amount, scope')
-          .in('lead_id', leadIds)
-          .order('created_at', { ascending: false })
-        if (!quotesRes.error && quotesRes.data) {
-          quoteRows = quotesRes.data as LeadQuoteSummary[]
-        } else if (quotesRes.error) {
-          console.warn('Quotes table unavailable or query failed; skipping quote card state.', quotesRes.error.message)
-        }
-      } catch (err) {
-        console.warn('Quotes fetch skipped due to runtime error:', err)
-      }
-
-      const latestQuoteByLead = new Map<string, LeadQuoteSummary>()
-      for (const row of quoteRows) {
-        if (!latestQuoteByLead.has(row.lead_id)) {
-          latestQuoteByLead.set(row.lead_id, row)
-        }
-      }
-
-      let invoiceRows: LeadInvoiceSummary[] = []
-      try {
-        const invoicesRes = await supabase
-          .from('invoices')
-          .select('lead_id, id, status, invoice_number, created_at')
-          .in('lead_id', leadIds)
-          .order('created_at', { ascending: false })
-        if (!invoicesRes.error && invoicesRes.data) {
-          invoiceRows = invoicesRes.data as LeadInvoiceSummary[]
-        } else if (invoicesRes.error) {
-          console.warn('Invoices table unavailable; skipping invoice card state.', invoicesRes.error.message)
-        }
-      } catch (err) {
-        console.warn('Invoices fetch skipped:', err)
-      }
-
-      const latestInvoiceByLead = new Map<string, LeadInvoiceSummary>()
-      for (const row of invoiceRows) {
-        if (!latestInvoiceByLead.has(row.lead_id)) {
-          latestInvoiceByLead.set(row.lead_id, row)
-        }
-      }
-
-      // Latest manually-composed SMS per lead (stored as a tagged sms_sent event).
-      const latestManualSmsByLead = new Map<string, { note: string | null; created_at: string }>()
-      try {
-        const smsRes = await supabase
-          .from('lead_events')
-          .select('lead_id, note, payload, created_at')
-          .in('lead_id', leadIds)
-          .eq('event_type', 'sms_sent')
-          .order('created_at', { ascending: false })
-        if (!smsRes.error && smsRes.data) {
-          for (const row of smsRes.data as { lead_id: string; note: string | null; payload: Record<string, unknown> | null; created_at: string }[]) {
-            if (row.payload?.manual === true && !latestManualSmsByLead.has(row.lead_id)) {
-              latestManualSmsByLead.set(row.lead_id, { note: row.note, created_at: row.created_at })
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('Manual SMS fetch skipped:', err)
-      }
+      const badges = await fetchLeadBoardBadges(supabase, profile.org_id, leadIds)
+      const badgeByLead = new Map(
+        badges.flatMap((row) => (row.lead_id ? [[row.lead_id, row] as const] : []))
+      )
 
       const merged = baseLeads.map((lead) => {
-        const latestQuote = latestQuoteByLead.get(lead.id)
-        const latestInvoice = latestInvoiceByLead.get(lead.id)
-        const manualSms = latestManualSmsByLead.get(lead.id)
+        const badge = badgeByLead.get(lead.id)
         return {
           ...lead,
-          latest_quote_status: latestQuote?.status ?? null,
-          latest_quote_accepted_at: latestQuote?.accepted_at ?? null,
-          latest_quote_total_amount: latestQuote?.total_amount ?? null,
-          latest_quote_scope: latestQuote?.scope ?? null,
-          latest_invoice_status: latestInvoice?.status ?? null,
-          latest_invoice_id: latestInvoice?.id ?? null,
-          latest_invoice_number: latestInvoice?.invoice_number ?? null,
-          last_manual_sms_text: manualSms?.note ?? null,
-          last_manual_sms_at: manualSms?.created_at ?? null,
+          latest_quote_status: badge?.latest_quote_status ?? null,
+          latest_quote_accepted_at: badge?.latest_quote_accepted_at ?? null,
+          latest_quote_total_amount: badge?.latest_quote_total_amount ?? null,
+          latest_quote_scope: badge?.latest_quote_scope ?? null,
+          latest_invoice_status: badge?.latest_invoice_status ?? null,
+          latest_invoice_id: badge?.latest_invoice_id ?? null,
+          latest_invoice_number: badge?.latest_invoice_number ?? null,
+          last_manual_sms_text: badge?.last_manual_sms_text ?? null,
+          last_manual_sms_at: badge?.last_manual_sms_at ?? null,
         }
       })
 
@@ -494,9 +427,12 @@ export default function LeadsPage() {
 
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ...updatePayload } : l))
 
-    const { error } = await supabase.from('leads').update(asLeadUpdate(updatePayload)).eq('id', leadId)
-    if (error) {
+    const writeResult = await runLeadUpdate(leadId, updatePayload, lead.status)
+    if (!writeResult.ok) {
       fetchLeads()
+      if (writeResult.conflict) {
+        showToast({ variant: 'error', message: leadTransitionConflictMessage(lead.status) })
+      }
     } else {
       if (shouldPoolPickup(lead.status, newStatus, profile?.id)) {
         await logPoolPickup(leadId, 'drag')
@@ -650,7 +586,7 @@ export default function LeadsPage() {
         `${lead.name} has had 5 contact attempts.\n\nMark as lost (unable to contact)?`
       )
       if (!confirmed) return
-      const lostRes = await runLeadUpdate(lead.id, attempt.update)
+      const lostRes = await runLeadUpdate(lead.id, attempt.update, lead.status)
       if (!lostRes.ok) {
         showToast({
           variant: 'error',
@@ -707,8 +643,13 @@ export default function LeadsPage() {
     // signal we queue the contact attempt (it re-applies on sync) rather than
     // letting the status change silently evaporate.
     void (async () => {
-      const res = await runLeadUpdate(lead.id, updatePayload)
+      const res = await runLeadUpdate(lead.id, updatePayload, lead.status)
       if (!res.ok) {
+        if (res.conflict) {
+          showToast({ variant: 'error', message: leadTransitionConflictMessage(lead.status) })
+          fetchLeads()
+          return
+        }
         if (res.network && profile?.id && profile.org_id) {
           await enqueueContactAttempt({
             leadId: lead.id,
@@ -747,7 +688,7 @@ export default function LeadsPage() {
           label: 'Undo',
           onClick: () => {
             void (async () => {
-              const undoRes = await runLeadUpdate(lead.id, undoSnapshot)
+              const undoRes = await runLeadUpdate(lead.id, undoSnapshot, toStatus)
               if (undoRes.ok) {
                 fetchLeads()
               } else {
@@ -808,7 +749,7 @@ export default function LeadsPage() {
         `${lead.name} has had 5 contact attempts.\n\nMark as lost (unable to contact)?`
       )
       if (!confirmed) return
-      const lostRes = await runLeadUpdate(lead.id, attempt.update)
+      const lostRes = await runLeadUpdate(lead.id, attempt.update, lead.status)
       if (!lostRes.ok) {
         showToast({
           variant: 'error',
@@ -857,8 +798,13 @@ export default function LeadsPage() {
         const updatePayload = poolPickup
           ? { ...attempt.update, ...buildPoolPickupUpdate(lead.status, toStatus, profile?.id) }
           : attempt.update
-        const res = await runLeadUpdate(lead.id, updatePayload)
+        const res = await runLeadUpdate(lead.id, updatePayload, lead.status)
         if (!res.ok) {
+          if (res.conflict) {
+            showToast({ variant: 'error', message: leadTransitionConflictMessage(lead.status) })
+            fetchLeads()
+            return
+          }
           if (res.network && profile?.id && profile.org_id) {
             await enqueueContactAttempt({
               leadId: lead.id,
@@ -916,13 +862,37 @@ export default function LeadsPage() {
     }
   }, [])
 
-  // Free-text SMS from the compose modal. Opens the device SMS app, records the
-  // text against the lead, and leaves the status untouched (stays assigned).
+  // Free-text SMS from the compose modal / thread. In-app when two_way_sms is on
+  // and online; otherwise open the device SMS app.
   const handleSendManualSms = useCallback(async (lead: Lead, text: string) => {
     const body = text.trim()
     if (!body) return
     if (!lead.phone?.trim()) {
       alert('No phone number saved for this lead.')
+      return
+    }
+
+    if (twoWaySmsEnabled && typeof navigator !== 'undefined' && navigator.onLine) {
+      setSmsSending(true)
+      try {
+        const headers = await getAuthHeaders()
+        const res = await fetch('/api/send-sms?action=sms-reply', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ leadId: lead.id, message: body }),
+        })
+        if (!res.ok) {
+          const payload = (await res.json().catch(() => ({}))) as { error?: string }
+          showToast({ variant: 'error', message: payload.error ?? 'Could not send SMS.' })
+          return
+        }
+        showToast({ variant: 'success', message: 'SMS sent' })
+        fetchLeads()
+      } catch {
+        showToast({ variant: 'error', message: 'Could not send SMS. Check your connection.' })
+      } finally {
+        setSmsSending(false)
+      }
       return
     }
 
@@ -941,7 +911,7 @@ export default function LeadsPage() {
       })
       fetchLeads()
     })()
-  }, [logLeadEvent, fetchLeads, closeSheet])
+  }, [logLeadEvent, fetchLeads, closeSheet, twoWaySmsEnabled])
 
   const handleUnassign = useCallback(async (lead: Lead) => {
     const confirmed = window.confirm(
@@ -956,8 +926,13 @@ export default function LeadsPage() {
       contact_attempt_round: 0,
       last_contact_attempted_at: null,
       lost_reason: null,
-    })
+    }, lead.status)
     if (!res.ok) {
+      if (res.conflict) {
+        showToast({ variant: 'error', message: leadTransitionConflictMessage(lead.status) })
+        fetchLeads()
+        return
+      }
       showToast({
         variant: 'error',
         message: res.network
@@ -982,7 +957,11 @@ export default function LeadsPage() {
     fetchLeads()
     const channel = supabase
       .channel('leads-page-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, fetchLeads)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'leads', filter: `org_id=eq.${profile.org_id}` },
+        fetchLeads
+      )
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [profile, fetchLeads])
@@ -1288,6 +1267,12 @@ export default function LeadsPage() {
           </p>
         )}
 
+        {boardTruncated && !loading && (
+          <p className="text-gray-600 bg-gray-50 border border-gray-200 rounded-lg text-xs px-3 py-2 mb-3">
+            Showing the {LEADS_BOARD_LIMIT} most recent matching leads. Older closed jobs are hidden.
+          </p>
+        )}
+
         {!loading && (
           <>
             {/* ── Mobile View ── */}
@@ -1384,6 +1369,8 @@ export default function LeadsPage() {
           onSharePhoto={handleSharePhoto}
           quoteEnabled={quoteFeatureEnabled}
           smsEnabled={onTheWayFeatureEnabled}
+          twoWaySmsEnabled={twoWaySmsEnabled}
+          smsSending={smsSending}
           customerProfilesEnabled={customerProfilesEnabled}
           hideAssignPool={isSoloMode}
           onRefresh={fetchLeads}

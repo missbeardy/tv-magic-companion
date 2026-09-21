@@ -10,11 +10,13 @@ import { resolveOrgIdFromDid } from './_lib/resolveOrgFromDid.js'
 import { captureUnroutedInbound } from './_lib/captureUnroutedInbound.js'
 import { computeTwilioSignature } from './_lib/twilioSignature.js'
 import { readRawBody } from './_lib/rawBody.js'
-import { extractFromSms } from './_lib/extractLead.js'
+import { extractFromSms, loadOrgExtractionContext } from './_lib/extractLead.js'
 import { checkRateLimit, rateLimitIdentifier } from './_lib/rateLimit.js'
 import { captureServerException } from './_lib/sentry.js'
 import { waitUntil } from '@vercel/functions'
 import { matchInboundProbe, recordInboundProbeEcho } from './_lib/inboundProbe.js'
+import { applyInboundSmsOptOut } from './_lib/smsOptOut.js'
+import { threadInboundSms } from './_lib/threadInboundSms.js'
 
 /**
  * Disable Vercel's default body parser so the Meta webhook can verify its
@@ -167,10 +169,30 @@ async function finishInboundSms(input: {
       return
     }
 
+    const optOutResult = await applyInboundSmsOptOut({
+      supabase,
+      orgId,
+      fromNumber,
+      smsText,
+    })
+    if (optOutResult === 'handled') return
+
     const { isFeatureEnabledForOrg } = await import('./_lib/featureSwitches.js')
     const inboundEnabled = await isFeatureEnabledForOrg(orgId, 'inbound_sms')
     if (!inboundEnabled) {
       console.log(`Inbound SMS disabled for org ${orgId}`)
+      return
+    }
+
+    const threaded = await threadInboundSms({
+      supabase,
+      orgId,
+      fromNumber,
+      smsText,
+      toNumber,
+    })
+    if (threaded) {
+      console.log(`SMS threaded onto lead ${threaded.leadId} for org ${orgId}`)
       return
     }
 
@@ -200,7 +222,11 @@ async function finishInboundSms(input: {
           payload: { source: 'sms', from: fromNumber },
         },
         extract: async () => {
-          const { fields: parsed, status } = await extractFromSms(smsText, fromNumber)
+          const { fields: parsed, status } = await extractFromSms(
+            smsText,
+            fromNumber,
+            await loadOrgExtractionContext(supabase, orgId)
+          )
           parsedForAck = {
             customer_name: parsed.name ?? undefined,
             phone: parsed.phone ?? undefined,

@@ -15,6 +15,19 @@ export function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;')
 }
 
+export function interpolateHtmlTemplate(template: string, vars: TemplateVars): string {
+  const RAW_HTML_KEYS = /Html$|Block$|Button$|Line$|Url$|Color$/i
+  const escaped: TemplateVars = {}
+  for (const [key, value] of Object.entries(vars)) {
+    if (value == null) {
+      escaped[key] = ''
+      continue
+    }
+    escaped[key] = RAW_HTML_KEYS.test(key) ? value : escapeHtml(value)
+  }
+  return interpolateTemplate(template, escaped)
+}
+
 export function nl2brHtml(text: string): string {
   return escapeHtml(text).replace(/\n/g, '<br/>')
 }
@@ -75,7 +88,7 @@ export function buildQuoteEmailFromBrand(
 
   return {
     subject: interpolateTemplate(subjectTemplate, vars),
-    html: interpolateTemplate(htmlTemplate, vars),
+    html: interpolateHtmlTemplate(htmlTemplate, vars),
   }
 }
 
@@ -124,6 +137,6 @@ export function buildInvoiceEmailFromOrg(
 
   return {
     subject: interpolateTemplate(subjectTemplate, vars),
-    html: interpolateTemplate(htmlTemplate, vars),
+    html: interpolateHtmlTemplate(htmlTemplate, vars),
   }
 }

@@ -23,6 +23,8 @@ export const LEAD_EVENT_TYPES = [
   'unassigned',
   'review_request',
   'sms_sent',
+  'sms_received',
+  'sms_opt_out',
   'invoice_sent',
   'invoice_paid_manual',
   'deleted',

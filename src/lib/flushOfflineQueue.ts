@@ -5,6 +5,7 @@ import { buildPoolPickupUpdate, shouldPoolPickup } from './leadPoolPickup'
 import { logLeadEvent } from './leadEvents'
 import { LEAD_PHOTOS_BUCKET } from './leadPhotoStorage'
 import { shouldApplyQueuedCompletion } from './offlineWrites'
+import { transitionLead } from './leadTransition'
 import {
   listOfflineQueue,
   removeOfflineQueueItem,
@@ -23,7 +24,32 @@ export interface FlushResult {
   remaining: number
 }
 
+const SKIP_CONTACT_REPLAY_STATUSES = ['completed', 'lost', 'booking_cancelled', 'booked'] as const
+
+/** True when replaying a queued call/SMS would regress a terminal or booked lead. */
+export function shouldSkipQueuedContactAttempt(status: string | null | undefined): boolean {
+  return SKIP_CONTACT_REPLAY_STATUSES.includes(
+    status as (typeof SKIP_CONTACT_REPLAY_STATUSES)[number]
+  )
+}
+
 async function flushContactAttempt(item: OfflineContactAttemptItem): Promise<void> {
+  const { data, error } = await supabase
+    .from('leads')
+    .select('status')
+    .eq('id', item.leadId)
+    .maybeSingle()
+
+  if (error) throw new Error(error.message)
+
+  const currentStatus = (data?.status as string | undefined) ?? ''
+  if (shouldSkipQueuedContactAttempt(currentStatus)) {
+    console.warn(
+      `Skipping queued contact attempt for lead ${item.leadId}: already "${currentStatus}"`
+    )
+    return
+  }
+
   const leadLike = {
     id: item.leadId,
     status: item.leadStatus,
@@ -34,7 +60,8 @@ async function flushContactAttempt(item: OfflineContactAttemptItem): Promise<voi
   const poolPickup = shouldPoolPickup(item.leadStatus, toStatus, item.actorId)
 
   if (attempt.kind === 'unable_to_contact') {
-    await supabase.from('leads').update(asLeadUpdate(attempt.update)).eq('id', item.leadId)
+    const lost = await transitionLead(item.leadId, item.leadStatus, attempt.update)
+    if (!lost.ok) throw new Error(lost.error)
     await logLeadEvent({
       leadId: item.leadId,
       orgId: item.orgId,
@@ -51,7 +78,8 @@ async function flushContactAttempt(item: OfflineContactAttemptItem): Promise<voi
     ...(poolPickup ? buildPoolPickupUpdate(item.leadStatus, toStatus, item.actorId) : {}),
   }
 
-  await supabase.from('leads').update(asLeadUpdate(updatePayload)).eq('id', item.leadId)
+  const written = await transitionLead(item.leadId, item.leadStatus, updatePayload)
+  if (!written.ok) throw new Error(written.error)
 
   if (poolPickup) {
     await logLeadEvent({

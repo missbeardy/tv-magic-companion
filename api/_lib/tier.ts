@@ -1,16 +1,5 @@
 export type SubscriptionTier = 'basic' | 'pro' | 'enterprise'
 
-/** Keys still enforced via subscription tier (server-side). Tasks/task_board retired. */
-export type FeatureKey = 'leads' | 'calendar' | 'ai_parsing' | 'reports' | 'api_access'
-
-const FEATURE_TIERS: Record<FeatureKey, SubscriptionTier> = {
-  leads: 'basic',
-  calendar: 'basic',
-  ai_parsing: 'pro',
-  reports: 'pro',
-  api_access: 'enterprise',
-}
-
 const TIER_ORDER: SubscriptionTier[] = ['basic', 'pro', 'enterprise']
 
 export function isPlatformFeaturesEnabled(): boolean {
@@ -20,22 +9,11 @@ export function isPlatformFeaturesEnabled(): boolean {
   )
 }
 
-function tierIncludes(userTier: SubscriptionTier, required: SubscriptionTier): boolean {
+export function tierIncludes(userTier: SubscriptionTier, required: SubscriptionTier): boolean {
   const userIdx = TIER_ORDER.indexOf(userTier)
   const reqIdx = TIER_ORDER.indexOf(required)
   if (userIdx === -1 || reqIdx === -1) return false
   return userIdx >= reqIdx
-}
-
-export function canAccessFeature(
-  feature: FeatureKey,
-  tier: SubscriptionTier | undefined
-): boolean {
-  if (!isPlatformFeaturesEnabled()) return true
-  if (!tier) return false
-  const required = FEATURE_TIERS[feature]
-  if (!required) return false
-  return tierIncludes(tier, required)
 }
 
 export function tierFromStripePriceId(priceId: string): SubscriptionTier | null {

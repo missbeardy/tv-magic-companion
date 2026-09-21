@@ -159,7 +159,7 @@ export async function runBookingReminderForEvent(
       .eq('id', loaded.org_id)
       .maybeSingle()
 
-    const withinQuietHours = isWithinQuietHours(now, org?.timezone || 'Australia/Perth')
+    const withinQuietHours = isWithinQuietHours(now, org?.timezone || 'Australia/Brisbane')
 
     if (!flagEnabled || !due || cancelled || !phone || !withinQuietHours) {
       await recorder.step('policy_check', 'skipped')
@@ -168,6 +168,21 @@ export async function runBookingReminderForEvent(
     }
 
     await recorder.step('policy_check', 'succeeded')
+
+    const { data: claimed, error: claimError } = await supabase
+      .from('events')
+      .update({ reminder_sent_at: now.toISOString() })
+      .eq('id', loaded.id)
+      .eq('org_id', loaded.org_id)
+      .is('reminder_sent_at', null)
+      .select('id')
+      .maybeSingle()
+
+    if (claimError || !claimed) {
+      await recorder.step('record_reminder', 'skipped', { error: claimError ?? 'Already claimed' })
+      await recorder.finish('succeeded')
+      return false
+    }
 
     const tech = techName(loaded)
     const messageVars = {
@@ -192,6 +207,11 @@ export async function runBookingReminderForEvent(
     })
 
     if (!smsResult.sent) {
+      await supabase
+        .from('events')
+        .update({ reminder_sent_at: null })
+        .eq('id', loaded.id)
+        .eq('org_id', loaded.org_id)
       await recorder.step('send_reminder', 'failed', {
         error: smsResult.error ?? smsResult.skipped ?? 'SMS not sent',
       })
@@ -200,23 +220,6 @@ export async function runBookingReminderForEvent(
     }
 
     await recorder.step('send_reminder', 'succeeded')
-
-    const { data: updated, error: recordError } = await supabase
-      .from('events')
-      .update({ reminder_sent_at: now.toISOString() })
-      .eq('id', loaded.id)
-      .eq('org_id', loaded.org_id)
-      .is('reminder_sent_at', null)
-      .select('id')
-      .maybeSingle()
-
-    if (recordError || !updated) {
-      console.error('[BOOKING_REMINDER_RECORD_FAILED]', { event_id: loaded.id })
-      await recorder.step('record_reminder', 'failed', { error: recordError ?? 'Optimistic update failed' })
-      await recorder.finish('partial')
-      return true
-    }
-
     await recorder.step('record_reminder', 'succeeded')
     await recorder.finish('succeeded')
     return true

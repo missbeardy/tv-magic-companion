@@ -1,7 +1,6 @@
 // api/anthropic.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { authenticateRequest, type AuthContext } from './_lib/auth.js'
-import { canAccessFeature } from './_lib/tier.js'
 import { withObservability } from './_lib/observability.js'
 import { checkRateLimit, rateLimitIdentifier } from './_lib/rateLimit.js'
 import { isUnderMonthlyAiCeiling, recordAiUsage } from './_lib/aiUsage.js'
@@ -88,14 +87,6 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   const auth = await authenticateRequest(req)
   if (!auth) {
     return res.status(401).json({ error: 'Unauthorized' })
-  }
-
-  if (!canAccessFeature('ai_parsing', auth.org.subscription_tier)) {
-    return res.status(403).json({
-      error: 'AI parsing requires a Pro subscription',
-      code: 'tier_required',
-      requiredTier: 'pro',
-    })
   }
 
   const identifier = rateLimitIdentifier(req.headers['x-forwarded-for'] as string | undefined, auth.userId)

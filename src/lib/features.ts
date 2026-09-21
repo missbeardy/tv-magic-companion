@@ -1,5 +1,4 @@
 import type { Org } from '../types/org'
-import { isPlatformFeaturesEnabled } from './env'
 import {
   FEATURE_SWITCH_CATEGORIES,
   FEATURE_SWITCH_CATEGORY_BY_KEY,
@@ -22,14 +21,6 @@ export {
   type FeatureSwitchKey,
 }
 
-export const FEATURES = {
-  leads: { tier: 'basic', nav: '/leads', label: 'Leads' },
-  calendar: { tier: 'basic', nav: '/calendar', label: 'Calendar' },
-  ai_parsing: { tier: 'pro', nav: null, label: 'AI Lead Parsing' },
-  reports: { tier: 'pro', nav: '/reports', label: 'Reports' },
-  api_access: { tier: 'enterprise', nav: null, label: 'API Access' },
-} as const
-
 export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   smart_assign_badge: false,
   inbound_auto_assign: false,
@@ -38,6 +29,7 @@ export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   review_requests: false,
   auto_review_on_paid: false,
   customer_ontheway_sms: false,
+  two_way_sms: false,
   booking_confirm: true,
   booking_reminder_sms: false,
   manager_new_lead_alerts: false,
@@ -92,6 +84,10 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   customer_ontheway_sms: {
     label: 'Customer On The Way SMS',
     description: 'ETA SMS button opens the technician\'s phone with a branded message',
+  },
+  two_way_sms: {
+    label: 'In-App Two-Way SMS',
+    description: 'Send and receive customer SMS from the lead sheet instead of the device SMS app',
   },
   booking_confirm: {
     label: 'Customer Booking Confirmation',
@@ -171,8 +167,6 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   },
 }
 
-export type FeatureKey = keyof typeof FEATURES
-
 const TIER_ORDER = ['basic', 'pro', 'enterprise'] as const
 
 type Tier = Org['subscription_tier']
@@ -182,18 +176,6 @@ export function tierIncludes(tier: Tier, required: Tier): boolean {
   const reqIdx = TIER_ORDER.indexOf(required)
   if (userIdx === -1 || reqIdx === -1) return false
   return userIdx >= reqIdx
-}
-
-/** When platform features are off (production cutover), show everything. */
-export function canAccessFeature(
-  feature: FeatureKey,
-  tier: Tier | undefined
-): boolean {
-  if (!isPlatformFeaturesEnabled()) return true
-  const effectiveTier = tier ?? 'basic'
-  const def = FEATURES[feature]
-  if (!def) return false
-  return tierIncludes(effectiveTier, def.tier)
 }
 
 export type FeatureSwitchState = Record<FeatureSwitchKey, boolean>
@@ -227,8 +209,10 @@ export function resolveFeatureSwitchValue(
   values: {
     catalogDefault?: boolean | null
     brandValue?: boolean | null
+    orgValue?: boolean | null
   }
 ): boolean {
+  if (values.orgValue === true || values.orgValue === false) return values.orgValue
   if (values.brandValue === true || values.brandValue === false) return values.brandValue
   if (values.catalogDefault === true || values.catalogDefault === false) return values.catalogDefault
   return FEATURE_SWITCH_DEFAULTS[feature]

@@ -40,6 +40,7 @@ describe('featureSwitchCatalog categories', () => {
     expect(FEATURE_SWITCHES_BY_CATEGORY.customer_communication).toEqual([
       'lead_ack_sms',
       'customer_ontheway_sms',
+      'two_way_sms',
       'booking_confirm',
       'booking_reminder_sms',
       'review_requests',

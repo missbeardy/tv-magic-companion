@@ -48,11 +48,19 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
   items: [
     'Facebook Messenger enquiries are confirmed the moment the lead is saved, instead of after the alerts and ack SMS finish',
     'The chat bot no longer apologises and hands out the technician’s number for leads that actually landed',
+    'Technicians can send invoices from the job-complete checklist',
+    'Reply STOP to opt out now opts the number out instead of creating another lead',
+    'Offline call logs and pool pick-up no longer overwrite a lead that was booked or claimed on another phone',
+    'Customer SMS replies now land on the existing job instead of opening a new lead',
+    'In-app SMS send and receive from the lead sheet (Platform Admin can turn two-way SMS on)',
+    'Feature switches can now be set per franchisee, not only per brand',
+    'Lead extraction uses each org’s service types instead of a hardcoded TV list',
+    'Reports, quotes, and AI parsing are no longer locked behind subscription tier',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.194'
+export const APP_VERSION = '1.1.197'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

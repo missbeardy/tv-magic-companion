@@ -51,6 +51,10 @@ vi.mock('../src/lib/supabase', () => {
       return this
     }
 
+    range() {
+      return this
+    }
+
     limit() {
       return this
     }

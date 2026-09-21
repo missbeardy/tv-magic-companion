@@ -22,7 +22,7 @@ export default defineConfig({
       // These files will be precached (available offline)
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        globIgnores: ['OneSignalSDKWorker.js'],
+        globIgnores: ['OneSignalSDKWorker.js', '**/Room3D-*.js', '**/VisualisePage-*.js', '**/VisualisePage-*.css'],
       },
       // dd6: this used to duplicate public/manifest.json verbatim, generating a second,
       // unreferenced manifest.webmanifest that only drifted from the one index.html actually

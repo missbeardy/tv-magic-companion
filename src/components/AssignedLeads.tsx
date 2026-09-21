@@ -70,7 +70,7 @@ export default function AssignedLeads() {
     fetchLeads()
     const channel = supabase
       .channel('assigned-leads-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => fetchLeads())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads', filter: `org_id=eq.${profile.org_id}` }, () => fetchLeads())
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [profile])

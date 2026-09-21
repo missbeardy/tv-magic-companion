@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
-import { buildQuoteEmailFromBrand, nl2brHtml } from './emailTemplates.js'
+import { buildQuoteEmailFromBrand, escapeHtml, nl2brHtml } from './emailTemplates.js'
 import { getSupabaseAdmin } from './supabaseAdmin.js'
-import { getPlatformUrl } from './platformUrl.js'
+import { getPlatformUrl, getDefaultNoreplyEmail } from './platformUrl.js'
 import { sendBrandedSms } from './sendBrandedSms.js'
 import { notifyOrgUser } from './notifyUser.js'
 import { OPERATIONAL_MANAGER_ROLES } from './managerRoles.js'
@@ -169,7 +169,7 @@ async function sendQuoteEmail(params: {
     return { emailSent: false, emailMessage: 'Quote email not sent (RESEND_API_KEY is missing).' }
   }
 
-  const fromAddress = process.env.QUOTE_EMAIL_FROM || process.env.EMAIL_FROM || 'noreply@tv-magic-companion.com'
+  const fromAddress = process.env.QUOTE_EMAIL_FROM || process.env.EMAIL_FROM || getDefaultNoreplyEmail()
   try {
     const { Resend } = await import('resend')
     const resend = new Resend(apiKey)
@@ -187,13 +187,13 @@ async function sendQuoteEmail(params: {
         totalAmount: `AUD ${Number(params.totalAmount).toFixed(2)}`,
         gstLine,
         serviceType,
-        serviceTypeLine: serviceType ? ` for ${serviceType}` : '',
+        serviceTypeLine: serviceType ? ` for ${escapeHtml(serviceType)}` : '',
         scopeHtml: nl2brHtml(params.scope),
         termsBlock: params.terms?.trim()
           ? `<p><strong>Terms:</strong><br/>${nl2brHtml(params.terms)}</p>`
           : '',
         senderBlock: params.senderName?.trim()
-          ? `<p>Prepared by: ${params.senderName.trim()}</p>`
+          ? `<p>Prepared by: ${escapeHtml(params.senderName.trim())}</p>`
           : '',
         primaryColor: params.primaryColor?.trim() || '#004B93',
       },
@@ -474,7 +474,7 @@ export async function acceptQuoteByToken(input: QuoteAcceptInput) {
   }
 
   const acceptedAt = new Date().toISOString()
-  const { error: quoteUpdateError } = await supabase
+  const { data: accepted, error: quoteUpdateError } = await supabase
     .from('quotes')
     .update({
       status: 'accepted',
@@ -483,9 +483,15 @@ export async function acceptQuoteByToken(input: QuoteAcceptInput) {
     })
     .eq('id', quote.id)
     .eq('status', 'sent')
+    .select('id')
+    .maybeSingle()
 
   if (quoteUpdateError) {
     throw new Error(quoteUpdateError.message)
+  }
+  if (!accepted) {
+    const latest = await getQuoteByToken(input.token)
+    return { status: 'already_accepted' as const, quote: latest ?? quote }
   }
 
   const { error: signatureError } = await supabase

@@ -186,16 +186,26 @@ export async function fetchFirstLeadEventMonth(orgId: string): Promise<Date | nu
 }
 
 async function fetchLeadEvents(orgId: string, period: ReportPeriod): Promise<LeadEventRow[]> {
-  const { data, error } = await supabase
-    .from('lead_events')
-    .select('lead_id, event_type, created_at, created_by, actor_id, payload')
-    .eq('org_id', orgId)
-    .gte('created_at', period.startIso)
-    .lt('created_at', period.endIso)
-    .order('created_at', { ascending: true })
+  const pageSize = 1000
+  const rows: LeadEventRow[] = []
+  let from = 0
+  while (true) {
+    const { data, error } = await supabase
+      .from('lead_events')
+      .select('lead_id, event_type, created_at, created_by, actor_id, payload')
+      .eq('org_id', orgId)
+      .gte('created_at', period.startIso)
+      .lt('created_at', period.endIso)
+      .order('created_at', { ascending: true })
+      .range(from, from + pageSize - 1)
 
-  if (error) throw error
-  return (data ?? []) as LeadEventRow[]
+    if (error) throw error
+    const page = (data ?? []) as LeadEventRow[]
+    rows.push(...page)
+    if (page.length < pageSize) break
+    from += pageSize
+  }
+  return rows
 }
 
 async function fetchLeads(orgId: string, period: ReportPeriod): Promise<LeadRow[]> {

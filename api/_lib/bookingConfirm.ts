@@ -63,7 +63,7 @@ function buildIcs(params: {
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//TV Magic Companion//Booking//EN',
+    'PRODID:-//FieldBourne//Booking//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:REQUEST',
     'BEGIN:VEVENT',
@@ -127,7 +127,7 @@ export async function sendBookingConfirmations(
   let emailMessage = 'No customer email; email skipped.'
   if (input.customerEmail?.trim()) {
     const ics = buildIcs({
-      uid: `${input.leadId || 'booking'}-${Date.parse(input.startTimeIso)}@tv-magic-companion`,
+      uid: `${input.leadId || 'booking'}-${Date.parse(input.startTimeIso)}@fieldbourne.app`,
       summary: `${serviceType} — ${orgName}`,
       description: `Booking with ${orgName}.${techLine}`,
       location: input.address?.trim() || '',

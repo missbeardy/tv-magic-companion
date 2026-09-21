@@ -1,42 +1,16 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { canAccessFeature, tierFromStripePriceId } from '../api/_lib/tier'
+import { describe, it, expect, afterEach } from 'vitest'
+import { tierFromStripePriceId } from '../api/_lib/tier'
 import { buildBrandTransferPayload } from '../src/lib/brandTransfer'
 
-describe('api tier enforcement', () => {
-  const originalEnv = process.env.ENABLE_PLATFORM_FEATURES
-
-  beforeEach(() => {
-    process.env.ENABLE_PLATFORM_FEATURES = 'true'
-  })
-
+describe('api tier mapping', () => {
   afterEach(() => {
-    if (originalEnv === undefined) {
-      delete process.env.ENABLE_PLATFORM_FEATURES
-    } else {
-      process.env.ENABLE_PLATFORM_FEATURES = originalEnv
-    }
-  })
-
-  it('blocks ai_parsing on basic tier', () => {
-    expect(canAccessFeature('ai_parsing', 'basic')).toBe(false)
-    expect(canAccessFeature('ai_parsing', 'pro')).toBe(true)
-  })
-
-  it('blocks reports on basic tier', () => {
-    expect(canAccessFeature('reports', 'basic')).toBe(false)
-    expect(canAccessFeature('reports', 'pro')).toBe(true)
-  })
-
-  it('allows leads on all tiers when platform features enabled', () => {
-    expect(canAccessFeature('leads', 'basic')).toBe(true)
-    expect(canAccessFeature('leads', 'pro')).toBe(true)
+    delete process.env.STRIPE_PRICE_PRO
   })
 
   it('maps stripe price ids to tiers', () => {
     process.env.STRIPE_PRICE_PRO = 'price_pro_test'
     expect(tierFromStripePriceId('price_pro_test')).toBe('pro')
     expect(tierFromStripePriceId('unknown')).toBeNull()
-    delete process.env.STRIPE_PRICE_PRO
   })
 })
 

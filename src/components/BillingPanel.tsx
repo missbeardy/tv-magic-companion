@@ -3,7 +3,6 @@ import { ExternalLink, Sparkles } from 'lucide-react'
 import { useOrg } from '../context/OrgContext'
 import { isPlatformFeaturesEnabled } from '../lib/env'
 import { requireAuthHeaders } from '../lib/apiAuth'
-import { FEATURES, type FeatureKey } from '../lib/features'
 import SettingsAccordion from './settings/SettingsAccordion'
 
 const TIER_LABELS = {
@@ -13,9 +12,9 @@ const TIER_LABELS = {
 } as const
 
 const TIER_FEATURES: Record<string, string[]> = {
-  basic: ['Leads', 'Calendar'],
-  pro: ['Everything in Basic', 'AI lead parsing', 'Reports'],
-  enterprise: ['Everything in Pro', 'API access', 'Priority support'],
+  basic: ['Leads, calendar, quoting, and invoicing'],
+  pro: ['Everything in Basic', 'Priority support'],
+  enterprise: ['Everything in Pro', 'Custom onboarding'],
 }
 
 export default function BillingPanel() {
@@ -74,12 +73,6 @@ export default function BillingPanel() {
     }
   }
 
-  const lockedFeatures = (Object.keys(FEATURES) as FeatureKey[]).filter((key) => {
-    const required = FEATURES[key].tier
-    const order = ['basic', 'pro', 'enterprise']
-    return order.indexOf(tier) < order.indexOf(required)
-  })
-
   return (
     <SettingsAccordion title="Subscription & billing">
       <div className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3">
@@ -98,12 +91,6 @@ export default function BillingPanel() {
           </li>
         ))}
       </ul>
-
-      {lockedFeatures.length > 0 && (
-        <p className="text-xs text-gray-400">
-          Upgrade to unlock: {lockedFeatures.map((f) => FEATURES[f].label).join(', ')}
-        </p>
-      )}
 
       {error && (
         <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm">{error}</div>
@@ -145,7 +132,7 @@ export default function BillingPanel() {
       </div>
 
       <p className="text-xs text-gray-400">
-        Billing is per franchisee. Use Stripe test mode on preview until production cutover.
+        Billing is per franchisee. Feature switches, not plan name, turn product on and off.
       </p>
     </SettingsAccordion>
   )

@@ -4,7 +4,7 @@ import { authenticateRequest } from './_lib/auth.js'
 import { getSupabaseAdmin } from './_lib/supabaseAdmin.js'
 import { applyLeadExtractionRetry } from './_lib/retryLeadExtraction.js'
 import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
-import { applySoloTradiePresetToBrand } from './_lib/soloTradiePreset.js'
+import { applySoloTradiePresetToOrg } from './_lib/soloTradiePreset.js'
 import { withObservability } from './_lib/observability.js'
 import { track } from './_lib/analytics.js'
 import {
@@ -206,12 +206,12 @@ async function handleApplySoloPreset(req: VercelRequest, res: VercelResponse) {
     return res.status(403).json({ error: 'Platform admin only' })
   }
 
-  const { brandId } = req.body as { brandId?: string }
-  if (!brandId?.trim()) {
-    return res.status(400).json({ error: 'Missing brandId' })
+  const { orgId } = req.body as { orgId?: string }
+  if (!orgId?.trim()) {
+    return res.status(400).json({ error: 'Missing orgId' })
   }
 
-  const result = await applySoloTradiePresetToBrand(brandId.trim(), auth.userId)
+  const result = await applySoloTradiePresetToOrg(orgId.trim(), auth.userId)
   return res.status(200).json({ success: true, ...result })
 }
 

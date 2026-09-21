@@ -95,6 +95,24 @@ describe('emailTemplates', () => {
     expect(subject).toBe('Franchise subject Westside')
   })
 
+  it('escapes customer names in HTML but keeps trusted blocks', () => {
+    const { html } = buildQuoteEmailFromBrand(getDefaultQuoteEmailTemplates(), {
+      'org.name': 'West <script>',
+      customerName: 'Jane <b>Hi</b>',
+      acceptanceUrl: 'https://example.com/quote/abc',
+      totalAmount: 'AUD 1.00',
+      serviceTypeLine: '',
+      scopeHtml: '<p>Scope</p>',
+      termsBlock: '',
+      senderBlock: '<p>Prepared by: Sam</p>',
+      primaryColor: '#004B93',
+    })
+    expect(html).toContain('Hi Jane &lt;b&gt;Hi&lt;/b&gt;')
+    expect(html).toContain('West &lt;script&gt;')
+    expect(html).toContain('<p>Prepared by: Sam</p>')
+    expect(html).toContain('<p>Scope</p>')
+  })
+
   it('builds invoice falling back to brand when org empty', () => {
     const { subject } = buildInvoiceEmailFromOrg(
       {},

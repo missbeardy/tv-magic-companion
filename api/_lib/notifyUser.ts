@@ -58,6 +58,32 @@ export async function insertTrustedFollowUpReminder(
 }
 
 /**
+ * Trusted customer-reply insert from inbound SMS threading.
+ * In-app bell + best-effort push. No employee SMS/WhatsApp.
+ * NOT reachable from any HTTP handler.
+ */
+export async function insertTrustedCustomerReply(
+  input: Omit<NotifyOrgUserInput, 'type'>
+): Promise<NotifyOrgUserResult> {
+  const insertFailed = await insertInAppNotification({ ...input, type: 'customer_reply' })
+  if (insertFailed) return insertFailed
+
+  const resolvedUrl = input.url || `${getPlatformUrl()}/leads`
+  try {
+    await sendPushToUsers(input.supabase, input.orgId, [input.userId], {
+      title: input.title,
+      body: input.message,
+      url: resolvedUrl,
+      ...(input.leadId ? { leadId: input.leadId } : {}),
+    })
+  } catch (err) {
+    console.error('Push failed (non-fatal):', err)
+  }
+
+  return { ok: true, alert: { sent: false, skipped: 'Skipped for customer_reply' } }
+}
+
+/**
  * In-app bell + best-effort OneSignal push + WhatsApp to profile phone (service role).
  *
  * Membership is validated first, for every `type`, with no branch above the check —
@@ -106,9 +132,9 @@ export async function notifyOrgUser(input: NotifyOrgUserInput): Promise<NotifyOr
   )
   // Assignment alerts are sent via send-sms mode=tech_assignment.
   let alert: NotifyOrgUserResult['alert'] = { sent: false, skipped: `Skipped for ${type}` }
-  if (type !== 'lead_assigned' && type !== 'contact_follow_up') {
+  if (type !== 'lead_assigned' && type !== 'contact_follow_up' && type !== 'customer_reply') {
     const { sendEmployeeAlertToPhone } = await import('./sendEmployeeAlert.js')
-    alert = await sendEmployeeAlertToPhone(target.phone, smsBody, whatsappMessage)
+    alert = await sendEmployeeAlertToPhone(target.phone, smsBody, whatsappMessage, orgId)
     if (!alert.sent) {
       console.error('Employee alert failed (non-fatal):', alert.error ?? alert.skipped)
     }

@@ -93,6 +93,7 @@ export type Database = {
           id: string
           is_active: boolean
           logo_url: string | null
+          messenger_prompt: string | null
           name: string
           primary_color: string
           secondary_color: string
@@ -108,6 +109,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           logo_url?: string | null
+          messenger_prompt?: string | null
           name: string
           primary_color?: string
           secondary_color?: string
@@ -123,6 +125,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           logo_url?: string | null
+          messenger_prompt?: string | null
           name?: string
           primary_color?: string
           secondary_color?: string
@@ -1169,6 +1172,38 @@ export type Database = {
           },
         ]
       }
+      org_feature_switch_overrides: {
+        Row: {
+          enabled: boolean
+          feature_key: string
+          org_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          enabled: boolean
+          feature_key: string
+          org_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          enabled?: boolean
+          feature_key?: string
+          org_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_feature_switch_overrides_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       org_phone_numbers: {
         Row: {
           created_at: string
@@ -1221,6 +1256,7 @@ export type Database = {
           primary_color: string
           review_requests_enabled: boolean
           secondary_color: string
+          service_types: string[]
           slug: string
           stripe_connect_account_id: string | null
           stripe_connect_status: string | null
@@ -1229,9 +1265,11 @@ export type Database = {
           subscription_expires_at: string | null
           subscription_tier: string
           support_email: string | null
+          sms_from_number: string | null
           support_phone: string | null
           timezone: string
           upsell_items: Json
+          ai_context: string | null
         }
         Insert: {
           abn?: string | null
@@ -1255,7 +1293,9 @@ export type Database = {
           primary_color?: string
           review_requests_enabled?: boolean
           secondary_color?: string
+          service_types?: string[]
           slug: string
+          sms_from_number?: string | null
           stripe_connect_account_id?: string | null
           stripe_connect_status?: string | null
           stripe_customer_id?: string | null
@@ -1266,6 +1306,7 @@ export type Database = {
           support_phone?: string | null
           timezone?: string
           upsell_items?: Json
+          ai_context?: string | null
         }
         Update: {
           abn?: string | null
@@ -1289,7 +1330,9 @@ export type Database = {
           primary_color?: string
           review_requests_enabled?: boolean
           secondary_color?: string
+          service_types?: string[]
           slug?: string
+          sms_from_number?: string | null
           stripe_connect_account_id?: string | null
           stripe_connect_status?: string | null
           stripe_customer_id?: string | null
@@ -1300,6 +1343,7 @@ export type Database = {
           support_phone?: string | null
           timezone?: string
           upsell_items?: Json
+          ai_context?: string | null
         }
         Relationships: [
           {
@@ -1974,7 +2018,22 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      lead_board_badges: {
+        Row: {
+          last_manual_sms_at: string | null
+          last_manual_sms_text: string | null
+          latest_invoice_id: string | null
+          latest_invoice_number: string | null
+          latest_invoice_status: string | null
+          latest_quote_accepted_at: string | null
+          latest_quote_scope: string | null
+          latest_quote_status: string | null
+          latest_quote_total_amount: number | null
+          lead_id: string | null
+          org_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       current_user_org_id: { Args: never; Returns: string }

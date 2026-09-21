@@ -2,16 +2,13 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import {
-  canAccessFeature as checkFeature,
   canAccessFeatureSwitch,
   FEATURE_SWITCH_KEYS,
   getDefaultFeatureSwitchState,
   resolveFeatureSwitchValue,
-  type FeatureKey,
   type FeatureSwitchKey,
   type FeatureSwitchState,
 } from '../lib/features';
-import { isPlatformAdminRole } from '../lib/roles';
 import { isSoloOperationMode } from '../lib/operationMode';
 import type { Brand, Org } from '../types/org';
 
@@ -26,7 +23,6 @@ interface OrgContextType {
   refreshFeatureSwitches: () => Promise<void>;
   canAccessFeature: (feature: string) => boolean;
   isFeatureEnabled: (feature: FeatureSwitchKey) => boolean;
-  getRemainingLeads: () => number;
 }
 
 const OrgContext = createContext<OrgContextType>({
@@ -38,16 +34,9 @@ const OrgContext = createContext<OrgContextType>({
   isSoloMode: false,
   refreshOrg: async () => {},
   refreshFeatureSwitches: async () => {},
-  canAccessFeature: () => false,
+  canAccessFeature: () => true,
   isFeatureEnabled: () => false,
-  getRemainingLeads: () => 0,
 });
-
-const TIER_LIMITS: Record<string, { maxEmployees: number; maxLeadsPerMonth: number }> = {
-  basic: { maxEmployees: 3, maxLeadsPerMonth: 100 },
-  pro: { maxEmployees: 15, maxLeadsPerMonth: 1000 },
-  enterprise: { maxEmployees: 9999, maxLeadsPerMonth: 999999 },
-};
 
 function mapBrand(row: Record<string, unknown> | null): Brand | null {
   if (!row) return null;
@@ -100,7 +89,13 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
           .in('feature_key', [...FEATURE_SWITCH_KEYS])
       : Promise.resolve({ data: [], error: null });
 
-    const [catalogRes, brandRes] = await Promise.all([catalogPromise, brandPromise]);
+    const orgPromise = supabase
+      .from('org_feature_switch_overrides')
+      .select('feature_key, enabled')
+      .eq('org_id', orgId)
+      .in('feature_key', [...FEATURE_SWITCH_KEYS]);
+
+    const [catalogRes, brandRes, orgRes] = await Promise.all([catalogPromise, brandPromise, orgPromise]);
 
     if (catalogRes.error || brandRes.error) {
       console.warn('Feature switches unavailable; using defaults.', {
@@ -124,12 +119,21 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
         brandMap[row.feature_key as FeatureSwitchKey] = row.enabled === true
       }
     }
+    const orgMap: Partial<Record<FeatureSwitchKey, boolean>> = {}
+    if (!orgRes.error) {
+      for (const row of (orgRes.data ?? []) as Array<{ feature_key: string; enabled: boolean }>) {
+        if ((FEATURE_SWITCH_KEYS as readonly string[]).includes(row.feature_key)) {
+          orgMap[row.feature_key as FeatureSwitchKey] = row.enabled === true
+        }
+      }
+    }
 
     const next = getDefaultFeatureSwitchState();
     for (const key of FEATURE_SWITCH_KEYS) {
       next[key] = resolveFeatureSwitchValue(key, {
         catalogDefault: catalogMap[key],
         brandValue: brandMap[key],
+        orgValue: orgMap[key],
       })
     }
 
@@ -180,19 +184,12 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
     refreshOrg();
   }, [profile?.org_id]);
 
-  function canAccessFeature(feature: string): boolean {
-    if (isPlatformAdminRole(profile?.role)) return true
-    return checkFeature(feature as FeatureKey, org?.subscription_tier)
+  function canAccessFeature(_feature: string): boolean {
+    return true
   }
 
   function isFeatureEnabled(feature: FeatureSwitchKey): boolean {
     return canAccessFeatureSwitch(feature, org?.subscription_tier, featureSwitches);
-  }
-
-  function getRemainingLeads(): number {
-    if (!org) return 0;
-    const limit = TIER_LIMITS[org.subscription_tier]?.maxLeadsPerMonth || 100;
-    return Math.max(0, limit - (org.lead_count_this_month || 0));
   }
 
   const isSoloMode = isSoloOperationMode(org);
@@ -210,7 +207,6 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
         refreshFeatureSwitches,
         canAccessFeature,
         isFeatureEnabled,
-        getRemainingLeads,
       }}
     >
       {children}

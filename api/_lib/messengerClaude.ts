@@ -1,5 +1,4 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { MESSENGER_SYSTEM_PROMPT } from './messengerKb.js'
 import type { MessengerCapture, MessengerSession } from './messengerTurn.js'
 import { extractCaptureFromText } from './messengerTurn.js'
 
@@ -18,19 +17,45 @@ function asTrimmed(value: unknown): string | null {
   return trimmed && trimmed.toLowerCase() !== 'null' ? trimmed : null
 }
 
+export async function loadBrandMessengerPrompt(
+  supabase: SupabaseClient,
+  orgId: string
+): Promise<string | null> {
+  const { data: org } = await supabase
+    .from('orgs')
+    .select('brand_id')
+    .eq('id', orgId)
+    .maybeSingle()
+  if (!org?.brand_id) return null
+  const { data: brand } = await supabase
+    .from('brands')
+    .select('messenger_prompt')
+    .eq('id', org.brand_id)
+    .maybeSingle()
+  const prompt = typeof brand?.messenger_prompt === 'string' ? brand.messenger_prompt.trim() : ''
+  return prompt || null
+}
+
 export async function interpretMessengerWithClaude(opts: {
   session: MessengerSession
   userText: string
+  systemPrompt?: string | null
 }): Promise<{ reply: string | null; capture: MessengerCapture } | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return null
+
+  const systemPrompt = opts.systemPrompt?.trim()
+  if (!systemPrompt) {
+    console.error('[MESSENGER_PROMPT_MISSING]', { orgId: opts.session.org_id })
+    return null
+  }
 
   const recent = opts.session.messages
     .slice(-8)
     .map((m) => `${m.role}: ${m.text}`)
     .join('\n')
 
-  const prompt = `${MESSENGER_SYSTEM_PROMPT}
+  const prompt = `${systemPrompt}
 
 Known so far:
 - name: ${opts.session.name ?? 'none'}

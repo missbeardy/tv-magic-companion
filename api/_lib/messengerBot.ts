@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ingestParsedFacebookLead } from './handleInboundFacebookLead.js'
-import { interpretMessengerWithClaude } from './messengerClaude.js'
+import { interpretMessengerWithClaude, loadBrandMessengerPrompt } from './messengerClaude.js'
 import { sendMessengerText } from './messengerGraph.js'
 import {
   loadOrCreateMessengerSession,
@@ -105,7 +105,8 @@ export async function handleMessengerUserMessage(
   let conversationalReply: string | null = null
 
   if (session.state === 'open') {
-    const interpreted = await interpretMessengerWithClaude({ session, userText })
+    const systemPrompt = await loadBrandMessengerPrompt(supabase, orgId)
+    const interpreted = await interpretMessengerWithClaude({ session, userText, systemPrompt })
     if (interpreted) {
       conversationalReply = interpreted.reply
       capture = {

@@ -3,6 +3,8 @@ import { buildSmsFromBrand } from './smsTemplates.js'
 import { formatAuPhoneForSms } from './phone.js'
 import type { LeadEventType } from './leadEventTypes.js'
 import { LEAD_ACK_CALLBACK_WINDOW } from '../../shared/leadAckCopy.js'
+import { isPhoneOptedOut } from './smsOptOut.js'
+import { sendTwilioSms } from './twilioSend.js'
 
 export interface SendBrandedSmsOptions {
   orgId: string
@@ -27,17 +29,14 @@ export interface SendBrandedSmsResult {
 export async function sendBrandedSms(
   options: SendBrandedSmsOptions
 ): Promise<SendBrandedSmsResult> {
-  const sid = process.env.TWILIO_ACCOUNT_SID
-  const token = process.env.TWILIO_AUTH_TOKEN
-  const from = process.env.TWILIO_FROM_NUMBER
-
-  if (!sid || !token || !from) {
-    return { sent: false, skipped: 'Twilio not configured' }
-  }
-
   const supabase = getSupabaseAdmin()
   if (!supabase) {
     return { sent: false, error: 'Server not configured' }
+  }
+
+  const to = formatAuPhoneForSms(options.toPhone)
+  if (await isPhoneOptedOut(supabase, options.orgId, to)) {
+    return { sent: false, skipped: 'opted_out' }
   }
 
   const { data: org } = await supabase
@@ -72,44 +71,22 @@ export async function sendBrandedSms(
     options.fallbackMessage
   )
 
-  const to = formatAuPhoneForSms(options.toPhone)
-  const bodyParams = new URLSearchParams({ To: to, From: from, Body: message })
-  const credentials = Buffer.from(`${sid}:${token}`).toString('base64')
+  const sendResult = await sendTwilioSms({ orgId: options.orgId, to, body: message })
+  if (!sendResult.sent) return sendResult
 
-  try {
-    const twRes = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${credentials}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
+  if (options.leadId && options.eventType) {
+    await supabase.from('lead_events').insert({
+      lead_id: options.leadId,
+      org_id: options.orgId,
+      event_type: options.eventType,
+      note: options.eventNote ?? null,
+      payload: {
+        template: options.templateKey,
+        twilio_sid: sendResult.sid ?? null,
+        ...options.eventPayload,
       },
-      body: bodyParams.toString(),
     })
-
-    const twData = (await twRes.json()) as { sid?: string; message?: string }
-
-    if (!twRes.ok) {
-      console.error('Twilio branded SMS error:', twData)
-      return { sent: false, error: twData.message ?? 'Twilio rejected the request' }
-    }
-
-    if (options.leadId && options.eventType) {
-      await supabase.from('lead_events').insert({
-        lead_id: options.leadId,
-        org_id: options.orgId,
-        event_type: options.eventType,
-        note: options.eventNote ?? null,
-        payload: {
-          template: options.templateKey,
-          twilio_sid: twData.sid ?? null,
-          ...options.eventPayload,
-        },
-      })
-    }
-
-    return { sent: true, sid: twData.sid }
-  } catch (err) {
-    console.error('Branded SMS send failed:', err)
-    return { sent: false, error: 'Failed to send SMS' }
   }
+
+  return sendResult
 }

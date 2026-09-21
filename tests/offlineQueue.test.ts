@@ -7,6 +7,43 @@ import {
   enqueueLeadPhoto,
   removeOfflineQueueItem,
 } from '../src/lib/offlineQueue'
+import { flushOfflineQueue, shouldSkipQueuedContactAttempt } from '../src/lib/flushOfflineQueue'
+
+const leadSelect = vi.hoisted(() => ({
+  data: { status: 'assigned' } as { status: string } | null,
+  error: null as { message: string } | null,
+}))
+
+const transitionLead = vi.hoisted(() => vi.fn())
+
+vi.mock('../src/lib/supabase', () => ({
+  supabase: {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => leadSelect,
+        }),
+      }),
+    }),
+  },
+}))
+
+vi.mock('../src/lib/leadTransition', () => ({
+  transitionLead: (...args: unknown[]) => transitionLead(...args),
+  LEAD_TRANSITION_CONFLICT: 'CONFLICT',
+}))
+
+vi.mock('../src/lib/leadEvents', () => ({
+  logLeadEvent: vi.fn().mockResolvedValue({ error: null }),
+}))
+
+vi.mock('../src/lib/sentry', () => ({
+  captureClientException: vi.fn(),
+}))
+
+vi.mock('../src/lib/analytics', () => ({
+  trackViaRelay: vi.fn(),
+}))
 
 /** Minimal in-memory IndexedDB fake for node/jsdom. */
 function installMemoryIndexedDb() {
@@ -142,5 +179,71 @@ describe('offlineQueue', () => {
     })
     await removeOfflineQueueItem(row.id)
     expect(await getOfflineQueueCount()).toBe(0)
+  })
+})
+
+describe('shouldSkipQueuedContactAttempt', () => {
+  it('skips booked and terminal statuses', () => {
+    expect(shouldSkipQueuedContactAttempt('booked')).toBe(true)
+    expect(shouldSkipQueuedContactAttempt('completed')).toBe(true)
+    expect(shouldSkipQueuedContactAttempt('lost')).toBe(true)
+    expect(shouldSkipQueuedContactAttempt('booking_cancelled')).toBe(true)
+    expect(shouldSkipQueuedContactAttempt('assigned')).toBe(false)
+    expect(shouldSkipQueuedContactAttempt('unassigned')).toBe(false)
+  })
+})
+
+describe('flushOfflineQueue contact-attempt replay', () => {
+  let clearStore: () => void
+
+  beforeEach(() => {
+    clearStore = installMemoryIndexedDb()
+    vi.stubGlobal('navigator', { onLine: true })
+    leadSelect.data = { status: 'assigned' }
+    leadSelect.error = null
+    transitionLead.mockReset()
+    transitionLead.mockResolvedValue({ ok: true })
+  })
+
+  afterEach(() => {
+    clearStore()
+    vi.unstubAllGlobals()
+  })
+
+  it('does not write when the lead is already booked', async () => {
+    leadSelect.data = { status: 'booked' }
+    await enqueueContactAttempt({
+      leadId: 'lead-1',
+      orgId: 'org-1',
+      actorId: 'user-1',
+      kind: 'call',
+      leadStatus: 'assigned',
+      contactAttemptRound: 0,
+      leadName: 'Jane',
+      leadPhone: '0412345678',
+    })
+
+    const result = await flushOfflineQueue()
+    expect(transitionLead).not.toHaveBeenCalled()
+    expect(result.processed).toBe(1)
+    expect(await getOfflineQueueCount()).toBe(0)
+  })
+
+  it('keeps the item when the status write is rejected', async () => {
+    transitionLead.mockResolvedValue({ ok: false, error: 'RLS denied' })
+    await enqueueContactAttempt({
+      leadId: 'lead-1',
+      orgId: 'org-1',
+      actorId: 'user-1',
+      kind: 'call',
+      leadStatus: 'assigned',
+      contactAttemptRound: 0,
+      leadName: 'Jane',
+      leadPhone: '0412345678',
+    })
+
+    const result = await flushOfflineQueue()
+    expect(result.failed).toBe(1)
+    expect(await getOfflineQueueCount()).toBe(1)
   })
 })

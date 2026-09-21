@@ -11,5 +11,13 @@ export function getPlatformUrl(): string {
     return `https://${host}`
   }
 
-  return 'https://tv-magic-companion.vercel.app'
+  return 'https://fieldbourne.app'
+}
+
+export function getDefaultNoreplyEmail(): string {
+  try {
+    return `noreply@${new URL(getPlatformUrl()).hostname}`
+  } catch {
+    return 'noreply@fieldbourne.app'
+  }
 }

@@ -1,3 +1,5 @@
+import { getDefaultNoreplyEmail } from './platformUrl.js'
+
 export interface TransactionalEmailAttachment {
   filename: string
   content: Buffer
@@ -19,7 +21,7 @@ export async function sendTransactionalEmail(
     return { sent: false, message: 'Email not sent (RESEND_API_KEY is missing).' }
   }
 
-  const fromAddress = input.from || process.env.INVOICE_EMAIL_FROM || process.env.QUOTE_EMAIL_FROM || process.env.EMAIL_FROM || 'noreply@tv-magic-companion.com'
+  const fromAddress = input.from || process.env.INVOICE_EMAIL_FROM || process.env.QUOTE_EMAIL_FROM || process.env.EMAIL_FROM || getDefaultNoreplyEmail()
 
   try {
     const { Resend } = await import('resend')

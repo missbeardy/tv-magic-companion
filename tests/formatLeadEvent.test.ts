@@ -55,4 +55,12 @@ describe('formatLeadEventDisplay', () => {
     })
     expect(result.text).toBe('John Smith assign timer expired (Alex Jones did not act in time)')
   })
+
+  it('formats sms_received', () => {
+    const result = formatLeadEventDisplay({
+      eventType: 'sms_received',
+      leadName: 'Jane Doe',
+    })
+    expect(result.text).toBe('SMS received from Jane Doe')
+  })
 })

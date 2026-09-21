@@ -4,8 +4,10 @@ import {
   extractFromEmail,
   extractFromSms,
   extractFromVoicemailTranscript,
+  inferServiceType,
   smsFallbackParse,
 } from '../api/_lib/extractLead'
+import { FACEBOOK_SERVICE_TYPES } from '../api/_lib/handleInboundFacebookLead'
 import { findAuPhoneInText, phonesEqual } from '../api/_lib/phone'
 
 const GATEWAY = '+61480437390'
@@ -41,7 +43,8 @@ describe('smsFallbackParse', () => {
   it('uses from number and structured Subject/Message fields', () => {
     const result = smsFallbackParse(
       'Subject: TV aerial install\nMessage: Need someone this week',
-      '+61400111222'
+      '+61400111222',
+      { serviceTypes: [...FACEBOOK_SERVICE_TYPES] }
     )
     expect(result.name).toBe('SMS Enquiry')
     expect(result.phone).toBe('+61400111222')
@@ -94,7 +97,8 @@ describe('emailFallbackParse', () => {
     const result = emailFallbackParse(
       'Need a TV aerial repair.\nPhone: 0402 448 924\nAddress: 298 Wights Mountain Rd',
       'Insurance inspection',
-      'Pat <pat@example.com>'
+      'Pat <pat@example.com>',
+      { serviceTypes: [...FACEBOOK_SERVICE_TYPES] }
     )
     expect(result.name).toBe('Pat')
     expect(result.email).toBe('pat@example.com')
@@ -104,7 +108,9 @@ describe('emailFallbackParse', () => {
   })
 
   it('falls back to subject for details when body empty', () => {
-    const result = emailFallbackParse('', 'Urgent satellite install', 'bob@test.com')
+    const result = emailFallbackParse('', 'Urgent satellite install', 'bob@test.com', {
+      serviceTypes: [...FACEBOOK_SERVICE_TYPES],
+    })
     expect(result.details).toBe('Urgent satellite install')
     expect(result.service_type).toBe('Satellite Dish')
   })
@@ -141,7 +147,8 @@ describe('ExtractionRunResult', () => {
     const result = await extractFromEmail(
       'Need satellite dish install',
       'Enquiry',
-      'bob@test.com'
+      'bob@test.com',
+      { serviceTypes: [...FACEBOOK_SERVICE_TYPES] }
     )
     expect(result.status).toBe('fallback')
     expect(result.fields.service_type).toBe('Satellite Dish')
@@ -155,5 +162,14 @@ describe('ExtractionRunResult', () => {
     )
     expect(result.status).toBe('failed')
     expect(result.fields).toEqual({})
+  })
+})
+
+describe('inferServiceType', () => {
+  it('does not default a plumbing enquiry to TV Aerial', () => {
+    expect(inferServiceType('blocked drain in the kitchen', ['Blocked Drain', 'Hot Water', 'Other'])).toBe(
+      'Blocked Drain'
+    )
+    expect(inferServiceType('blocked drain in the kitchen')).toBe('Other')
   })
 })

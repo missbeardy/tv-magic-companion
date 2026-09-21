@@ -8,7 +8,9 @@ export function canUseOneSignal(): boolean {
   if (typeof window === 'undefined') return false
   const { hostname, origin } = window.location
   if (hostname === 'localhost' || hostname === '127.0.0.1') return false
-  return origin === 'https://tv-magic-companion.vercel.app' || origin.includes('fieldbourne')
+  const configured = import.meta.env.VITE_PLATFORM_URL?.replace(/\/$/, '')
+  if (configured) return origin === configured
+  return origin.includes('fieldbourne')
 }
 
 export function initOneSignal(): Promise<void> {

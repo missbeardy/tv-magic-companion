@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { waitUntil } from '@vercel/functions'
-import type { ExtractionStatus } from './extractLead.js'
+import { inferServiceType, type ExtractionStatus } from './extractLead.js'
 import { captureUnroutedInbound } from './captureUnroutedInbound.js'
 import { isFeatureEnabledForOrg } from './featureSwitches.js'
 import {
@@ -82,7 +82,8 @@ function parseOutOfArea(value: unknown): boolean {
   return false
 }
 
-const FACEBOOK_SERVICE_TYPES = [
+/** TV Magic default list — used when no org list is passed, and for MCP backfill. */
+export const FACEBOOK_SERVICE_TYPES = [
   'TV Aerial',
   'Wall Mounting',
   'Starlink',
@@ -103,7 +104,10 @@ const FACEBOOK_SERVICE_TYPES = [
 ] as const
 
 /** Keyword fallback when Claude extraction is unavailable. More specific phrases first. */
-export function inferFacebookServiceType(text: string): string {
+export function inferFacebookServiceType(text: string, serviceTypes?: string[]): string {
+  if (serviceTypes && serviceTypes.length > 0) {
+    return inferServiceType(text, serviceTypes, 'General Enquiry')
+  }
   const combined = text.toLowerCase()
   if (combined.includes('starlink')) return 'Starlink'
   if (combined.includes('video wall')) return 'Video Wall'
@@ -154,7 +158,7 @@ export function assembleMessengerLeadDetails(input: {
   outOfArea: boolean
 }): string {
   const lines = [
-    'Facebook Messenger — TV Magic South Brisbane',
+    'Facebook Messenger enquiry',
     `Name: ${input.name}`,
     `Phone: ${input.phone}`,
     input.suburb ? `Suburb: ${input.suburb}` : null,
@@ -279,9 +283,10 @@ export function facebookLeadFallbackParse(
   email: string | null,
   city?: string | null,
   suburb?: string | null,
-  serviceNeeded?: string | null
+  serviceNeeded?: string | null,
+  serviceTypes?: string[]
 ): ExtractedLeadFields {
-  const service_type = inferFacebookServiceType(`${serviceNeeded ?? ''} ${message}`)
+  const service_type = inferFacebookServiceType(`${serviceNeeded ?? ''} ${message}`, serviceTypes)
   const addressMatch = message.match(/(?:address|located at|suburb)[:\s]*(.+?)(?:\n|$)/i)
   const address = suburb?.trim() || addressMatch?.[1]?.trim() || city?.trim() || null
   const detailsMax = suburb || serviceNeeded ? STRUCTURED_DETAILS_MAX : LEGACY_DETAILS_MAX
@@ -301,7 +306,8 @@ export async function extractFacebookLeadWithClaude(
   phone: string,
   message: string,
   email: string | null,
-  channel: FacebookLeadChannel = 'messenger'
+  channel: FacebookLeadChannel = 'messenger',
+  opts?: { serviceTypes?: string[]; aiContext?: string | null; orgId?: string }
 ): Promise<ExtractedLeadFields | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return null
@@ -311,13 +317,15 @@ export async function extractFacebookLeadWithClaude(
       ? `this Facebook Lead Ads instant-form submission. The message is assembled from form answers and the ad's form name, not free text — infer service_type from the form name where the customer wrote nothing, and do not invent details they did not provide`
       : 'this Facebook Messenger enquiry'
 
+  const allowed = opts?.serviceTypes?.length ? opts.serviceTypes : [...FACEBOOK_SERVICE_TYPES]
+  const extra = opts?.aiContext?.trim() ? `\nBusiness context:\n${opts.aiContext.trim().slice(0, 1500)}\n` : ''
   const prompt = `Extract lead information from ${context}. Return ONLY a JSON object, no markdown.
-
+${extra}
 Fields:
 - name: full name (or null)
 - phone: phone number (or null)
 - email: email address (or null)
-- service_type: one of ${FACEBOOK_SERVICE_TYPES.map((value) => `"${value}"`).join(', ')}
+- service_type: one of ${allowed.map((value) => `"${value}"`).join(', ')}
 - details: brief summary (1-2 sentences)
 - address: street address if mentioned (or null)
 
@@ -402,7 +410,7 @@ export async function ingestParsedFacebookLead(
 
   const { data: orgRow, error: orgError } = await supabase
     .from('orgs')
-    .select('id')
+    .select('id, service_types, ai_context')
     .eq('slug', org)
     .maybeSingle()
 
@@ -423,6 +431,10 @@ export async function ingestParsedFacebookLead(
   }
 
   const orgId = orgRow.id
+  const serviceTypes = Array.isArray(orgRow.service_types)
+    ? orgRow.service_types.filter((value: unknown): value is string => typeof value === 'string' && value.trim() !== '')
+    : []
+  const aiContext = typeof orgRow.ai_context === 'string' ? orgRow.ai_context : null
   const channelEnabled = await isFeatureEnabledForOrg(orgId, config.featureKey)
   if (!channelEnabled) {
     console.log(`${config.logLabel} disabled for org ${orgId}`)
@@ -448,7 +460,8 @@ export async function ingestParsedFacebookLead(
     email,
     city,
     suburb,
-    serviceNeeded
+    serviceNeeded,
+    serviceTypes
   )
 
   try {
@@ -486,7 +499,8 @@ export async function ingestParsedFacebookLead(
           normalizedPhone,
           message,
           email,
-          channel
+          channel,
+          { serviceTypes, aiContext, orgId }
         )
         const extracted =
           claudeExtracted ??
@@ -497,7 +511,8 @@ export async function ingestParsedFacebookLead(
             email,
             city,
             suburb,
-            serviceNeeded
+            serviceNeeded,
+            serviceTypes
           )
         extractionStatus = claudeExtracted ? 'succeeded' : 'fallback'
         extractedForAck = extracted

@@ -76,7 +76,7 @@ export default function EmployeeDashboard() {
     fetchStats()
     const channel = supabase
       .channel('employee-dashboard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, fetchStats)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads', filter: `org_id=eq.${profile.org_id}` }, fetchStats)
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [profile])

@@ -1,9 +1,9 @@
-import { formatAuPhoneForSms } from './phone.js'
 import type { EmployeeWhatsAppMessagePayload } from './employeeWhatsAppTemplates.js'
 import {
   isEmployeeWhatsAppConfigured,
   sendEmployeeWhatsApp,
 } from './sendEmployeeWhatsApp.js'
+import { sendPlatformSms, sendTwilioSms } from './twilioSend.js'
 
 export interface SendEmployeeAlertResult {
   sent: boolean
@@ -17,43 +17,20 @@ export interface SendEmployeeAlertResult {
 /** Send a plain Twilio SMS to a team member (employee alerts fallback). */
 export async function sendEmployeeSms(
   toPhone: string,
-  body: string
+  body: string,
+  orgId?: string
 ): Promise<SendEmployeeAlertResult> {
-  const sid = process.env.TWILIO_ACCOUNT_SID
-  const token = process.env.TWILIO_AUTH_TOKEN
-  const from = process.env.TWILIO_FROM_NUMBER?.trim()
+  const result = orgId
+    ? await sendTwilioSms({ orgId, to: toPhone, body })
+    : await sendPlatformSms({ to: toPhone, body })
 
-  if (!sid || !token || !from) {
+  if (result.sent) {
+    return { sent: true, channel: 'sms', sid: result.sid }
+  }
+  if (result.skipped === 'no_sender_number') {
     return { sent: false, skipped: 'Twilio SMS not configured' }
   }
-
-  const to = formatAuPhoneForSms(toPhone)
-  const bodyParams = new URLSearchParams({ To: to, From: from, Body: body })
-  const credentials = Buffer.from(`${sid}:${token}`).toString('base64')
-
-  try {
-    const twRes = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${credentials}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: bodyParams.toString(),
-    })
-    const twData = (await twRes.json()) as { sid?: string; message?: string; code?: number }
-    if (!twRes.ok) {
-      console.error('Employee SMS error:', twData, { to, from })
-      return {
-        sent: false,
-        error: twData.message ?? 'Twilio rejected the SMS request',
-        code: twData.code,
-      }
-    }
-    return { sent: true, channel: 'sms', sid: twData.sid }
-  } catch (err) {
-    console.error('Employee SMS send failed:', err)
-    return { sent: false, error: 'Failed to send SMS message' }
-  }
+  return { sent: false, skipped: result.skipped, error: result.error }
 }
 
 /** Try WhatsApp first; fall back to SMS with the same body text. */
@@ -61,6 +38,7 @@ export async function sendEmployeeAlertWithSmsFallback(options: {
   toPhone: string
   smsBody: string
   whatsAppMessage: EmployeeWhatsAppMessagePayload
+  orgId?: string
 }): Promise<SendEmployeeAlertResult> {
   if (isEmployeeWhatsAppConfigured()) {
     const waResult = await sendEmployeeWhatsApp({
@@ -77,14 +55,15 @@ export async function sendEmployeeAlertWithSmsFallback(options: {
     })
   }
 
-  return sendEmployeeSms(options.toPhone, options.smsBody)
+  return sendEmployeeSms(options.toPhone, options.smsBody, options.orgId)
 }
 
 /** Best-effort employee alert — never throws. */
 export async function sendEmployeeAlertToPhone(
   phone: string | null | undefined,
   smsBody: string,
-  whatsAppMessage: EmployeeWhatsAppMessagePayload
+  whatsAppMessage: EmployeeWhatsAppMessagePayload,
+  orgId?: string
 ): Promise<SendEmployeeAlertResult> {
   if (!phone?.trim()) {
     return { sent: false, skipped: 'No phone on profile' }
@@ -94,5 +73,6 @@ export async function sendEmployeeAlertToPhone(
     toPhone: phone,
     smsBody,
     whatsAppMessage,
+    orgId,
   })
 }

@@ -23,6 +23,8 @@ export type LeadEventType =
   | 'unassigned'
   | 'review_request'
   | 'sms_sent'
+  | 'sms_received'
+  | 'sms_opt_out'
   | 'invoice_sent'
   | 'invoice_paid_manual'
   | 'deleted'

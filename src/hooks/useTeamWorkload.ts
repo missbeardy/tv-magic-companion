@@ -73,7 +73,7 @@ export function useTeamWorkload() {
     fetchWorkload()
     const channel = supabase
       .channel(`team-workload-${orgId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, fetchWorkload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads', filter: `org_id=eq.${orgId}` }, fetchWorkload)
       .subscribe()
     return () => {
       supabase.removeChannel(channel)

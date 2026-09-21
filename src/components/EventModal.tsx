@@ -588,16 +588,13 @@ export default function EventModal({
 
       const employeeName = `${empProfile.first_name || 'An employee'} ${empProfile.last_name || ''}`.trim()
 
-      await supabase
-        .from('notifications')
-        .insert([{
-          user_id: empProfile.manager_id,
-          title: 'Calendar Updated',
-          message: `${employeeName} ${action} an appointment: "${title}"`,
-          type: 'calendar',
-          read: false,
-          org_id: profile.org_id
-        }])
+      await sendNotification(
+        empProfile.manager_id,
+        'Calendar Updated',
+        `${employeeName} ${action} an appointment: "${title}"`,
+        '/calendar',
+        'calendar',
+      )
     } catch (err) {
       console.warn('Manager notification failed (non-fatal):', err)
     }

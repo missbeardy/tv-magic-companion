@@ -5,6 +5,7 @@ import { enqueueCompletion, enqueueLeadNote } from './offlineQueue'
 import { isNetworkError } from './fetchWithTimeout'
 import { trackViaRelay } from './analytics'
 import { captureClientException } from './sentry'
+import { LEAD_TRANSITION_CONFLICT, transitionLead } from './leadTransition'
 
 /** Whether a write reached the server ('online') or was stored for later sync ('queued'). */
 export type OfflineWriteMode = 'online' | 'queued'
@@ -25,18 +26,35 @@ function isOffline(): boolean {
 /** Outcome of a checked lead write. `network` distinguishes "retry later" from a server rejection. */
 export type LeadWriteOutcome =
   | { ok: true }
-  | { ok: false; network: boolean; message: string }
+  | { ok: false; network: boolean; message: string; conflict?: boolean }
 
 /**
  * Run a `leads` update and report the outcome instead of discarding it. Callers
  * decide what to do with a failure — queue it, show a retry toast, etc. — so a
  * failed status write can never silently evaporate on weak signal.
+ *
+ * Pass `fromStatus` for any status transition so a concurrent pick-up or office
+ * booking cannot be overwritten (last-writer-wins).
  */
 export async function runLeadUpdate(
   leadId: string,
-  update: Record<string, unknown>
+  update: Record<string, unknown>,
+  fromStatus?: string
 ): Promise<LeadWriteOutcome> {
   try {
+    if (fromStatus) {
+      const result = await transitionLead(leadId, fromStatus, update)
+      if (!result.ok) {
+        return {
+          ok: false,
+          network: false,
+          message: result.error,
+          conflict: result.error === LEAD_TRANSITION_CONFLICT,
+        }
+      }
+      return { ok: true }
+    }
+
     const { error } = await supabase.from('leads').update(asLeadUpdate(update)).eq('id', leadId)
     if (error) return { ok: false, network: false, message: error.message }
     return { ok: true }

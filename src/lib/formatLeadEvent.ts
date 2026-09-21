@@ -151,6 +151,16 @@ const EVENT_META: Record<
     iconColour: 'bg-cyan-500',
     template: (_who, lead) => `SMS sent to ${lead}`,
   },
+  sms_received: {
+    icon: MessageSquare,
+    iconColour: 'bg-indigo-500',
+    template: (_who, lead) => `SMS received from ${lead}`,
+  },
+  sms_opt_out: {
+    icon: Ban,
+    iconColour: 'bg-gray-600',
+    template: (_who, lead) => `Customer opted out of SMS for ${lead}`,
+  },
   invoice_sent: {
     icon: Receipt,
     iconColour: 'bg-violet-500',

@@ -6,6 +6,7 @@ import { getSupabaseAdmin } from './_lib/supabaseAdmin.js';
 import { withObservability } from './_lib/observability.js';
 import { authenticateRequest } from './_lib/auth.js';
 import { deleteOwnAccount } from './_lib/accountDeletion.js';
+import { getPlatformUrl } from './_lib/platformUrl.js';
 import { captureServerException } from './_lib/sentry.js';
 
 async function handleDeleteAccount(req: VercelRequest, res: VercelResponse) {
@@ -23,6 +24,9 @@ async function handleDeleteAccount(req: VercelRequest, res: VercelResponse) {
 
   const result = await deleteOwnAccount(supabaseAdmin, auth.userId);
   if (!result.ok) {
+    if (result.error.includes('last manager')) {
+      return res.status(409).json({ error: result.error });
+    }
     console.error('Account deletion failed:', result.error);
     captureServerException(new Error(result.error), { action: 'delete-account', orgId: auth.orgId });
     return res.status(500).json({ error: 'Account deletion failed. Please contact support.' });
@@ -124,7 +128,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  const redirectUrl = 'https://tv-magic-companion.vercel.app/set-password';
+  const redirectUrl = `${getPlatformUrl()}/set-password`;
 
   try {
     const requestBody = {

@@ -213,7 +213,7 @@ describe('parseFacebookLeadBody', () => {
     if (!result.ok) return
     expect(result.data.conversation_id).toBe('conv_abc123')
     expect(result.data.suburb).toBe('Annerley')
-    expect(result.data.message).toContain('Facebook Messenger — TV Magic South Brisbane')
+    expect(result.data.message).toContain('Facebook Messenger enquiry')
     expect(result.data.message).toContain('Suburb: Annerley')
     expect(result.data.message).toContain('Service: Wall mount 75 inch plaster')
     expect(result.data.message).toContain('Out of area: no')
@@ -254,6 +254,12 @@ describe('facebookLeadFallbackParse', () => {
     expect(inferFacebookServiceType('Can you wall mount a 75 inch?')).toBe('Wall Mounting')
     expect(inferFacebookServiceType('Need Starlink on the roof')).toBe('Starlink')
     expect(inferFacebookServiceType('TV is pixelating, no signal')).toBe('Reception Repair')
+  })
+
+  it('uses a plumbing list instead of TV Aerial', () => {
+    expect(inferFacebookServiceType('blocked drain under the house', ['Blocked Drain', 'Hot Water'])).toBe(
+      'Blocked Drain'
+    )
   })
 
   it('builds a readable card for technicians', () => {

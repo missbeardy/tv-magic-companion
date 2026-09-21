@@ -24,18 +24,25 @@ export async function isFeatureEnabledForOrg(
   const supabase = getSupabaseAdmin()
   if (!supabase || !orgId || !featureKey) return false
 
-  const [{ data: orgRow }, { data: catalogRow }] = await Promise.all([
-    supabase
-      .from('orgs')
-      .select('brand_id, subscription_tier')
-      .eq('id', orgId)
-      .maybeSingle(),
-    supabase
-      .from('feature_flag_catalog')
-      .select('default_enabled, min_tier')
-      .eq('feature_key', featureKey)
-      .maybeSingle(),
-  ])
+  const [{ data: orgRow }, { data: catalogRow }, { data: orgOverride, error: overrideError }] =
+    await Promise.all([
+      supabase
+        .from('orgs')
+        .select('brand_id, subscription_tier')
+        .eq('id', orgId)
+        .maybeSingle(),
+      supabase
+        .from('feature_flag_catalog')
+        .select('default_enabled, min_tier')
+        .eq('feature_key', featureKey)
+        .maybeSingle(),
+      supabase
+        .from('org_feature_switch_overrides')
+        .select('enabled')
+        .eq('org_id', orgId)
+        .eq('feature_key', featureKey)
+        .maybeSingle(),
+    ])
 
   if (!orgRow) return false
 
@@ -43,6 +50,10 @@ export async function isFeatureEnabledForOrg(
     (catalogRow?.min_tier as string | undefined) ?? FEATURE_SWITCH_MIN_TIERS[featureKey] ?? 'basic'
   if (!tierMeetsMinimum(orgRow.subscription_tier, minTier)) {
     return false
+  }
+
+  if (!overrideError && (orgOverride?.enabled === true || orgOverride?.enabled === false)) {
+    return orgOverride.enabled
   }
 
   if (orgRow.brand_id) {

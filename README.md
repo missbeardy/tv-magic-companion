@@ -7,7 +7,7 @@ Repo folder is still `tv-magic-companion` (rename deferred — see ROADMAP T2.3)
 
 - React 19 + Vite + Tailwind + installable PWA
 - Supabase (Postgres + RLS) + Vercel serverless (`api/`)
-- Twilio SMS, Resend email, Stripe (SaaS billing + Connect invoice pay), OneSignal push
+- Twilio SMS (per-org `sms_from_number`), Resend email, Stripe (SaaS billing + Connect invoice pay), OneSignal or native web push
 
 ## Docs map
 

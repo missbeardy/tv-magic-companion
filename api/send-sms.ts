@@ -20,7 +20,13 @@ import {
   getQuotePublicBrand,
 } from './_lib/quotes.js'
 import { sendBookingConfirmations } from './_lib/bookingConfirm.js'
-import { createAndSendInvoice, getInvoiceByToken, markInvoicePaid } from './_lib/invoices.js'
+import {
+  createAndSendInvoice,
+  getInvoiceByToken,
+  invoicePdfPathBelongsToOrg,
+  markInvoicePaid,
+} from './_lib/invoices.js'
+import { canSendInvoice } from './_lib/invoiceAccess.js'
 import {
   handleAutomationSweepsCron,
   handleContactFollowUpCron,
@@ -32,6 +38,8 @@ import {
 import { notifyOrgUser } from './_lib/notifyUser.js'
 import { handlePushRotate, handlePushSend } from './_lib/pushEndpoints.js'
 import { sendEmployeeAlertWithSmsFallback } from './_lib/sendEmployeeAlert.js'
+import { handleSmsReply } from './_lib/smsReply.js'
+import { sendTwilioSms } from './_lib/twilioSend.js'
 import {
   buildEmployeeWhatsAppMessage,
   getEmployeeWhatsAppContentSid,
@@ -522,8 +530,8 @@ async function loadOrgInvoiceSettings(orgId: string) {
   }
 }
 
-async function handleInvoiceSendEmail(req: VercelRequest, res: VercelResponse, auth: AuthContext) {
-  if (!['manager', 'platform_admin', 'technician'].includes(auth.role)) {
+export async function handleInvoiceSendEmail(req: VercelRequest, res: VercelResponse, auth: AuthContext) {
+  if (!canSendInvoice(auth.role)) {
     return res.status(403).json({ error: 'Only team members can send invoices' })
   }
 
@@ -562,6 +570,9 @@ async function handleInvoiceSendEmail(req: VercelRequest, res: VercelResponse, a
 
   if (!(await assertLeadInOrg(leadId, auth.orgId))) {
     return res.status(403).json({ error: 'Lead is outside your organisation' })
+  }
+  if (typeof pdfStoragePath === 'string' && pdfStoragePath.trim() && !invoicePdfPathBelongsToOrg(auth.orgId, pdfStoragePath)) {
+    return res.status(403).json({ error: 'Invalid attachment path' })
   }
   if (quoteId && !(await assertQuoteInOrg(quoteId, auth.orgId))) {
     return res.status(403).json({ error: 'Quote is outside your organisation' })
@@ -802,6 +813,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   if (action === 'invoice-mark-paid') {
     return handleInvoiceMarkPaid(req, res, auth)
   }
+  if (action === 'sms-reply') {
+    return handleSmsReply(req, res, auth)
+  }
 
   const { mode, to, assigneeId, customerName, techName, address, leadName, serviceType, leadId, dateTime, managerName } = req.body as {
     mode?: string
@@ -915,16 +929,12 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  const sid = process.env.TWILIO_ACCOUNT_SID
-  const token = process.env.TWILIO_AUTH_TOKEN
-  const from = process.env.TWILIO_FROM_NUMBER
-
-  if (!sid || !token) {
-    return res.status(500).json({ error: 'Twilio env vars not configured' })
-  }
-
-  if (!isInternalMode && !from) {
-    return res.status(500).json({ error: 'Twilio SMS from number not configured' })
+  if (isInternalMode) {
+    const sid = process.env.TWILIO_ACCOUNT_SID
+    const token = process.env.TWILIO_AUTH_TOKEN
+    if (!sid || !token) {
+      return res.status(500).json({ error: 'Twilio env vars not configured' })
+    }
   }
 
   const orgName = auth.org.name
@@ -1033,6 +1043,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       toPhone: smsTo,
       smsBody: message,
       whatsAppMessage: waMessage,
+      orgId: auth.orgId,
     })
     if (result.skipped && !result.sent) {
       return res.status(503).json({ error: result.skipped })
@@ -1062,36 +1073,23 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     })
   }
 
-  const bodyParams = new URLSearchParams({ To: smsTo, From: from!, Body: message })
-  const credentials = Buffer.from(`${sid}:${token}`).toString('base64')
-
-  try {
-    const twRes = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${credentials}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: bodyParams.toString(),
-    })
-
-    const twData = await twRes.json()
-
-    if (!twRes.ok) {
-      console.error('Twilio error:', twData)
-      return res.status(502).json({ error: 'Twilio rejected the request', detail: (twData as { message?: string }).message })
-    }
-
-    if (mode === 'review_request' && leadId) {
-      track('review_sent', leadId, { orgId: auth.orgId, leadId })
-    }
-
-    return res.status(200).json({ success: true })
-  } catch (err) {
-    console.error('SMS send error:', err)
-    captureServerException(err, { action: 'notify', mode: mode ?? 'unknown' })
-    return res.status(500).json({ error: 'Failed to send SMS' })
+  const sendResult = await sendTwilioSms({ orgId: auth.orgId, to: smsTo, body: message })
+  if (sendResult.skipped === 'opted_out') {
+    return res.status(403).json({ error: 'This number has opted out of SMS' })
   }
+  if (sendResult.skipped === 'no_sender_number') {
+    return res.status(503).json({ error: 'No SMS sender number configured for this organisation' })
+  }
+  if (!sendResult.sent) {
+    console.error('Twilio error:', sendResult)
+    return res.status(502).json({ error: sendResult.error ?? 'Twilio rejected the request' })
+  }
+
+  if (mode === 'review_request' && leadId) {
+    track('review_sent', leadId, { orgId: auth.orgId, leadId })
+  }
+
+  return res.status(200).json({ success: true, sid: sendResult.sid })
 }
 
 export default withObservability(handler)

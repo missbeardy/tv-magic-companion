@@ -9,7 +9,7 @@
 ## Before the session (owner, ~30 min)
 
 1. **Comms plumbing** (the only genuinely fiddly part):
-   - Buy an AU **Twilio number** for the org; point its SMS webhook at `POST /api/inbound-sms` on prod. Map number → org in the **`org_phone_numbers`** table (no admin UI yet — deliberate; do it in SQL via the Management-API flow).
+   - Buy an AU **Twilio number** for the org; point its SMS webhook at `POST /api/inbound-sms` on prod. Map number → org in the **`org_phone_numbers`** table **and** set the same E.164 value as **`orgs.sms_from_number`** (no admin UI yet — deliberate; do it in SQL via the Management-API flow). Customer/employee SMS has no env-var fallback.
    - **CloudMailin inbound email**: give the org its plus-tag address (routing via `resolveOrgFromInboundEmail`); if they want voicemail/missed-call capture, point their phone system's voicemail-to-email at it.
    - Unmapped inbound doesn't vanish — it lands in `unrouted_inbound` with an alert — but map first anyway.
 2. **Stripe**: nothing to pre-create for job payments (Connect onboarding is done by the customer in-session below). For *their subscription*, decide manual tier vs Stripe checkout.
@@ -19,7 +19,7 @@
 
 ### 1. Provision (Platform Admin, `/platform`)
 - Create the org under the right **brand** (or create a brand first if this is a new look), set **tier**, set **operation_mode = solo** (or team).
-- Tick **Apply solo tradie wedge preset** on create (turns on inbound, ack, quotes, booking, invoice, review, price list, import, tips on the brand). Or apply later via Platform feature switches.
+- Tick **Apply solo tradie wedge preset** on create (writes org-level switch overrides: inbound, ack, quotes, booking, invoice, review, tips). Or set Inherit/On/Off per org under Platform feature switches. Each org also needs a Twilio number on `org_phone_numbers` **and** `orgs.sms_from_number`.
 - **Brand templates** (Platform Admin → template editor): walk every SMS/email template with them — ack copy + callback SLA, booking confirm, day-before reminder, chase ladders, review request. This copy *is* their customer experience; don't ship defaults unread.
 
 ### 2. Business settings (Franchise Settings, as the customer)

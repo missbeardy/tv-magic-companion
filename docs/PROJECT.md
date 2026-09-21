@@ -4,7 +4,7 @@
 |-------|-------|
 | **Product** | FieldBourne — multi-tenant field service CRM PWA for Australian trade businesses |
 | **Status** | MVP in production with one paying client (TV Magic South Brisbane); polish phase before marketing |
-| **Version** | v1.1.140 (20-07-2026) — Tier 2 shipped (prod schema reconcile still operator-run); T1.10 deferred |
+| **Version** | v1.1.197 (16-09-2026) — org-scoped switches, client identity out of shared code; T1.10 deferred |
 | **Repo** | `tv-magic-companion` (rename pending — roadmap T2.3) |
 | **Related docs** | [ROADMAP.md](../ROADMAP.md) (governing) · [T1_TESTING.md](../T1_TESTING.md) · [MUST_HAVE_8_ROADMAP.md](MUST_HAVE_8_ROADMAP.md) · [SALES_PIPELINE_WORKFLOW.md](SALES_PIPELINE_WORKFLOW.md) · [SALES_PIPELINE_BACKLOG.md](../SALES_PIPELINE_BACKLOG.md) · [MARKETING.md](MARKETING.md) · [BUSINESS.md](BUSINESS.md) · [ONBOARDING_RUNBOOK.md](ONBOARDING_RUNBOOK.md) · Branding: owner's separate guide |
 
@@ -12,15 +12,15 @@
 
 - **Frontend:** React 19 + Vite, Tailwind CSS v4, installable PWA (`vite-plugin-pwa`), React Router 7. Recharts (reports), @dnd-kit (desktop kanban), @xyflow (workflow-run graphs).
 - **Backend:** Vercel serverless functions — **12 of a hard 12-function Hobby cap** used (full). New endpoints must be `?action=` additions to existing hubs (`api/send-sms.ts`, `api/stripe.ts`, …) with `vercel.json` rewrites for pretty URLs. Never add a new file under `api/` root.
-- **Database:** Supabase Postgres with org-scoped RLS everywhere. Prod project `abnheynzugpicikxwwmv`, dev project `rkzgikxxxmovqisxusae`. Deno edge function: `notify-message` (support-messaging push).
+- **Database:** Supabase Postgres with org-scoped RLS everywhere. Prod project `abnheynzugpicikxwwmv`, dev project `rkzgikxxxmovqisxusae` (paused). Deno edge function `notify-message` is still deployed on prod and listed in `docs/outstanding.md` for undeploy.
 - **Integrations:** Twilio (SMS + WhatsApp), CloudMailin (inbound email/voicemail/missed-call), Resend (transactional email), Stripe (two separate integrations: SaaS subscription billing for orgs, and Connect Standard for customer invoice payments — separate webhook secrets), **push: self-hosted Web Push/VAPID (`api/_lib/webPush.ts`) or OneSignal, chosen per brand by the `native_web_push` switch in `api/_lib/pushTransport.ts`** — OneSignal is the default and is removed in T1.13, Anthropic Claude (lead extraction), Botpress/Make (Facebook Messenger lead path).
-- **Background jobs:** GitHub Actions cron (`.github/workflows/contact-follow-up-cron.yml`) POSTs `/api/cron/contact-follow-up` every 15 min → consolidated sweep chain (contact follow-up, invoice chase, quote chase, booking reminder, workflow-run purge) with `cron_heartbeats` health signal. pg_cron handles lead-pool expiry. **The cron hits PROD**, not preview.
+- **Background jobs:** GitHub Actions cron (`.github/workflows/contact-follow-up-cron.yml`) POSTs `/api/cron/contact-follow-up` every 15 min → contact follow-up, booking reminder, workflow-run purge (quote chase / invoice chase remain paused). pg_cron lead-pool expiry is a no-op until re-enabled. **The cron hits PROD**, not preview.
 - **Testing:** vitest — 76 files / 452 tests; `npm run typecheck` (app + node tsconfigs) is a hard prebuild gate. `tests/` is *not* yet under typecheck (known debt, T2.8).
 
 ## Architecture
 
 - **Multi-tenancy:** `brands` (template layer: colors, SMS/email templates, upsells) → `orgs` (franchisees/businesses; own colors, ABN, GST flag, Stripe accounts) → `profiles` (users; roles `platform_admin` / `manager` / `employee`).
-- **Feature switches:** 32 per-brand switches in `shared/featureSwitchCatalog.ts` + `feature_flag_catalog` table, resolved brand-value → catalog-default → code-default, with tier gating (basic/pro/enterprise). **Rule: every switch must gate server endpoints, not just UI.** Most default OFF — new orgs need a preset (roadmap T2.6).
+- **Feature switches:** keys in `shared/featureSwitchCatalog.ts` + `src/lib/features.ts` (two-file rule). Resolved org override → brand → catalog → code default. Subscription tier is billing display only. New orgs need the solo-tradie preset (writes org rows) or explicit Platform Admin toggles.
 - **Operation modes:** `solo` (Inbox/In-progress/Done, auto-assign inbound) vs `team` (pool + countdown timers + contact rounds + workload/proximity auto-assign).
 - **Offline architecture:** IndexedDB queue (`tvm-offline-queue`) for contact attempts, photos, completions, contact notes; FIFO replay with per-item try/catch and a status re-read conflict guard on completions. Read-through cache of the last leads/calendar fetch (per user, 12h TTL) renders when a fetch fails. `fetchWithTimeout` (10s → friendly `NetworkError`) + module-level toast store (`src/lib/toast.ts` + `ToastHost`) for write-failure surfacing.
 - **Sales pipeline (10 stages):** capture → extraction → acknowledgment → quoting → booking → execution → invoicing → payment → reconciliation → review. Stages 1–2 live; Stage 3 built but shipped dark; 4–9 exist as features with manual hand-offs; closed-loop automation is roadmap T2.1. Reference: `docs/SALES_PIPELINE_WORKFLOW.md` (versioned; must be updated in the same PR as any pipeline behaviour change).

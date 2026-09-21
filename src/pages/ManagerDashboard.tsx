@@ -117,7 +117,7 @@ export default function ManagerDashboard() {
     fetchData()
     const channel = supabase
       .channel('manager-dashboard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, fetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads', filter: `org_id=eq.${profile.org_id}` }, fetchData)
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [profile])

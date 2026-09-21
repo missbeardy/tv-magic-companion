@@ -1,4 +1,9 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+
+vi.mock('../api/_lib/supabaseAdmin.js', () => ({
+  getSupabaseAdmin: () => null,
+}))
+
 import {
   canEnrichLeadFromVoicemail,
   runLeadExtractionRetry,
@@ -54,7 +59,7 @@ describe('runLeadExtractionRetry', () => {
     })
 
     expect(result.status).toBe('fallback')
-    expect(result.fields.service_type).toBe('TV Aerial')
+    expect(result.fields.service_type).toBe('Other')
     expect(result.fields.phone).toBe('+61400111222')
   })
 

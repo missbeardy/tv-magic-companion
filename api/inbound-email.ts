@@ -7,7 +7,11 @@ import { resolveOrgIdFromInboundEmail, resolveOrgIdFromCloudmailinWebhook } from
 import { captureUnroutedInbound } from './_lib/captureUnroutedInbound.js'
 import { processInboundLead } from './_lib/processInboundLead.js'
 import { withObservability } from './_lib/observability.js'
-import { extractFromEmail } from './_lib/extractLead.js'
+import {
+  findRecentLeadByEmail,
+  isAutomatedInboundEmail,
+} from './_lib/inboundLeadDedup.js'
+import { extractFromEmail, loadOrgExtractionContext } from './_lib/extractLead.js'
 import {
   insertRawFirstLead,
   parseEmailSender,
@@ -78,6 +82,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   const emailText = plain || html?.replace(/<[^>]+>/g, ' ') || ''
   const subject = req.body.subject || headers?.subject || 'No Subject'
   const from = req.body.from || headers?.from || 'Unknown Sender'
+  if (isAutomatedInboundEmail(headers, subject)) {
+    return res.status(200).json({ skipped: true, reason: 'automated' })
+  }
   const simulatedTranscript =
     typeof (req.body as Record<string, unknown>).simulated_transcript === 'string'
       ? String((req.body as Record<string, unknown>).simulated_transcript).trim()
@@ -227,6 +234,13 @@ async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const { name: senderName, email: senderEmail } = parseEmailSender(from)
+    if (senderEmail) {
+      const existing = await findRecentLeadByEmail(supabase, senderEmail, orgId)
+      if (existing) {
+        return res.status(200).json({ skipped: true, reason: 'duplicate', lead_id: existing.id })
+      }
+    }
+    const extractionOpts = await loadOrgExtractionContext(supabase, orgId)
     let extractedForAck: ExtractedLeadFields = {}
 
     let result
@@ -257,7 +271,12 @@ async function handler(req: VercelRequest, res: VercelResponse) {
           },
         },
         extract: async () => {
-          const { fields: extracted, status } = await extractFromEmail(emailText, subject, from)
+          const { fields: extracted, status } = await extractFromEmail(
+            emailText,
+            subject,
+            from,
+            extractionOpts
+          )
           extractedForAck = extracted
           return {
             updateFields: {

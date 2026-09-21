@@ -1,3 +1,5 @@
+import { getPlatformUrl } from './platformUrl.js'
+
 export type EmployeeWhatsAppTemplateKey =
   | 'tech_assignment'
   | 'manager_alert'
@@ -103,7 +105,7 @@ export function buildEmployeeWhatsAppMessage(
       contentSid,
       contentVariables: buildNumberedContentVariables(
         [vars.orgName, vars.leadName, vars.serviceType, vars.appUrl].slice(0, varCount),
-        ['Your team', 'New lead', 'General enquiry', 'https://tv-magic-companion.vercel.app/leads'].slice(
+        ['Your team', 'New lead', 'General enquiry', `${getPlatformUrl()}/leads`].slice(
           0,
           varCount
         )
@@ -117,20 +119,20 @@ export function buildEmployeeWhatsAppMessage(
     case 'manager_alert':
       contentVariables = buildNumberedContentVariables(
         [vars.orgName, vars.leadName, vars.serviceType, vars.appUrl],
-        ['Your team', 'New lead', 'General enquiry', 'https://tv-magic-companion.vercel.app/leads']
+        ['Your team', 'New lead', 'General enquiry', `${getPlatformUrl()}/leads`]
       )
       break
     case 'booking_scheduled':
       contentVariables = buildNumberedContentVariables(
         [vars.orgName, vars.managerName, vars.leadName, vars.dateTime, vars.appUrl],
-        ['Your team', 'Manager', 'Booking', 'Soon', 'https://tv-magic-companion.vercel.app/calendar']
+        ['Your team', 'Manager', 'Booking', 'Soon', `${getPlatformUrl()}/calendar`]
       )
       break
     case 'contact_follow_up':
     case 'generic_notify':
       contentVariables = buildNumberedContentVariables(
         [vars.title, vars.message, vars.url],
-        ['Lead update', 'Follow-up needed', 'https://tv-magic-companion.vercel.app/leads']
+        ['Lead update', 'Follow-up needed', `${getPlatformUrl()}/leads`]
       )
       break
     default:
