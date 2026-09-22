@@ -56,11 +56,16 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Feature switches can now be set per franchisee, not only per brand',
     'Lead extraction uses each org’s service types instead of a hardcoded TV list',
     'Reports, quotes, and AI parsing are no longer locked behind subscription tier',
+    'The wall visualiser and quote page can now be branded per franchise (name, logo, colour)',
+    'Fixed the leads board sometimes starting a drag instead of scrolling on a phone',
+    'If one part of the app hits a problem, the rest keeps working instead of the whole app going down',
+    'Fixed technicians\' location being polled three times over instead of once',
+    'A few actions (removing a leave block, deleting a photo, changing your avatar, marking notifications read) now show an error instead of silently looking like they worked when they failed',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.199'
+export const APP_VERSION = '1.1.200'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
