@@ -60,7 +60,7 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.198'
+export const APP_VERSION = '1.1.199'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

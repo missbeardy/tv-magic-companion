@@ -8,11 +8,15 @@ export const LEAD_ID_IN_CHUNK = 80
 
 export type LeadBoardBadgeRow = Database['public']['Views']['lead_board_badges']['Row']
 
-/** Active leads plus closed jobs updated in the last 30 days. */
+/**
+ * Active leads plus closed jobs created in the last 30 days. Keyed on created_at, not
+ * updated_at: prod's `leads` has no updated_at column, and filtering on it made
+ * PostgREST reject the whole board query (v1.1.198 outage, 22-09-2026).
+ */
 export function leadsBoardOrFilter(now = new Date()): string {
   const cutoff = new Date(now.getTime() - CLOSED_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString()
   const closed = CLOSED_BOARD_STATUSES.join(',')
-  return `status.not.in.(${closed}),and(status.in.(${closed}),updated_at.gte."${cutoff}")`
+  return `status.not.in.(${closed}),and(status.in.(${closed}),created_at.gte."${cutoff}")`
 }
 
 export function chunkIds(ids: string[], size = LEAD_ID_IN_CHUNK): string[][] {
