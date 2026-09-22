@@ -90,12 +90,13 @@ export async function handleCampaignQuote(
     return
   }
 
-  const identifier = rateLimitIdentifier(req.headers['x-forwarded-for'] as string | undefined)
+  const identifier = rateLimitIdentifier(req.headers)
   const allowed = await checkRateLimit({
     scope: 'campaign-quote',
     identifier,
     limit: 8,
     windowMs: 60 * 60 * 1000,
+    failClosed: true,
   })
   if (!allowed) {
     res.status(429).json({ error: 'Too many quotes from this connection. Try again later.' })

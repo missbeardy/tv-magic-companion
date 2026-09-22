@@ -719,8 +719,14 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     'request-account-deletion',
   ])
   if (PUBLIC_RATE_LIMITED_ACTIONS.has(action)) {
-    const identifier = rateLimitIdentifier(req.headers['x-forwarded-for'] as string | undefined)
-    const allowed = await checkRateLimit({ scope: `public-${action}`, identifier, limit: 30, windowMs: 60_000 })
+    const identifier = rateLimitIdentifier(req.headers)
+    const allowed = await checkRateLimit({
+      scope: `public-${action}`,
+      identifier,
+      limit: 30,
+      windowMs: 60_000,
+      failClosed: true,
+    })
     if (!allowed) {
       return res.status(429).json({ error: 'Too many requests. Please wait a moment.' })
     }
@@ -789,7 +795,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: authErrorMessage(reason) })
   }
 
-  const rateLimitIdent = rateLimitIdentifier(req.headers['x-forwarded-for'] as string | undefined, auth.userId)
+  const rateLimitIdent = rateLimitIdentifier(req.headers, auth.userId)
   const withinRateLimit = await checkRateLimit({ scope: 'send-sms-notify', identifier: rateLimitIdent, limit: 20, windowMs: 60_000 })
   if (!withinRateLimit) {
     return res.status(429).json({ error: 'Too many requests. Please wait a moment.' })

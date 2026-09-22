@@ -37,7 +37,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const identifier = rateLimitIdentifier(req.headers['x-forwarded-for'] as string | undefined, auth.userId);
+  const identifier = rateLimitIdentifier(req.headers, auth.userId);
   const allowed = await checkRateLimit({ scope: 'send-support-email', identifier, limit: 10, windowMs: 60_000 });
   if (!allowed) {
     return res.status(429).json({ error: 'Too many requests. Please wait a minute.' });

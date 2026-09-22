@@ -91,7 +91,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   // object the rest of this handler (and verifyTwilioSignature) expects.
   req.body = Object.fromEntries(new URLSearchParams(rawBody))
 
-  const identifier = rateLimitIdentifier(req.headers['x-forwarded-for'] as string | undefined)
+  const identifier = rateLimitIdentifier(req.headers)
   const allowed = await checkRateLimit({ scope: 'inbound-sms', identifier, limit: 60, windowMs: 60_000 })
   if (!allowed) {
     return respondOk(res)

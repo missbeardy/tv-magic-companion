@@ -11,6 +11,7 @@ import { purgeOldRateLimitHits } from './rateLimit.js'
 import { runLeaderboardNudge } from './leaderboardNudge.js'
 import { runInboundProbe } from './inboundProbe.js'
 import { runMessengerSuburbTimeout } from './runMessengerSuburbTimeout.js'
+import { safeCompareSecret } from './timingSafeCompare.js'
 import type { NudgePhase } from '../../shared/leaderboardWeek.js'
 
 export const CRON_KEYS = {
@@ -28,11 +29,14 @@ export function isCronAuthorized(req: VercelRequest): boolean {
   if (!secret) return false
 
   const authHeader = req.headers.authorization
-  if (typeof authHeader === 'string' && authHeader === `Bearer ${secret}`) return true
+  const bearerPrefix = 'Bearer '
+  if (typeof authHeader === 'string' && authHeader.startsWith(bearerPrefix)) {
+    if (safeCompareSecret(authHeader.slice(bearerPrefix.length), secret)) return true
+  }
 
   const cronHeader = req.headers['x-cron-secret']
   const headerVal = Array.isArray(cronHeader) ? cronHeader[0] : cronHeader
-  return headerVal === secret
+  return safeCompareSecret(headerVal, secret)
 }
 
 async function upsertHeartbeat(

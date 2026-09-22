@@ -329,7 +329,7 @@ async function handleInvoicePay(req: VercelRequest, res: VercelResponse) {
     return res.redirect(302, `${platformUrl}/invoice/${encodeURIComponent(token || 'unknown')}`)
   }
 
-  const identifier = rateLimitIdentifier(req.headers['x-forwarded-for'] as string | undefined)
+  const identifier = rateLimitIdentifier(req.headers)
   const allowed = await checkRateLimit({ scope: 'stripe-invoice-pay', identifier, limit: 30, windowMs: 60_000 })
   if (!allowed) {
     return res.redirect(302, `${platformUrl}/invoice/${encodeURIComponent(token)}?error=rate_limited`)

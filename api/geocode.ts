@@ -117,7 +117,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
-  const identifier = rateLimitIdentifier(req.headers['x-forwarded-for'] as string | undefined, auth.userId)
+  const identifier = rateLimitIdentifier(req.headers, auth.userId)
   const action = req.query.action as string | undefined
 
   if (action === 'autocomplete') {
