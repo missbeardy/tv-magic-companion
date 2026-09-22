@@ -4,7 +4,9 @@ import { useSearchParams } from 'react-router-dom'
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
+  KeyboardSensor,
   useSensor,
   useSensors,
   useDroppable,
@@ -181,7 +183,7 @@ function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand
             {leads.length}
           </span>
         </div>
-        <div className="p-2 space-y-2 max-h-screen overflow-y-auto">
+        <div className="p-2 space-y-2 max-h-[calc(100dvh-10rem)] overflow-y-auto overscroll-contain pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           {leads.length === 0 && (
             <div className="py-6 text-center">
               <p className="text-xs text-gray-400">No leads here yet</p>
@@ -353,8 +355,14 @@ export default function LeadsPage() {
     })
   }, [profile?.id, profile?.org_id])
 
+  // PointerSensor claims both mouse AND touch, so a phone-size scroll gesture over a
+  // card can get hijacked as a drag start. Splitting mouse/touch lets touch require a
+  // deliberate press-and-hold (250ms) before a drag begins, so a scroll swipe passes
+  // through untouched — mouse keeps the short 8px move threshold it already had.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 6 } }),
+    useSensor(KeyboardSensor),
   )
 
   const logPoolPickup = useCallback(async (leadId: string, source: PoolPickupSource) => {
