@@ -9,6 +9,7 @@ import {
 } from './bookingReminderPolicy.js'
 import { sendBrandedSms } from './sendBrandedSms.js'
 import { startWorkflowRun } from './workflowRun.js'
+import { log } from './log.js'
 
 export interface BookingReminderSweepResult {
   orgs: number
@@ -83,7 +84,7 @@ export async function runBookingReminderSweep(
   }
 
   if (!enabledOrgIds.length) {
-    console.log('[BOOKING_REMINDER_SWEEP]', JSON.stringify(result))
+    log.info('[BOOKING_REMINDER_SWEEP]', result)
     return result
   }
 
@@ -101,7 +102,7 @@ export async function runBookingReminderSweep(
 
   if (error) {
     console.error('[BOOKING_REMINDER_SWEEP_FAILED] query error:', error.message)
-    console.log('[BOOKING_REMINDER_SWEEP]', JSON.stringify(result))
+    log.info('[BOOKING_REMINDER_SWEEP]', result)
     return result
   }
 
@@ -114,7 +115,7 @@ export async function runBookingReminderSweep(
     if (didSend) result.sent += 1
   }
 
-  console.log('[BOOKING_REMINDER_SWEEP]', JSON.stringify(result))
+  log.info('[BOOKING_REMINDER_SWEEP]', result)
   return result
 }
 

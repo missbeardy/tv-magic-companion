@@ -26,7 +26,7 @@ import {
   processVoicemail,
 } from './_lib/processVoicemail.js'
 import { safeCompareSecret } from './_lib/timingSafeCompare.js'
-import { maskPhone } from './_lib/redact.js'
+import { log } from './_lib/log.js'
 
 interface CloudmailinAttachment {
   file_name?: string
@@ -130,7 +130,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
 
     const callsEnabled = await isFeatureEnabledForOrg(orgId, 'inbound_calls')
     if (!callsEnabled) {
-      console.log(`Inbound calls/voicemail disabled for org ${orgId}`)
+      log.info('Inbound calls/voicemail disabled for org', { orgId })
       return res.status(200).json({ skipped: true, reason: 'inbound_calls_disabled' })
     }
 
@@ -167,7 +167,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
 
       switch (result.outcome) {
         case 'already_processed':
-          console.log('Voicemail already handled by the mailbox poller:', result.dedupKey)
+          log.info('Voicemail already handled by the mailbox poller', { dedupKey: result.dedupKey })
           return res.status(200).json({ skipped: true, reason: 'already_processed' })
         case 'enriched_existing':
           return res.status(200).json({
@@ -185,7 +185,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
             type: 'voicemail',
           })
         default:
-          console.log('Voicemail lead created:', result.leadId)
+          log.info('Voicemail lead created', { leadId: result.leadId })
           return res.status(200).json({
             success: true,
             lead_id: result.leadId,
@@ -214,7 +214,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   // This is also what makes retiring the CloudMailin voicemail branch safe. Delete
   // that branch without this guard and every voicemail becomes a junk email lead.
   if (looksLikeVoicemailNotification(subject, emailText)) {
-    console.log('Inbound email: 3CX voicemail with no usable audio — leaving it to the poller')
+    log.info('Inbound email: 3CX voicemail with no usable audio — leaving it to the poller')
     return res.status(200).json({ skipped: true, reason: 'voicemail_without_audio' })
   }
 
@@ -236,7 +236,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
 
   const emailEnabled = await isFeatureEnabledForOrg(orgId, 'inbound_email')
   if (!emailEnabled) {
-    console.log(`Inbound email disabled for org ${orgId}`)
+    log.info('Inbound email disabled for org', { orgId })
     return res.status(200).json({ skipped: true, reason: 'inbound_email_disabled' })
   }
 
@@ -323,7 +323,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(500).json({ error: 'Failed to save lead' })
     }
 
-    console.log('Lead successfully created via CloudMailin:', result.leadId)
+    log.info('Lead successfully created via CloudMailin', { leadId: result.leadId })
 
     return res.status(200).json({
       success: true,

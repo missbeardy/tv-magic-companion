@@ -5,6 +5,7 @@ import { escapeHtml, nl2brHtml } from './_lib/emailTemplates.js';
 import { getDefaultNoreplyEmail, getSupportInboxEmail } from './_lib/platformUrl.js';
 import { withObservability } from './_lib/observability.js';
 import { checkRateLimit, rateLimitIdentifier } from './_lib/rateLimit.js';
+import { log } from './_lib/log.js';
 
 interface SupportPayload {
   type: 'feature' | 'issue';
@@ -105,7 +106,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         console.error('Resend email failed:', err);
       }
     } else {
-      console.log('RESEND_API_KEY not set – email not sent');
+      log.info('RESEND_API_KEY not set – email not sent');
     }
 
     return res.status(200).json({

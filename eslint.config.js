@@ -21,4 +21,14 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // api/_lib/log.ts is the structured logger; a bare console.log elsewhere in api/
+    // skips its JSON-per-line shape. console.info/warn/error stay allowed — those
+    // already carry meaningful severity and several are called directly (Sentry
+    // capture sites, etc.), not just through log.ts.
+    files: ['api/**/*.ts'],
+    rules: {
+      'no-console': ['warn', { allow: ['info', 'warn', 'error'] }],
+    },
+  },
 ])

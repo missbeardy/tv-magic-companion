@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { isFeatureEnabledForOrg } from './featureSwitches.js'
 import { sendPushToUsers } from './pushTransport.js'
 import { getPlatformUrl } from './platformUrl.js'
+import { log } from './log.js'
 import {
   getNudgeWeekStartKey,
   isNudgeWindow,
@@ -176,14 +177,14 @@ export async function runLeaderboardNudge(
 
   if (!options?.force && !isNudgeWindow(phase, now)) {
     result.inWindow = false
-    console.log('[LEADERBOARD_NUDGE] outside window', JSON.stringify(result))
+    log.info('[LEADERBOARD_NUDGE] outside window', result)
     return result
   }
 
   const orgIds = await findEnabledOrgIds(supabase)
   result.orgs = orgIds.length
   if (!orgIds.length) {
-    console.log('[LEADERBOARD_NUDGE]', JSON.stringify(result))
+    log.info('[LEADERBOARD_NUDGE]', result)
     return result
   }
 
@@ -247,6 +248,6 @@ export async function runLeaderboardNudge(
     }
   }
 
-  console.log('[LEADERBOARD_NUDGE]', JSON.stringify(result))
+  log.info('[LEADERBOARD_NUDGE]', result)
   return result
 }

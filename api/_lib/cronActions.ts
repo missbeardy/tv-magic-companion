@@ -12,6 +12,7 @@ import { runLeaderboardNudge } from './leaderboardNudge.js'
 import { runInboundProbe } from './inboundProbe.js'
 import { runMessengerSuburbTimeout } from './runMessengerSuburbTimeout.js'
 import { safeCompareSecret } from './timingSafeCompare.js'
+import { log } from './log.js'
 import type { NudgePhase } from '../../shared/leaderboardWeek.js'
 
 export const CRON_KEYS = {
@@ -75,11 +76,11 @@ async function withCronAuth(
   }
 
   const started = Date.now()
-  console.log(`[CRON ${action}] start`)
+  log.info(`[CRON ${action}] start`)
   try {
     const result = await run(supabase)
     const elapsedMs = Date.now() - started
-    console.log(`[CRON ${action}] ok ${elapsedMs}ms`, JSON.stringify(result))
+    log.info(`[CRON ${action}] ok ${elapsedMs}ms`, result)
     return res.status(200).json({ ok: true, ...result, elapsedMs })
   } catch (err) {
     const elapsedMs = Date.now() - started

@@ -16,6 +16,7 @@ import {
   type ExtractedLeadFields,
 } from './rawFirstLead.js'
 import { safeCompareSecret } from './timingSafeCompare.js'
+import { log } from './log.js'
 
 const LEGACY_DETAILS_MAX = 500
 const STRUCTURED_DETAILS_MAX = 1500
@@ -438,7 +439,7 @@ export async function ingestParsedFacebookLead(
   const aiContext = typeof orgRow.ai_context === 'string' ? orgRow.ai_context : null
   const channelEnabled = await isFeatureEnabledForOrg(orgId, config.featureKey)
   if (!channelEnabled) {
-    console.log(`${config.logLabel} disabled for org ${orgId}`)
+    log.info(`${config.logLabel} disabled for org`, { orgId })
     return { skipped: true, reason: `${config.featureKey}_disabled` }
   }
 
@@ -450,7 +451,7 @@ export async function ingestParsedFacebookLead(
     normalizedPhone
   )
   if (duplicate) {
-    console.log(`${config.logLabel} duplicate conversation, returning existing lead ${duplicate.id}`)
+    log.info(`${config.logLabel} duplicate conversation, returning existing lead`, { leadId: duplicate.id })
     return { success: true, lead_id: duplicate.id, duplicate: true }
   }
 

@@ -10,6 +10,7 @@ import { getInvoiceByToken, markInvoicePaid } from './_lib/invoices.js'
 import { withObservability } from './_lib/observability.js'
 import { captureServerException } from './_lib/sentry.js'
 import { checkRateLimit, rateLimitIdentifier } from './_lib/rateLimit.js'
+import { log } from './_lib/log.js'
 import {
   buildInvoiceCheckoutSessionParams,
   checkInvoicePayable,
@@ -434,7 +435,7 @@ async function handleConnectWebhook(req: VercelRequest, res: VercelResponse) {
         .maybeSingle()
 
       if (!currentInvoice || !shouldFulfillInvoicePayment(currentInvoice.status as string)) {
-        console.log('[STRIPE_CONNECT_WEBHOOK] skipping non-fulfillable invoice (already paid or missing)', {
+        log.info('[STRIPE_CONNECT_WEBHOOK] skipping non-fulfillable invoice (already paid or missing)', {
           invoiceId,
         })
         return res.status(200).json({ received: true })
@@ -444,7 +445,7 @@ async function handleConnectWebhook(req: VercelRequest, res: VercelResponse) {
         checkoutSessionId: session.id,
         paymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : null,
       })
-      console.log('[STRIPE_CONNECT_WEBHOOK] invoice marked paid via Stripe', { invoiceId })
+      log.info('[STRIPE_CONNECT_WEBHOOK] invoice marked paid via Stripe', { invoiceId })
     }
 
     return res.status(200).json({ received: true })

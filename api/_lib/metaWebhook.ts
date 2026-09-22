@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { isFeatureEnabledForOrg } from './featureSwitches.js'
 import { handleMessengerUserMessage } from './messengerBot.js'
 import { captureServerException } from './sentry.js'
+import { log } from './log.js'
 
 export function verifyMetaWebhookSignature(
   rawBody: string,
@@ -54,7 +55,7 @@ async function processMessagingEvents(
 
     const enabled = await isFeatureEnabledForOrg(orgId, 'inbound_messenger')
     if (!enabled) {
-      console.log('Native Messenger skipped — inbound_messenger off', orgId)
+      log.info('Native Messenger skipped — inbound_messenger off', { orgId })
       continue
     }
 

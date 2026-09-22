@@ -1,6 +1,7 @@
 import { parseEmailSender, type ExtractedLeadFields } from './rawFirstLead.js'
 import { findAuPhoneInText, phonesEqual } from './phone.js'
 import { recordAiUsage } from './aiUsage.js'
+import { log } from './log.js'
 
 export type { ExtractedLeadFields }
 
@@ -385,7 +386,7 @@ export async function extractFromSms(
   if (extracted) {
     return { fields: extracted, status: 'succeeded' }
   }
-  console.log('Claude SMS extraction failed, using fallback')
+  log.info('Claude SMS extraction failed, using fallback')
   return { fields: smsFallbackParse(smsText, fromNumber, opts), status: 'fallback' }
 }
 

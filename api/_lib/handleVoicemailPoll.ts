@@ -8,6 +8,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { isFeatureEnabledForOrg } from './featureSwitches.js'
 import { processVoicemail } from './processVoicemail.js'
 import { safeCompareSecret } from './timingSafeCompare.js'
+import { log } from './log.js'
 import {
   getVoicemailMailboxConfig,
   pollVoicemailMailbox,
@@ -86,7 +87,7 @@ export async function handleVoicemailPoll(
           return 'skipped' satisfies PolledVoicemailOutcome
         }
 
-        console.log(`Voicemail poll: ${result.outcome} lead ${result.leadId}`)
+        log.info('Voicemail poll', { outcome: result.outcome, leadId: result.leadId })
         return 'processed' satisfies PolledVoicemailOutcome
       } catch (err) {
         console.error('Voicemail poll: processing failed, leaving for retry:', err)

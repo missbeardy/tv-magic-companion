@@ -4,6 +4,7 @@ import { computeTwilioSignature } from './twilioSignature.js'
 import { getPlatformUrl } from './platformUrl.js'
 import { sendEmployeeAlertToPhone } from './sendEmployeeAlert.js'
 import { captureServerException } from './sentry.js'
+import { log } from './log.js'
 
 /**
  * Synthetic inbound probe.
@@ -81,7 +82,7 @@ export async function recordInboundProbeEcho(
     console.error('[INBOUND_PROBE_ECHO_FAILED]', error.message)
     return
   }
-  console.log(`[INBOUND_PROBE_ECHO] ${nonce}`)
+  log.info('[INBOUND_PROBE_ECHO]', { nonce })
 }
 
 export interface InboundProbeResult {
