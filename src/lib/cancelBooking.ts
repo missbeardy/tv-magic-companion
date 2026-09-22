@@ -1,5 +1,23 @@
 import { supabase } from './supabase'
 import { logLeadEvent } from './leadEvents'
+import { isManagerRole } from './roles'
+
+export const SHARED_BOOKING_CANCEL_ERROR =
+  'This booking includes other technicians. Ask a manager to cancel it.'
+
+/**
+ * A non-manager may only cancel a shared (booking_group_id) booking when every
+ * event in it is their own. events_delete RLS would otherwise delete just their
+ * rows and silently leave the other technicians' events on the calendar.
+ */
+export function isGroupCancelBlocked(
+  ownerIds: ReadonlyArray<string | null>,
+  actorId: string,
+  actorRole?: string | null
+): boolean {
+  if (isManagerRole(actorRole)) return false
+  return ownerIds.some((ownerId) => ownerId !== actorId)
+}
 
 export interface CancelBookingParams {
   eventId: string
@@ -55,12 +73,26 @@ export async function cancelBooking(params: CancelBookingParams): Promise<{ erro
     appointmentDate,
   } = params
 
+  if (bookingGroupId) {
+    const { data: groupRows, error: groupError } = await supabase
+      .from('events')
+      .select('user_id')
+      .eq('booking_group_id', bookingGroupId)
+    if (groupError) return { error: groupError.message }
+    if (isGroupCancelBlocked((groupRows ?? []).map((row) => row.user_id), actorId, actorRole)) {
+      return { error: SHARED_BOOKING_CANCEL_ERROR }
+    }
+  }
+
   const deleteQuery = bookingGroupId
     ? supabase.from('events').delete().eq('booking_group_id', bookingGroupId)
     : supabase.from('events').delete().eq('id', eventId)
 
-  const { error: deleteError } = await deleteQuery
+  // RLS turns a disallowed delete into "0 rows", not an error — without this
+  // check the lead would be marked booking_cancelled while the event stays put.
+  const { data: deletedRows, error: deleteError } = await deleteQuery.select('id')
   if (deleteError) return { error: deleteError.message }
+  if (!deletedRows?.length) return { error: 'You do not have permission to cancel this booking.' }
 
   if (leadId) {
     const { error: leadError } = await supabase

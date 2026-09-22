@@ -12,10 +12,12 @@ SELECT schemaname, tablename, policyname, cmd
 FROM pg_policies
 WHERE schemaname = 'public' AND tablename IN ('leads', 'lead_events', 'events')
 ORDER BY tablename, policyname;
--- expect before: leads_org (ALL), lead_events_org (ALL), events_org (ALL)
---   (plus leads_platform_admin_select / lead_events_platform_admin_select, untouched)
--- expect after: leads_select/insert/update, lead_events_select/insert,
---   events_select/insert/update/delete
+-- NOTE (22-09-2026 review): prod never had leads_org / lead_events_org /
+-- events_org, and this file's policies are ALREADY live on prod. Prod also has
+-- 28 legacy permissive policies (names with spaces) that override everything
+-- here — AUD-3b.sql removes them. Re-running this file is now harmless but
+-- pointless, and must NOT be done after AUD-3b.sql (it would narrow
+-- events_update/events_delete back to owner-or-manager).
 
 -- Confirm no event currently relies on a NULL user_id (would fail the new
 -- ownership check for both UPDATE and DELETE unless the caller is a manager):
@@ -28,6 +30,9 @@ WHERE user_id IS NULL;
 -- ============================================================
 
 DROP POLICY IF EXISTS leads_org ON public.leads;
+DROP POLICY IF EXISTS leads_select ON public.leads;
+DROP POLICY IF EXISTS leads_insert ON public.leads;
+DROP POLICY IF EXISTS leads_update ON public.leads;
 
 CREATE POLICY leads_select ON public.leads FOR SELECT TO authenticated
   USING (org_id = public.current_user_org_id() AND deleted_at IS NULL);
@@ -40,6 +45,8 @@ CREATE POLICY leads_update ON public.leads FOR UPDATE TO authenticated
   WITH CHECK (org_id = public.current_user_org_id() AND deleted_at IS NULL);
 
 DROP POLICY IF EXISTS lead_events_org ON public.lead_events;
+DROP POLICY IF EXISTS lead_events_select ON public.lead_events;
+DROP POLICY IF EXISTS lead_events_insert ON public.lead_events;
 
 CREATE POLICY lead_events_select ON public.lead_events FOR SELECT TO authenticated
   USING (org_id = public.current_user_org_id());
@@ -48,6 +55,10 @@ CREATE POLICY lead_events_insert ON public.lead_events FOR INSERT TO authenticat
   WITH CHECK (org_id = public.current_user_org_id());
 
 DROP POLICY IF EXISTS events_org ON public.events;
+DROP POLICY IF EXISTS events_select ON public.events;
+DROP POLICY IF EXISTS events_insert ON public.events;
+DROP POLICY IF EXISTS events_update ON public.events;
+DROP POLICY IF EXISTS events_delete ON public.events;
 
 CREATE POLICY events_select ON public.events FOR SELECT TO authenticated
   USING (org_id = public.current_user_org_id());

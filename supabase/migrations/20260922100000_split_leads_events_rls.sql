@@ -26,6 +26,9 @@
 -- ============================================================
 
 DROP POLICY IF EXISTS leads_org ON public.leads;
+DROP POLICY IF EXISTS leads_select ON public.leads;
+DROP POLICY IF EXISTS leads_insert ON public.leads;
+DROP POLICY IF EXISTS leads_update ON public.leads;
 
 CREATE POLICY leads_select ON public.leads FOR SELECT TO authenticated
   USING (org_id = public.current_user_org_id() AND deleted_at IS NULL);
@@ -43,6 +46,8 @@ CREATE POLICY leads_update ON public.leads FOR UPDATE TO authenticated
 -- ============================================================
 
 DROP POLICY IF EXISTS lead_events_org ON public.lead_events;
+DROP POLICY IF EXISTS lead_events_select ON public.lead_events;
+DROP POLICY IF EXISTS lead_events_insert ON public.lead_events;
 
 CREATE POLICY lead_events_select ON public.lead_events FOR SELECT TO authenticated
   USING (org_id = public.current_user_org_id());
@@ -57,6 +62,10 @@ CREATE POLICY lead_events_insert ON public.lead_events FOR INSERT TO authenticat
 -- ============================================================
 
 DROP POLICY IF EXISTS events_org ON public.events;
+DROP POLICY IF EXISTS events_select ON public.events;
+DROP POLICY IF EXISTS events_insert ON public.events;
+DROP POLICY IF EXISTS events_update ON public.events;
+DROP POLICY IF EXISTS events_delete ON public.events;
 
 CREATE POLICY events_select ON public.events FOR SELECT TO authenticated
   USING (org_id = public.current_user_org_id());
