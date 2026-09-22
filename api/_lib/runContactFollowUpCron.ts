@@ -7,7 +7,6 @@ import {
   selectFollowUpReminderBatch,
   type ContactFollowUpLead,
 } from '../../shared/contactFollowUp.js'
-import { getPlatformUrl } from './platformUrl.js'
 import { insertTrustedFollowUpReminder } from './notifyUser.js'
 
 export interface CronLeadRow extends ContactFollowUpLead {
@@ -146,7 +145,7 @@ export async function runContactFollowUpCron(
       title,
       message,
       leadId: lead.id,
-      url: `${getPlatformUrl()}/leads?lead=${lead.id}`,
+      url: `/leads?lead=${lead.id}`,
     })
     if (notify.ok) {
       result.notified += 1

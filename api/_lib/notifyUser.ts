@@ -9,9 +9,21 @@ export interface NotifyOrgUserInput {
   userId: string
   title: string
   message: string
+  /** A same-origin relative path (e.g. '/leads?lead=123'), never a full URL — see resolveNotifyUrl. */
   url?: string
   type?: string
   leadId?: string
+}
+
+/**
+ * Every notify path builds its deep link from getPlatformUrl() plus a relative path —
+ * never a caller-supplied absolute URL. `url` on NotifyOrgUserInput is that relative
+ * path; anything that doesn't look like one (e.g. an absolute URL slipping through)
+ * falls back to '/leads' rather than being used verbatim.
+ */
+export function resolveNotifyUrl(relativePath?: string): string {
+  const path = relativePath && relativePath.startsWith('/') && !relativePath.startsWith('//') ? relativePath : '/leads'
+  return `${getPlatformUrl()}${path}`
 }
 
 export interface NotifyOrgUserResult {
@@ -68,7 +80,7 @@ export async function insertTrustedCustomerReply(
   const insertFailed = await insertInAppNotification({ ...input, type: 'customer_reply' })
   if (insertFailed) return insertFailed
 
-  const resolvedUrl = input.url || `${getPlatformUrl()}/leads`
+  const resolvedUrl = resolveNotifyUrl(input.url)
   try {
     await sendPushToUsers(input.supabase, input.orgId, [input.userId], {
       title: input.title,
@@ -106,7 +118,7 @@ export async function notifyOrgUser(input: NotifyOrgUserInput): Promise<NotifyOr
   const insertFailed = await insertInAppNotification(input)
   if (insertFailed) return insertFailed
 
-  const resolvedUrl = url || `${getPlatformUrl()}/leads`
+  const resolvedUrl = resolveNotifyUrl(url)
 
   // Transport (Web Push vs OneSignal) is chosen per-brand inside sendPushToUsers.
   // Follow-up reminders stay in-app only whichever path reaches here — that is a policy of this

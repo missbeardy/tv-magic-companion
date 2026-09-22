@@ -2,7 +2,6 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { findOpenLeadByPhone } from './inboundLeadDedup.js'
 import { insertTrustedCustomerReply } from './notifyUser.js'
 import { formatAuPhoneForSms } from './phone.js'
-import { getPlatformUrl } from './platformUrl.js'
 import { startWorkflowRun } from './workflowRun.js'
 
 export interface ThreadInboundSmsInput {
@@ -52,7 +51,7 @@ export async function threadInboundSms(
       userId: lead.assigned_to,
       title: 'Customer replied by SMS',
       message: preview || 'New SMS from the customer',
-      url: `${getPlatformUrl()}/leads`,
+      url: '/leads',
       leadId: lead.id,
     })
   }

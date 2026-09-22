@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { notifyOrgUser, insertTrustedFollowUpReminder } from '../api/_lib/notifyUser'
+import { notifyOrgUser, insertTrustedFollowUpReminder, resolveNotifyUrl } from '../api/_lib/notifyUser'
 
 const sendPushToUsers = vi.fn()
 const sendEmployeeAlertToPhone = vi.fn()
@@ -47,6 +47,24 @@ function mockSupabase(profileOrgId: string | null = 'org-1') {
   }
   return { supabase, tables, inserts }
 }
+
+describe('resolveNotifyUrl (AUD-17/18)', () => {
+  it('prepends the platform URL to a relative path', () => {
+    expect(resolveNotifyUrl('/leads?lead=1')).toBe('https://example.test/leads?lead=1')
+  })
+
+  it('falls back to /leads for a missing path', () => {
+    expect(resolveNotifyUrl(undefined)).toBe('https://example.test/leads')
+  })
+
+  it('falls back to /leads instead of trusting an absolute URL', () => {
+    expect(resolveNotifyUrl('https://evil.test/phish')).toBe('https://example.test/leads')
+  })
+
+  it('falls back to /leads instead of trusting a protocol-relative URL', () => {
+    expect(resolveNotifyUrl('//evil.test/phish')).toBe('https://example.test/leads')
+  })
+})
 
 describe('notifyOrgUser', () => {
   beforeEach(() => {
@@ -169,7 +187,7 @@ describe('insertTrustedFollowUpReminder', () => {
       title: 'Lead needs 2nd Attempt',
       message: 'Jane (TV Aerial) — no contact in 6 hours.',
       leadId: 'lead-1',
-      url: 'https://example.test/leads?lead=lead-1',
+      url: '/leads?lead=lead-1',
     })
 
     expect(result.ok).toBe(true)

@@ -131,6 +131,15 @@ async function loadOrgReviewSettings(orgId: string): Promise<{
   }
 }
 
+/** The only `type` values a caller-driven notify may set — matches src/lib/notify.ts's callers. */
+const NOTIFY_ALLOWED_TYPES = new Set(['lead_assigned', 'calendar', 'lead_status'])
+const NOTIFY_TITLE_MAX = 120
+const NOTIFY_MESSAGE_MAX = 500
+
+function isSameOriginRelativePath(url: string): boolean {
+  return url.startsWith('/') && !url.startsWith('//')
+}
+
 /**
  * Notify a user inside the caller's org (in-app bell + OneSignal + WhatsApp).
  */
@@ -146,6 +155,18 @@ async function handleNotify(req: VercelRequest, res: VercelResponse, auth: AuthC
 
   if (!userId || !title || !message) {
     return res.status(400).json({ error: 'Missing required fields' })
+  }
+  if (title.length > NOTIFY_TITLE_MAX) {
+    return res.status(400).json({ error: `title must be ${NOTIFY_TITLE_MAX} characters or fewer` })
+  }
+  if (message.length > NOTIFY_MESSAGE_MAX) {
+    return res.status(400).json({ error: `message must be ${NOTIFY_MESSAGE_MAX} characters or fewer` })
+  }
+  if (type !== undefined && !NOTIFY_ALLOWED_TYPES.has(type)) {
+    return res.status(400).json({ error: 'Invalid notification type' })
+  }
+  if (url !== undefined && !isSameOriginRelativePath(url)) {
+    return res.status(400).json({ error: 'url must be a same-origin relative path' })
   }
 
   const supabase = getSupabaseAdmin()

@@ -5,7 +5,6 @@ import { useAuth } from '../context/AuthContext'
 import { useOrg } from '../context/OrgContext'
 import { geocodeAddress, rankTechsByDistance, type TechWithDistance } from '../lib/proximity'
 import { sendNotification } from '../lib/notify'
-import { getPlatformUrl } from '../lib/env'
 import { getAuthHeaders } from '../lib/apiAuth'
 import { useOrgProfiles } from '../hooks/useOrgProfiles'
 import { logLeadEvent } from '../lib/leadEvents'
@@ -200,7 +199,7 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
           employeeId,
           'New Lead Assigned',
           `You've been assigned: ${lead.name} — ${lead.service_type}`,
-          `${getPlatformUrl()}/leads`
+          '/leads'
         )
       } catch (err) {
         console.error('Assignment side effects failed:', err)
