@@ -226,24 +226,31 @@ onward (🟢 Backlog) not started.
     entirely (reporter email + full free-text title/description on every
     request).
 
-### Prod SQL files, in apply order (after Agent 1's AUD-C1 → AUD-5 → deploy → AUD-3b)
+### Prod SQL files — **all three already applied to prod, 22-09-2026**
 
 All in `docs/plans/prod-sql/`, each with a read-only verify query at the top.
+Run via the Management API (`POST /v1/projects/abnheynzugpicikxwwmv/database/query`,
+`SUPABASE_ACCESS_TOKEN` from `.env.local`) since the pooler cert is self-signed —
+see [[prod-supabase-ops]]. The branch itself is still unpushed/undeployed, so
+running these ahead of the deploy was safe: old prod code ignores the new
+columns/switch entirely.
 
-- **`AUD-9.sql`** — adds `orgs.website`, seeds the `campaign_quote` feature
-  flag catalog row (default off), and — in a clearly separated final section —
-  enables the switch for the `tv-magic` brand + backfills `website` for org
-  slug `default`. **Apply the enable section only once the branch carrying
-  the `/visualise/:orgSlug` redirect is deployed** — bare `/visualise` ad
-  links must keep working through the cutover.
-- **`AUD-10.sql`** — adds `orgs.voicemail_imap_folder` (nullable, no
-  backfill — leaving it NULL preserves today's env-var behaviour for org
-  slug 'default'). No SQL for the other three AUD-10 items (env vars /
-  app-code fallback only).
-- **`AUD-16.sql`** — verify-and-reapply of the `increment_rate_limit` /
-  `increment_ai_usage` REVOKE/GRANT. Idempotent; check whether it's already
-  live on prod before assuming it needs running (it predates this session's
-  baseline and may already be there — see commit 16 above).
+- **`AUD-9.sql`** — ✅ applied. Verified post-state: `orgs` (slug `default`)
+  now has `website = 'https://tvmagic.com.au/'`, and
+  `brand_feature_switches` has `campaign_quote.enabled = true` for the
+  `tv-magic` brand (every other brand got the catalog row + a `false`
+  switch row). This means **`campaign_quote` is live-armed for the tv-magic
+  brand ahead of the code deploy** — once this branch ships, TV Magic's
+  `/visualise/default` starts serving from the new per-org code path
+  immediately, no separate switch-flip step needed at deploy time.
+- **`AUD-10.sql`** — ✅ applied. `orgs.voicemail_imap_folder` column now
+  exists, left NULL for org `default` (preserves today's env-var fallback
+  behaviour exactly).
+- **`AUD-16.sql`** — ✅ applied (re-run, idempotent). Verify-before showed
+  `increment_rate_limit` / `increment_ai_usage` were **already** REVOKEd
+  from anon/authenticated on prod — confirms
+  `20260916130000_lock_counter_rpcs.sql` was already live pre-baseline, as
+  suspected. Re-ran the REVOKE/GRANT anyway for certainty; no-op.
 - *(AUD-11 through AUD-15, AUD-17, AUD-18, AUD-19 have no SQL — pure app code.)*
 
 ### New env vars (all optional, all fall back to today's literal)
@@ -265,9 +272,12 @@ see the prod SQL section above.)
 - AUD-15's phone-size leads-board fix (drag sensors, column scroll) also
   wants a manual phone-size QA pass — see the checklist below.
 - AUD-9's campaign quote page is feature-switch-gated OFF by default for
-  every brand except `tv-magic` (enabled in `AUD-9.sql`'s final section).
-  A second test org won't see the visualiser/quote form at
-  `/visualise/<that-org-slug>` until its switch is turned on.
+  every brand except `tv-magic` (enabled on prod via `AUD-9.sql`, see
+  above). A second test org won't see the visualiser/quote form at
+  `/visualise/<that-org-slug>` until its own switch is turned on.
+- All three prod SQL files are now applied — nothing left to run before or
+  at deploy time for AUD-9/AUD-10/AUD-16. Deploy is otherwise still a plain
+  code push (no other DB coordination needed for AUD-9 → AUD-19).
 
 ### Manual QA checklist (do before shipping this branch)
 
