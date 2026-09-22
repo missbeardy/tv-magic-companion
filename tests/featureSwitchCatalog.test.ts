@@ -35,6 +35,7 @@ describe('featureSwitchCatalog categories', () => {
       'inbound_calls',
       'inbound_messenger',
       'inbound_facebook_ads',
+      'campaign_quote',
       'customer_linking',
     ])
     expect(FEATURE_SWITCHES_BY_CATEGORY.customer_communication).toEqual([

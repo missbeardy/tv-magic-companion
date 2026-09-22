@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
+import { useParams } from 'react-router-dom'
 import { motion, useScroll, useTransform } from 'motion/react'
 import '../campaign/campaign.css'
 import { PlacementProvider } from '../campaign/PlacementContext'
+import { CampaignBrandProvider, useCampaignBrand } from '../campaign/CampaignBrandContext'
 import CampaignNav from '../campaign/CampaignNav'
 import VisualiserStage from '../campaign/VisualiserStage'
 import ProductPicker from '../campaign/ProductPicker'
@@ -25,12 +27,24 @@ function useWindowScroller() {
 }
 
 export default function VisualisePage() {
+  const { orgSlug } = useParams<{ orgSlug: string }>()
+  const resolvedSlug = orgSlug?.trim() || 'default'
+
+  return (
+    <CampaignBrandProvider orgSlug={resolvedSlug}>
+      <VisualisePageContent />
+    </CampaignBrandProvider>
+  )
+}
+
+function VisualisePageContent() {
   const reduced = usePrefersReducedMotion()
+  const brand = useCampaignBrand()
   useWindowScroller()
 
   useEffect(() => {
     const prev = document.title
-    document.title = 'See it on your wall — TV Magic'
+    document.title = `See it on your wall — ${brand.name}`
     const fontId = 'campaign-fonts'
     if (!document.getElementById(fontId)) {
       const link = document.createElement('link')
@@ -43,11 +57,14 @@ export default function VisualisePage() {
     return () => {
       document.title = prev
     }
-  }, [])
+  }, [brand.name])
 
   return (
     <PlacementProvider>
-      <div className="campaign pb-[4.75rem] lg:pb-0">
+      {/* --c-navy is brand-driven; --c-cyan-ink stays the fixed, contrast-calibrated
+          token for anything carrying text on a filled background (buttons, focus
+          rings) — see tests/campaignContrast.test.ts. */}
+      <div className="campaign pb-[4.75rem] lg:pb-0" style={{ '--c-navy': brand.primaryColor } as CSSProperties}>
         <CampaignNav />
         <Hero reduced={reduced} />
         <ProductPicker />
@@ -157,11 +174,14 @@ function MobileHeroBand() {
 }
 
 function CampaignFooter() {
+  const brand = useCampaignBrand()
+  const websiteHost = brand.website ? brand.website.replace(/^https?:\/\//, '').replace(/\/$/, '') : null
+
   return (
     <footer className="border-t border-[var(--c-line)] px-5 py-12 md:px-10">
       <div className="mx-auto flex max-w-6xl flex-col gap-8 md:flex-row md:justify-between">
         <div>
-          <p className="campaign-display text-xl">TV MAGIC</p>
+          <p className="campaign-display text-xl uppercase">{brand.name}</p>
           <p className="mt-2 max-w-sm text-sm text-[var(--c-body)]">
             Real people. Real solutions. <span className="text-[var(--c-cyan-ink)]">Magic results.</span>
           </p>
@@ -175,12 +195,14 @@ function CampaignFooter() {
         <div className="text-sm text-[var(--c-body)]">
           <p className="font-bold uppercase tracking-[0.12em] text-[var(--c-navy)]">Areas</p>
           <p className="mt-2 max-w-xs">QLD, NSW, VIC, SA, WA — technicians across Australia.</p>
-          <a
-            className="mt-3 inline-block text-[var(--c-navy)] underline-offset-4 hover:underline"
-            href="https://tvmagic.com.au/"
-          >
-            tvmagic.com.au
-          </a>
+          {brand.website && (
+            <a
+              className="mt-3 inline-block text-[var(--c-navy)] underline-offset-4 hover:underline"
+              href={brand.website}
+            >
+              {websiteHost}
+            </a>
+          )}
         </div>
       </div>
     </footer>

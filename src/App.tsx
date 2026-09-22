@@ -116,7 +116,8 @@ function App() {
               <Route path="/invoice/:token" element={<InvoiceStatusPage />} />
               <Route path="/privacy" element={<PrivacyPolicyPage />} />
               <Route path="/terms" element={<TermsOfServicePage />} />
-              <Route path="/visualise" element={<VisualisePage />} />
+              <Route path="/visualise" element={<Navigate to="/visualise/default" replace />} />
+              <Route path="/visualise/:orgSlug" element={<VisualisePage />} />
               <Route path="/delete-account" element={<DeleteAccountPage />} />
               <Route path="/set-password" element={<SetPasswordPage />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />

@@ -8,14 +8,71 @@ import {
   serviceTypeForProductKind,
 } from '../../shared/campaignQuote.js'
 import { captureUnroutedInbound } from './captureUnroutedInbound.js'
+import { isFeatureEnabledForOrg } from './featureSwitches.js'
 import { findRecentLeadByPhone } from './inboundLeadDedup.js'
 import { formatAuPhoneForSms, isAuMobile } from './phone.js'
 import { processInboundLead } from './processInboundLead.js'
 import { checkRateLimit, rateLimitIdentifier } from './rateLimit.js'
 import { insertRawFirstLead } from './rawFirstLead.js'
 
+const SLUG_PATTERN = /^[a-z0-9-]{1,64}$/
+
 function campaignOrgSlug(): string {
   return process.env.CAMPAIGN_ORG_SLUG?.trim() || 'default'
+}
+
+function resolveOrgSlug(req: VercelRequest): string {
+  const fromQuery = typeof req.query.orgSlug === 'string' ? req.query.orgSlug.trim() : ''
+  if (fromQuery && SLUG_PATTERN.test(fromQuery)) return fromQuery
+  const body = req.body
+  const fromBody =
+    body && typeof body === 'object' && typeof (body as Record<string, unknown>).orgSlug === 'string'
+      ? ((body as Record<string, unknown>).orgSlug as string).trim()
+      : ''
+  if (fromBody && SLUG_PATTERN.test(fromBody)) return fromBody
+  return campaignOrgSlug()
+}
+
+interface CampaignOrgRow {
+  id: string
+  name: string | null
+  logo_url: string | null
+  website: string | null
+  primary_color: string | null
+  secondary_color: string | null
+}
+
+/** Public branding for the /visualise/:orgSlug page — no auth, no PII. */
+async function handleCampaignOrgBranding(
+  req: VercelRequest,
+  res: VercelResponse,
+  supabase: SupabaseClient
+): Promise<void> {
+  const orgSlug = resolveOrgSlug(req)
+  const { data: orgRow, error } = await supabase
+    .from('orgs')
+    .select('id, name, logo_url, website, primary_color, secondary_color')
+    .eq('slug', orgSlug)
+    .maybeSingle<CampaignOrgRow>()
+
+  if (error || !orgRow?.id) {
+    res.status(404).json({ error: 'Not found' })
+    return
+  }
+
+  const enabled = await isFeatureEnabledForOrg(orgRow.id, 'campaign_quote')
+  if (!enabled) {
+    res.status(404).json({ error: 'Not found' })
+    return
+  }
+
+  res.status(200).json({
+    name: orgRow.name || 'TV Magic',
+    logoUrl: orgRow.logo_url || null,
+    website: orgRow.website || null,
+    primaryColor: orgRow.primary_color || '#004B93',
+    secondaryColor: orgRow.secondary_color || '#00B4C5',
+  })
 }
 
 export async function handleCampaignQuote(
@@ -23,6 +80,11 @@ export async function handleCampaignQuote(
   res: VercelResponse,
   supabase: SupabaseClient
 ): Promise<void> {
+  if (req.method === 'GET') {
+    await handleCampaignOrgBranding(req, res, supabase)
+    return
+  }
+
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' })
     return
@@ -56,7 +118,7 @@ export async function handleCampaignQuote(
     return
   }
 
-  const orgSlug = campaignOrgSlug()
+  const orgSlug = resolveOrgSlug(req)
   const { data: orgRow, error: orgError } = await supabase
     .from('orgs')
     .select('id')
@@ -82,6 +144,18 @@ export async function handleCampaignQuote(
   }
 
   const orgId = orgRow.id as string
+
+  const campaignQuoteEnabled = await isFeatureEnabledForOrg(orgId, 'campaign_quote')
+  if (!campaignQuoteEnabled) {
+    await captureUnroutedInbound(supabase, {
+      channel: CAMPAIGN_SOURCE,
+      identifier: orgSlug,
+      reason: 'not_configured',
+      payload: data,
+    })
+    res.status(404).json({ error: 'Not found' })
+    return
+  }
   const phone = formatAuPhoneForSms(data.phone)
   const duplicate = await findRecentLeadByPhone(supabase, phone, orgId)
   if (duplicate) {

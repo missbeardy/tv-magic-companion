@@ -31,10 +31,12 @@ import { handleCampaignQuote } from '../api/_lib/handleCampaignQuote'
 import { processInboundLead } from '../api/_lib/processInboundLead'
 import { findRecentLeadByPhone } from '../api/_lib/inboundLeadDedup'
 import { checkRateLimit } from '../api/_lib/rateLimit'
+import { isFeatureEnabledForOrg } from '../api/_lib/featureSwitches'
 
 const mockProcess = vi.mocked(processInboundLead)
 const mockFindDup = vi.mocked(findRecentLeadByPhone)
 const mockRateLimit = vi.mocked(checkRateLimit)
+const mockFeatureEnabled = vi.mocked(isFeatureEnabledForOrg)
 
 const validBody = {
   name: 'Alex Test',
@@ -72,6 +74,7 @@ function mockReq(body: unknown, method = 'POST'): VercelRequest {
   return {
     method,
     headers: { 'x-forwarded-for': '1.1.1.1' },
+    query: {},
     body,
   } as unknown as VercelRequest
 }
@@ -125,9 +128,19 @@ describe('handleCampaignQuote', () => {
     mockProcess.mockReset()
     mockFindDup.mockReset()
     mockRateLimit.mockReset()
+    mockFeatureEnabled.mockReset()
     mockRateLimit.mockResolvedValue(true)
     mockFindDup.mockResolvedValue(null)
+    mockFeatureEnabled.mockResolvedValue(true)
     mockProcess.mockResolvedValue({ leadId: 'lead-1', savedLead: null })
+  })
+
+  it('404s when the campaign_quote switch is off for the org', async () => {
+    mockFeatureEnabled.mockResolvedValue(false)
+    const res = mockRes()
+    await handleCampaignQuote(mockReq(validBody), res, mockSupabase({ id: 'org-1' }) as never)
+    expect(res.statusCode).toBe(404)
+    expect(mockProcess).not.toHaveBeenCalled()
   })
 
   it('creates a lead through the inbound pipeline', async () => {
@@ -163,5 +176,65 @@ describe('handleCampaignQuote', () => {
     )
     expect(res.statusCode).toBe(200)
     expect(mockProcess).not.toHaveBeenCalled()
+  })
+})
+
+describe('handleCampaignQuote GET (branding)', () => {
+  beforeEach(() => {
+    mockFeatureEnabled.mockReset()
+  })
+
+  function mockBrandingSupabase(orgRow: Record<string, unknown> | null) {
+    const maybeSingle = vi.fn().mockResolvedValue({ data: orgRow, error: null })
+    return {
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({ maybeSingle })),
+        })),
+      })),
+    }
+  }
+
+  it('returns public branding for an org with the switch on', async () => {
+    mockFeatureEnabled.mockResolvedValue(true)
+    const res = mockRes()
+    await handleCampaignQuote(
+      mockReq(undefined, 'GET'),
+      res,
+      mockBrandingSupabase({
+        id: 'org-1',
+        name: 'Acme TVs',
+        logo_url: 'https://example.com/logo.png',
+        website: 'https://acme.example',
+        primary_color: '#111111',
+        secondary_color: '#222222',
+      }) as never
+    )
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toEqual({
+      name: 'Acme TVs',
+      logoUrl: 'https://example.com/logo.png',
+      website: 'https://acme.example',
+      primaryColor: '#111111',
+      secondaryColor: '#222222',
+    })
+  })
+
+  it('404s branding for an unknown org', async () => {
+    mockFeatureEnabled.mockResolvedValue(true)
+    const res = mockRes()
+    await handleCampaignQuote(mockReq(undefined, 'GET'), res, mockBrandingSupabase(null) as never)
+    expect(res.statusCode).toBe(404)
+  })
+
+  it('404s branding when the switch is off', async () => {
+    mockFeatureEnabled.mockResolvedValue(false)
+    const res = mockRes()
+    await handleCampaignQuote(
+      mockReq(undefined, 'GET'),
+      res,
+      mockBrandingSupabase({ id: 'org-1', name: 'Acme TVs' }) as never
+    )
+    expect(res.statusCode).toBe(404)
   })
 })

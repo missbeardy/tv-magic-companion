@@ -5,10 +5,12 @@ import { usePlacement } from './usePlacement'
 import { formatMm, zoneLabel } from './placementMath'
 import { PROOF_POINTS } from './proof'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
+import { useCampaignBrand } from './CampaignBrandContext'
 
 export default function QuoteSheet() {
   const { snapshot } = usePlacement()
   const reduced = usePrefersReducedMotion()
+  const brand = useCampaignBrand()
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [address, setAddress] = useState('')
@@ -30,6 +32,7 @@ export default function QuoteSheet() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          orgSlug: brand.orgSlug,
           name: name.trim(),
           phone: phone.trim(),
           address: address.trim(),
@@ -72,7 +75,7 @@ export default function QuoteSheet() {
           </p>
           <div id="guarantee" className="mt-8 bg-[var(--c-coral)] px-4 py-6 text-white sm:px-6 sm:py-8">
             <p className="font-[Maven_Pro,sans-serif] text-sm font-bold uppercase tracking-[0.16em]">
-              TV Magic Free TV Guarantee
+              {brand.name} Free TV Guarantee
             </p>
             <p className="mt-2 text-sm text-white/90">
               If your wall-mounted TV ever falls due to our installation or bracket, we’ll replace it and give you
@@ -111,7 +114,7 @@ export default function QuoteSheet() {
               >
                 <h3 className="campaign-display text-3xl uppercase">We’ll call you</h3>
                 <p className="mt-3 text-[var(--c-body)]">
-                  Thanks {name.trim().split(' ')[0]}. A TV Magic technician will be in touch about your{' '}
+                  Thanks {name.trim().split(' ')[0]}. A {brand.name} technician will be in touch about your{' '}
                   {snapshot.product.label.toLowerCase()} at {formatMm(snapshot.centreHeightMm)} centre.
                 </p>
               </motion.div>

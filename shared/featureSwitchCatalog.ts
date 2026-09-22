@@ -19,6 +19,7 @@ export const FEATURE_SWITCH_KEYS = [
   'inbound_calls',
   'inbound_messenger',
   'inbound_facebook_ads',
+  'campaign_quote',
   'lead_ack_sms',
   'completion_upsells',
   'one_tap_invoice',
@@ -51,7 +52,7 @@ export const FEATURE_SWITCH_CATEGORY_LABELS: Record<FeatureSwitchCategory, strin
 }
 
 export const FEATURE_SWITCHES_BY_CATEGORY: Record<FeatureSwitchCategory, readonly FeatureSwitchKey[]> = {
-  lead_intake: ['inbound_sms', 'inbound_email', 'inbound_calls', 'inbound_messenger', 'inbound_facebook_ads', 'customer_linking'],
+  lead_intake: ['inbound_sms', 'inbound_email', 'inbound_calls', 'inbound_messenger', 'inbound_facebook_ads', 'campaign_quote', 'customer_linking'],
   customer_communication: ['lead_ack_sms', 'customer_ontheway_sms', 'two_way_sms', 'booking_confirm', 'booking_reminder_sms', 'review_requests', 'auto_review_on_paid'],
   team_operations: ['manager_new_lead_alerts', 'smart_assign_badge', 'inbound_auto_assign', 'assignment_exclusions', 'tech_location', 'customer_profiles', 'onboarding_tips', 'native_web_push', 'weekly_leaderboard_nudge'],
   sales_job_completion: ['quote_esign', 'completion_upsells', 'one_tap_invoice', 'invoice_card_payments', 'accounting_export'],
@@ -63,6 +64,7 @@ export const FEATURE_SWITCH_CATEGORY_BY_KEY: Record<FeatureSwitchKey, FeatureSwi
   inbound_calls: 'lead_intake',
   inbound_messenger: 'lead_intake',
   inbound_facebook_ads: 'lead_intake',
+  campaign_quote: 'lead_intake',
   customer_linking: 'lead_intake',
   lead_ack_sms: 'customer_communication',
   customer_ontheway_sms: 'customer_communication',

@@ -38,6 +38,7 @@ export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   inbound_calls: false,
   inbound_messenger: false,
   inbound_facebook_ads: false,
+  campaign_quote: false,
   native_web_push: false,
   lead_ack_sms: false,
   completion_upsells: false,
@@ -120,6 +121,10 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   inbound_facebook_ads: {
     label: 'Facebook Lead Ads',
     description: 'Create leads from Facebook Lead Ads instant forms (via Make.com)',
+  },
+  campaign_quote: {
+    label: 'Campaign Quote / Wall Visualiser',
+    description: 'Public /visualise/:orgSlug wall visualiser and quote form for this org',
   },
   native_web_push: {
     label: 'Native Web Push',

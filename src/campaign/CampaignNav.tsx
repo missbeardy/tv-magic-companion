@@ -1,5 +1,6 @@
 import { useScroll, useSpring, motion } from 'motion/react'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
+import { useCampaignBrand } from './CampaignBrandContext'
 
 const LINKS = [
   { href: '#visualise', label: 'Visualise' },
@@ -10,13 +11,18 @@ const LINKS = [
 export default function CampaignNav() {
   const { scrollYProgress } = useScroll()
   const reduced = usePrefersReducedMotion()
+  const brand = useCampaignBrand()
   const scaleX = useSpring(scrollYProgress, { stiffness: 90, damping: 28, restDelta: 0.001 })
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--c-line)] bg-white pt-[env(safe-area-inset-top)]">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-3 py-2 sm:px-4 md:px-6 md:py-3">
-        <a href="#visualise" className="campaign-display text-base tracking-tight text-[var(--c-navy)] md:text-xl">
-          TV MAGIC
+        <a
+          href="#visualise"
+          className="campaign-display flex items-center gap-2 text-base uppercase tracking-tight text-[var(--c-navy)] md:text-xl"
+        >
+          {brand.logoUrl && <img src={brand.logoUrl} alt="" className="h-6 w-auto md:h-8" />}
+          {brand.name}
         </a>
         <nav className="hidden items-center gap-6 text-sm font-semibold text-[var(--c-ink)] md:flex" aria-label="Campaign">
           {LINKS.map((link) => (
