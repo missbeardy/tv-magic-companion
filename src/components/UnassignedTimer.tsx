@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useNow } from '../hooks/useNow'
 
 function formatElapsed(ms: number): string {
   const totalMinutes = Math.floor(ms / 60_000)
@@ -14,18 +14,8 @@ interface Props {
 }
 
 export default function UnassignedTimer({ createdAt }: Props) {
-  const [label, setLabel] = useState(() =>
-    formatElapsed(Date.now() - new Date(createdAt).getTime())
-  )
-
-  useEffect(() => {
-    const tick = () => {
-      setLabel(formatElapsed(Date.now() - new Date(createdAt).getTime()))
-    }
-    tick()
-    const id = window.setInterval(tick, 1000)
-    return () => window.clearInterval(id)
-  }, [createdAt])
+  const now = useNow()
+  const label = formatElapsed(now - new Date(createdAt).getTime())
 
   return (
     <span className="inline-flex items-center text-xs rounded-full px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200">

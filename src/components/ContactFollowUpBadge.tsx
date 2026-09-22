@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useNow } from '../hooks/useNow'
 import { getContactFollowUpState } from '../lib/contactFollowUp'
 
 interface Props {
@@ -6,14 +6,9 @@ interface Props {
 }
 
 export default function ContactFollowUpBadge({ lastAttemptAt }: Props) {
-  const [elapsed, setElapsed] = useState(() => getContactFollowUpState(lastAttemptAt).label)
-
-  useEffect(() => {
-    const tick = () => setElapsed(getContactFollowUpState(lastAttemptAt).label)
-    tick()
-    const id = window.setInterval(tick, 30_000)
-    return () => window.clearInterval(id)
-  }, [lastAttemptAt])
+  // Re-render on the shared tick; getContactFollowUpState reads Date.now() itself.
+  useNow()
+  const elapsed = getContactFollowUpState(lastAttemptAt).label
 
   return (
     <span className="inline-flex items-center text-xs rounded-full px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200">

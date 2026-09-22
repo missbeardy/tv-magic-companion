@@ -1,6 +1,6 @@
 // src/components/CountdownTimer.tsx
-import { useEffect, useState } from 'react'
 import { Clock } from 'lucide-react'
+import { useNow } from '../hooks/useNow'
 
 interface Props {
   /** When the lead was assigned — pill shows elapsed "time assigned". */
@@ -11,8 +11,8 @@ interface Props {
 
 const HOUR_MS = 60 * 60 * 1000
 
-function getElapsed(assignedAt: string) {
-  const diff = Date.now() - new Date(assignedAt).getTime()
+function getElapsed(assignedAt: string, now: number) {
+  const diff = now - new Date(assignedAt).getTime()
   const totalMs = Math.max(0, diff)
   const totalSeconds = Math.floor(totalMs / 1000)
   const h = Math.floor(totalSeconds / 3600)
@@ -33,14 +33,8 @@ function colourForElapsed(totalMs: number) {
 }
 
 export default function CountdownTimer({ assignedAt, showHint = false }: Props) {
-  const [time, setTime] = useState(() => getElapsed(assignedAt))
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTime(getElapsed(assignedAt))
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [assignedAt])
+  const now = useNow()
+  const time = getElapsed(assignedAt, now)
 
   const colourSet = colourForElapsed(time.totalMs)
 
