@@ -3,6 +3,7 @@ import { useState } from 'react'
 import Calendar from '../components/Calendar'
 import EventModal from '../components/EventModal'
 import NavBar from '../components/NavBar' // This will light up now!
+import SectionBoundary from '../components/SectionBoundary'
 import { CalendarDays, Plus } from 'lucide-react'
 
 export default function CalendarPage() {
@@ -31,7 +32,9 @@ export default function CalendarPage() {
 
         {/* Calendar */}
         <div className="card overflow-hidden">
-          <Calendar key={refreshKey} />
+          <SectionBoundary tag="calendar" resetKey={refreshKey}>
+            <Calendar key={refreshKey} />
+          </SectionBoundary>
         </div>
 
         {/* Event modal */}

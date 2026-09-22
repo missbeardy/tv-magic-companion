@@ -43,6 +43,7 @@ import PwaUpdateLayer from './components/PwaUpdateLayer'
 import OfflineBanner from './components/OfflineBanner'
 import ToastHost from './components/ToastHost'
 import { isPublicSitePath } from './lib/publicSite'
+import RouteBoundary from './components/RouteBoundary'
 
 function Dashboard() {
   const { profile, loading } = useAuth()
@@ -110,24 +111,26 @@ function App() {
           <BrowserRouter>
             <Suspense fallback={<RouteLoadingFallback />}>
             <Routes>
-              <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/quote/:token" element={<QuoteAcceptPage />} />
-              <Route path="/invoice/:token" element={<InvoiceStatusPage />} />
-              <Route path="/privacy" element={<PrivacyPolicyPage />} />
-              <Route path="/terms" element={<TermsOfServicePage />} />
+              <Route path="/" element={<ProtectedRoute><RouteBoundary tag="dashboard"><Dashboard /></RouteBoundary></ProtectedRoute>} />
+              <Route path="/login" element={<RouteBoundary tag="login"><Login /></RouteBoundary>} />
+              <Route path="/quote/:token" element={<RouteBoundary tag="quote"><QuoteAcceptPage /></RouteBoundary>} />
+              <Route path="/invoice/:token" element={<RouteBoundary tag="invoice"><InvoiceStatusPage /></RouteBoundary>} />
+              <Route path="/privacy" element={<RouteBoundary tag="privacy"><PrivacyPolicyPage /></RouteBoundary>} />
+              <Route path="/terms" element={<RouteBoundary tag="terms"><TermsOfServicePage /></RouteBoundary>} />
               <Route path="/visualise" element={<Navigate to="/visualise/default" replace />} />
-              <Route path="/visualise/:orgSlug" element={<VisualisePage />} />
-              <Route path="/delete-account" element={<DeleteAccountPage />} />
-              <Route path="/set-password" element={<SetPasswordPage />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/support" element={<ProtectedRoute> <SupportPage /> </ProtectedRoute> }/>
-              <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/visualise/:orgSlug" element={<RouteBoundary tag="visualise"><VisualisePage /></RouteBoundary>} />
+              <Route path="/delete-account" element={<RouteBoundary tag="delete-account"><DeleteAccountPage /></RouteBoundary>} />
+              <Route path="/set-password" element={<RouteBoundary tag="set-password"><SetPasswordPage /></RouteBoundary>} />
+              <Route path="/forgot-password" element={<RouteBoundary tag="forgot-password"><ForgotPassword /></RouteBoundary>} />
+              <Route path="/support" element={<ProtectedRoute> <RouteBoundary tag="support"><SupportPage /></RouteBoundary> </ProtectedRoute> }/>
+              <Route path="/reset-password" element={<RouteBoundary tag="reset-password"><ResetPassword /></RouteBoundary>} />
               <Route
                 path="/dashboard"
                 element={
                   <ProtectedRoute>
-                    <Dashboard />
+                    <RouteBoundary tag="dashboard">
+                      <Dashboard />
+                    </RouteBoundary>
                   </ProtectedRoute>
                 }
               />
@@ -135,7 +138,9 @@ function App() {
                 path="/manager"
                 element={
                   <ProtectedRoute requiredRole="manager">
-                    <ManagerDashboard />
+                    <RouteBoundary tag="manager">
+                      <ManagerDashboard />
+                    </RouteBoundary>
                   </ProtectedRoute>
                 }
               />
@@ -143,7 +148,9 @@ function App() {
                 path="/employee"
                 element={
                   <ProtectedRoute requiredRole="employee">
-                    <EmployeeDashboard />
+                    <RouteBoundary tag="employee">
+                      <EmployeeDashboard />
+                    </RouteBoundary>
                   </ProtectedRoute>
                 }
               />
@@ -151,7 +158,9 @@ function App() {
                 path="/leads"
                 element={
                   <ProtectedRoute>
-                    <LeadsPage />
+                    <RouteBoundary tag="leads">
+                      <LeadsPage />
+                    </RouteBoundary>
                   </ProtectedRoute>
                 }
               />
@@ -159,7 +168,9 @@ function App() {
                 path="/activity"
                 element={
                   <ProtectedRoute>
-                    <TeamActivityPage />
+                    <RouteBoundary tag="activity">
+                      <TeamActivityPage />
+                    </RouteBoundary>
                   </ProtectedRoute>
                 }
               />
@@ -167,7 +178,9 @@ function App() {
                 path="/leaderboard"
                 element={
                   <ProtectedRoute>
-                    <LeaderboardPage />
+                    <RouteBoundary tag="leaderboard">
+                      <LeaderboardPage />
+                    </RouteBoundary>
                   </ProtectedRoute>
                 }
               />
@@ -175,7 +188,9 @@ function App() {
                 path="/calendar"
                 element={
                   <ProtectedRoute>
-                    <CalendarPage />
+                    <RouteBoundary tag="calendar">
+                      <CalendarPage />
+                    </RouteBoundary>
                   </ProtectedRoute>
                 }
               />
@@ -183,7 +198,9 @@ function App() {
                 path="/profile"
                 element={
                   <ProtectedRoute>
-                    <ProfilePage />
+                    <RouteBoundary tag="profile">
+                      <ProfilePage />
+                    </RouteBoundary>
                   </ProtectedRoute>
                 }
               />
@@ -191,7 +208,9 @@ function App() {
                 path="/reports"
                 element={
                   <ProtectedRoute requiredRole="manager">
-                    <ReportsPage />
+                    <RouteBoundary tag="reports">
+                      <ReportsPage />
+                    </RouteBoundary>
                   </ProtectedRoute>
                 }
               />
@@ -199,7 +218,9 @@ function App() {
                 path="/org-settings"
                 element={
                   <ProtectedRoute requiredRole="manager">
-                    <OrgSettingsPage />
+                    <RouteBoundary tag="org-settings">
+                      <OrgSettingsPage />
+                    </RouteBoundary>
                   </ProtectedRoute>
                 }
               />
@@ -207,7 +228,9 @@ function App() {
                 path="/platform"
                 element={
                   <ProtectedRoute requiredRole="platform_admin">
-                    <PlatformAdminPage />
+                    <RouteBoundary tag="platform">
+                      <PlatformAdminPage />
+                    </RouteBoundary>
                   </ProtectedRoute>
                 }
               />

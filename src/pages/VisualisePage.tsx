@@ -6,6 +6,7 @@ import { PlacementProvider } from '../campaign/PlacementContext'
 import { CampaignBrandProvider, useCampaignBrand } from '../campaign/CampaignBrandContext'
 import CampaignNav from '../campaign/CampaignNav'
 import VisualiserStage from '../campaign/VisualiserStage'
+import SectionBoundary from '../components/SectionBoundary'
 import ProductPicker from '../campaign/ProductPicker'
 import QuoteSheet from '../campaign/QuoteSheet'
 import { PROOF_POINTS } from '../campaign/proof'
@@ -138,7 +139,9 @@ function Hero({ reduced }: { reduced: boolean }) {
         style={{ y }}
         className="order-2 h-[min(82dvh,760px)] min-h-[440px] min-w-0 border-[var(--c-line)] lg:order-2 lg:h-auto lg:min-h-[100dvh] lg:border-l"
       >
-        <VisualiserStage />
+        <SectionBoundary tag="visualise-canvas">
+          <VisualiserStage />
+        </SectionBoundary>
       </motion.div>
     </section>
   )

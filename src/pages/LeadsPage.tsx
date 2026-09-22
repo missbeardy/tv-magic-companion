@@ -29,6 +29,7 @@ import { hasQuoteDraft, loadQuoteDraft, quoteDraftToLead } from '../lib/quoteDra
 import { useRestoreLeadBookingDraft } from '../hooks/useRestoreLeadBookingDraft'
 import LeadCard, { type KanbanLead } from '../components/LeadCard'
 import LeadDetailSheet from '../components/LeadDetailSheet'
+import SectionBoundary from '../components/SectionBoundary'
 import {
   getColumnsForTab,
   getDefaultMobileTab,
@@ -1347,29 +1348,31 @@ export default function LeadsPage() {
       </main>
 
       {sheetOpen && window.innerWidth < 768 && sheetLead && (
-        <LeadDetailSheet
-          lead={sheetLead}
-          isOpen={sheetOpen}
-          onClose={() => closeSheet()}
-          profile={profile}
-          onCall={handleCall}
-          onSms={handleSMS}
-          onSendManualSms={handleSendManualSms}
-          onAssign={(lead) => { setAssigningLead(lead); closeSheet() }}
-          onBook={(lead) => { setBookingLead(lead); closeSheet() }}
-          onQuote={(lead) => { setQuoteLead(lead); closeSheet() }}
-          onUnassign={handleUnassign}
-          onComplete={handleMarkComplete}
-          onSharePhoto={handleSharePhoto}
-          quoteEnabled={quoteFeatureEnabled}
-          smsEnabled={onTheWayFeatureEnabled}
-          twoWaySmsEnabled={twoWaySmsEnabled}
-          smsSending={smsSending}
-          customerProfilesEnabled={customerProfilesEnabled}
-          hideAssignPool={isSoloMode}
-          onRefresh={fetchLeads}
-          onDeleted={fetchLeads}
-        />
+        <SectionBoundary tag="lead-detail-sheet" resetKey={sheetLead.id}>
+          <LeadDetailSheet
+            lead={sheetLead}
+            isOpen={sheetOpen}
+            onClose={() => closeSheet()}
+            profile={profile}
+            onCall={handleCall}
+            onSms={handleSMS}
+            onSendManualSms={handleSendManualSms}
+            onAssign={(lead) => { setAssigningLead(lead); closeSheet() }}
+            onBook={(lead) => { setBookingLead(lead); closeSheet() }}
+            onQuote={(lead) => { setQuoteLead(lead); closeSheet() }}
+            onUnassign={handleUnassign}
+            onComplete={handleMarkComplete}
+            onSharePhoto={handleSharePhoto}
+            quoteEnabled={quoteFeatureEnabled}
+            smsEnabled={onTheWayFeatureEnabled}
+            twoWaySmsEnabled={twoWaySmsEnabled}
+            smsSending={smsSending}
+            customerProfilesEnabled={customerProfilesEnabled}
+            hideAssignPool={isSoloMode}
+            onRefresh={fetchLeads}
+            onDeleted={fetchLeads}
+          />
+        </SectionBoundary>
       )}
     </div>
   )
