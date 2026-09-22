@@ -865,20 +865,16 @@ export default function EventModal({
     // Booking is persisted — close immediately. The customer confirmation
     // (SMS + optional email/.ics, generated server-side) runs in the background so
     // a slow round-trip never holds the modal open, and it can't hang (timeout).
-    const confirmCustomer =
-      (clientPhone.trim() || clientEmail.trim()) &&
-      (leadIdToUse || customerName)
+    // The server reads customer name/phone/email/address/service type from the
+    // lead row itself (never trusts the body for those) — leadIdToUse is always
+    // set here, since job bookings without a linked lead create one just above.
+    const confirmCustomer = (clientPhone.trim() || clientEmail.trim()) && leadIdToUse
     const confirmPayload = confirmCustomer
       ? {
           leadId: leadIdToUse,
-          customerName: customerName || resolveBookingCustomerName(clientName, title),
-          customerPhone: clientPhone || null,
-          customerEmail: clientEmail || null,
-          serviceType: clientJob.trim() || title.trim(),
           startTimeIso: startISO,
           endTimeIso: endISO,
           techName: memberList.find((m) => m.id === bookingAssigneeId)?.full_name ?? null,
-          address: clientAddress || null,
         }
       : null
     const hadPhone = clientPhone.trim().length > 0

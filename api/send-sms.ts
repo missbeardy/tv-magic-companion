@@ -237,34 +237,36 @@ async function assertQuoteInOrg(quoteId: string, orgId: string): Promise<boolean
   return !!data && data.org_id === orgId
 }
 
-async function handleBookingConfirm(req: VercelRequest, res: VercelResponse, auth: AuthContext) {
-  const {
-    leadId,
-    customerName,
-    customerPhone,
-    customerEmail,
-    serviceType,
-    startTimeIso,
-    endTimeIso,
-    techName,
-    address,
-  } = (req.body ?? {}) as {
+export async function handleBookingConfirm(req: VercelRequest, res: VercelResponse, auth: AuthContext) {
+  const { leadId, startTimeIso, endTimeIso, techName } = (req.body ?? {}) as {
     leadId?: string
-    customerName?: string
-    customerPhone?: string
-    customerEmail?: string
-    serviceType?: string
     startTimeIso?: string
     endTimeIso?: string
     techName?: string
-    address?: string
   }
 
-  if (!customerName?.trim() || !startTimeIso || !endTimeIso) {
+  if (!leadId) {
+    return res.status(400).json({ error: 'leadId is required' })
+  }
+  if (!startTimeIso || !endTimeIso) {
     return res.status(400).json({ error: 'Missing booking confirm fields' })
   }
 
-  if (leadId && !(await assertLeadInOrg(leadId, auth.orgId))) {
+  const supabase = getSupabaseAdmin()
+  if (!supabase) {
+    return res.status(500).json({ error: 'Server misconfigured' })
+  }
+
+  // Customer identity (name/phone/email/address/service type) always comes from the
+  // lead row, never the request body — a client-supplied body would let any caller
+  // in the org redirect the booking confirmation SMS/email to an arbitrary target.
+  const { data: lead } = await supabase
+    .from('leads')
+    .select('org_id, name, phone, email, address, service_type')
+    .eq('id', leadId)
+    .maybeSingle()
+
+  if (!lead || lead.org_id !== auth.orgId) {
     return res.status(403).json({ error: 'Lead is outside your organisation' })
   }
 
@@ -283,14 +285,14 @@ async function handleBookingConfirm(req: VercelRequest, res: VercelResponse, aut
     const result = await sendBookingConfirmations({
       orgId: auth.orgId,
       leadId,
-      customerName: customerName.trim(),
-      customerPhone,
-      customerEmail,
-      serviceType,
+      customerName: lead.name,
+      customerPhone: lead.phone,
+      customerEmail: lead.email,
+      serviceType: lead.service_type,
       startTimeIso,
       endTimeIso,
       techName,
-      address,
+      address: lead.address,
     })
     return res.status(200).json({ success: true, ...result })
   } catch (err) {
