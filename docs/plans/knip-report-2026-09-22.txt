@@ -1,0 +1,231 @@
+AUD-24 — `npx knip` output, 22-09-2026. Report only; nothing below was deleted.
+
+Most "unused files" are false positives — knip doesn't know about Vercel's
+serverless-function convention (every top-level api/*.ts is an entry point the
+platform invokes directly, not something imported by other code), Supabase
+edge functions, PWA service-worker scripts served as static files, or npm-run
+scripts. Worth a manual look, not auto-removal.
+
+Real signal worth a follow-up:
+- Unused devDependencies: @types/google.maps, sharp — check if still needed.
+- Duplicate exports in shared/contactFollowUp.ts (4 pairs) — same name
+  exported twice from the same module; worth a quick dedup pass.
+- A handful of genuinely unused exported constants/functions in src/lib/*
+  (e.g. src/lib/timer.ts's LEAD_ASSIGN_TIMER_MS/getAssignExpiresAt/
+  getTimeRemaining/formatTimeRemaining, src/lib/webPush.ts's
+  isPushSupported/isWebPushConfigured) may be genuinely dead — each would
+  need a quick grep to confirm before removing.
+
+Raw output below.
+
+Unused files (19)
+api/_lib/platformSetDeparted.ts
+api/_lib/platformSetTestProfile.ts
+api/_lib/setProfileExclusions.ts          
+api/_lib/soloTradiePreset.ts              
+api/_lib/stripe.ts                        
+api/anthropic.ts                          
+api/create-user.ts                        
+api/geocode.ts                            
+api/leads.ts                              
+api/send-support-email.ts                 
+api/stripe.ts                             
+api/webhook-new-lead.ts                   
+public/OneSignalSDKWorker.js              
+public/web-push-handler.js                
+scripts/optimize-room-textures.mjs        
+scripts/verify-rate-limit.mjs             
+src/App.css                               
+supabase/functions/notify-message/index.ts
+tests/databaseContract.assert.ts          
+Unused devDependencies (2)
+@types/google.maps  package.json:57:6
+sharp               package.json:68:6
+Unlisted dependencies (1)
+workbox-precaching  public/sw.js:4:34
+Unlisted binaries (1)
+supabase  package.json
+Unused exports (127)
+deleteOwnAccount                                   function  api/_lib/accountDeletion.ts:23:23          
+AI_MONTHLY_TOKEN_CEILING                                     api/_lib/aiUsage.ts:4:14                   
+isUnderMonthlyAiCeiling                            function  api/_lib/aiUsage.ts:19:23                  
+runBookingReminderForEvent                         function  api/_lib/bookingReminder.ts:122:23         
+QUIET_HOURS_START                                            api/_lib/bookingReminderPolicy.ts:7:14     
+QUIET_HOURS_END                                              api/_lib/bookingReminderPolicy.ts:8:14     
+CRON_KEYS                                                    api/_lib/cronActions.ts:18:14              
+isCronAuthorized                                   function  api/_lib/cronActions.ts:27:17              
+QUOTE_EMAIL_TEMPLATE_KEYS                                    api/_lib/emailTemplates.ts:5:14            
+interpolateHtmlTemplate                            function  api/_lib/emailTemplates.ts:18:17           
+INVOICE_EMAIL_TEMPLATE_KEYS                                  api/_lib/emailTemplates.ts:95:14           
+getAssignmentVariableCount                         function  api/_lib/employeeWhatsAppTemplates.ts:40:17
+extractLeadWithClaude                              function  api/_lib/extractLead.ts:250:23             
+INBOUND_PROBE_COVERAGE                                       api/_lib/inboundProbe.ts:50:14             
+NUDGE_NOTIFICATION_TYPES                                     api/_lib/leaderboardNudge.ts:26:14         
+pageAccessTokenFor                                 function  api/_lib/messengerBot.ts:24:23             
+mergeCapture                                       function  api/_lib/messengerTurn.ts:97:17            
+resolveOrgIdFromFacebookPageId                     function  api/_lib/metaWebhook.ts:24:23              
+NOTIFICATION_RETENTION_DAYS                                  api/_lib/notificationRetention.ts:10:14    
+UNROUTED_SIM_ORG_ID                                          api/_lib/platformSimulateInbound.ts:121:14 
+UNROUTED_SIM_DID                                             api/_lib/platformSimulateInbound.ts:123:14 
+getSupportInboxEmail                               function  api/_lib/platformUrl.ts:26:17              
+VOICEMAIL_BUCKET                                             api/_lib/processVoicemail.ts:20:14         
+VOICEMAIL_AUDIO_TYPES                                        api/_lib/processVoicemail.ts:22:14         
+VOICEMAIL_AUDIO_EXTENSIONS                                   api/_lib/processVoicemail.ts:29:14         
+transcribeAudio                                    function  api/_lib/processVoicemail.ts:140:23        
+isExtractedValuePresent              rawFirstLead  function  api/_lib/rawFirstLead.ts:35:17             
+applyLeadExtractionRetry                           function  api/_lib/retryLeadExtraction.ts:205:23     
+CANDIDATE_LOAD_LIMIT                                         api/_lib/runContactFollowUpCron.ts:32:14   
+applyEmployeeWhatsAppMessage                       function  api/_lib/sendEmployeeWhatsApp.ts:15:17     
+parseWhatsAppPhoneNumber                           function  api/_lib/sendEmployeeWhatsApp.ts:44:17     
+sendEmployeeWhatsAppToPhone                        function  api/_lib/sendEmployeeWhatsApp.ts:266:23    
+getSoloOwnerProfileId                              function  api/_lib/soloInboundLead.ts:5:23           
+normalizeAddressInput                              function  api/_lib/staticMap.ts:14:17                
+geocodeLeadAddress                                 function  api/_lib/teamInboundLead.ts:17:23          
+isPlatformFeaturesEnabled                          function  api/_lib/tier.ts:5:17                      
+tierIncludes                                       function  api/_lib/tier.ts:12:17                     
+default                                                      api/send-sms.ts:1105:16                    
+CAMPAIGN_PRODUCT_KINDS                                       shared/campaignQuote.ts:4:14               
+CAMPAIGN_ZONES                                               shared/campaignQuote.ts:7:14               
+STALE_LEAD_AUTO_LOST_MS                                      shared/contactFollowUp.ts:18:14            
+STALE_LEAD_AUTO_LOST_DAYS                                    shared/contactFollowUp.ts:19:14            
+MAX_RETRY_WAIT_ROUND                                         shared/contactFollowUp.ts:28:14            
+CONTACT_FOLLOW_UP_HOURS                                      shared/contactFollowUp.ts:32:14            
+shouldMarkUnableToContact                          function  shared/contactFollowUp.ts:64:17            
+sortFollowUpRemindersOldestDueFirst                function  shared/contactFollowUp.ts:120:17           
+leadsDueForFollowUpEscalation                                shared/contactFollowUp.ts:142:14           
+leadsDueForFollowUpRollover                                  shared/contactFollowUp.ts:172:14           
+buildFollowUpRolloverUpdate                                  shared/contactFollowUp.ts:188:14           
+rolloverEventType                                            shared/contactFollowUp.ts:217:14           
+ORG_DATE_STYLES                                              shared/datetime.ts:3:14                    
+isEmailTemplateDoc                                 function  shared/emailTemplateDocs.ts:229:17         
+EXPIRE_OVERDUE_LEADS_PATCH                                   shared/expireOverdueLeads.ts:11:14         
+normalizeEmailAddress                              function  shared/inboundEmailRouting.ts:14:17        
+KANBAN_TRACE_STATUSES                                        shared/kanbanLifecycle.ts:3:14             
+LEAD_STATUS_LABELS                                           shared/kanbanLifecycle.ts:17:14            
+LEAD_ASSIGN_TIMER_MS                                         shared/leadAssignTimer.ts:2:14             
+BUSINESS_TIME_ZONE                                           shared/leaderboardWeek.ts:13:14            
+REMIND_ISO_WEEKDAY                                           shared/leaderboardWeek.ts:76:14            
+REMIND_HOUR                                                  shared/leaderboardWeek.ts:77:14            
+REVEAL_ISO_WEEKDAY                                           shared/leaderboardWeek.ts:80:14            
+REVEAL_HOUR                                                  shared/leaderboardWeek.ts:81:14            
+EDGE_MARGIN_MM                                               src/campaign/placementMath.ts:6:14         
+sofaFabricTexture                                  function  src/campaign/room/textures.ts:94:17        
+XERO_CSV_HEADERS                                             src/lib/accountingExport.ts:7:14           
+ADD_LEAD_FORM_ID                                             src/lib/addLeadDraft.ts:3:14               
+hasQuoteEmailTemplate                              function  src/lib/brandTemplates.ts:150:17           
+hexToHsl                                           function  src/lib/calendarColors.ts:20:17            
+hslToHex                                           function  src/lib/calendarColors.ts:43:17            
+getLeaveAccentColor                                function  src/lib/calendarColors.ts:122:17           
+getEventDisplayColor                               function  src/lib/calendarColors.ts:137:17           
+hexToRgba                                          function  src/lib/calendarColors.ts:145:17           
+todayChangelogDate                                 function  src/lib/changelog.ts:17:17                 
+getSeenReleaseWeek                                 function  src/lib/changelog.ts:67:17                 
+COMPLETION_FORM_ID                                           src/lib/completionDraft.ts:7:14            
+CONTACT_FOLLOW_UP_MS                                         src/lib/contactFollowUp.ts:2:3             
+MAX_RETRY_WAIT_ROUND                                         src/lib/contactFollowUp.ts:5:3             
+CONTACT_FOLLOW_UP_HOURS                                      src/lib/contactFollowUp.ts:8:3             
+sortFollowUpRemindersOldestDueFirst                          src/lib/contactFollowUp.ts:15:3            
+leadsDueForFollowUpEscalation                                src/lib/contactFollowUp.ts:16:3            
+STALE_LEAD_AUTO_LOST_MS                                      src/lib/contactFollowUp.ts:19:3            
+STALE_LEAD_AUTO_LOST_DAYS                                    src/lib/contactFollowUp.ts:20:3            
+leadsDueForFollowUpRollover                                  src/lib/contactFollowUp.ts:21:3            
+buildFollowUpRolloverUpdate                                  src/lib/contactFollowUp.ts:23:3            
+rolloverEventType                                            src/lib/contactFollowUp.ts:27:3            
+buildFollowUpNotificationCopy                                src/lib/contactFollowUp.ts:31:3            
+EVENT_MODAL_FORM_ID                                          src/lib/eventModalDraft.ts:7:14            
+hasEventModalDraftForContext                       function  src/lib/eventModalDraft.ts:71:17           
+extractStateFromAddress                            function  src/lib/extractSuburb.ts:31:17             
+FEATURE_SWITCH_CATEGORY_BY_KEY                               src/lib/features.ts:15:3                   
+FEATURE_SWITCH_DEFAULTS                                      src/lib/features.ts:24:14                  
+tierIncludes                                       function  src/lib/features.ts:179:17                 
+DEFAULT_FETCH_TIMEOUT_MS                                     src/lib/fetchWithTimeout.ts:1:14           
+INVOICE_EMAIL_TEMPLATE_KEY_SUBJECT                           src/lib/invoiceTemplates.ts:3:14           
+INVOICE_EMAIL_TEMPLATE_KEY_HTML                              src/lib/invoiceTemplates.ts:4:14           
+INVOICE_TEMPLATE_PLACEHOLDERS                                src/lib/invoiceTemplates.ts:6:14           
+getDefaultInvoiceEmailTemplates                    function  src/lib/invoiceTemplates.ts:25:17          
+buildInvoiceEmailPreview                           function  src/lib/invoiceTemplates.ts:63:17          
+LEAD_ACK_TEMPLATE_KEY                                        src/lib/leadAckSms.ts:9:10                 
+formatAudExact                                     function  src/lib/leaderboard.ts:146:17              
+LEAD_PHOTO_DISPLAY_TTL                                       src/lib/leadPhotoStorage.ts:17:14          
+CLOSED_BOARD_STATUSES                                        src/lib/leadsBoardQuery.ts:5:14            
+LEAD_STATUSES                                                src/lib/leadsKanban.ts:3:10                
+TEAM_KANBAN_COLUMNS                                          src/lib/leadsKanban.ts:9:14                
+SOLO_KANBAN_COLUMNS                                          src/lib/leadsKanban.ts:19:14               
+TEAM_MOBILE_TABS                                             src/lib/leadsKanban.ts:32:14               
+SOLO_MOBILE_TABS                                             src/lib/leadsKanban.ts:39:14               
+cacheDelete                                        function  src/lib/offlineQueue.ts:228:23             
+storageKey                                         function  src/lib/onboardingTips.ts:54:17            
+saveOnboardingTipsState                            function  src/lib/onboardingTips.ts:110:17           
+canUseOneSignal                                    function  src/lib/oneSignal.ts:7:17                  
+ON_THE_WAY_MAPS_SUFFIX                                       src/lib/onTheWaySms.ts:6:14                
+isTeamOperationMode                                function  src/lib/operationMode.ts:9:17              
+QUOTE_FORM_ID                                                src/lib/quoteDraft.ts:4:14                 
+buildLineItemsHtml                                 function  src/lib/resolveInvoiceAmount.ts:26:17      
+formatDueDate                                      function  src/lib/resolveInvoiceAmount.ts:46:17      
+ROLES                                                        src/lib/roles.ts:3:10                      
+isPlatformAdminRole                                function  src/lib/roles.ts:12:17                     
+LEAD_ASSIGN_TIMER_MS                                         src/lib/timer.ts:5:10                      
+getAssignExpiresAt                                           src/lib/timer.ts:5:32                      
+getTimeRemaining                                   function  src/lib/timer.ts:16:17                     
+formatTimeRemaining                                function  src/lib/timer.ts:36:17                     
+urlBase64ToUint8Array                              function  src/lib/webPush.ts:24:17                   
+isPushSupported                                    function  src/lib/webPush.ts:58:17                   
+isWebPushConfigured                                function  src/lib/webPush.ts:67:17                   
+Constants                                                    src/types/database.types.ts:2193:14        
+VOICEMAIL_BYTE_RATE                                          tests/fixtures/voicemailEmail.ts:33:14     
+Unused exported types (50)
+UnroutedChannel                     type       api/_lib/captureUnroutedInbound.ts:4:13           
+UnroutedReason                      type       api/_lib/captureUnroutedInbound.ts:5:13           
+ExtractionContext                   type       api/_lib/extractLead.ts:8:13                      
+InvoiceLineItem                     interface  api/_lib/invoices.ts:20:18                        
+SavedLeadRow                        interface  api/_lib/processInboundLead.ts:17:18              
+ProcessInboundLeadExtractionResult  interface  api/_lib/processInboundLead.ts:29:18              
+ProcessInboundLeadExtractFn         type       api/_lib/processInboundLead.ts:57:13              
+ProcessInboundLeadFollowUp          interface  api/_lib/processInboundLead.ts:61:18              
+ProcessInboundLeadContext           interface  api/_lib/processInboundLead.ts:68:18              
+ProcessInboundLeadRunInput          interface  api/_lib/processInboundLead.ts:75:18              
+VoicemailAudio                      interface  api/_lib/processVoicemail.ts:160:18               
+PushTransport                       type       api/_lib/pushTransport.ts:18:13                   
+QuoteLineItem                       interface  api/_lib/quotes.ts:100:18                         
+CronLeadRow                         interface  api/_lib/runContactFollowUpCron.ts:12:18          
+EmployeeWhatsAppMessagePayload      type       api/_lib/sendEmployeeWhatsApp.ts:13:15            
+WorkflowRunStatus                   type       api/_lib/workflowRun.ts:10:13                     
+WorkflowStepStatus                  type       api/_lib/workflowRun.ts:11:13                     
+CampaignZone                        type       shared/campaignQuote.ts:8:13                      
+CloudmailinEnvelope                 interface  shared/inboundEmailRouting.ts:2:18                
+KanbanTraceStatus                   type       shared/kanbanLifecycle.ts:13:13                   
+WorkflowStepRowStatus               type       shared/workflowGraph.ts:4:13                      
+WorkflowGraphLane                   type       shared/workflowGraph.ts:5:13                      
+WorkflowGraphNodeStatus             type       shared/workflowGraph.ts:19:13                     
+WorkflowGraphEdge                   interface  shared/workflowGraph.ts:37:18                     
+CalendarEventCardEvent              interface  src/components/CalendarEventCard.tsx:4:18         
+WorkflowGraphNodeData               interface  src/components/platform/WorkflowRunGraph.tsx:22:18
+ContactFollowUpLead                 type       src/lib/contactFollowUp.ts:9:8                    
+RetryAttemptEventType               type       src/lib/contactFollowUp.ts:25:8                   
+ContactAttemptResult                type       src/lib/contactFollowUp.ts:28:8                   
+Tables                              type       src/lib/dbTypes.ts:4:13                           
+LeadRow                             type       src/lib/dbTypes.ts:6:13                           
+EventRow                            type       src/lib/dbTypes.ts:8:13                           
+EventUpdate                         type       src/lib/dbTypes.ts:9:13                           
+StoredDraft                         interface  src/lib/formDraft.ts:5:18                         
+InvoiceLineItem                     interface  src/lib/invoices.ts:47:18                         
+LeaderboardDraftValue               interface  src/lib/leaderboard.ts:31:18                      
+LeadNextActionKind                  type       src/lib/leadNextAction.ts:1:13                    
+LeadStatus                          type       src/lib/leadsKanban.ts:4:15                       
+TeamMobileTab                       type       src/lib/leadsKanban.ts:45:13                      
+SoloMobileTab                       type       src/lib/leadsKanban.ts:46:13                      
+MobileLeadsTab                      type       src/lib/leadsKanban.ts:91:13                      
+OfflineContactKind                  type       src/lib/offlineQueue.ts:7:13                      
+InvoiceLineItem                     interface  src/lib/resolveInvoiceAmount.ts:3:18              
+ToastVariant                        type       src/lib/toast.ts:7:13                             
+ToastAction                         interface  src/lib/toast.ts:9:18                             
+Tables                              type       src/types/database.types.ts:2080:13               
+TablesInsert                        type       src/types/database.types.ts:2109:13               
+TablesUpdate                        type       src/types/database.types.ts:2134:13               
+Enums                               type       src/types/database.types.ts:2159:13               
+CompositeTypes                      type       src/types/database.types.ts:2176:13               
+Duplicate exports (4)
+FINAL_LABEL_ROUND|MAX_RETRY_WAIT_ROUND                                                 shared/contactFollowUp.ts
+leadsDueForFollowUpReminder|leadsDueForFollowUpEscalation|leadsDueForFollowUpRollover  shared/contactFollowUp.ts
+buildFollowUpEscalationUpdate|buildFollowUpRolloverUpdate                              shared/contactFollowUp.ts
+escalationEventType|rolloverEventType                                                  shared/contactFollowUp.ts
