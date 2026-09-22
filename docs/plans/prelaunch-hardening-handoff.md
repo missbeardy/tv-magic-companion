@@ -70,26 +70,39 @@ All in `docs/plans/prod-sql/`, each with a read-only verify query at the top.
    turned out to already be live (see commit 1 above). Nothing to apply;
    documents what's already there.
 2. **`AUD-2.sql`** — `prevent_org_privileged_column_change` trigger.
-   Not yet applied to prod (blocked by the harness's auto-mode classifier as
-   a "Production Deploy" when I tried; needs to be run from the Supabase SQL
-   editor, or a Bash permission rule added if you want me able to do this
-   kind of DDL directly next time).
+   **Already live on prod** (found in the 22-09-2026 review), but as
+   SECURITY DEFINER, which makes it a no-op — see AUD-C1.
 3. **`AUD-3.sql`** — split RLS policies on `leads`/`lead_events`/`events`.
-   Not yet applied to prod.
+   **Already live on prod**, but overridden by 28 legacy permissive policies —
+   see AUD-3b. Don't re-run after AUD-3b.
 4. *(AUD-4 has no SQL — pure app code.)*
 5. **`AUD-5.sql`** — `orgs.messenger_business_name` /
    `messenger_contact_phone` / `service_area_note` columns, widened
-   `unrouted_inbound` constraints, and the TV Magic backfill. Not yet applied.
+   `unrouted_inbound` constraints, and the TV Magic backfill. **Half-applied on
+   prod**: columns + `messenger` channel exist, the `not_configured` reason
+   does not. Run the part above the BACKFILL marker; hold the backfill.
 6. **`AUD-6.sql`** — extended `prevent_profile_privilege_escalation`.
-   Not yet applied.
+   **Already live on prod**, as a no-op for the same reason as AUD-2.
 7. *(AUD-7 has no SQL — dependency bump.)*
 8. *(AUD-8 has no SQL — pure app code.)*
 
-None of AUD-2/3/5/6 have been applied to prod. Run them in that numeric
-order — 3 depends on nothing from 2, but keeping numeric order is simplest to
-reason about. `AUD-5.sql`'s backfill is a no-op if `messenger_contact_phone`
-is already set (`WHERE ... AND messenger_contact_phone IS NULL`), so it's
-safe to run even if it's applied more than once.
+### Review follow-ups (22-09-2026) — this is the real apply order
+
+None of the 20260922* migrations are recorded in prod's `schema_migrations`.
+
+1. **`AUD-C1.sql`** — apply **now**, before anything else and independent of
+   the deploy. The four column-guard trigger functions were SECURITY DEFINER,
+   so `current_user` was always `postgres` and they never blocked anything:
+   any signed-in user can currently make themselves `platform_admin`. Flips
+   them to SECURITY INVOKER (bodies unchanged). AUD-2.sql / AUD-6.sql and
+   their migrations are now INVOKER too, so re-running them can't revert it.
+2. **`AUD-5.sql`** — constraint part only (see above).
+3. Deploy the branch (ships the `cancelBooking.ts` shared-booking guard).
+4. **`AUD-3b.sql`** — drops the 28 legacy permissive policies (anon lead
+   inserts, cross-org manager access, hard deletes, cross-org profiles, any
+   employee editing org settings) behind a guard that aborts if a replacement
+   policy is missing. Also lets a lead's assignee edit events on that lead so
+   `leadContact.ts` / `leadAddress.ts` don't silently no-op.
 
 ## New env vars
 

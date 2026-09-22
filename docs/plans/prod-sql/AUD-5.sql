@@ -62,6 +62,16 @@ ALTER TABLE public.unrouted_inbound
 -- ============================================================
 -- BACKFILL — TV Magic South Brisbane (org slug 'default')
 -- ============================================================
+-- HOLD (22-09-2026 review): run everything ABOVE this line now (the columns and
+-- the channel check are already on prod; the reason check still lacks
+-- 'not_configured'). Do NOT run this UPDATE yet:
+--   - ai_context is not Messenger-only: it is appended to the live SMS/email
+--     extraction prompt (api/_lib/extractLead.ts) and the live Botpress/Facebook
+--     path (api/_lib/handleInboundFacebookLead.ts), so this changes every inbound
+--     lead's extraction for TV Magic today.
+--   - messenger_contact_phone arms the native bot; with Botpress live on the same
+--     Page that risks double replies if the Page is ever also subscribed here.
+-- Run it only as part of a deliberate Botpress → native cutover.
 
 UPDATE public.orgs
 SET
