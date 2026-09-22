@@ -11,6 +11,8 @@ import { disablePush, enablePush, isDeviceSubscribed, isIosSafariNotInstalled } 
 import { useOrg } from '../context/OrgContext'
 import { isManagerRole } from '../lib/roles'
 import { deleteMyAccount } from '../lib/accountDeletion'
+import { captureClientException } from '../lib/sentry'
+import { showToast } from '../lib/toast'
 
 function ChangePassword() {
   const [newPassword, setNewPassword] = useState('')
@@ -218,14 +220,19 @@ export default function ProfilePage() {
       .from('avatars')
       .getPublicUrl(path)
 
-    const newUrl = urlData.publicUrl + '?t=' + Date.now()
-    setAvatarUrl(newUrl)
-
-    await supabase
+    const { error: updateError } = await supabase
       .from('profiles')
       .update({ avatar_url: urlData.publicUrl })
       .eq('id', profile.id)
 
+    if (updateError) {
+      captureClientException(updateError, { stage: 'profile-avatar-update' })
+      showToast({ variant: 'error', message: 'Could not save your new photo. Try again.' })
+      setUploading(false)
+      return
+    }
+
+    setAvatarUrl(urlData.publicUrl + '?t=' + Date.now())
     setUploading(false)
   }
 

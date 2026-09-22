@@ -3,7 +3,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
 
 let onCallback: (() => void) | null = null
-const channelMock = vi.fn(() => ({
+const channelMock = vi.fn((_name: string) => ({
   on: vi.fn((_event: string, _filter: unknown, cb: () => void) => {
     onCallback = cb
     return { subscribe: vi.fn(() => 'subscribed-channel') }
@@ -13,8 +13,8 @@ const removeChannelMock = vi.fn()
 
 vi.mock('../src/lib/supabase', () => ({
   supabase: {
-    channel: (...args: unknown[]) => channelMock(...args),
-    removeChannel: (...args: unknown[]) => removeChannelMock(...args),
+    channel: (name: string) => channelMock(name),
+    removeChannel: (channel: unknown) => removeChannelMock(channel),
   },
 }))
 

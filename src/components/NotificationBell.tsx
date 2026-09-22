@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { Bell, X } from 'lucide-react'
 import { timeAgo } from '../lib/timeAgo'
+import { captureClientException } from '../lib/sentry'
+import { showToast } from '../lib/toast'
 
 interface Notification {
   id: string
@@ -81,12 +83,17 @@ export default function NotificationBell() {
 
     // Mark all unread → read
     if (unread > 0) {
-      await supabase
+      const { error } = await supabase
         .from('notifications')
         .update({ read: true })
         .eq('user_id', profile.id)
         .eq('read', false)
-      setUnread(0)
+      if (error) {
+        captureClientException(error, { stage: 'notification-bell-mark-read' })
+        showToast({ variant: 'error', message: "Couldn't mark notifications as read." })
+      } else {
+        setUnread(0)
+      }
     }
   }
 

@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import { logLeadEvent } from './leadEvents'
 import { isManagerRole } from './roles'
+import { captureClientException } from './sentry'
 
 export const SHARED_BOOKING_CANCEL_ERROR =
   'This booking includes other technicians. Ask a manager to cancel it.'
@@ -47,7 +48,7 @@ async function notifyManagerOfCancellation(
 
     const employeeName = `${empProfile.first_name || 'An employee'} ${empProfile.last_name || ''}`.trim()
 
-    await supabase.from('notifications').insert([{
+    const { error: insertError } = await supabase.from('notifications').insert([{
       user_id: empProfile.manager_id,
       title: 'Booking Cancelled',
       message: `${employeeName} cancelled an appointment: "${title}"`,
@@ -55,8 +56,12 @@ async function notifyManagerOfCancellation(
       read: false,
       org_id: orgId,
     }])
+    // Non-fatal: the booking itself is already cancelled by this point. Captured
+    // so a broken notify path doesn't go unnoticed, but it must not fail the cancel.
+    if (insertError) captureClientException(insertError, { stage: 'cancel-booking-notify-manager' })
   } catch (err) {
     console.warn('Manager cancellation notification failed (non-fatal):', err)
+    captureClientException(err, { stage: 'cancel-booking-notify-manager' })
   }
 }
 

@@ -5,6 +5,8 @@ import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
+import { captureClientException } from '../lib/sentry'
+import { showToast } from '../lib/toast'
 import { useOrgProfiles } from '../hooks/useOrgProfiles'
 import { isManagerRole } from '../lib/roles'
 import {
@@ -505,7 +507,12 @@ export default function Calendar() {
     const canDelete = isManagerRole(profile?.role) || ev.user_id === profile?.id
     if (!canDelete) return
     if (!window.confirm(`Remove this leave block: "${ev.title}"?`)) return
-    await supabase.from('events').delete().eq('id', ev.id)
+    const { error } = await supabase.from('events').delete().eq('id', ev.id)
+    if (error) {
+      captureClientException(error, { stage: 'calendar-delete-leave' })
+      showToast({ variant: 'error', message: 'Could not remove that leave block. Try again.' })
+      return
+    }
     fetchEvents()
   }
 

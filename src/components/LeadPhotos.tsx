@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { signLeadPhotoPath, signLeadPhotoPaths, LEAD_PHOTOS_BUCKET } from '../lib/leadPhotoStorage'
 import { compressImage } from '../lib/imageCompression'
+import { captureClientException } from '../lib/sentry'
+import { showToast } from '../lib/toast'
 import {
   enqueueLeadPhoto,
   listPendingPhotosForLead,
@@ -170,8 +172,20 @@ export default function LeadPhotos({ leadId, canUpload = true, onShare }: Props)
 
   async function handleDelete(photo: Photo) {
     if (!window.confirm('Delete this photo? This cannot be undone.')) return
-    await supabase.storage.from(LEAD_PHOTOS_BUCKET).remove([photo.storage_path || ''])
-    await supabase.from('lead_photos').delete().eq('id', photo.id)
+    const { error: storageError } = await supabase.storage
+      .from(LEAD_PHOTOS_BUCKET)
+      .remove([photo.storage_path || ''])
+    if (storageError) {
+      captureClientException(storageError, { stage: 'lead-photos-delete-storage' })
+      showToast({ variant: 'error', message: 'Could not delete that photo. Try again.' })
+      return
+    }
+    const { error: rowError } = await supabase.from('lead_photos').delete().eq('id', photo.id)
+    if (rowError) {
+      captureClientException(rowError, { stage: 'lead-photos-delete-row' })
+      showToast({ variant: 'error', message: 'Could not delete that photo. Try again.' })
+      return
+    }
     fetchPhotos()
   }
 
