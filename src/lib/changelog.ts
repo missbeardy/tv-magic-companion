@@ -43,11 +43,11 @@ export function formatChangelogDate(date: string): string {
  * after Monday, set `weekStarts` to that Monday (use getCurrentReleaseWeekId()).
  */
 export const WEEKLY_CHANGELOG: WeeklyChangelog = {
-  weekStarts: '14-09-2026', // Monday — update on first push after each Monday
-  title: 'Messenger leads stop telling customers they failed',
+  weekStarts: '21-09-2026', // Monday — update on first push after each Monday
+  title: 'SMS replies thread onto jobs, and tighter account security',
   items: [
-    'Facebook Messenger enquiries are confirmed the moment the lead is saved, instead of after the alerts and ack SMS finish',
-    'The chat bot no longer apologises and hands out the technician’s number for leads that actually landed',
+    'Tighter security: team members can only change the account settings their role allows',
+    'Cancelling a booking shared with other technicians now asks a manager instead of half-cancelling it',
     'Technicians can send invoices from the job-complete checklist',
     'Reply STOP to opt out now opts the number out instead of creating another lead',
     'Offline call logs and pool pick-up no longer overwrite a lead that was booked or claimed on another phone',
@@ -60,7 +60,7 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.197'
+export const APP_VERSION = '1.1.198'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
