@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getSupabaseAdmin } from './supabaseAdmin.js'
+import { requireRole } from './auth.js'
 
 /**
  * Mark someone as having left, or reinstate them. Deliberately separate from
@@ -11,30 +12,12 @@ export async function handleSetDeparted(req: VercelRequest, res: VercelResponse)
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  const caller = await requireRole(req, res, ['platform_admin'], 'Platform admin only')
+  if (!caller) return
+
   const supabaseAdmin = getSupabaseAdmin()
   if (!supabaseAdmin) {
     return res.status(500).json({ error: 'Server misconfiguration' })
-  }
-
-  const authHeader = req.headers['authorization']
-  const accessToken = typeof authHeader === 'string' ? authHeader.replace('Bearer ', '') : ''
-  if (!accessToken) {
-    return res.status(401).json({ error: 'Missing authorization token' })
-  }
-
-  const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken)
-  if (userError || !userData?.user) {
-    return res.status(401).json({ error: 'Invalid or expired session' })
-  }
-
-  const { data: callerProfile, error: profileError } = await supabaseAdmin
-    .from('profiles')
-    .select('role')
-    .eq('id', userData.user.id)
-    .single()
-
-  if (profileError || !callerProfile || callerProfile.role !== 'platform_admin') {
-    return res.status(403).json({ error: 'Platform admin only' })
   }
 
   const { profileId, departed } = req.body as { profileId?: string; departed?: boolean }
@@ -42,7 +25,7 @@ export async function handleSetDeparted(req: VercelRequest, res: VercelResponse)
     return res.status(400).json({ error: 'Missing profileId or departed flag' })
   }
 
-  if (departed && profileId.trim() === userData.user.id) {
+  if (departed && profileId.trim() === caller.userId) {
     return res.status(400).json({ error: 'You cannot mark yourself as departed' })
   }
 

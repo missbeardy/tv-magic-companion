@@ -4,7 +4,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import './_lib/loadLocalEnv.js';
 import { getSupabaseAdmin } from './_lib/supabaseAdmin.js';
 import { withObservability } from './_lib/observability.js';
-import { authenticateRequest } from './_lib/auth.js';
+import { authenticateRequest, MANAGER_ROLES, requireRole } from './_lib/auth.js';
 import { deleteOwnAccount } from './_lib/accountDeletion.js';
 import { getPlatformUrl } from './_lib/platformUrl.js';
 import { captureServerException } from './_lib/sentry.js';
@@ -71,35 +71,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Server misconfiguration' });
   }
 
-  // ── Step 1: Verify the caller is actually logged in ──────────────────
-  // The client now sends their real Supabase session token instead of a
-  // hardcoded "API key" anyone could copy out of the browser bundle.
-  const authHeader = req.headers['authorization'];
-  const accessToken = typeof authHeader === 'string' ? authHeader.replace('Bearer ', '') : '';
-
-  if (!accessToken) {
-    return res.status(401).json({ error: 'Missing authorization token' });
-  }
-
-  const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
-  if (userError || !userData?.user) {
-    return res.status(401).json({ error: 'Invalid or expired session' });
-  }
-
-  // ── Step 2: Confirm the caller is a manager, and look up their org ───
-  const { data: callerProfile, error: profileError } = await supabaseAdmin
-    .from('profiles')
-    .select('role, org_id')
-    .eq('id', userData.user.id)
-    .single();
-
-  if (profileError || !callerProfile) {
-    return res.status(403).json({ error: 'Caller profile not found' });
-  }
-
-  if (!['manager', 'platform_admin'].includes(callerProfile.role)) {
-    return res.status(403).json({ error: 'Only managers can invite team members' });
-  }
+  // ── Steps 1-2: Verify the caller is logged in and a manager, and look up their org ──
+  const caller = await requireRole(req, res, MANAGER_ROLES, 'Only managers can invite team members');
+  if (!caller) return;
 
   const { email, fullName, role, orgId } = req.body;
 
@@ -109,7 +83,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── Step 3: A manager can only invite people into THEIR OWN org ──────
   // This is the line that closes the cross-org exploit.
-  if (orgId !== callerProfile.org_id) {
+  if (orgId !== caller.orgId) {
     return res.status(403).json({ error: 'You can only invite team members into your own organisation' });
   }
 
@@ -121,7 +95,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Invalid role' });
   }
 
-  const isPlatformAdmin = callerProfile.role === 'platform_admin';
+  const isPlatformAdmin = caller.role === 'platform_admin';
   if (!isPlatformAdmin && role !== 'employee') {
     return res.status(403).json({
       error: 'Managers can only invite employees. Ask a platform admin to create manager or admin accounts.',

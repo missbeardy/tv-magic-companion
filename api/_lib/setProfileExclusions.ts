@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getSupabaseAdmin } from './supabaseAdmin.js'
 import { isFeatureEnabledForOrg } from './featureSwitches.js'
 import { normaliseKeywordList } from '../../shared/serviceExclusions.js'
+import { MANAGER_ROLES, requireRole } from './auth.js'
 
 /**
  * Set a team member's job exclusions (T1.14).
@@ -18,42 +19,20 @@ export async function handleSetProfileExclusions(req: VercelRequest, res: Vercel
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  const caller = await requireRole(req, res, MANAGER_ROLES, 'Only managers can set job exclusions')
+  if (!caller) return
+
   const supabaseAdmin = getSupabaseAdmin()
   if (!supabaseAdmin) {
     return res.status(500).json({ error: 'Server misconfiguration' })
   }
 
-  const authHeader = req.headers['authorization']
-  const accessToken = typeof authHeader === 'string' ? authHeader.replace('Bearer ', '') : ''
-  if (!accessToken) {
-    return res.status(401).json({ error: 'Missing authorization token' })
-  }
-
-  const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken)
-  if (userError || !userData?.user) {
-    return res.status(401).json({ error: 'Invalid or expired session' })
-  }
-
-  const { data: callerProfile, error: callerError } = await supabaseAdmin
-    .from('profiles')
-    .select('role, org_id')
-    .eq('id', userData.user.id)
-    .single()
-
-  if (callerError || !callerProfile) {
-    return res.status(403).json({ error: 'Caller profile not found' })
-  }
-
-  if (!['manager', 'platform_admin'].includes(callerProfile.role)) {
-    return res.status(403).json({ error: 'Only managers can set job exclusions' })
-  }
-
-  if (!callerProfile.org_id) {
+  if (!caller.orgId) {
     return res.status(403).json({ error: 'Caller has no organisation' })
   }
 
   // Gate the server path, not just the UI — the switch must actually stop the write.
-  const enabled = await isFeatureEnabledForOrg(callerProfile.org_id, 'assignment_exclusions')
+  const enabled = await isFeatureEnabledForOrg(caller.orgId, 'assignment_exclusions')
   if (!enabled) {
     return res.status(403).json({ error: 'Job exclusions are not enabled for this brand' })
   }
@@ -80,7 +59,7 @@ export async function handleSetProfileExclusions(req: VercelRequest, res: Vercel
 
   // The line that closes the cross-org hole: a manager may only edit their own team.
   // Platform admins are org-less and are allowed through.
-  if (callerProfile.role !== 'platform_admin' && target.org_id !== callerProfile.org_id) {
+  if (caller.role !== 'platform_admin' && target.org_id !== caller.orgId) {
     return res.status(403).json({ error: 'You can only edit team members in your own organisation' })
   }
 

@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import type Stripe from 'stripe'
-import { authenticateRequestDetailed, authErrorMessage } from './_lib/auth.js'
+import { authenticateRequestDetailed, authErrorMessage, MANAGER_ROLES } from './_lib/auth.js'
 import { getStripe, getPlatformUrl, getPriceIdForTier, validatePriceId } from './_lib/stripe.js'
 import { getSupabaseAdmin } from './_lib/supabaseAdmin.js'
 import { tierFromStripePriceId, type SubscriptionTier } from './_lib/tier.js'
@@ -114,7 +114,7 @@ async function handleCheckout(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: authErrorMessage(reason) })
   }
 
-  if (!['manager', 'platform_admin'].includes(auth.role)) {
+  if (!(MANAGER_ROLES as readonly string[]).includes(auth.role)) {
     return res.status(403).json({ error: 'Only managers can manage billing' })
   }
 
@@ -184,7 +184,7 @@ async function handlePortal(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: authErrorMessage(reason) })
   }
 
-  if (!['manager', 'platform_admin'].includes(auth.role)) {
+  if (!(MANAGER_ROLES as readonly string[]).includes(auth.role)) {
     return res.status(403).json({ error: 'Only managers can manage billing' })
   }
 
@@ -267,7 +267,7 @@ async function handleConnectOnboard(req: VercelRequest, res: VercelResponse) {
   if (!auth) {
     return res.status(401).json({ error: authErrorMessage(reason) })
   }
-  if (!['manager', 'platform_admin'].includes(auth.role)) {
+  if (!(MANAGER_ROLES as readonly string[]).includes(auth.role)) {
     return res.status(403).json({ error: 'Only managers can connect Stripe' })
   }
 

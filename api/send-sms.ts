@@ -1,6 +1,6 @@
 // api/send-sms.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { authenticateRequestDetailed, authErrorMessage, type AuthContext } from './_lib/auth.js'
+import { authenticateRequestDetailed, authErrorMessage, MANAGER_ROLES, type AuthContext } from './_lib/auth.js'
 import { getSupabaseAdmin } from './_lib/supabaseAdmin.js'
 import { buildSmsFromBrand } from './_lib/smsTemplates.js'
 import { getPlatformUrl } from './_lib/platformUrl.js'
@@ -306,7 +306,7 @@ export async function handleBookingConfirm(req: VercelRequest, res: VercelRespon
 }
 
 async function handleQuoteCreate(req: VercelRequest, res: VercelResponse, auth: AuthContext) {
-  if (!['manager', 'platform_admin'].includes(auth.role)) {
+  if (!(MANAGER_ROLES as readonly string[]).includes(auth.role)) {
     return res.status(403).json({ error: 'Only managers can send quotes' })
   }
 
@@ -623,7 +623,7 @@ export async function handleInvoiceSendEmail(req: VercelRequest, res: VercelResp
 }
 
 async function handleInvoiceMarkPaid(req: VercelRequest, res: VercelResponse, auth: AuthContext) {
-  if (!['manager', 'platform_admin'].includes(auth.role)) {
+  if (!(MANAGER_ROLES as readonly string[]).includes(auth.role)) {
     return res.status(403).json({ error: 'Only managers can mark invoices paid' })
   }
 

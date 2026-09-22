@@ -1,35 +1,18 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getSupabaseAdmin } from './supabaseAdmin.js'
+import { requireRole } from './auth.js'
 
 export async function handleSetTestProfile(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  const caller = await requireRole(req, res, ['platform_admin'], 'Platform admin only')
+  if (!caller) return
+
   const supabaseAdmin = getSupabaseAdmin()
   if (!supabaseAdmin) {
     return res.status(500).json({ error: 'Server misconfiguration' })
-  }
-
-  const authHeader = req.headers['authorization']
-  const accessToken = typeof authHeader === 'string' ? authHeader.replace('Bearer ', '') : ''
-  if (!accessToken) {
-    return res.status(401).json({ error: 'Missing authorization token' })
-  }
-
-  const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken)
-  if (userError || !userData?.user) {
-    return res.status(401).json({ error: 'Invalid or expired session' })
-  }
-
-  const { data: callerProfile, error: profileError } = await supabaseAdmin
-    .from('profiles')
-    .select('role')
-    .eq('id', userData.user.id)
-    .single()
-
-  if (profileError || !callerProfile || callerProfile.role !== 'platform_admin') {
-    return res.status(403).json({ error: 'Platform admin only' })
   }
 
   const { profileId, hidden } = req.body as { profileId?: string; hidden?: boolean }
@@ -51,7 +34,7 @@ export async function handleSetTestProfile(req: VercelRequest, res: VercelRespon
     .from('profiles')
     .update({
       is_hidden_test_profile: hidden,
-      test_profile_owner_id: hidden ? userData.user.id : null,
+      test_profile_owner_id: hidden ? caller.userId : null,
     })
     .eq('id', target.id)
 

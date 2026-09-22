@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import './_lib/loadLocalEnv.js'
-import { authenticateRequest } from './_lib/auth.js'
+import { authenticateRequest, MANAGER_ROLES } from './_lib/auth.js'
 import { getSupabaseAdmin } from './_lib/supabaseAdmin.js'
 import { applyLeadExtractionRetry } from './_lib/retryLeadExtraction.js'
 import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
@@ -15,17 +15,13 @@ import {
 
 const MIN_REASON_LENGTH = 3
 
-function isManagerRole(role: string): boolean {
-  return role === 'manager' || role === 'platform_admin'
-}
-
 async function handleDeleteLead(req: VercelRequest, res: VercelResponse) {
   const auth = await authenticateRequest(req)
   if (!auth) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
-  if (!isManagerRole(auth.role)) {
+  if (!(MANAGER_ROLES as readonly string[]).includes(auth.role)) {
     return res.status(403).json({ error: 'Only managers can remove leads' })
   }
 
@@ -99,7 +95,7 @@ async function handleRetryExtraction(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
-  if (!isManagerRole(auth.role)) {
+  if (!(MANAGER_ROLES as readonly string[]).includes(auth.role)) {
     return res.status(403).json({ error: 'Only managers can retry extraction' })
   }
 

@@ -1,6 +1,9 @@
-import type { VercelRequest } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getSupabaseAdmin } from './supabaseAdmin.js'
 import type { SubscriptionTier } from './tier.js'
+
+/** The two roles that can act on behalf of an org's whole team (not just themselves). */
+export const MANAGER_ROLES = ['manager', 'platform_admin'] as const
 
 export interface AuthContext {
   userId: string
@@ -35,6 +38,63 @@ function extractBearerToken(req: VercelRequest): string | null {
   const authHeader = req.headers.authorization ?? req.headers['authorization']
   if (typeof authHeader !== 'string') return null
   return authHeader.replace(/^Bearer\s+/i, '').trim() || null
+}
+
+export interface RoleCheckResult {
+  userId: string
+  role: string
+  orgId: string | null
+}
+
+/**
+ * Token-verify + role-check in one call, writing the 401/403 response itself and
+ * returning null on failure — callers just branch on a non-null result. Deliberately
+ * lighter than authenticateRequestDetailed (no org/brand join): a platform_admin can
+ * be org-less by design (see setProfileExclusions.ts), and this is used by exactly
+ * the platform-console / role-gate-only endpoints where that matters. A handler that
+ * also needs org/brand data should call authenticateRequest separately.
+ */
+export async function requireRole(
+  req: VercelRequest,
+  res: VercelResponse,
+  roles: readonly string[],
+  forbiddenMessage = 'Forbidden'
+): Promise<RoleCheckResult | null> {
+  const supabase = getSupabaseAdmin()
+  if (!supabase) {
+    res.status(500).json({ error: 'Server misconfiguration' })
+    return null
+  }
+
+  const accessToken = extractBearerToken(req)
+  if (!accessToken) {
+    res.status(401).json({ error: 'Missing authorization token' })
+    return null
+  }
+
+  const { data: userData, error: userError } = await supabase.auth.getUser(accessToken)
+  if (userError || !userData?.user) {
+    res.status(401).json({ error: 'Invalid or expired session' })
+    return null
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('role, org_id')
+    .eq('id', userData.user.id)
+    .single()
+
+  if (profileError || !profile) {
+    res.status(403).json({ error: 'Caller profile not found' })
+    return null
+  }
+
+  if (!roles.includes(profile.role)) {
+    res.status(403).json({ error: forbiddenMessage })
+    return null
+  }
+
+  return { userId: userData.user.id, role: profile.role, orgId: profile.org_id }
 }
 
 type AuthFailureReason = 'no_admin' | 'no_token' | 'invalid_token' | 'no_profile' | 'no_org'
