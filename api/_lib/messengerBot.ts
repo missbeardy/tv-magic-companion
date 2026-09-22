@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { captureUnroutedInbound } from './captureUnroutedInbound.js'
 import { ingestParsedFacebookLead } from './handleInboundFacebookLead.js'
-import { interpretMessengerWithClaude, loadBrandMessengerPrompt } from './messengerClaude.js'
+import { interpretMessengerWithClaude, loadOrgMessengerConfig } from './messengerClaude.js'
+import { buildMessengerSystemPrompt } from './messengerKb.js'
 import { sendMessengerText } from './messengerGraph.js'
 import {
   loadOrCreateMessengerSession,
@@ -99,13 +101,24 @@ export async function handleMessengerUserMessage(
   userText: string,
   nowMs = Date.now()
 ): Promise<{ replies: string[]; submitted: boolean; leadId: string | null }> {
+  const config = await loadOrgMessengerConfig(supabase, orgId)
+  if (!config) {
+    await captureUnroutedInbound(supabase, {
+      channel: 'messenger',
+      identifier: `${pageId}_${psid}`,
+      reason: 'not_configured',
+      payload: { orgId, pageId, psid, userText },
+    })
+    return { replies: [], submitted: false, leadId: null }
+  }
+
   let session = await loadOrCreateMessengerSession(supabase, orgId, pageId, psid)
   const regexCapture = extractCaptureFromText(userText)
   let capture: MessengerCapture = regexCapture
   let conversationalReply: string | null = null
 
   if (session.state === 'open') {
-    const systemPrompt = await loadBrandMessengerPrompt(supabase, orgId)
+    const systemPrompt = buildMessengerSystemPrompt(config)
     const interpreted = await interpretMessengerWithClaude({ session, userText, systemPrompt })
     if (interpreted) {
       conversationalReply = interpreted.reply
@@ -119,7 +132,7 @@ export async function handleMessengerUserMessage(
     }
   }
 
-  const turned = reduceMessengerTurn(session, userText, nowMs, capture, conversationalReply)
+  const turned = reduceMessengerTurn(session, userText, nowMs, capture, conversationalReply, config.contactPhone)
   session = appendMessages(turned.session, userText, turned.replies)
 
   let leadId: string | null = session.lead_id

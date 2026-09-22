@@ -33,8 +33,9 @@ Subscribe to **messages**. Verify GET challenge with `META_WEBHOOK_VERIFY_TOKEN`
 
 ## Behaviour
 
-- Knowledge is embedded from `docs/kb/tvmagic-south-brisbane/` in `api/_lib/messengerKb.ts` (Vercel functions cannot read `docs/` at runtime).
-- Name + AU mobile required. No phone after two asks → 0449 947 247, no lead.
+- The system prompt is built per-org at runtime by `buildMessengerSystemPrompt()` in `api/_lib/messengerKb.ts`, from `orgs.messenger_business_name`, `messenger_contact_phone`, `service_area_note`, `ai_context`, `service_types` and `timezone` (loaded by `loadOrgMessengerConfig`). `docs/kb/tvmagic-south-brisbane/` is the original South Brisbane source material this was backfilled from — kept for reference, no longer read at runtime (Vercel functions can't read `docs/` anyway).
+- An org with no `messenger_contact_phone` set has nothing safe to give out, so the bot skips the AI entirely and logs the turn to `unrouted_inbound` (`channel: 'messenger'`, `reason: 'not_configured'`) instead of guessing at an identity.
+- Name + AU mobile required. No phone after two asks → the org's `messenger_contact_phone`, no lead.
 - Suburb missing → ask once, `awaiting_suburb_until` = now + 90s. A later reply is the suburb. Silence is closed by `/api/cron/messenger-suburb-timeout` (GitHub Actions every 5 minutes).
 - Lead insert reuses `ingestParsedFacebookLead` (`channel: messenger`, `conversation_id` = `{pageId}_{psid}`).
 

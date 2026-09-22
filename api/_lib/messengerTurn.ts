@@ -4,7 +4,7 @@ import {
   ASK_NAME,
   ASK_NAME_PHONE,
   ASK_SUBURB,
-  NO_PHONE_CLOSE,
+  noPhoneClose,
   SUBURB_WAIT_MS,
   TIMEOUT_CLOSE,
   WITH_SUBURB_CLOSE,
@@ -56,12 +56,11 @@ export function conversationIdForPageUser(pageId: string, psid: string): string 
   return `${pageId}_${psid}`.slice(0, 128)
 }
 
-export function sanitizeMessengerReply(text: string): string {
+/** A 1800 number is never a customer's own mobile — any that slips into a reply is the AI hallucinating a toll-free number, so swap it for the org's real one. */
+export function sanitizeMessengerReply(text: string, contactPhone: string): string {
   let out = text.trim()
   out = out.replace(/\$\s*[\d,]+(?:\.\d+)?/g, 'a quote from the technician')
-  out = out.replace(/1800[\s-]*tv[\s-]*magic/gi, '0449 947 247')
-  out = out.replace(/\b1800[\s-]?\d{3}[\s-]?\d{3}\b/g, '0449 947 247')
-  out = out.replace(/\b0?438[\s-]?\d{3}[\s-]?\d{3}\b/g, '0449 947 247')
+  out = out.replace(/\b1800[\s-]?\d{3}[\s-]?\d{3}\b/g, contactPhone)
   return out
 }
 
@@ -134,7 +133,8 @@ export function reduceMessengerTurn(
   userText: string,
   nowMs: number,
   capture: MessengerCapture,
-  conversationalReply: string | null
+  conversationalReply: string | null,
+  contactPhone: string
 ): MessengerTurnResult {
   if (session.state === 'submitted' || session.state === 'closed') {
     return { session, replies: [ALREADY_DONE], submit: false }
@@ -154,14 +154,17 @@ export function reduceMessengerTurn(
     next = { ...next, phone_ask_count: asks }
     if (asks >= 2) {
       next = { ...next, state: 'closed', awaiting_suburb_until: null }
-      return { session: next, replies: [NO_PHONE_CLOSE], submit: false }
+      return { session: next, replies: [noPhoneClose(contactPhone)], submit: false }
     }
-    const reply = sanitizeMessengerReply(conversationalReply || kbFallbackReply(userText) || ASK_NAME_PHONE)
+    const reply = sanitizeMessengerReply(
+      conversationalReply || kbFallbackReply(userText) || ASK_NAME_PHONE,
+      contactPhone
+    )
     return { session: next, replies: [reply], submit: false }
   }
 
   if (!next.name?.trim()) {
-    const reply = sanitizeMessengerReply(conversationalReply || ASK_NAME)
+    const reply = sanitizeMessengerReply(conversationalReply || ASK_NAME, contactPhone)
     return { session: next, replies: [reply], submit: false }
   }
 

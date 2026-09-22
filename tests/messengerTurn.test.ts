@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ASK_SUBURB, NO_PHONE_CLOSE, TIMEOUT_CLOSE, WITH_SUBURB_CLOSE } from '../api/_lib/messengerKb'
+import { ASK_SUBURB, noPhoneClose, TIMEOUT_CLOSE, WITH_SUBURB_CLOSE } from '../api/_lib/messengerKb'
 import {
   extractCaptureFromText,
   kbFallbackReply,
@@ -60,11 +60,17 @@ describe('extractCaptureFromText', () => {
 })
 
 describe('sanitizeMessengerReply', () => {
-  it('strips prices and other-franchise numbers', () => {
-    const out = sanitizeMessengerReply('It is $150 or call 1800 123 456 or 0438 777 656')
+  it('strips prices and a hallucinated toll-free number, using the org contact number', () => {
+    const out = sanitizeMessengerReply('It is $150 or call 1800 123 456', '0449 947 247')
     expect(out).not.toMatch(/\$\s*150/)
     expect(out).toContain('0449 947 247')
     expect(out).not.toContain('1800 123 456')
+  })
+
+  it('is not hardcoded to any one org number', () => {
+    const out = sanitizeMessengerReply('call 1800 999 888', '0400 111 222')
+    expect(out).toContain('0400 111 222')
+    expect(out).not.toContain('0449 947 247')
   })
 })
 
@@ -77,26 +83,30 @@ describe('kbFallbackReply', () => {
 })
 
 describe('reduceMessengerTurn', () => {
+  const contactPhone = '0449 947 247'
+
   it('does not submit without a mobile', () => {
     const result = reduceMessengerTurn(
       session({ name: 'Jane' }),
       'hi',
       Date.now(),
       emptyCapture,
-      null
+      null,
+      contactPhone
     )
     expect(result.submit).toBe(false)
     expect(result.replies[0]).toMatch(/mobile/i)
   })
 
-  it('gives 0449 947 247 after two phone asks', () => {
-    const first = reduceMessengerTurn(session(), 'hi', Date.now(), emptyCapture, null)
+  it('gives the org contact number after two phone asks', () => {
+    const first = reduceMessengerTurn(session(), 'hi', Date.now(), emptyCapture, null, contactPhone)
     const second = reduceMessengerTurn(
       { ...first.session, messages: [{ role: 'assistant', text: first.replies[0] }] },
       'no',
       Date.now(),
       emptyCapture,
-      null
+      null,
+      contactPhone
     )
     expect(second.submit).toBe(false)
     const third = reduceMessengerTurn(
@@ -104,16 +114,22 @@ describe('reduceMessengerTurn', () => {
       'still no',
       Date.now(),
       emptyCapture,
-      null
+      null,
+      contactPhone
     )
-    expect(third.replies[0]).toBe(NO_PHONE_CLOSE)
+    expect(third.replies[0]).toBe(noPhoneClose(contactPhone))
     expect(third.submit).toBe(false)
     expect(third.session.state).toBe('closed')
   })
 
+  it('uses a different org\'s own contact number, not a hardcoded one', () => {
+    const other = reduceMessengerTurn(session(), 'hi', Date.now(), emptyCapture, null, '0400 111 222')
+    expect(other.replies[0]).not.toContain('0449 947 247')
+  })
+
   it('asks suburb when name and mobile are in and suburb is missing', () => {
     const cap = extractCaptureFromText('Jane 0412345678')
-    const result = reduceMessengerTurn(session(), 'Jane 0412345678', Date.now(), cap, null)
+    const result = reduceMessengerTurn(session(), 'Jane 0412345678', Date.now(), cap, null, contactPhone)
     expect(result.submit).toBe(false)
     expect(result.replies[0]).toBe(ASK_SUBURB)
     expect(result.session.state).toBe('awaiting_suburb')
@@ -127,7 +143,8 @@ describe('reduceMessengerTurn', () => {
       "I'm Jane 0412345678 from Annerley",
       Date.now(),
       cap,
-      null
+      null,
+      contactPhone
     )
     expect(result.submit).toBe(true)
     expect(result.replies[0]).toBe(WITH_SUBURB_CLOSE)
@@ -141,7 +158,7 @@ describe('reduceMessengerTurn', () => {
       phone: '0412345678',
       awaiting_suburb_until: new Date(Date.now() + 60_000).toISOString(),
     })
-    const result = reduceMessengerTurn(waiting, 'Annerley', Date.now(), emptyCapture, null)
+    const result = reduceMessengerTurn(waiting, 'Annerley', Date.now(), emptyCapture, null, contactPhone)
     expect(result.submit).toBe(true)
     expect(result.session.suburb).toBe('Annerley')
     expect(result.replies[0]).toBe(WITH_SUBURB_CLOSE)
@@ -153,7 +170,8 @@ describe('reduceMessengerTurn', () => {
       'hello again',
       Date.now(),
       emptyCapture,
-      null
+      null,
+      contactPhone
     )
     expect(result.submit).toBe(false)
   })

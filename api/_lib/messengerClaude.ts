@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { MessengerOrgConfig } from './messengerKb.js'
 import type { MessengerCapture, MessengerSession } from './messengerTurn.js'
 import { extractCaptureFromText } from './messengerTurn.js'
 
@@ -17,23 +18,40 @@ function asTrimmed(value: unknown): string | null {
   return trimmed && trimmed.toLowerCase() !== 'null' ? trimmed : null
 }
 
-export async function loadBrandMessengerPrompt(
+/**
+ * Loads the org config the Messenger prompt is built from. Returns null when
+ * `messenger_contact_phone` isn't set — the caller must fail closed in that
+ * case (skip the AI, log to unrouted_inbound) rather than run without a
+ * number the bot is allowed to give out.
+ */
+export async function loadOrgMessengerConfig(
   supabase: SupabaseClient,
   orgId: string
-): Promise<string | null> {
+): Promise<MessengerOrgConfig | null> {
   const { data: org } = await supabase
     .from('orgs')
-    .select('brand_id')
+    .select('name, messenger_business_name, messenger_contact_phone, service_area_note, ai_context, service_types, timezone')
     .eq('id', orgId)
     .maybeSingle()
-  if (!org?.brand_id) return null
-  const { data: brand } = await supabase
-    .from('brands')
-    .select('messenger_prompt')
-    .eq('id', org.brand_id)
-    .maybeSingle()
-  const prompt = typeof brand?.messenger_prompt === 'string' ? brand.messenger_prompt.trim() : ''
-  return prompt || null
+
+  const contactPhone =
+    typeof org?.messenger_contact_phone === 'string' ? org.messenger_contact_phone.trim() : ''
+  if (!contactPhone) return null
+
+  const businessName =
+    (typeof org?.messenger_business_name === 'string' && org.messenger_business_name.trim()) ||
+    (typeof org?.name === 'string' && org.name.trim()) ||
+    'the business'
+
+  return {
+    businessName,
+    contactPhone,
+    timezone: (typeof org?.timezone === 'string' && org.timezone.trim()) || 'Australia/Brisbane',
+    serviceTypes: Array.isArray(org?.service_types) ? (org.service_types as string[]) : [],
+    serviceAreaNote:
+      typeof org?.service_area_note === 'string' ? org.service_area_note.trim() || null : null,
+    aiContext: typeof org?.ai_context === 'string' ? org.ai_context.trim() || null : null,
+  }
 }
 
 export async function interpretMessengerWithClaude(opts: {
