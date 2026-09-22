@@ -1,7 +1,8 @@
 // api/inbound-sms.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import './_lib/loadLocalEnv.js'
-import { createClient } from '@supabase/supabase-js'
+import { getSupabaseAdmin } from './_lib/supabaseAdmin.js'
 import { timingSafeEqual } from 'crypto'
 import { processInboundLead } from './_lib/processInboundLead.js'
 import { withObservability } from './_lib/observability.js'
@@ -17,6 +18,7 @@ import { waitUntil } from '@vercel/functions'
 import { matchInboundProbe, recordInboundProbeEcho } from './_lib/inboundProbe.js'
 import { applyInboundSmsOptOut } from './_lib/smsOptOut.js'
 import { threadInboundSms } from './_lib/threadInboundSms.js'
+import { missingServerEnv } from './_lib/env.js'
 
 /**
  * Disable Vercel's default body parser so the Meta webhook can verify its
@@ -28,11 +30,6 @@ export const config = {
     bodyParser: false,
   },
 }
-
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 function webhookUrlFromRequest(req: VercelRequest): string {
   const host = req.headers.host
@@ -67,6 +64,19 @@ async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Body parser is disabled (see `config` above); read the raw stream once.
   const rawBody = (await readRawBody(req)).toString('utf8')
+
+  const supabase = getSupabaseAdmin()
+  if (!supabase) {
+    captureServerException(new Error('inbound-sms: server not configured'), {
+      missing: missingServerEnv().join(','),
+      action: action ?? 'sms',
+    })
+    if (action === 'meta-webhook') {
+      return res.status(503).json({ error: 'Server not configured' })
+    }
+    // Twilio needs a 200 + TwiML ack regardless of backend health, or it retry-storms.
+    return respondOk(res)
+  }
 
   if (action === 'meta-webhook') {
     const { handleMetaWebhook } = await import('./_lib/metaWebhook.js')
@@ -120,7 +130,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
-  const pipeline = finishInboundSms({ body, smsText, fromNumber, toNumber })
+  const pipeline = finishInboundSms({ supabase, body, smsText, fromNumber, toNumber })
 
   // The Platform Admin simulator invokes this handler in-process (invokeApiHandler)
   // and must not report a result before the lead exists, so it asks to be awaited.
@@ -146,12 +156,13 @@ async function handler(req: VercelRequest, res: VercelResponse) {
  * Same pattern as deliverQuoteWithinBudget in _lib/quotes.ts.
  */
 async function finishInboundSms(input: {
+  supabase: SupabaseClient
   body: Record<string, string>
   smsText: string
   fromNumber: string
   toNumber: string
 }): Promise<void> {
-  const { body, smsText, fromNumber, toNumber } = input
+  const { supabase, body, smsText, fromNumber, toNumber } = input
 
   try {
     console.log(`SMS from ${fromNumber} to ${toNumber}`)

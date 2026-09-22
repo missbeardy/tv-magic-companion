@@ -1,7 +1,9 @@
 // FieldBourne ops forwards admin@fieldbourne → CloudMailin plus-address; tag resolves org.
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import './_lib/loadLocalEnv.js'
-import { createClient } from '@supabase/supabase-js'
+import { getSupabaseAdmin } from './_lib/supabaseAdmin.js'
+import { missingServerEnv } from './_lib/env.js'
+import { captureServerException } from './_lib/sentry.js'
 import { isFeatureEnabledForOrg } from './_lib/featureSwitches.js'
 import { resolveOrgIdFromInboundEmail, resolveOrgIdFromCloudmailinWebhook } from './_lib/resolveOrgFromInboundEmail.js'
 import { captureUnroutedInbound } from './_lib/captureUnroutedInbound.js'
@@ -25,11 +27,6 @@ import {
 } from './_lib/processVoicemail.js'
 import { safeCompareSecret } from './_lib/timingSafeCompare.js'
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
 interface CloudmailinAttachment {
   file_name?: string
   content_type?: string
@@ -40,6 +37,16 @@ interface CloudmailinAttachment {
 
 async function handler(req: VercelRequest, res: VercelResponse) {
   const action = typeof req.query.action === 'string' ? req.query.action : undefined
+
+  const supabase = getSupabaseAdmin()
+  if (!supabase) {
+    captureServerException(new Error('inbound-email: server not configured'), {
+      missing: missingServerEnv().join(','),
+      action: action ?? 'email',
+    })
+    return res.status(503).json({ error: 'Server not configured' })
+  }
+
   if (action === 'facebook-lead') {
     const { handleInboundFacebookLead } = await import('./_lib/handleInboundFacebookLead.js')
     return handleInboundFacebookLead(req, res, supabase)

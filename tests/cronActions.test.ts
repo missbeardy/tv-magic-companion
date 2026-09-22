@@ -19,8 +19,12 @@ vi.mock('../api/_lib/notificationRetention.js', () => ({
 vi.mock('../api/_lib/rateLimit.js', () => ({
   purgeOldRateLimitHits: vi.fn(),
 }))
+vi.mock('../api/_lib/env.js', () => ({
+  missingServerEnv: vi.fn().mockReturnValue([]),
+}))
 
 import { getSupabaseAdmin } from '../api/_lib/supabaseAdmin'
+import { missingServerEnv } from '../api/_lib/env'
 import { runContactFollowUpCron } from '../api/_lib/runContactFollowUpCron'
 import { runBookingReminderSweep } from '../api/_lib/bookingReminder'
 import { purgeOldWorkflowRuns } from '../api/_lib/workflowRun'
@@ -38,6 +42,7 @@ const mockBooking = vi.mocked(runBookingReminderSweep)
 const mockWorkflowPurge = vi.mocked(purgeOldWorkflowRuns)
 const mockNotificationPurge = vi.mocked(purgeOldNotifications)
 const mockRateLimitPurge = vi.mocked(purgeOldRateLimitHits)
+const mockMissingEnv = vi.mocked(missingServerEnv)
 
 const followUpResult = { checked: 1, reminded: 0, lost: 0, notified: 0, remaining: 0, errors: [] }
 const sweepResult = { orgs: 0, checked: 0, sent: 0 }
@@ -96,6 +101,7 @@ describe('cron action isolation', () => {
     mockWorkflowPurge.mockResolvedValue(purgeResult)
     mockNotificationPurge.mockResolvedValue(purgeResult)
     mockRateLimitPurge.mockResolvedValue(purgeResult)
+    mockMissingEnv.mockReturnValue([])
   })
 
   afterEach(() => {
@@ -181,6 +187,7 @@ describe('cron action isolation', () => {
       workflowPurge: purgeResult,
       notificationPurge: purgeResult,
       rateLimitPurge: purgeResult,
+      missingEnv: [],
     })
     expect(mockWorkflowPurge).toHaveBeenCalledTimes(1)
     expect(mockNotificationPurge).toHaveBeenCalledTimes(1)
@@ -189,6 +196,27 @@ describe('cron action isolation', () => {
     expect(mockBooking).not.toHaveBeenCalled()
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({ cron_key: 'cron_maintenance' })
+    )
+  })
+
+  it('maintenance surfaces missing server env in the heartbeat (AUD-8)', async () => {
+    mockMissingEnv.mockReturnValue(['RESEND_API_KEY', 'META_APP_SECRET'])
+    const { upsert } = mockSupabase()
+    const res = createRes()
+    await handleCronMaintenance(createReq('Bearer test-secret'), res)
+
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toMatchObject({
+      ok: true,
+      missingEnv: ['RESEND_API_KEY', 'META_APP_SECRET'],
+    })
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cron_key: 'cron_maintenance',
+        last_result: expect.objectContaining({
+          missingEnv: ['RESEND_API_KEY', 'META_APP_SECRET'],
+        }),
+      })
     )
   })
 

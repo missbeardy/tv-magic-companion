@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseAdmin } from './supabaseAdmin.js'
+import { missingServerEnv } from './env.js'
 import { loadLocalEnvIfNeeded } from './loadLocalEnv.js'
 import { runContactFollowUpCron } from './runContactFollowUpCron.js'
 import { runBookingReminderSweep } from './bookingReminder.js'
@@ -168,7 +169,10 @@ export async function handleCronMaintenance(req: VercelRequest, res: VercelRespo
     const workflowPurge = await purgeOldWorkflowRuns(supabase)
     const notificationPurge = await purgeOldNotifications(supabase)
     const rateLimitPurge = await purgeOldRateLimitHits()
-    const result = { workflowPurge, notificationPurge, rateLimitPurge }
+    // Surfaced in the heartbeat so a missing prod secret shows up on the next
+    // maintenance run instead of only being discovered when it breaks something.
+    const missingEnv = missingServerEnv()
+    const result = { workflowPurge, notificationPurge, rateLimitPurge, missingEnv }
     await upsertHeartbeat(supabase, CRON_KEYS.cronMaintenance, result)
     return result
   })

@@ -1,11 +1,26 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { captureServerException, flushSentry } from './sentry.js'
 import { flushAnalytics } from './analytics.js'
+import { missingServerEnv } from './env.js'
 
 type ApiHandler = (
   req: VercelRequest,
   res: VercelResponse
 ) => void | VercelResponse | Promise<void | VercelResponse>
+
+let reportedMissingEnvThisColdStart = false
+
+/** Once per cold start (this module is bundled per-function, so this is once per function), not per request — a missing var doesn't fix itself between invocations. */
+function reportMissingEnvOnce(): void {
+  if (reportedMissingEnvThisColdStart) return
+  reportedMissingEnvThisColdStart = true
+  const missing = missingServerEnv()
+  if (missing.length === 0) return
+  console.error('[MISSING_SERVER_ENV]', missing.join(', '))
+  captureServerException(new Error(`Missing server env: ${missing.join(', ')}`), {
+    missing: missing.join(','),
+  })
+}
 
 /**
  * Outer safety net applied to every one of the 12 api/*.ts default exports
@@ -21,6 +36,7 @@ type ApiHandler = (
  */
 export function withObservability(handler: ApiHandler): ApiHandler {
   return async (req: VercelRequest, res: VercelResponse) => {
+    reportMissingEnvOnce()
     try {
       const result = await handler(req, res)
       await flushAnalytics()
