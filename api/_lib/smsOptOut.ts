@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { formatAuPhoneForSms, phoneCandidates } from './phone.js'
+import { maskPhone } from './redact.js'
 
 const STOP_RE = /^(stop|stopall|unsubscribe|cancel|end|quit|opt ?out)$/i
 const START_RE = /^(start|unstop)$/i
@@ -85,7 +86,7 @@ export async function applyInboundSmsOptOut(input: {
       )
     }
 
-    console.log(`[SMS_OPT_OUT] org=${input.orgId} phone=${phone}`)
+    console.log(`[SMS_OPT_OUT] org=${input.orgId} phone=${maskPhone(phone)}`)
     return 'handled'
   }
 
@@ -93,6 +94,6 @@ export async function applyInboundSmsOptOut(input: {
   if (command === 'yes' && !optedOut) return 'ignored'
 
   await input.supabase.from('sms_opt_outs').delete().eq('org_id', input.orgId).eq('phone', phone)
-  console.log(`[SMS_OPT_IN] org=${input.orgId} phone=${phone}`)
+  console.log(`[SMS_OPT_IN] org=${input.orgId} phone=${maskPhone(phone)}`)
   return 'handled'
 }

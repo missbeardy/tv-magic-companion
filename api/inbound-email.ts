@@ -26,6 +26,7 @@ import {
   processVoicemail,
 } from './_lib/processVoicemail.js'
 import { safeCompareSecret } from './_lib/timingSafeCompare.js'
+import { maskPhone } from './_lib/redact.js'
 
 interface CloudmailinAttachment {
   file_name?: string
@@ -322,7 +323,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(500).json({ error: 'Failed to save lead' })
     }
 
-    console.log('Lead successfully created via CloudMailin:', result.savedLead?.name || from)
+    console.log('Lead successfully created via CloudMailin:', result.leadId)
 
     return res.status(200).json({
       success: true,

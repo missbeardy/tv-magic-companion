@@ -108,15 +108,6 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       console.log('RESEND_API_KEY not set – email not sent');
     }
 
-    console.log('=== SUPPORT REQUEST ===');
-    console.log('Type:', typeLabel);
-    console.log('From:', userName, userEmail);
-    console.log('Title:', cleanTitle);
-    console.log('Description:', description);
-    console.log('Images:', urls);
-    console.log('Email sent:', emailSent);
-    console.log('=======================');
-
     return res.status(200).json({
       success: true,
       emailSent,

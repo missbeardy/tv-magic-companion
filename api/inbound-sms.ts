@@ -19,6 +19,7 @@ import { matchInboundProbe, recordInboundProbeEcho } from './_lib/inboundProbe.j
 import { applyInboundSmsOptOut } from './_lib/smsOptOut.js'
 import { threadInboundSms } from './_lib/threadInboundSms.js'
 import { missingServerEnv } from './_lib/env.js'
+import { maskPhone } from './_lib/redact.js'
 
 /**
  * Disable Vercel's default body parser so the Meta webhook can verify its
@@ -165,7 +166,7 @@ async function finishInboundSms(input: {
   const { supabase, body, smsText, fromNumber, toNumber } = input
 
   try {
-    console.log(`SMS from ${fromNumber} to ${toNumber}`)
+    console.log(`SMS from ${maskPhone(fromNumber)} to ${toNumber}`)
 
     const { orgId } = await resolveOrgIdFromDid(supabase, toNumber)
 
