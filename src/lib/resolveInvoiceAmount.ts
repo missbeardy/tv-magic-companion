@@ -1,3 +1,5 @@
+import { formatOrgDate } from '../../shared/datetime'
+
 export interface InvoiceLineItem {
   label: string
   amount: number
@@ -44,5 +46,5 @@ function escapeHtml(text: string): string {
 export function formatDueDate(daysFromNow = 14): string {
   const d = new Date()
   d.setDate(d.getDate() + daysFromNow)
-  return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })
+  return formatOrgDate(d, null, 'long')
 }

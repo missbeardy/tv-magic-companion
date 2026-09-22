@@ -4,6 +4,7 @@ import type { ThemeTokens } from '../lib/theme'
 import { getEventCardStyles } from '../lib/calendarColors'
 import { assignOverlapLayout } from '../lib/calendarLayout'
 import CalendarEventCard from './CalendarEventCard'
+import DatePill from './DatePill'
 
 interface CalEvent {
   id: string
@@ -125,11 +126,7 @@ export function MobileResourceView({
             </span>
           )}
           <p className="text-sm font-semibold text-brand">
-            {selectedDate.toLocaleDateString('en-AU', {
-              weekday: 'long',
-              day: isToday ? undefined : 'numeric',
-              month: 'long',
-            })}
+            <DatePill date={selectedDate} style={isToday ? 'weekdayMonth' : 'weekdayDayMonth'} />
           </p>
         </div>
         <p className="text-xs text-gray-400 mt-0.5">← Swipe to see all technicians →</p>

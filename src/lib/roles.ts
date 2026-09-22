@@ -1,4 +1,7 @@
-export type AppRole = 'manager' | 'employee' | 'platform_admin'
+import { ROLES, type Role } from '../../shared/roles'
+
+export { ROLES }
+export type AppRole = Role
 
 /** Manager-level permissions (franchise ops + platform admin). */
 export function isManagerRole(role: string | undefined | null): boolean {
@@ -14,6 +17,5 @@ export function isPlatformAdminRole(role: string | undefined | null): boolean {
 export function normalizeRole(role: string | undefined | null): AppRole | null {
   if (!role) return null
   const r = role.trim().toLowerCase().replace(/[\s-]+/g, '_')
-  if (r === 'manager' || r === 'employee' || r === 'platform_admin') return r
-  return null
+  return (ROLES as readonly string[]).includes(r) ? (r as AppRole) : null
 }

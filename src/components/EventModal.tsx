@@ -32,6 +32,7 @@ import {
 } from '../lib/eventModalDraft'
 import TimePicker from './TimePicker'
 import AddressAutocomplete from './AddressAutocomplete'
+import { formatOrgDate } from '../../shared/datetime'
 import { X, CalendarDays, Clock, User, FileText, MapPin, Phone, Briefcase, Link, Search, DollarSign, Users } from 'lucide-react'
 
 interface OrgMember {
@@ -534,11 +535,7 @@ export default function EventModal({
   }
 
   function formatBookingDateTime(startISO: string, timeLabel: string): string {
-    const formattedDate = new Date(startISO).toLocaleDateString('en-AU', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-    })
+    const formattedDate = formatOrgDate(new Date(startISO), null, 'short')
     return `${formattedDate} ${timeLabel}`
   }
 

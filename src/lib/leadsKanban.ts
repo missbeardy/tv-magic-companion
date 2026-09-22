@@ -1,3 +1,8 @@
+import { LEAD_STATUSES, type LeadStatus } from '../../shared/leadStatuses'
+
+export { LEAD_STATUSES }
+export type { LeadStatus }
+
 export const BOOKING_CANCELLED_STATUS = 'booking_cancelled' as const
 const HIDEABLE_CLOSED_STATUSES = new Set(['lost', 'completed'])
 
@@ -53,7 +58,10 @@ export function getDefaultMobileTab(isSolo: boolean): LeadsMobileTab {
   return isSolo ? 'inbox' : 'unassigned'
 }
 
-export const LEAD_STATUS_LABELS: Record<string, string> = {
+// `satisfies` checks this literal covers every LeadStatus at compile time; the export
+// below widens back to Record<string, string> since callers index it by a DB row's
+// unconstrained `status` column, not the LeadStatus union.
+const leadStatusLabels = {
   unassigned: 'Unassigned',
   assigned: 'Assigned',
   contact_attempted: 'Contact Attempted',
@@ -62,7 +70,9 @@ export const LEAD_STATUS_LABELS: Record<string, string> = {
   lost: 'Lost',
   completed: 'Completed',
   expired: 'Expired',
-}
+} satisfies Record<LeadStatus, string>
+
+export const LEAD_STATUS_LABELS: Record<string, string> = leadStatusLabels
 
 export function getColumnsForTab(tab: string, isSolo = false): string[] {
   if (isSolo) {

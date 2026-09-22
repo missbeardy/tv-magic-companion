@@ -22,6 +22,7 @@ import EventModal from './EventModal'
 import BlackoutModal from './BlackoutModal'
 import CalendarEventCard from './CalendarEventCard'
 import { MobileResourceView } from './MobileResourceView'
+import { formatOrgDate } from '../../shared/datetime'
 import {
   eventModalDraftHasContent,
   loadEventModalDraft,
@@ -656,24 +657,16 @@ export default function Calendar() {
 
   const headerLabel = (() => {
     if (view === 'day') {
-      return currentDate.toLocaleDateString('en-AU', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      })
+      return formatOrgDate(currentDate, null, 'full')
     }
     if (view === 'week') {
       const last = weekDays[weekDays.length - 1]
-      return `${weekDays[0].toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} – ${last.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}`
+      return `${formatOrgDate(weekDays[0], null, 'dayMonth')} – ${formatOrgDate(last, null, 'dayMonthYear')}`
     }
-    return currentDate.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
+    return formatOrgDate(currentDate, null, 'monthYear')
   })()
 
-  const monthTitle = currentDate.toLocaleDateString('en-AU', {
-    month: 'long',
-    year: view === 'month' ? 'numeric' : undefined,
-  })
+  const monthTitle = formatOrgDate(currentDate, null, view === 'month' ? 'monthYear' : 'month')
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200">

@@ -11,6 +11,7 @@ import TeamWorkloadPanel from '../components/TeamWorkloadPanel'
 import TeamActivityTeaser from '../components/TeamActivityTeaser'
 import { useTeamWorkload } from '../hooks/useTeamWorkload'
 import { useOrgLeadsRealtime } from '../hooks/useOrgLeadsRealtime'
+import { formatOrgDate } from '../../shared/datetime'
 import { Inbox, CalendarDays, Zap, type LucideIcon } from 'lucide-react'
 
 interface Stats {
@@ -47,12 +48,7 @@ export default function EmployeeDashboard() {
   const { techs, loading: workloadLoading } = useTeamWorkload()
   const [stats, setStats] = useState<Stats>({ booked: 0, unassigned: 0 })
 
-  const today = new Date().toLocaleDateString('en-AU', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  })
+  const today = formatOrgDate(new Date(), null, 'full')
 
   async function fetchStats() {
     if (!profile) return

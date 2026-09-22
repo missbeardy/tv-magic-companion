@@ -13,6 +13,7 @@ import TeamWorkloadPanel from '../components/TeamWorkloadPanel'
 import TeamActivityTeaser from '../components/TeamActivityTeaser'
 import { useTeamWorkload } from '../hooks/useTeamWorkload'
 import { useOrgLeadsRealtime } from '../hooks/useOrgLeadsRealtime'
+import { formatOrgDate } from '../../shared/datetime'
 import { getMonthStart } from '../lib/reporting/dateRange'
 import { fetchReportingData } from '../lib/reporting/fetchReportData'
 import { getPreviousMonthStart, markManagerBriefSeen, shouldShowManagerBrief } from '../lib/managerBrief'
@@ -86,12 +87,7 @@ export default function ManagerDashboard() {
   const [reportLoading, setReportLoading] = useState(true)
   const reportsEnabled = canAccessFeature('reports')
 
-  const today = new Date().toLocaleDateString('en-AU', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  })
+  const today = formatOrgDate(new Date(), null, 'full')
 
   async function fetchData() {
     if (!profile) return
