@@ -23,7 +23,7 @@ ORDER BY slug;
 CREATE OR REPLACE FUNCTION public.prevent_org_privileged_column_change()
 RETURNS trigger
 LANGUAGE plpgsql
-SECURITY DEFINER
+SECURITY INVOKER -- not DEFINER: current_user must be the caller, see AUD-C1.sql
 SET search_path = public
 AS $$
 BEGIN

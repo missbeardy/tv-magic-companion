@@ -33,7 +33,7 @@ WHERE t.tgrelid = 'public.profiles'::regclass
 CREATE OR REPLACE FUNCTION public.prevent_profile_privilege_escalation()
 RETURNS trigger
 LANGUAGE plpgsql
-SECURITY DEFINER
+SECURITY INVOKER -- not DEFINER: current_user must be the caller, see AUD-C1.sql
 SET search_path = public
 AS $$
 BEGIN

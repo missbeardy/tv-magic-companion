@@ -15,7 +15,7 @@
 CREATE OR REPLACE FUNCTION public.prevent_org_privileged_column_change()
 RETURNS trigger
 LANGUAGE plpgsql
-SECURITY DEFINER
+SECURITY INVOKER -- not DEFINER: current_user must be the caller, see 20260922130000
 SET search_path = public
 AS $$
 BEGIN
