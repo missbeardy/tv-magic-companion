@@ -301,3 +301,131 @@ see the prod SQL section above.)
 - [ ] Trigger a render error in one route (e.g. temporarily throw in a
       component) and confirm the rest of the app — navigating to a
       different route — still works, matching AUD-14's intent.
+
+## Agent 2: 🟢 Backlog (AUD-20 → AUD-24), 22-09-2026
+
+Continuation on the same session/branch, same day. User approved continuing
+past the checkpoint straight through the Backlog. Gated every commit the
+same way (typecheck + full suite). Ended at **128 files / 959 tests**, all
+green. **v1.1.200** released at the end (patch bump + changelog entry —
+see below) with `npm run build` passing.
+
+### Commits, in order
+
+20. **`3bde473` AUD-20: requireRole + MANAGER_ROLES** — new
+    `api/_lib/auth.ts` `requireRole(req, res, roles, forbiddenMessage?)`
+    (token-verify + role lookup, no org/brand join — deliberately lighter
+    than `authenticateRequest` so an org-less `platform_admin` isn't locked
+    out, per `setProfileExclusions.ts`'s existing documented behaviour).
+    Used in `platformSetTestProfile.ts`, `platformSetDeparted.ts`,
+    `setProfileExclusions.ts`, `create-user.ts`'s invite handler. New
+    `MANAGER_ROLES` const replaces each of `leads.ts`/`stripe.ts`/
+    `send-sms.ts`'s own hardcoded `['manager', 'platform_admin']` array
+    (those three keep calling `authenticateRequest` for full org context,
+    just import the shared constant). No error-message or status-code
+    changes — verified against each file's prior manual checks.
+21. **`2e18aa2` AUD-21: structured logger + eslint no-console** — new
+    `api/_lib/log.ts` (`log.info/warn/error`, one JSON line per call).
+    Converted all 29 `console.log` call sites across 13 files in `api/` —
+    several had been double-stringifying
+    (`console.log(tag, JSON.stringify(result))`), now fixed as a side
+    effect. `console.error`/`console.warn` untouched (out of this card's
+    scope). New `eslint.config.js` `no-console` rule scoped to `api/**`,
+    warn severity, `allow: ['info', 'warn', 'error']` — lint isn't in the
+    prebuild gate, so this won't block a deploy, just flags a future bare
+    `console.log` in review. Also fixed an unrelated dead `maskPhone`
+    import in `inbound-email.ts` left over from AUD-19, caught by the new
+    rule's file-level pass.
+22. **`35a37b5` AUD-22: shared useNow() ticker** — new
+    `src/hooks/useNow.ts` (`useSyncExternalStore`-backed, one shared
+    `setInterval(1000ms)` created lazily on first subscriber, torn down
+    when the last unmounts). Replaces per-card `setInterval` in
+    `UnassignedTimer`, `ContactFollowUpBadge`, `CountdownTimer` — a leads
+    board with 50 cards used to run up to 50 independent 1s intervals.
+    `ContactFollowUpBadge` still calls `getContactFollowUpState()`
+    (reads `Date.now()` internally) rather than being refactored to take a
+    `now` param — that function is shared with non-UI code and changing
+    its signature was out of scope here; the shared tick is just what
+    triggers its re-render.
+23. **`2d1b41d` AUD-23: shared/datetime.ts + DatePill, ROLES/LEAD_STATUSES
+    from shared** — new `shared/datetime.ts` `formatOrgDate(d, tz, style)`
+    with 9 named `Intl.DateTimeFormatOptions` presets, replacing 9 ad-hoc
+    `toLocaleDateString({...})` calls across `Calendar.tsx`,
+    `EventModal.tsx`, `MobileResourceView.tsx`, `resolveInvoiceAmount.ts`,
+    `EmployeeDashboard.tsx`, `ManagerDashboard.tsx`. Optional `tz` renders
+    in an org's own timezone instead of the viewer's device timezone
+    (nothing currently passes one — all call sites pass `null`, so
+    behaviour is unchanged; wiring an actual org timezone through is a
+    follow-up, not done here). New `DatePill` component used at the one
+    site that rendered a date straight into JSX rather than building a
+    string. New `shared/roles.ts` (`ROLES`, `Role`) and
+    `shared/leadStatuses.ts` (`LEAD_STATUSES`, `LeadStatus`) —
+    `src/lib/roles.ts` now derives `AppRole` from the shared `ROLES`
+    instead of hardcoding its own union; `src/lib/leadsKanban.ts`'s
+    `LEAD_STATUS_LABELS` is checked against `LeadStatus` via `satisfies`
+    for exhaustiveness at the definition site, but stays typed
+    `Record<string, string>` on export since callers index it by a DB
+    row's unconstrained `status` column.
+24. **`cdc8218` AUD-24: untrack dev-dist, npx knip report** — `git rm -r
+    --cached dev-dist` (vite-plugin-pwa dev-mode SW output, build-
+    generated) + added to `.gitignore`. `npx knip` run report-only,
+    nothing deleted, full output saved to
+    `docs/plans/knip-report-2026-09-22.txt` with a note that most
+    "unused files" are false positives (Vercel functions, Supabase edge
+    functions, PWA SW scripts, npm-run scripts — none of which knip
+    recognises as entry points). A few things worth a follow-up look:
+    2 unused devDependencies (`@types/google.maps`, `sharp`), 4
+    duplicate-export pairs in `shared/contactFollowUp.ts`, and a short
+    list of exported constants/functions in `src/lib/*` that look
+    genuinely dead.
+25. **`8dcc862` Release v1.1.200** — patch bump (`package.json` +
+    `APP_VERSION`) and a `WEEKLY_CHANGELOG` entry summarising this
+    session's user-visible changes (per-org campaign branding, the
+    leads-board phone drag/scroll fix, route-level crash containment, the
+    triple-polling fix, and the AUD-13 silent-failure fixes). `npm run
+    build` (verify-changelog + typecheck + vite build) passes.
+
+No prod SQL for AUD-20 → AUD-24 — all pure app code / tooling.
+
+### Preview deployment (this session, prod-Supabase-pointed)
+
+At the user's explicit request (their dev Supabase project was found
+paused/`INACTIVE` — resumed it via the Management API restore endpoint
+as a side effect, but it ended up unused), this session's Preview-scoped
+Vercel env vars (`SUPABASE_URL`, `SUPABASE_ANON_KEY`,
+`SUPABASE_SERVICE_ROLE_KEY`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`)
+were **removed and re-added copying Production's values** (`vercel env rm`
+then `vercel env add`, piping straight from a `vercel env pull
+--environment=production` file so the actual secret values never passed
+through the assistant's own context — the sandbox's credential-handling
+guard blocks that). **This means every Preview deployment on this Vercel
+project now points at prod Supabase, not the (now-resumed) dev project,
+until someone reverts it** — check `vercel env ls preview` before assuming
+a future preview build is data-isolated.
+
+A preview build was then deployed (`vercel deploy --yes`, no `--prod`) at
+commit `1f8abf0` (after AUD-19, before AUD-20): **https://tv-magic-companion-qktwj59ac-missbeardys-projects.vercel.app**.
+It is stale relative to the final `8dcc862` state (AUD-20 → AUD-24 and the
+v1.1.200 release shipped after it) — redeploy from the branch tip before
+relying on it for testing AUD-20+ specifically. Two pre-existing TS errors
+appeared in the remote build log (`api/send-sms.ts` account-deletion
+handler, `api/_lib/reviewRequest.ts` auto-review guard) — checked both,
+correct discriminated-union code untouched this session; matches this
+project's documented history of the Vercel per-function builder flagging
+things the project-wide `npm run typecheck` doesn't (see
+[[preview-deploy]]). Deploy still completed (`readyState: READY`).
+
+### Updated manual QA checklist additions (Backlog cards)
+
+- [ ] Confirm `platformSetTestProfile`/`platformSetDeparted`/
+      `setProfileExclusions` still work for an org-less `platform_admin`
+      account if one exists — AUD-20's `requireRole` was deliberately kept
+      lighter than `authenticateRequest` specifically to preserve this.
+- [ ] Leads board with several cards open at once on a phone — confirm the
+      countdown/unassigned/follow-up timers all still tick every second
+      (AUD-22's shared ticker) and don't drift or stall.
+- [ ] Since Preview now points at prod Supabase (see above), be deliberate
+      about what gets tested there — creating a lead, submitting the
+      campaign quote form, or anything that sends SMS/WhatsApp will be a
+      **real** side effect against the live TV Magic org, not a sandboxed
+      one.
