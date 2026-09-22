@@ -115,7 +115,6 @@ export interface QuoteCreateInput {
   totalAmount: number
   lineItems?: QuoteLineItem[]
   expiryDays?: number
-  baseUrl?: string | null
   orgName?: string
   senderName?: string
   emailTemplates?: Record<string, string> | null
@@ -140,13 +139,6 @@ function buildQuoteToken(): string {
 function normalizeExpiryDays(days: number | undefined): number {
   if (!days || Number.isNaN(days)) return 7
   return Math.min(30, Math.max(1, Math.round(days)))
-}
-
-function resolveBaseUrl(baseUrl?: string | null): string {
-  if (baseUrl && /^https?:\/\//i.test(baseUrl)) {
-    return baseUrl.replace(/\/$/, '')
-  }
-  return getPlatformUrl()
 }
 
 async function sendQuoteEmail(params: {
@@ -255,7 +247,7 @@ export async function createQuote(input: QuoteCreateInput) {
     throw new Error(error?.message ?? 'Failed to create quote')
   }
 
-  const acceptanceUrl = `${resolveBaseUrl(input.baseUrl)}/quote/${data.public_token}`
+  const acceptanceUrl = `${getPlatformUrl()}/quote/${data.public_token}`
 
   const delivery = await deliverQuoteWithinBudget({
     input,

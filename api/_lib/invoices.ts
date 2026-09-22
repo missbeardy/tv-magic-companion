@@ -42,7 +42,6 @@ export interface InvoiceSendInput {
   primaryColor?: string
   gstRegistered?: boolean
   abn?: string | null
-  baseUrl?: string | null
   showPayButton?: boolean
 }
 
@@ -194,7 +193,7 @@ export async function createAndSendInvoice(input: InvoiceSendInput) {
       ? `<p style="font-size:12px;color:#6b7280">Total includes GST of AUD ${gstAmount.toFixed(2)}</p>`
       : ''
   const payButton = input.showPayButton
-    ? `<p style="margin:20px 0"><a href="${(input.baseUrl?.trim() || getPlatformUrl()).replace(/\/$/, '')}/api/stripe?action=invoice-pay&token=${publicToken}" style="background:${input.primaryColor?.trim() || '#004B93'};color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">Pay Now</a></p>`
+    ? `<p style="margin:20px 0"><a href="${getPlatformUrl().replace(/\/$/, '')}/api/stripe?action=invoice-pay&token=${publicToken}" style="background:${input.primaryColor?.trim() || '#004B93'};color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">Pay Now</a></p>`
     : ''
 
   const { subject, html } = buildInvoiceEmailFromOrg(

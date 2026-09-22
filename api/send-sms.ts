@@ -47,23 +47,6 @@ import {
   whatsAppTemplateKeyForMode,
 } from './_lib/employeeWhatsAppTemplates.js'
 
-function getRequestBaseUrl(req: VercelRequest): string | null {
-  const protoHeader = req.headers['x-forwarded-proto']
-  const hostHeader = req.headers['x-forwarded-host'] ?? req.headers.host
-  const proto = Array.isArray(protoHeader)
-    ? protoHeader[0]
-    : typeof protoHeader === 'string' && protoHeader.trim()
-    ? protoHeader.split(',')[0].trim()
-    : 'https'
-  const host = Array.isArray(hostHeader)
-    ? hostHeader[0]
-    : typeof hostHeader === 'string' && hostHeader.trim()
-    ? hostHeader.split(',')[0].trim()
-    : ''
-  if (!host) return null
-  return `${proto}://${host}`.replace(/\/$/, '')
-}
-
 /** True if `to` belongs to a lead or customer in the caller's org. */
 async function phoneBelongsToOrg(to: string, orgId: string): Promise<boolean> {
   const supabase = getSupabaseAdmin()
@@ -378,7 +361,6 @@ async function handleQuoteCreate(req: VercelRequest, res: VercelResponse, auth: 
       totalAmount,
       lineItems,
       expiryDays,
-      baseUrl: getRequestBaseUrl(req),
       orgName: auth.org.name,
       emailTemplates: auth.org.email_templates ?? null,
       brandEmailTemplates: auth.brand?.email_templates ?? null,
@@ -630,7 +612,6 @@ export async function handleInvoiceSendEmail(req: VercelRequest, res: VercelResp
       primaryColor: orgSettings.primary_color || auth.brand?.primary_color,
       gstRegistered: orgSettings.gst_registered,
       abn: orgSettings.abn,
-      baseUrl: getRequestBaseUrl(req),
       showPayButton,
     })
     return res.status(200).json({ success: true, invoice })
