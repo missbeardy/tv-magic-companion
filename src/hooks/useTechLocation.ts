@@ -36,12 +36,36 @@ export function useTechLocation(userId: string | null) {
       maximumAge: 300000,
     }
 
-    navigator.geolocation.getCurrentPosition(update, fail, opts)
+    // A backgrounded tab still fires setInterval, spending battery and quota on a
+    // location nobody's dashboard is showing. Poll only while the tab is visible.
+    let interval: ReturnType<typeof setInterval> | null = null
 
-    const interval = setInterval(() => {
-      navigator.geolocation.getCurrentPosition(update, fail, opts)
-    }, 10 * 60 * 1000)
+    const poll = () => navigator.geolocation.getCurrentPosition(update, fail, opts)
 
-    return () => clearInterval(interval)
+    const startPolling = () => {
+      if (interval) return
+      poll()
+      interval = setInterval(poll, 10 * 60 * 1000)
+    }
+
+    const stopPolling = () => {
+      if (interval) {
+        clearInterval(interval)
+        interval = null
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') startPolling()
+      else stopPolling()
+    }
+
+    if (document.visibilityState === 'visible') startPolling()
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      stopPolling()
+    }
   }, [userId, profile?.location_enabled, profile?.role, techLocationEnabled])
 }

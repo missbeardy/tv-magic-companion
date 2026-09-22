@@ -12,7 +12,6 @@ import RevenueWidget from '../components/RevenueWidget'
 import TeamWorkloadPanel from '../components/TeamWorkloadPanel'
 import TeamActivityTeaser from '../components/TeamActivityTeaser'
 import { useTeamWorkload } from '../hooks/useTeamWorkload'
-import { useTechLocation } from '../hooks/useTechLocation'
 import { getMonthStart } from '../lib/reporting/dateRange'
 import { fetchReportingData } from '../lib/reporting/fetchReportData'
 import { getPreviousMonthStart, markManagerBriefSeen, shouldShowManagerBrief } from '../lib/managerBrief'
@@ -84,7 +83,6 @@ export default function ManagerDashboard() {
   const [monthlyBrief, setMonthlyBrief] = useState<ManagerMonthlyBrief | null>(null)
   const [showMonthlyBrief, setShowMonthlyBrief] = useState(false)
   const [reportLoading, setReportLoading] = useState(true)
-  useTechLocation(profile?.id ?? null)
   const reportsEnabled = canAccessFeature('reports')
 
   const today = new Date().toLocaleDateString('en-AU', {

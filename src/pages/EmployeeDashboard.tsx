@@ -10,7 +10,6 @@ import AssignedLeads from '../components/AssignedLeads'
 import TeamWorkloadPanel from '../components/TeamWorkloadPanel'
 import TeamActivityTeaser from '../components/TeamActivityTeaser'
 import { useTeamWorkload } from '../hooks/useTeamWorkload'
-import { useTechLocation } from '../hooks/useTechLocation'
 import { Inbox, CalendarDays, Zap, type LucideIcon } from 'lucide-react'
 
 interface Stats {
@@ -46,7 +45,6 @@ export default function EmployeeDashboard() {
   const navigate = useNavigate()
   const { techs, loading: workloadLoading } = useTeamWorkload()
   const [stats, setStats] = useState<Stats>({ booked: 0, unassigned: 0 })
-  useTechLocation(profile?.id ?? null)
 
   const today = new Date().toLocaleDateString('en-AU', {
     weekday: 'long',
