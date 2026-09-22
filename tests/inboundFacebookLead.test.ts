@@ -28,6 +28,7 @@ import {
   handleInboundFacebookLead,
   assembleMessengerLeadDetails,
   inferFacebookServiceType,
+  FACEBOOK_SERVICE_TYPES,
 } from '../api/_lib/handleInboundFacebookLead'
 import { isFeatureEnabledForOrg } from '../api/_lib/featureSwitches'
 import { captureUnroutedInbound } from '../api/_lib/captureUnroutedInbound'
@@ -259,6 +260,12 @@ describe('facebookLeadFallbackParse', () => {
   it('uses a plumbing list instead of TV Aerial', () => {
     expect(inferFacebookServiceType('blocked drain under the house', ['Blocked Drain', 'Hot Water'])).toBe(
       'Blocked Drain'
+    )
+  })
+
+  it('falls back to the generic list when an empty service list is passed (AUD-10)', () => {
+    expect(inferFacebookServiceType('Need antenna install', [])).toBe(
+      inferFacebookServiceType('Need antenna install', [...FACEBOOK_SERVICE_TYPES])
     )
   })
 

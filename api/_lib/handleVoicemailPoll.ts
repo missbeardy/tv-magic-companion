@@ -44,7 +44,18 @@ export async function handleVoicemailPoll(
   // `To: "166"` is a 3CX extension rather than a DID, so there is nothing to resolve
   // from. Rather than guess an org, refuse to run.
   const orgId = process.env.VOICEMAIL_MAILBOX_ORG_ID?.trim()
-  if (!orgId || !getVoicemailMailboxConfig()) {
+  if (!orgId) {
+    return res.status(200).json({ skipped: true, reason: 'not_configured' })
+  }
+
+  const { data: orgRow } = await supabase
+    .from('orgs')
+    .select('voicemail_imap_folder')
+    .eq('id', orgId)
+    .maybeSingle()
+  const orgFolder = typeof orgRow?.voicemail_imap_folder === 'string' ? orgRow.voicemail_imap_folder : null
+
+  if (!getVoicemailMailboxConfig(orgFolder)) {
     return res.status(200).json({ skipped: true, reason: 'not_configured' })
   }
 
@@ -81,7 +92,7 @@ export async function handleVoicemailPoll(
         console.error('Voicemail poll: processing failed, leaving for retry:', err)
         return 'failed' satisfies PolledVoicemailOutcome
       }
-    })
+    }, orgFolder)
 
     return res.status(200).json({ success: true, ...summary })
   } catch (err) {

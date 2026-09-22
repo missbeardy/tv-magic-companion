@@ -21,7 +21,14 @@ const mockConfig = vi.mocked(getVoicemailMailboxConfig)
 const mockPoll = vi.mocked(pollVoicemailMailbox)
 
 const ORG_ID = '11111111-1111-1111-1111-111111111111'
-const supabase = {} as import('@supabase/supabase-js').SupabaseClient
+const mockMaybeSingle = vi.fn().mockResolvedValue({ data: { voicemail_imap_folder: null }, error: null })
+const supabase = {
+  from: vi.fn(() => ({
+    select: vi.fn(() => ({
+      eq: vi.fn(() => ({ maybeSingle: mockMaybeSingle })),
+    })),
+  })),
+} as unknown as import('@supabase/supabase-js').SupabaseClient
 
 function createRes() {
   const res = {

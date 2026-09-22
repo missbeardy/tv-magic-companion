@@ -21,3 +21,8 @@ export function getDefaultNoreplyEmail(): string {
     return 'noreply@fieldbourne.app'
   }
 }
+
+/** Where "Support" page feature/issue reports land. */
+export function getSupportInboxEmail(): string {
+  return process.env.SUPPORT_INBOX_EMAIL?.trim() || 'admin@fieldbournedigital.com.au'
+}

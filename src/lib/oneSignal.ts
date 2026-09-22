@@ -22,7 +22,7 @@ export function initOneSignal(): Promise<void> {
   }
 
   initPromise = OneSignal.init({
-    appId: '2eeab815-cfc2-4b65-bf79-a3c4415ced61',
+    appId: import.meta.env.VITE_ONESIGNAL_APP_ID || '2eeab815-cfc2-4b65-bf79-a3c4415ced61',
     serviceWorkerPath: '/OneSignalSDKWorker.js',
     serviceWorkerParam: { scope: '/' },
     allowLocalhostAsSecureOrigin: true,

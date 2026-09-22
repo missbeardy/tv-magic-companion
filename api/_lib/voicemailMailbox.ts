@@ -27,7 +27,7 @@ export interface VoicemailMailboxConfig {
   folder: string
 }
 
-export function getVoicemailMailboxConfig(): VoicemailMailboxConfig | null {
+export function getVoicemailMailboxConfig(orgFolder?: string | null): VoicemailMailboxConfig | null {
   const host = process.env.VOICEMAIL_IMAP_HOST?.trim()
   const user = process.env.VOICEMAIL_IMAP_USER?.trim()
   const password = process.env.VOICEMAIL_IMAP_APP_PASSWORD?.trim()
@@ -35,7 +35,9 @@ export function getVoicemailMailboxConfig(): VoicemailMailboxConfig | null {
   // with the display name and spacing preserved — not the hyphenated slug Gmail shows
   // in its URL bar. Getting this wrong is why the first prod run 500'd.
   const folder =
-    process.env.VOICEMAIL_IMAP_FOLDER?.trim() || 'TVMagic Sales Lead/VoiceMail Lead'
+    orgFolder?.trim() ||
+    process.env.VOICEMAIL_IMAP_FOLDER?.trim() ||
+    'TVMagic Sales Lead/VoiceMail Lead'
 
   if (!host || !user || !password) return null
   return { host, user, password, folder }
@@ -87,9 +89,10 @@ export function pickVoicemailParts(structure: MessageStructureObject) {
  */
 export async function pollVoicemailMailbox(
   limit: number,
-  onMessage: (message: PolledVoicemail) => Promise<PolledVoicemailOutcome>
+  onMessage: (message: PolledVoicemail) => Promise<PolledVoicemailOutcome>,
+  orgFolder?: string | null
 ): Promise<VoicemailPollSummary> {
-  const config = getVoicemailMailboxConfig()
+  const config = getVoicemailMailboxConfig(orgFolder)
   if (!config) throw new Error('Voicemail mailbox is not configured')
 
   const summary: VoicemailPollSummary = { examined: 0, processed: 0, skipped: 0, failed: 0 }

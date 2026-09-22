@@ -2,7 +2,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { authenticateRequest } from './_lib/auth.js';
 import { escapeHtml, nl2brHtml } from './_lib/emailTemplates.js';
-import { getDefaultNoreplyEmail } from './_lib/platformUrl.js';
+import { getDefaultNoreplyEmail, getSupportInboxEmail } from './_lib/platformUrl.js';
 import { withObservability } from './_lib/observability.js';
 import { checkRateLimit, rateLimitIdentifier } from './_lib/rateLimit.js';
 
@@ -70,7 +70,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
 
     const cleanTitle = title.replace(/[\r\n]+/g, ' ').trim();
     const typeLabel = type === 'feature' ? '✨ Feature Request' : '🐛 Support Issue';
-    const adminEmail = 'admin@fieldbournedigital.com.au';
+    const adminEmail = getSupportInboxEmail();
 
     const htmlContent = `
       <h2>${escapeHtml(typeLabel)}</h2>
@@ -81,7 +81,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       <p>${nl2brHtml(description)}</p>
       ${urls.length ? `<p><strong>Attached images:</strong><br/>${urls.map(url => `<a href="${escapeHtml(url)}">${escapeHtml(url)}</a><br/>`).join('')}</p>` : ''}
       <hr/>
-      <p style="color:#666; font-size:12px;">Submitted via TVMagic Companion Support page</p>
+      <p style="color:#666; font-size:12px;">Submitted via ${escapeHtml(orgName || 'FieldBourne')}'s Support page</p>
     `;
 
     const RESEND_API_KEY = process.env.RESEND_API_KEY;

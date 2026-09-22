@@ -82,7 +82,7 @@ function parseOutOfArea(value: unknown): boolean {
   return false
 }
 
-/** TV Magic default list — used when no org list is passed, and for MCP backfill. */
+/** Generic fallback list — used when an org has no service_types configured. */
 export const FACEBOOK_SERVICE_TYPES = [
   'TV Aerial',
   'Wall Mounting',
@@ -431,9 +431,10 @@ export async function ingestParsedFacebookLead(
   }
 
   const orgId = orgRow.id
-  const serviceTypes = Array.isArray(orgRow.service_types)
+  const orgServiceTypes = Array.isArray(orgRow.service_types)
     ? orgRow.service_types.filter((value: unknown): value is string => typeof value === 'string' && value.trim() !== '')
     : []
+  const serviceTypes = orgServiceTypes.length > 0 ? orgServiceTypes : [...FACEBOOK_SERVICE_TYPES]
   const aiContext = typeof orgRow.ai_context === 'string' ? orgRow.ai_context : null
   const channelEnabled = await isFeatureEnabledForOrg(orgId, config.featureKey)
   if (!channelEnabled) {
