@@ -132,3 +132,162 @@ Check prod has all seven set (`cron-maintenance`'s heartbeat will now show
 - `profiles.email` and `orgs.stripe_subscription_id`/`subscription_expires_at`
   are schema drift/gaps noticed along the way but out of this audit's scope
   (see AUD-6 and AUD-2 reports above).
+
+## Agent 2: 🟡 High (AUD-9 → AUD-19), 22-09-2026
+
+Continuation on the same branch. Pre-flight confirmed all 8 AUD-1..AUD-8
+commits present, `npm run typecheck` clean, `npm test` 911/911 green before
+starting. Gated every commit on typecheck + full suite; ended at 936/936
+(124 files). Stopped after AUD-19 per the checkpoint in the brief — AUD-20
+onward (🟢 Backlog) not started.
+
+### Commits, in order
+
+9. **`a3c125c` AUD-9: campaign quote + /visualise per-org** — route is now
+   `/visualise/:orgSlug`, bare `/visualise` redirects to `/visualise/default`.
+   `handleCampaignQuote` takes `orgSlug` (query on GET, body on POST) instead
+   of `CAMPAIGN_ORG_SLUG` env, gated by a new `campaign_quote` per-brand
+   switch (default off). A new GET branding action on the same handler feeds
+   `CampaignBrandProvider`, threading org name/logo/website/primary colour
+   through the campaign page in place of "TV Magic" literals.
+   `--c-cyan-ink` (button/focus contrast token) stays fixed — not safe to
+   hand to an arbitrary brand colour, see `tests/campaignContrast.test.ts`.
+   New `orgs.website` column.
+10. **`de71caa` AUD-10: remove hardcoded tenant values** — FB/Messenger
+    service-type inference falls back to `FACEBOOK_SERVICE_TYPES` when
+    `orgs.service_types` is empty. New `SUPPORT_INBOX_EMAIL` and
+    `VITE_ONESIGNAL_APP_ID` env vars (fallback to today's literals). Voicemail
+    IMAP folder can come from a new `orgs.voicemail_imap_folder` column ahead
+    of the env var. All behaviour-preserving until the new vars/column are set.
+11. **`c33c1b4` AUD-11: dedupe useTechLocation, poll only while visible** —
+    EmployeeDashboard and ManagerDashboard each duplicated App.tsx's
+    `useTechLocation` call, so a signed-in tech ran three concurrent
+    10-minute geolocation pollers. Removed the two duplicates. The hook now
+    starts/stops its interval on `visibilitychange` instead of running in a
+    backgrounded tab.
+12. **`a207dff` AUD-12: one realtime channel per org for the leads table** —
+    new `src/hooks/useOrgLeadsRealtime.ts` keeps a ref-counted registry of one
+    `postgres_changes` channel per org, shared across AssignedLeads,
+    useLeadsPoolCount, EmployeeDashboard, ManagerDashboard and LeadsPage
+    (previously up to 5 concurrent channels, several on static names).
+    Fan-out debounced 400ms. ManagerDashboard's separate `lead_events`
+    channel (report snapshot) untouched — different table.
+13. **`d7a47cf` AUD-13: handle ignored `{ error }` results** — Calendar.tsx
+    (delete leave), LeadPhotos.tsx (delete photo — storage + row), ProfilePage.tsx
+    (avatar upload swapped the preview in before the DB write even ran),
+    NotificationBell.tsx (mark-as-read) now check the error, toast + Sentry
+    instead of updating local state on failure. cancelBooking.ts's manager-notify
+    insert is Sentry-only (non-fatal by design — the booking cancel itself
+    already succeeded by that point).
+14. **`e7d67e0` AUD-14: route-level and section-level Sentry error
+    boundaries** — new `RouteBoundary` wraps every route element in App.tsx
+    (`Sentry.ErrorBoundary`, tag `route:<name>`); new `SectionBoundary` wraps
+    Calendar (CalendarPage), LeadDetailSheet (LeadsPage) and the /visualise
+    canvas (VisualiserStage) so a crash there doesn't bubble to the route
+    boundary and take the page's own NavBar with it. `@sentry/react` v10 has
+    no `resetKeys` prop (unlike react-error-boundary) — both use React `key`
+    instead (pathname / record id) for the same effect via remount.
+15. **`18b6831` AUD-15: leads board drag sensors and column scroll on
+    phone** — split `PointerSensor` into `MouseSensor` (8px) + `TouchSensor`
+    (250ms delay, 6px tolerance) + `KeyboardSensor`, so a touch scroll over a
+    card no longer gets hijacked as a drag start. Column height changed from
+    `max-h-screen` to `max-h-[calc(100dvh-10rem)] overscroll-contain` with
+    safe-area bottom padding.
+16. **`d664c82` AUD-16: rate limiter fail-closed, real client IP,
+    constant-time cron auth** — `checkRateLimit` takes an optional
+    `failClosed` (default false everywhere else), applied to campaign-quote
+    and the public quote/invoice/push/account-deletion actions in
+    send-sms.ts. `rateLimitIdentifier` now prefers `x-real-ip`, then
+    `x-vercel-forwarded-for`, then `x-forwarded-for` (all 8 call sites
+    updated). `isCronAuthorized` uses `safeCompareSecret` (constant-time)
+    for both the Bearer token and `x-cron-secret`. The
+    `increment_rate_limit`/`increment_ai_usage` REVOKE/GRANT this card also
+    asks for was **already shipped** pre-baseline
+    (`20260916130000_lock_counter_rpcs.sql`) — `AUD-16.sql` is a
+    verify-and-reapply copy for prod since it wasn't in the original apply list.
+17. **`ddc06d0` AUD-17: validate handleNotify input, always build links
+    from getPlatformUrl** — `handleNotify` (any signed-in user notifying a
+    colleague) had no validation on `title`/`message`/`url`/`type`: an open
+    redirect / phishing vector via push+SMS+WhatsApp to another employee's
+    phone. Added a `type` allow-list, 120/500-char caps, and a
+    same-origin-relative-path check on `url`. New `notifyUser.ts
+    resolveNotifyUrl()` is now the only way any notify path builds its deep
+    link (`getPlatformUrl()` + relative path) — used by both `notifyOrgUser`
+    and `insertTrustedCustomerReply`.
+18. **`afece9e` AUD-18: delete getRequestBaseUrl** — built a quote/invoice
+    link base from `x-forwarded-host`/`host`, both client-controllable behind
+    a permissive proxy (forged-Host redirect risk on a customer's SMS'd
+    link). Deleted; both links are now unconditionally `getPlatformUrl()`-based.
+19. **`35d7afa` AUD-19: redact PII from logs** — new `api/_lib/redact.ts`
+    `maskPhone()` (last 3 digits only), applied to inbound-sms.ts and
+    smsOptOut.ts. inbound-email.ts's "Lead successfully created" log dropped
+    the customer name / sender email in favour of just the lead id.
+    Removed send-support-email.ts's `=== SUPPORT REQUEST ===` console dump
+    entirely (reporter email + full free-text title/description on every
+    request).
+
+### Prod SQL files, in apply order (after Agent 1's AUD-C1 → AUD-5 → deploy → AUD-3b)
+
+All in `docs/plans/prod-sql/`, each with a read-only verify query at the top.
+
+- **`AUD-9.sql`** — adds `orgs.website`, seeds the `campaign_quote` feature
+  flag catalog row (default off), and — in a clearly separated final section —
+  enables the switch for the `tv-magic` brand + backfills `website` for org
+  slug `default`. **Apply the enable section only once the branch carrying
+  the `/visualise/:orgSlug` redirect is deployed** — bare `/visualise` ad
+  links must keep working through the cutover.
+- **`AUD-10.sql`** — adds `orgs.voicemail_imap_folder` (nullable, no
+  backfill — leaving it NULL preserves today's env-var behaviour for org
+  slug 'default'). No SQL for the other three AUD-10 items (env vars /
+  app-code fallback only).
+- **`AUD-16.sql`** — verify-and-reapply of the `increment_rate_limit` /
+  `increment_ai_usage` REVOKE/GRANT. Idempotent; check whether it's already
+  live on prod before assuming it needs running (it predates this session's
+  baseline and may already be there — see commit 16 above).
+- *(AUD-11 through AUD-15, AUD-17, AUD-18, AUD-19 have no SQL — pure app code.)*
+
+### New env vars (all optional, all fall back to today's literal)
+
+| Var | Fallback if unset |
+|---|---|
+| `SUPPORT_INBOX_EMAIL` | `admin@fieldbournedigital.com.au` |
+| `VITE_ONESIGNAL_APP_ID` | the hardcoded id in `src/lib/oneSignal.ts` |
+
+(`orgs.voicemail_imap_folder` and `orgs.website` are DB columns, not env vars —
+see the prod SQL section above.)
+
+### Known gaps / follow-ups carried forward
+
+- AUD-14's route/section boundaries were verified by typecheck + the
+  existing suite only — **not** smoke-tested in a real browser this session
+  (no dev server was started). Recommend manually loading `/leads`,
+  `/calendar` and `/visualise/default` before shipping.
+- AUD-15's phone-size leads-board fix (drag sensors, column scroll) also
+  wants a manual phone-size QA pass — see the checklist below.
+- AUD-9's campaign quote page is feature-switch-gated OFF by default for
+  every brand except `tv-magic` (enabled in `AUD-9.sql`'s final section).
+  A second test org won't see the visualiser/quote form at
+  `/visualise/<that-org-slug>` until its switch is turned on.
+
+### Manual QA checklist (do before shipping this branch)
+
+- [ ] Leads board on a real phone (or narrow + touch-emulated DevTools):
+      drag a card between columns without it starting from a scroll swipe;
+      confirm the column list scrolls independently and doesn't run under
+      the home-indicator / browser chrome.
+- [ ] A second test org through the Messenger/Facebook simulate flow with
+      `orgs.service_types` left empty — confirm it falls back to the
+      generic `FACEBOOK_SERVICE_TYPES` list instead of erroring or leaving
+      the service type blank.
+- [ ] The campaign quote page on a second slug (`/visualise/<slug>`) after
+      turning its `campaign_quote` switch on — branding (name/logo/website/
+      colour) should reflect that org, not TV Magic; then bare `/visualise`
+      should still redirect to `/visualise/default` and work exactly as
+      before for the live ad links.
+- [ ] Booking-confirm (or another SMS/WhatsApp notify path) with a foreign
+      (non-AU) number, to confirm nothing in the AUD-16/17 rate-limit /
+      notify-validation changes rejects a legitimate international contact
+      number.
+- [ ] Trigger a render error in one route (e.g. temporarily throw in a
+      component) and confirm the rest of the app — navigating to a
+      different route — still works, matching AUD-14's intent.
