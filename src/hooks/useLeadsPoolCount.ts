@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { useOrgLeadsRealtime } from './useOrgLeadsRealtime'
 
 export function useLeadsPoolCount(): number {
   const { profile } = useAuth()
@@ -21,18 +22,9 @@ export function useLeadsPoolCount(): number {
   useEffect(() => {
     if (!profile?.org_id) return
     fetchCount()
-    const channel = supabase
-      .channel(`leads-pool-${profile.org_id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'leads', filter: `org_id=eq.${profile.org_id}` },
-        fetchCount
-      )
-      .subscribe()
-    return () => {
-      supabase.removeChannel(channel)
-    }
   }, [profile?.org_id, fetchCount])
+
+  useOrgLeadsRealtime(profile?.org_id, fetchCount)
 
   return count
 }

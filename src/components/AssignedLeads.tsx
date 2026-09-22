@@ -11,6 +11,7 @@ import LeadExtractedSummary from './LeadExtractedSummary'
 import { CalendarPlus, User } from 'lucide-react'
 import { isManagerRole } from '../lib/roles'
 import { useRestoreLeadBookingDraft } from '../hooks/useRestoreLeadBookingDraft'
+import { useOrgLeadsRealtime } from '../hooks/useOrgLeadsRealtime'
 
 interface Lead {
   id: string
@@ -68,12 +69,9 @@ export default function AssignedLeads() {
   useEffect(() => {
     if (!profile) return
     fetchLeads()
-    const channel = supabase
-      .channel('assigned-leads-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads', filter: `org_id=eq.${profile.org_id}` }, () => fetchLeads())
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
   }, [profile])
+
+  useOrgLeadsRealtime(profile?.org_id, fetchLeads)
 
   useRestoreLeadBookingDraft(
     profile?.id,

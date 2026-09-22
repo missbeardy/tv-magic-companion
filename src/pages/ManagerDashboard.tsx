@@ -12,6 +12,7 @@ import RevenueWidget from '../components/RevenueWidget'
 import TeamWorkloadPanel from '../components/TeamWorkloadPanel'
 import TeamActivityTeaser from '../components/TeamActivityTeaser'
 import { useTeamWorkload } from '../hooks/useTeamWorkload'
+import { useOrgLeadsRealtime } from '../hooks/useOrgLeadsRealtime'
 import { getMonthStart } from '../lib/reporting/dateRange'
 import { fetchReportingData } from '../lib/reporting/fetchReportData'
 import { getPreviousMonthStart, markManagerBriefSeen, shouldShowManagerBrief } from '../lib/managerBrief'
@@ -113,12 +114,9 @@ export default function ManagerDashboard() {
   useEffect(() => {
     if (!profile) return
     fetchData()
-    const channel = supabase
-      .channel('manager-dashboard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads', filter: `org_id=eq.${profile.org_id}` }, fetchData)
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
   }, [profile])
+
+  useOrgLeadsRealtime(profile?.org_id, fetchData)
 
   useEffect(() => {
     if (!profile?.org_id || !reportsEnabled) {

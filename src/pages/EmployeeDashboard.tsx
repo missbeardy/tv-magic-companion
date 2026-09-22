@@ -10,6 +10,7 @@ import AssignedLeads from '../components/AssignedLeads'
 import TeamWorkloadPanel from '../components/TeamWorkloadPanel'
 import TeamActivityTeaser from '../components/TeamActivityTeaser'
 import { useTeamWorkload } from '../hooks/useTeamWorkload'
+import { useOrgLeadsRealtime } from '../hooks/useOrgLeadsRealtime'
 import { Inbox, CalendarDays, Zap, type LucideIcon } from 'lucide-react'
 
 interface Stats {
@@ -72,12 +73,9 @@ export default function EmployeeDashboard() {
   useEffect(() => {
     if (!profile) return
     fetchStats()
-    const channel = supabase
-      .channel('employee-dashboard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads', filter: `org_id=eq.${profile.org_id}` }, fetchStats)
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
   }, [profile])
+
+  useOrgLeadsRealtime(profile?.org_id, fetchStats)
 
   return (
     <div className="min-h-screen bg-gray-50">

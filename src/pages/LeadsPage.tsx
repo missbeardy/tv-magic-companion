@@ -65,6 +65,7 @@ import { completeLeadOrEnqueue, runLeadUpdate } from '../lib/offlineWrites'
 import { showToast } from '../lib/toast'
 import { leadTransitionConflictMessage } from '../lib/leadTransition'
 import { saveLeadsCache, loadLeadsCache } from '../lib/scheduleCache'
+import { useOrgLeadsRealtime } from '../hooks/useOrgLeadsRealtime'
 import { loadCompletionDraft, clearCompletionDraft } from '../lib/completionDraft'
 import { getAuthHeaders } from '../lib/apiAuth'
 import {
@@ -955,16 +956,9 @@ export default function LeadsPage() {
   useEffect(() => {
     if (!profile) return
     fetchLeads()
-    const channel = supabase
-      .channel('leads-page-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'leads', filter: `org_id=eq.${profile.org_id}` },
-        fetchLeads
-      )
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
   }, [profile, fetchLeads])
+
+  useOrgLeadsRealtime(profile?.org_id, fetchLeads)
 
   useRestoreLeadBookingDraft(
     profile?.id,
