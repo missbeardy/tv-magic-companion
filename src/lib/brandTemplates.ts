@@ -70,7 +70,7 @@ export const SMS_TEMPLATE_META: Record<
   },
   manager_alert: {
     label: 'Manager new-lead alert SMS',
-    description: 'WhatsApp/SMS to managers when an unassigned lead arrives (requires Manager New-Lead Alert switch).',
+    description: 'SMS to managers when an unassigned lead arrives (requires Manager New-Lead Alert switch).',
     placeholders: ['{{org.name}}', '{{leadName}}', '{{serviceType}}', '{{appUrl}}'],
   },
   customer_ontheway: {

@@ -3,7 +3,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import type { AuthContext } from '../api/_lib/auth'
 import { isFeatureEnabledForOrg } from '../api/_lib/featureSwitches'
 import { getSupabaseAdmin } from '../api/_lib/supabaseAdmin'
-import { sendTwilioSms } from '../api/_lib/twilioSend'
+import { sendOrgSms } from '../api/_lib/smsSend'
 import { handleSmsReply } from '../api/_lib/smsReply'
 
 vi.mock('../api/_lib/featureSwitches.js', () => ({
@@ -14,13 +14,13 @@ vi.mock('../api/_lib/supabaseAdmin.js', () => ({
   getSupabaseAdmin: vi.fn(),
 }))
 
-vi.mock('../api/_lib/twilioSend.js', () => ({
-  sendTwilioSms: vi.fn(),
+vi.mock('../api/_lib/smsSend.js', () => ({
+  sendOrgSms: vi.fn(),
 }))
 
 const mockFeature = vi.mocked(isFeatureEnabledForOrg)
 const mockAdmin = vi.mocked(getSupabaseAdmin)
-const mockSend = vi.mocked(sendTwilioSms)
+const mockSend = vi.mocked(sendOrgSms)
 
 function auth(orgId = 'org-a'): AuthContext {
   return {

@@ -1,4 +1,4 @@
-/** Format AU numbers for Twilio (E.164). */
+/** Format AU numbers as E.164 (+61…) for SMS. */
 export function formatAuPhoneForSms(phone: string): string {
   const digits = phone.replace(/\D/g, '')
   if (!digits) return phone.trim()

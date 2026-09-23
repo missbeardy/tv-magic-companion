@@ -1,7 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { buildEmployeeWhatsAppMessage } from './employeeWhatsAppTemplates.js'
 import { notifyOrgUser } from './notifyUser.js'
-import { sendEmployeeAlertWithSmsFallback } from './sendEmployeeAlert.js'
+import { sendEmployeeSms } from './sendEmployeeAlert.js'
 import { buildSmsFromBrand } from './smsTemplates.js'
 import { getPlatformUrl } from './platformUrl.js'
 
@@ -79,21 +78,9 @@ export async function notifyInboundAutoAssign(input: InboundAutoAssignNotifyInpu
     `${orgName}: You've been assigned {{leadName}} ({{serviceType}}). Open the app: {{appUrl}}`
   )
 
-  const whatsAppMessage = buildEmployeeWhatsAppMessage('tech_assignment', smsBody, {
-    orgName,
-    leadName,
-    serviceType,
-    appUrl: `${platformUrl}/leads`,
-  })
-
   try {
-    await sendEmployeeAlertWithSmsFallback({
-      toPhone: assignee.phone,
-      smsBody,
-      whatsAppMessage,
-      orgId,
-    })
+    await sendEmployeeSms(assignee.phone, smsBody, orgId)
   } catch (err) {
-    console.error('Inbound auto-assign WhatsApp failed (non-fatal):', err)
+    console.error('Inbound auto-assign SMS failed (non-fatal):', err)
   }
 }

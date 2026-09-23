@@ -19,7 +19,7 @@ import {
  * a notification that opens an empty board teaches people to ignore the notification.
  *
  * **In-app bell + push only.** Deliberately does NOT go through `notifyOrgUser`, which
- * fans out to SMS/WhatsApp for every `type` outside its two special cases. A weekly text
+ * fans out to SMS for every `type` outside its two special cases. A weekly text
  * to every technician is real money and real annoyance; this is a scoreboard, not a job.
  */
 

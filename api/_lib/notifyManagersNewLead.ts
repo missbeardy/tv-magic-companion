@@ -3,8 +3,8 @@ import { buildSmsFromBrand } from './smsTemplates.js'
 import { getPlatformUrl } from './platformUrl.js'
 import { OPERATIONAL_MANAGER_ROLES } from './managerRoles.js'
 import { isFeatureEnabledForOrg } from './featureSwitches.js'
-import { sendEmployeeAlertWithSmsFallback } from './sendEmployeeAlert.js'
-import { buildEmployeeWhatsAppMessage } from './employeeWhatsAppTemplates.js'
+import { sendEmployeeSms } from './sendEmployeeAlert.js'
+import { isOrgSmsReady } from './smsSend.js'
 import { sendPushToUsers } from './pushTransport.js'
 
 export interface NewLeadRecord {
@@ -15,7 +15,7 @@ export interface NewLeadRecord {
   status: string
 }
 
-/** Alert all managers in the lead's org: in-app bell + optional WhatsApp (SMS fallback). */
+/** Alert all managers in the lead's org: in-app bell + push + SMS (when the switch is on). */
 export async function notifyManagersNewLead(
   lead: NewLeadRecord
 ): Promise<{ notified: number; skipped?: string }> {
@@ -105,9 +105,8 @@ export async function notifyManagersNewLead(
     }
   }
 
-  const sid = process.env.TWILIO_ACCOUNT_SID
-  const token = process.env.TWILIO_AUTH_TOKEN
-  if (sid && token && alertsEnabled) {
+  // Provider-aware (T1.18): the org's own provider credentials + sender, not Twilio env alone.
+  if (alertsEnabled && (await isOrgSmsReady(lead.org_id))) {
     const message = buildSmsFromBrand(
       smsTemplates,
       'manager_alert',
@@ -123,23 +122,12 @@ export async function notifyManagersNewLead(
     for (const manager of managers) {
       if (!manager.phone) continue
       try {
-        const waMessage = buildEmployeeWhatsAppMessage('manager_alert', message, {
-          orgName,
-          leadName,
-          serviceType,
-          appUrl: `${platformUrl}/leads`,
-        })
-        const result = await sendEmployeeAlertWithSmsFallback({
-          toPhone: manager.phone,
-          smsBody: message,
-          whatsAppMessage: waMessage,
-          orgId: lead.org_id,
-        })
+        const result = await sendEmployeeSms(manager.phone, message, lead.org_id)
         if (!result.sent) {
           console.error(`Failed to send manager alert to ${manager.phone}:`, result.error ?? result.skipped)
         }
       } catch (err) {
-        console.error(`Failed to send manager alert WhatsApp to ${manager.phone}:`, err)
+        console.error(`Failed to send manager alert SMS to ${manager.phone}:`, err)
       }
     }
   }

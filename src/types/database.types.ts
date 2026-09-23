@@ -1266,6 +1266,7 @@ export type Database = {
           subscription_tier: string
           support_email: string | null
           sms_from_number: string | null
+          sms_provider: string
           support_phone: string | null
           timezone: string
           upsell_items: Json
@@ -1296,6 +1297,7 @@ export type Database = {
           service_types?: string[]
           slug: string
           sms_from_number?: string | null
+          sms_provider?: string
           stripe_connect_account_id?: string | null
           stripe_connect_status?: string | null
           stripe_customer_id?: string | null
@@ -1333,6 +1335,7 @@ export type Database = {
           service_types?: string[]
           slug?: string
           sms_from_number?: string | null
+          sms_provider?: string
           stripe_connect_account_id?: string | null
           stripe_connect_status?: string | null
           stripe_customer_id?: string | null

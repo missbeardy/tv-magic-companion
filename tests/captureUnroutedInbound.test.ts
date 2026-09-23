@@ -50,8 +50,7 @@ describe('captureUnroutedInbound', () => {
     })
     expect(mockSendAlert).toHaveBeenCalledWith(
       '+61400111222',
-      'Unrouted inbound sms — +61499999999 (no_mapping). Captured for review.',
-      { body: 'Unrouted inbound sms — +61499999999 (no_mapping). Captured for review.' }
+      'Unrouted inbound sms — +61499999999 (no_mapping). Captured for review.'
     )
   })
 

@@ -3,7 +3,7 @@ import type { AuthContext } from './auth.js'
 import { isFeatureEnabledForOrg } from './featureSwitches.js'
 import { formatAuPhoneForSms } from './phone.js'
 import { getSupabaseAdmin } from './supabaseAdmin.js'
-import { sendTwilioSms } from './twilioSend.js'
+import { sendOrgSms } from './smsSend.js'
 
 /** In-app technician reply. Server allows two_way_sms or customer_ontheway_sms. */
 export async function handleSmsReply(
@@ -42,7 +42,7 @@ export async function handleSmsReply(
     return res.status(400).json({ error: 'Lead has no phone number' })
   }
 
-  const result = await sendTwilioSms({ orgId: auth.orgId, to: lead.phone, body })
+  const result = await sendOrgSms({ orgId: auth.orgId, to: lead.phone, body })
   if (result.skipped === 'opted_out') {
     return res.status(403).json({ error: 'This number has opted out of SMS' })
   }
@@ -64,6 +64,7 @@ export async function handleSmsReply(
       manual: true,
       from_app: true,
       twilio_sid: result.sid ?? null,
+      sms_provider: result.provider ?? null,
     },
     created_by: auth.userId,
   })

@@ -42,7 +42,7 @@ export async function captureUnroutedInbound(
   const smsBody = `Unrouted inbound ${channel} — ${idLabel} (${reason}). Captured for review.`
 
   try {
-    const alertResult = await sendEmployeeAlertToPhone(alertPhone, smsBody, { body: smsBody })
+    const alertResult = await sendEmployeeAlertToPhone(alertPhone, smsBody)
     if (!alertResult.sent) {
       console.warn('[UNROUTED_ALERT_SKIPPED]', {
         channel,

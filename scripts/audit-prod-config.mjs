@@ -51,6 +51,20 @@ const REQUIRED_VERCEL_PROD = {
   TWILIO_AUTH_TOKEN: 'inbound SMS fails signature verification and every message is dropped',
 }
 
+/**
+ * Mobile Message (T1.18). Only required once some org has `sms_provider = 'mobilemessage'`
+ * — every org defaults to Twilio, so demanding these earlier would be a false alarm.
+ */
+const REQUIRED_WHEN_MOBILE_MESSAGE = {
+  MOBILE_MESSAGE_API_USERNAME: 'sends for Mobile Message orgs skip with "Mobile Message not configured"',
+  MOBILE_MESSAGE_API_PASSWORD: 'sends for Mobile Message orgs skip with "Mobile Message not configured"',
+  MOBILE_MESSAGE_WEBHOOK_SECRET:
+    '/api/inbound-sms?provider=mm rejects every webhook (503), so no inbound SMS creates a lead',
+}
+
+/** Org slugs on Mobile Message, filled by auditSupabase; null when the query could not run. */
+let mobileMessageOrgs = null
+
 const findings = []
 const notes = []
 const fail = (area, message, detail) => findings.push({ area, message, detail })
@@ -149,6 +163,22 @@ async function auditSupabase(token) {
     }
   }
 
+  // Read-only SELECT through the Management API. Before the T1.18 migration the column does
+  // not exist and this errors — that is a skip, not a finding.
+  try {
+    const res = await fetch(`https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: "select slug from public.orgs where sms_provider = 'mobilemessage' order by slug",
+      }),
+    })
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+    mobileMessageOrgs = (await res.json()).map((row) => row.slug)
+  } catch (err) {
+    note('sms-provider', `could not read orgs.sms_provider (${err.message}) — Mobile Message env check skipped`)
+  }
+
   const configured = new Set(secrets.map((s) => s.name))
   for (const ref of edgeFunctionEnvRefs()) {
     if (SUPABASE_INJECTED.has(ref)) continue
@@ -184,6 +214,18 @@ async function auditVercel(token) {
   for (const [key, consequence] of Object.entries(REQUIRED_VERCEL_PROD)) {
     if (!inProd.has(key)) {
       fail('vercel-env', `${key} is not set in Vercel production`, consequence)
+    }
+  }
+
+  if (mobileMessageOrgs?.length) {
+    for (const [key, consequence] of Object.entries(REQUIRED_WHEN_MOBILE_MESSAGE)) {
+      if (!inProd.has(key)) {
+        fail(
+          'vercel-env',
+          `${key} is not set in Vercel production, but ${mobileMessageOrgs.join(', ')} ${mobileMessageOrgs.length === 1 ? 'is' : 'are'} on Mobile Message`,
+          consequence
+        )
+      }
     }
   }
 }

@@ -1,6 +1,9 @@
 import { formatAuPhoneForSms } from './phone.js'
-import { isPhoneOptedOut } from './smsOptOut.js'
-import { getSupabaseAdmin } from './supabaseAdmin.js'
+
+/**
+ * Twilio transport. Org SMS goes through `sendOrgSms` in ./smsSend.ts, which picks Twilio or
+ * Mobile Message per `orgs.sms_provider` (T1.18) and calls `postTwilioSms` for Twilio orgs.
+ */
 
 export interface TwilioSendResult {
   sent: boolean
@@ -9,7 +12,11 @@ export interface TwilioSendResult {
   error?: string
 }
 
-async function postTwilioSms(from: string, to: string, body: string): Promise<TwilioSendResult> {
+export function isTwilioConfigured(): boolean {
+  return Boolean(process.env.TWILIO_ACCOUNT_SID?.trim() && process.env.TWILIO_AUTH_TOKEN?.trim())
+}
+
+export async function postTwilioSms(from: string, to: string, body: string): Promise<TwilioSendResult> {
   const sid = process.env.TWILIO_ACCOUNT_SID
   const token = process.env.TWILIO_AUTH_TOKEN
   if (!sid || !token) {
@@ -40,33 +47,10 @@ async function postTwilioSms(from: string, to: string, body: string): Promise<Tw
   }
 }
 
-/** Customer/employee SMS from the org's own sender. No env-var fallback. */
-export async function sendTwilioSms(input: {
-  orgId: string
-  to: string
-  body: string
-}): Promise<TwilioSendResult> {
-  const supabase = getSupabaseAdmin()
-  if (!supabase) return { sent: false, error: 'Server not configured' }
-
-  const { data: org } = await supabase
-    .from('orgs')
-    .select('sms_from_number')
-    .eq('id', input.orgId)
-    .maybeSingle()
-
-  const from = (org?.sms_from_number as string | null | undefined)?.trim()
-  if (!from) return { sent: false, skipped: 'no_sender_number' }
-
-  const to = formatAuPhoneForSms(input.to)
-  if (await isPhoneOptedOut(supabase, input.orgId, to)) {
-    return { sent: false, skipped: 'opted_out' }
-  }
-
-  return postTwilioSms(from, to, input.body)
-}
-
-/** Platform-only alerts (PLATFORM_ALERT_PHONE). Uses TWILIO_FROM_NUMBER. */
+/**
+ * Platform-only alerts (PLATFORM_ALERT_PHONE). Uses TWILIO_FROM_NUMBER.
+ * Stays on Twilio for now (T1.18): it has no org, so no `orgs.sms_provider` to read.
+ */
 export async function sendPlatformSms(input: {
   to: string
   body: string

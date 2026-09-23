@@ -104,7 +104,7 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   },
   inbound_sms: {
     label: 'Inbound SMS Leads',
-    description: 'Create leads from inbound Twilio SMS webhooks',
+    description: 'Create leads from inbound SMS webhooks (Twilio or Mobile Message)',
   },
   inbound_email: {
     label: 'Inbound Email Leads',

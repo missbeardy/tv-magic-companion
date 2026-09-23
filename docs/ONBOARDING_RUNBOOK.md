@@ -9,7 +9,9 @@
 ## Before the session (owner, ~30 min)
 
 1. **Comms plumbing** (the only genuinely fiddly part):
-   - Buy an AU **Twilio number** for the org; point its SMS webhook at `POST /api/inbound-sms` on prod. Map number → org in the **`org_phone_numbers`** table **and** set the same E.164 value as **`orgs.sms_from_number`** (no admin UI yet — deliberate; do it in SQL via the Management-API flow). Customer/employee SMS has no env-var fallback.
+   - Get the org an AU SMS number. The provider is per org in **`orgs.sms_provider`** (`twilio` default, or `mobilemessage` — T1.18, the cheaper Australian provider we are moving to). Map number → org in the **`org_phone_numbers`** table **and** set the same E.164 value as **`orgs.sms_from_number`** (no admin UI yet — deliberate; do it in SQL via the Management-API flow). Customer/employee SMS has no env-var fallback.
+     - **Mobile Message:** a dedicated number from the dashboard, then `sms_provider = 'mobilemessage'`. The account-wide webhooks are already set (inbound `…/api/inbound-sms?provider=mm`, status `…/api/inbound-sms?provider=mm&kind=status`, signed with `MOBILE_MESSAGE_WEBHOOK_SECRET`), so a new number needs no webhook setup.
+     - **Twilio (legacy, until it is closed):** buy an AU number and point its SMS webhook at `POST /api/inbound-sms`.
    - **CloudMailin inbound email**: give the org its plus-tag address (routing via `resolveOrgFromInboundEmail`); if they want voicemail/missed-call capture, point their phone system's voicemail-to-email at it.
    - Unmapped inbound doesn't vanish — it lands in `unrouted_inbound` with an alert — but map first anyway.
 2. **Stripe**: nothing to pre-create for job payments (Connect onboarding is done by the customer in-session below). For *their subscription*, decide manual tier vs Stripe checkout.
@@ -19,7 +21,7 @@
 
 ### 1. Provision (Platform Admin, `/platform`)
 - Create the org under the right **brand** (or create a brand first if this is a new look), set **tier**, set **operation_mode = solo** (or team).
-- Tick **Apply solo tradie wedge preset** on create (writes org-level switch overrides: inbound, ack, quotes, booking, invoice, review, tips). Or set Inherit/On/Off per org under Platform feature switches. Each org also needs a Twilio number on `org_phone_numbers` **and** `orgs.sms_from_number`.
+- Tick **Apply solo tradie wedge preset** on create (writes org-level switch overrides: inbound, ack, quotes, booking, invoice, review, tips). Or set Inherit/On/Off per org under Platform feature switches. Each org also needs an SMS number (Twilio or Mobile Message, per `orgs.sms_provider`) on `org_phone_numbers` **and** `orgs.sms_from_number`.
 - **Brand templates** (Platform Admin → template editor): walk every SMS/email template with them — ack copy + callback SLA, booking confirm, day-before reminder, chase ladders, review request. This copy *is* their customer experience; don't ship defaults unread.
 
 ### 2. Business settings (Franchise Settings, as the customer)
@@ -36,7 +38,7 @@
 
 ### 4. Prove it end-to-end (10 min, do not skip)
 Run the pipeline once with their real number before you leave:
-1. Text their Twilio number from your phone → lead appears <5s, **ack SMS** received, their phone gets the manager alert.
+1. Text their SMS number from your phone → lead appears <5s, **ack SMS** received, their phone gets the manager alert.
 2. Ring and hang up (if missed-call path configured) → hookback SMS.
 3. Tap the lead → call → quote via price-list chip → you e-sign on your phone → book it → you receive the confirmation SMS + `.ics`.
 4. Complete the job → invoice email arrives (Tax Invoice correctness: ABN/GST) → Pay Now if Connect was set up → review-request SMS.

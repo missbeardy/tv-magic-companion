@@ -37,15 +37,9 @@ import {
 } from './_lib/cronActions.js'
 import { notifyOrgUser } from './_lib/notifyUser.js'
 import { handlePushRotate, handlePushSend } from './_lib/pushEndpoints.js'
-import { sendEmployeeAlertWithSmsFallback } from './_lib/sendEmployeeAlert.js'
+import { sendEmployeeSms } from './_lib/sendEmployeeAlert.js'
 import { handleSmsReply } from './_lib/smsReply.js'
-import { sendTwilioSms } from './_lib/twilioSend.js'
-import {
-  buildEmployeeWhatsAppMessage,
-  getEmployeeWhatsAppContentSid,
-  isStaticAssignmentWhatsAppTemplate,
-  whatsAppTemplateKeyForMode,
-} from './_lib/employeeWhatsAppTemplates.js'
+import { isOrgSmsReady, sendOrgSms } from './_lib/smsSend.js'
 
 /** True if `to` belongs to a lead or customer in the caller's org. */
 async function phoneBelongsToOrg(to: string, orgId: string): Promise<boolean> {
@@ -124,7 +118,7 @@ function isSameOriginRelativePath(url: string): boolean {
 }
 
 /**
- * Notify a user inside the caller's org (in-app bell + OneSignal + WhatsApp).
+ * Notify a user inside the caller's org (in-app bell + push + SMS).
  */
 async function handleNotify(req: VercelRequest, res: VercelResponse, auth: AuthContext) {
   const { userId, title, message, url, type, leadId } = req.body as {
@@ -176,10 +170,9 @@ async function handleNotify(req: VercelRequest, res: VercelResponse, auth: AuthC
   return res.status(200).json({
     success: true,
     alert: result.alert,
-    whatsapp: result.alert,
     note:
       type === 'lead_assigned'
-        ? 'In-app notification only; assignment WhatsApp is sent separately via tech_assignment.'
+        ? 'In-app notification only; the assignment SMS is sent separately via tech_assignment.'
         : undefined,
   })
 }
@@ -939,12 +932,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  if (isInternalMode) {
-    const sid = process.env.TWILIO_ACCOUNT_SID
-    const token = process.env.TWILIO_AUTH_TOKEN
-    if (!sid || !token) {
-      return res.status(500).json({ error: 'Twilio env vars not configured' })
-    }
+  // Provider-aware (T1.18): the org's own SMS provider must have credentials + a sender.
+  if (isInternalMode && !(await isOrgSmsReady(auth.orgId))) {
+    return res.status(500).json({ error: 'SMS provider not configured for this organisation' })
   }
 
   const orgName = auth.org.name
@@ -1035,55 +1025,17 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (isInternalMode) {
-    const templateKey = whatsAppTemplateKeyForMode(mode!)
-    const waMessage = templateKey
-      ? buildEmployeeWhatsAppMessage(templateKey, message, {
-          orgName,
-          leadName: leadName ?? '',
-          serviceType: serviceType ?? '',
-          managerName: managerName ?? '',
-          dateTime: dateTime ?? '',
-          appUrl:
-            mode === 'booking_scheduled'
-              ? `${platformUrl}/calendar`
-              : `${platformUrl}/leads`,
-        })
-      : { body: message }
-    const result = await sendEmployeeAlertWithSmsFallback({
-      toPhone: smsTo,
-      smsBody: message,
-      whatsAppMessage: waMessage,
-      orgId: auth.orgId,
-    })
+    const result = await sendEmployeeSms(smsTo, message, auth.orgId)
     if (result.skipped && !result.sent) {
       return res.status(503).json({ error: result.skipped })
     }
     if (!result.sent) {
-      return res.status(502).json({
-        error: result.error ?? 'Failed to send employee alert',
-        code: result.code,
-        staticTemplateEnabled:
-          mode === 'tech_assignment' && isStaticAssignmentWhatsAppTemplate(),
-        envAssignmentTemplateSid:
-          mode === 'tech_assignment'
-            ? getEmployeeWhatsAppContentSid('tech_assignment')
-            : undefined,
-      })
+      return res.status(502).json({ error: result.error ?? 'Failed to send employee alert' })
     }
-    return res.status(200).json({
-      success: true,
-      channel: result.channel ?? 'sms',
-      sid: result.sid,
-      usedTemplate: Boolean(waMessage.contentSid) && result.channel === 'whatsapp',
-      staticTemplate: mode === 'tech_assignment' && isStaticAssignmentWhatsAppTemplate(),
-      envAssignmentTemplateSid:
-        mode === 'tech_assignment'
-          ? getEmployeeWhatsAppContentSid('tech_assignment')
-          : undefined,
-    })
+    return res.status(200).json({ success: true, channel: 'sms', sid: result.sid })
   }
 
-  const sendResult = await sendTwilioSms({ orgId: auth.orgId, to: smsTo, body: message })
+  const sendResult = await sendOrgSms({ orgId: auth.orgId, to: smsTo, body: message })
   if (sendResult.skipped === 'opted_out') {
     return res.status(403).json({ error: 'This number has opted out of SMS' })
   }
@@ -1091,8 +1043,8 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(503).json({ error: 'No SMS sender number configured for this organisation' })
   }
   if (!sendResult.sent) {
-    console.error('Twilio error:', sendResult)
-    return res.status(502).json({ error: sendResult.error ?? 'Twilio rejected the request' })
+    console.error('SMS provider error:', sendResult)
+    return res.status(502).json({ error: sendResult.error ?? 'SMS provider rejected the request' })
   }
 
   if (mode === 'review_request' && leadId) {

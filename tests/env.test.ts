@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { missingServerEnv } from '../api/_lib/env'
+import { missingMobileMessageEnv, missingServerEnv } from '../api/_lib/env'
 
 const ALL_VARS = {
   SUPABASE_URL: 'https://example.supabase.co',
@@ -53,5 +53,22 @@ describe('missingServerEnv', () => {
     vi.stubEnv('RESEND_API_KEY', '   ')
 
     expect(missingServerEnv()).toEqual(['RESEND_API_KEY'])
+  })
+})
+
+describe('missingMobileMessageEnv', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('lists unset Mobile Message vars, which are not in the always-required list', () => {
+    vi.stubEnv('MOBILE_MESSAGE_API_USERNAME', 'user')
+    vi.stubEnv('MOBILE_MESSAGE_API_PASSWORD', '  ')
+    vi.stubEnv('MOBILE_MESSAGE_WEBHOOK_SECRET', '')
+    expect(missingMobileMessageEnv()).toEqual([
+      'MOBILE_MESSAGE_API_PASSWORD',
+      'MOBILE_MESSAGE_WEBHOOK_SECRET',
+    ])
+    expect(missingServerEnv()).not.toContain('MOBILE_MESSAGE_WEBHOOK_SECRET')
   })
 })

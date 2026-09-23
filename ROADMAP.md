@@ -174,6 +174,46 @@
 - **Feature switch:** none — an org-management primitive and a data-correctness fix, not rollout-gated behaviour, and it has no meaningful "off" state. Asked and answered before code per the standing convention; consistent with `dd19` (cut the catalog from 34 toward 12) rather than adding a 35th key.
 - **Done when:** marking someone departed removes them from routing, manager alerts, pickers and the current leaderboard and signs them out; their past leads, events and leaderboard weeks remain visible to a manager and labelled as departed; Mitch Singe is `departed_at`-marked, no longer a test profile, and Nick can see his history; and `is_hidden_test_profile` means only "test account" again, consistently across auto-assign **and** manager alerts.
 
+### [ ] T1.18 Move SMS from Twilio to Mobile Message (added 23-09-2026, owner request — cost; Australian provider)
+
+- **Why:** Cost, not reliability. Measured from the Twilio usage API 23-09-2026: August cost **US$52.48** (380 outbound messages = ~807 billed segments at US$0.0515, since messages average 1.9 segments; 80 inbound at ~US$0.019; AU mobile number US$8.25/mo; an idle US demo number `+12174077667` at US$1.15/mo). Mobile Message (mobilemessage.com.au) charges 3.5–4¢ AUD ex GST per 160-char segment, with free inbound, a free first dedicated number and no monthly fee. The same August would have cost ~A$28–32 against ~A$80 on Twilio, saving about **A$550–600 a year**. Everything the app uses Twilio for, it covers: sending from a per-org number, inbound webhooks carrying `to` (so `org_phone_numbers` routing survives), HMAC-signed webhooks, and delivery receipts. It is AU-only and has no WhatsApp, and neither matters here. **The number cannot be ported** (owner confirmed 23-09-2026). A new dedicated number is acceptable because `+61468050366` is only used by TV Magic.
+- **Spec:**
+  - **Outbound:** `api/_lib/twilioSend.ts` becomes a provider-neutral `smsSend.ts`. It keeps the opt-out check and `orgs.sms_from_number` lookup and dispatches to `POST https://api.mobilemessage.com.au/v1/messages` (Basic auth, `sender` = the org's dedicated number) or to the Twilio path.
+    - Always send `enable_unicode: true`. Without it, Mobile Message **silently strips** emoji and smart quotes.
+    - Send an `Idempotency-Key`.
+    - Direct Twilio callers (`notifyManagersNewLead.ts`, `send-sms.ts` internal modes, `sendBrandedSms`, `smsReply`) route through it.
+  - **Inbound:** Mobile Message posts JSON to one account-wide URL, and the Vercel 12-function cap is near. So this is `?provider=mm` on the existing `api/inbound-sms.ts` hub, not a new function. Handling:
+    - Verify `X-MM-Signature` (hex HMAC-SHA256 of `{X-MM-Timestamp}.{raw body}`, timing-safe, with a freshness window) over the raw bytes.
+    - Return 2xx within 5s. The existing ack-then-`waitUntil` pattern already does this.
+    - Dedupe on sender + `received_at` + body, because Mobile Message retries on timeout.
+    - `type: "unsubscribe"` payloads write to our own opt-out table, so both lists agree.
+    - The Twilio path stays live **for ~30 days** so the old number keeps creating leads during the changeover.
+  - **Rewire to the new signer:** `inboundProbe.ts` and `platformSimulateInbound.ts`.
+  - **Data:** the `twilio_sid` columns keep their name and store the Mobile Message `message_id`. A rename is a prod migration with no user value (see prod schema drift).
+  - **Delete employee WhatsApp** (owner decision 23-09-2026): `sendEmployeeWhatsApp.ts`, `employeeWhatsAppTemplates.ts`, their tests, the `EMPLOYEE_WHATSAPP_ENABLED` kill switch, the `TWILIO_WHATSAPP_*` env vars, and the WhatsApp branch of `sendEmployeeAlert`/`notifyUser`. It has been kill-switched off, and it is the only thing that would keep a Twilio account alive.
+  - **Also update:** privacy-policy subprocessor list (Twilio → Mobile Message), `.env.example`, `scripts/audit-prod-config.mjs`, and the Twilio diagnostics runbook.
+- **Feature switch:** none (owner decision 23-09-2026, asked before code). Instead there is a **per-org provider column**, `orgs.sms_provider text NOT NULL DEFAULT 'twilio' CHECK (sms_provider IN ('twilio','mobilemessage'))`, added as an additive migration. The default keeps every org on Twilio, so deploying changes nothing. This replaces the global `SMS_PROVIDER` env var first proposed, because the owner wants to **prove it on another account before TV Magic moves** (23-09-2026). A column lets one prod org run on Mobile Message while TV Magic stays on Twilio. Rollback is one `UPDATE`. It is not a brand feature switch, so it is consistent with `dd19`. Inbound needs no gate: each provider's webhook only fires for that provider's numbers and routes by `to` through `org_phone_numbers`.
+- **Test plan (before TV Magic is touched):**
+  1. **No sandbox** (owner decision 23-09-2026). Unit tests mock `fetch`, and webhook signature tests use the documented test vector: secret `abc123`, timestamp `1754640000`, body `{"test":1}` gives `52344b95…1efb`. Live testing uses the 50 free signup credits plus the first purchase, which is 1.6¢ per credit at any tier within 30 days of signup and is what unlocks the free dedicated number. Previews point at prod Supabase as of 22-09-2026, so test against the `fbd` org, not TV Magic.
+  2. **Live, on the FieldBourne Digital org (`fbd`, prod):** attach the new dedicated number to `fbd` (`org_phone_numbers`, `sms_from_number`, `sms_provider='mobilemessage'`). Then run the Done-when list with real phones: outbound with emoji, inbound creating a lead in `fbd`, a forged webhook rejected, STOP opt-out, and the synthetic probe.
+  3. **Move the same number to TV Magic** by repointing those three fields from `fbd` to `default`. This needs no second number (only the first is free) and no re-registration, so the number TV Magic goes live on is the one already proven.
+- **Cutover (owner + ops, in order):**
+  1. Buy credits (500 minimum) and get the free dedicated number.
+  2. Set the Mobile Message inbound and status webhook URLs and signing secret.
+  3. Complete the test plan above on `fbd`.
+  4. Repoint the number to TV Magic (`default`): `org_phone_numbers`, `sms_from_number`, `sms_provider='mobilemessage'`. The old Twilio DID stays in `org_phone_numbers` for TV Magic, so its inbound keeps working.
+  5. Move the number on the website form forwarder (`+61480437390` source), the Google Business listing and any ads.
+  6. After ~30 days with no traffic on the old number, release `+61468050366`, remove the Twilio inbound path and env vars, and close the account. The ~US$48 remaining Twilio balance is written off.
+  7. Release `+12174077667` now, independent of this item.
+- **Done when:**
+  - An on-the-way SMS, a quote SMS, a manager new-lead alert and a lead reply all arrive from the new number with emoji intact.
+  - A text to the new number creates a lead in the right org, and a forged or stale-timestamp webhook is rejected.
+  - A retried webhook creates one lead, not two.
+  - "STOP" to the new number blocks further sends in-app.
+  - The old number still creates leads until it is released.
+  - The synthetic inbound probe passes against the Mobile Message path.
+  - No WhatsApp code or `TWILIO_WHATSAPP_*` reference remains.
+
 ---
 
 ## Tier 2 — Before marketing to strangers

@@ -1,153 +1,70 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import {
-  sendEmployeeAlertWithSmsFallback,
-  sendEmployeeSms,
-} from '../api/_lib/sendEmployeeAlert'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-describe('sendEmployeeAlert', () => {
-  const env = process.env
+// Employee alerts are SMS-only since T1.18 deleted employee WhatsApp. Both transports are
+// mocked, so nothing here can reach Twilio or Mobile Message.
+vi.mock('../api/_lib/smsSend.js', () => ({
+  sendOrgSms: vi.fn(),
+}))
+vi.mock('../api/_lib/twilioSend.js', () => ({
+  sendPlatformSms: vi.fn(),
+}))
 
+import { sendEmployeeAlertToPhone, sendEmployeeSms } from '../api/_lib/sendEmployeeAlert'
+import { sendOrgSms } from '../api/_lib/smsSend'
+import { sendPlatformSms } from '../api/_lib/twilioSend'
+
+const mockOrgSms = vi.mocked(sendOrgSms)
+const mockPlatformSms = vi.mocked(sendPlatformSms)
+
+describe('sendEmployeeSms', () => {
   beforeEach(() => {
-    process.env = { ...env }
-    process.env.TWILIO_ACCOUNT_SID = 'ACtest'
-    process.env.TWILIO_AUTH_TOKEN = 'token'
-    process.env.TWILIO_FROM_NUMBER = '+611300000000'
-    process.env.TWILIO_WHATSAPP_FROM = 'whatsapp:+14155238886'
-    // WhatsApp is off by default in production (kill switch); these tests
-    // exercise the WhatsApp/SMS-fallback logic itself, so opt back in here.
-    process.env.EMPLOYEE_WHATSAPP_ENABLED = 'true'
+    vi.clearAllMocks()
   })
 
-  afterEach(() => {
-    process.env = env
-    vi.restoreAllMocks()
-    vi.useRealTimers()
+  it('sends from the org number via the org provider when an org is given', async () => {
+    mockOrgSms.mockResolvedValue({ sent: true, sid: 'mm-uuid', provider: 'mobilemessage' })
+
+    const result = await sendEmployeeSms('0412345678', 'New lead', 'org-a')
+    expect(result).toEqual({ sent: true, channel: 'sms', sid: 'mm-uuid' })
+    expect(mockOrgSms).toHaveBeenCalledWith({ orgId: 'org-a', to: '0412345678', body: 'New lead' })
+    expect(mockPlatformSms).not.toHaveBeenCalled()
   })
 
-  it('sends SMS when WhatsApp is not configured', async () => {
-    delete process.env.TWILIO_WHATSAPP_FROM
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ sid: 'SMsms' }),
-    })
-    vi.stubGlobal('fetch', fetchMock)
+  it('uses the platform sender when there is no org', async () => {
+    mockPlatformSms.mockResolvedValue({ sent: true, sid: 'SMplat' })
 
-    const result = await sendEmployeeAlertWithSmsFallback({
-      toPhone: '0412 345 678',
-      smsBody: 'New lead alert',
-      whatsAppMessage: { body: 'New lead alert' },
-    })
-
-    expect(result.sent).toBe(true)
-    expect(result.channel).toBe('sms')
-    expect(result.sid).toBe('SMsms')
-    expect(fetchMock).toHaveBeenCalledOnce()
-    const body = (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string
-    expect(body).toContain('Body=New+lead+alert')
-    expect(body).not.toContain('whatsapp')
+    const result = await sendEmployeeSms('0412345678', 'Probe failed')
+    expect(result).toEqual({ sent: true, channel: 'sms', sid: 'SMplat' })
+    expect(mockOrgSms).not.toHaveBeenCalled()
   })
 
-  it('uses WhatsApp when configured and does not send SMS', async () => {
-    vi.useFakeTimers()
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ sid: 'SMwa' }) })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'delivered', sid: 'SMwa' }) })
-    vi.stubGlobal('fetch', fetchMock)
-
-    const resultPromise = sendEmployeeAlertWithSmsFallback({
-      toPhone: '0412 345 678',
-      smsBody: 'New lead alert',
-      whatsAppMessage: { body: 'New lead alert' },
-    })
-    await vi.advanceTimersByTimeAsync(5000)
-    const result = await resultPromise
-
-    expect(result.sent).toBe(true)
-    expect(result.channel).toBe('whatsapp')
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    const body = (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string
-    expect(body).toContain('whatsapp')
+  it('reports a missing org sender as "SMS not configured"', async () => {
+    mockOrgSms.mockResolvedValue({ sent: false, skipped: 'no_sender_number', provider: 'twilio' })
+    const result = await sendEmployeeSms('0412345678', 'Hi', 'org-a')
+    expect(result).toEqual({ sent: false, skipped: 'SMS not configured' })
   })
 
-  it('falls back to SMS when WhatsApp is accepted by Twilio but fails delivery (e.g. Meta account suspended)', async () => {
-    vi.useFakeTimers()
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ sid: 'SMghost' }) })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ status: 'failed', error_code: 63024, error_message: 'Channel policy violation' }),
-      })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ sid: 'SMfallback2' }) })
-    vi.stubGlobal('fetch', fetchMock)
+  it('passes provider errors through', async () => {
+    mockOrgSms.mockResolvedValue({ sent: false, error: 'Insufficient credits', provider: 'mobilemessage' })
+    const result = await sendEmployeeSms('0412345678', 'Hi', 'org-a')
+    expect(result).toEqual({ sent: false, skipped: undefined, error: 'Insufficient credits' })
+  })
+})
 
-    const resultPromise = sendEmployeeAlertWithSmsFallback({
-      toPhone: '0412 345 678',
-      smsBody: 'New lead alert',
-      whatsAppMessage: { body: 'New lead alert' },
-    })
-    await vi.advanceTimersByTimeAsync(5000)
-    const result = await resultPromise
-
-    expect(result.sent).toBe(true)
-    expect(result.channel).toBe('sms')
-    expect(result.sid).toBe('SMfallback2')
-    expect(fetchMock).toHaveBeenCalledTimes(3)
+describe('sendEmployeeAlertToPhone', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
   })
 
-  it('falls back to SMS when WhatsApp fails', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({
-        ok: false,
-        json: async () => ({ message: 'Template error', code: 63016 }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ sid: 'SMfallback' }),
-      })
-    vi.stubGlobal('fetch', fetchMock)
-
-    const result = await sendEmployeeAlertWithSmsFallback({
-      toPhone: '0412 345 678',
-      smsBody: 'Fallback body',
-      whatsAppMessage: { body: 'Fallback body', contentSid: 'HXtest' },
-    })
-
-    expect(result.sent).toBe(true)
-    expect(result.channel).toBe('sms')
-    expect(result.sid).toBe('SMfallback')
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+  it('skips a profile with no phone', async () => {
+    const result = await sendEmployeeAlertToPhone('  ', 'Hi', 'org-a')
+    expect(result).toEqual({ sent: false, skipped: 'No phone on profile' })
+    expect(mockOrgSms).not.toHaveBeenCalled()
   })
 
-  it('skips WhatsApp and goes straight to SMS when EMPLOYEE_WHATSAPP_ENABLED is unset (kill switch)', async () => {
-    delete process.env.EMPLOYEE_WHATSAPP_ENABLED
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ sid: 'SMkillswitch' }),
-    })
-    vi.stubGlobal('fetch', fetchMock)
-
-    const result = await sendEmployeeAlertWithSmsFallback({
-      toPhone: '0412 345 678',
-      smsBody: 'New lead alert',
-      whatsAppMessage: { body: 'New lead alert' },
-    })
-
-    expect(result.sent).toBe(true)
-    expect(result.channel).toBe('sms')
-    expect(fetchMock).toHaveBeenCalledOnce()
-    const body = (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string
-    expect(body).not.toContain('whatsapp')
-  })
-
-  it('skips SMS when TWILIO_FROM_NUMBER missing', async () => {
-    delete process.env.TWILIO_WHATSAPP_FROM
-    delete process.env.TWILIO_FROM_NUMBER
-
-    const result = await sendEmployeeSms('0412345678', 'Hello')
-    expect(result.sent).toBe(false)
-    expect(result.skipped).toMatch(/not configured/i)
+  it('never throws', async () => {
+    mockOrgSms.mockRejectedValue(new Error('boom'))
+    const result = await sendEmployeeAlertToPhone('0412345678', 'Hi', 'org-a')
+    expect(result).toEqual({ sent: false, error: 'Failed to send SMS' })
   })
 })

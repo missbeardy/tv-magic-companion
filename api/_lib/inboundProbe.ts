@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { randomUUID } from 'crypto'
 import { computeTwilioSignature } from './twilioSignature.js'
+import { computeMobileMessageSignature, toMobileMessageNumber } from './mobileMessage.js'
+import { loadOrgSmsConfig, type SmsProvider } from './smsSend.js'
 import { getPlatformUrl } from './platformUrl.js'
 import { sendEmployeeAlertToPhone } from './sendEmployeeAlert.js'
 import { captureServerException } from './sentry.js'
@@ -37,8 +39,9 @@ export const INBOUND_PROBE_ECHO_KEY = 'inbound_probe_echo'
  * What this probe does and does not prove, kept next to the code so it cannot quietly
  * drift into being trusted for more than it checks.
  *
- * Covers: DNS/TLS/routing to the deployed function, the raw-body read, the rate limiter,
- * Twilio signature verification against the live TWILIO_AUTH_TOKEN, and — the point of the
+ * Covers: DNS/TLS/routing to the deployed function, the raw-body read, the rate limiter
+ * (Twilio path), signature verification against the live TWILIO_AUTH_TOKEN or — for an org
+ * on Mobile Message (T1.18) — MOBILE_MESSAGE_WEBHOOK_SECRET, and — the point of the
  * exercise — that work scheduled after the response is flushed actually runs and reaches
  * Supabase.
  *
@@ -109,18 +112,96 @@ async function readEchoNonce(supabase: SupabaseClient): Promise<string | null> {
   return result?.nonce ?? null
 }
 
-/** The DID to address the probe at — a real mapped number, so the request looks real. */
-async function resolveProbeDid(supabase: SupabaseClient): Promise<string | null> {
+/**
+ * The DID to address the probe at — a real mapped number, so the request looks real — and
+ * which provider's webhook to impersonate (T1.18). The provider is `INBOUND_PROBE_PROVIDER`
+ * when set, otherwise the `orgs.sms_provider` of the org that owns the DID.
+ */
+async function resolveProbeTarget(
+  supabase: SupabaseClient
+): Promise<{ did: string; provider: SmsProvider } | null> {
+  const override = process.env.INBOUND_PROBE_PROVIDER?.trim()
   const configured = process.env.INBOUND_PROBE_DID?.trim()
-  if (configured) return configured
 
-  const { data } = await supabase
-    .from('org_phone_numbers')
-    .select('phone_number')
-    .order('phone_number', { ascending: true })
-    .limit(1)
-    .maybeSingle()
-  return (data?.phone_number as string | undefined)?.trim() || null
+  let did: string | null = configured || null
+  let orgId: string | null = null
+  if (!did) {
+    const { data } = await supabase
+      .from('org_phone_numbers')
+      .select('phone_number, org_id')
+      .order('phone_number', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    did = (data?.phone_number as string | undefined)?.trim() || null
+    orgId = (data?.org_id as string | undefined) ?? null
+  }
+  if (!did) return null
+
+  let provider: SmsProvider = 'twilio'
+  if (override === 'twilio' || override === 'mobilemessage') provider = override
+  else if (orgId) provider = (await loadOrgSmsConfig(supabase, orgId)).provider
+  return { did, provider }
+}
+
+interface SignedProbeRequest {
+  url: string
+  headers: Record<string, string>
+  body: string
+}
+
+/** A Twilio webhook, signed over the URL + sorted params with TWILIO_AUTH_TOKEN. */
+function buildTwilioProbe(platformUrl: string, did: string, nonce: string): SignedProbeRequest | null {
+  const authToken = process.env.TWILIO_AUTH_TOKEN?.trim()
+  if (!authToken) return null
+
+  // Note this must be the host Twilio itself dials: the signature is computed over the
+  // URL, and the handler reconstructs it from the Host header it receives. PLATFORM_URL is
+  // set in production, so getPlatformUrl() does not fall through to the per-deployment
+  // VERCEL_URL, which would sign a URL the alias never sees.
+  const params: Record<string, string> = {
+    Body: `${INBOUND_PROBE_MARKER} ${nonce}`,
+    From: '+61400000009',
+    To: did,
+  }
+  const url = `${platformUrl}/api/inbound-sms`
+  return {
+    url,
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'x-twilio-signature': computeTwilioSignature(url, params, authToken),
+    },
+    body: new URLSearchParams(params).toString(),
+  }
+}
+
+/** A Mobile Message inbound webhook, HMAC-signed over `${timestamp}.${rawBody}`. */
+function buildMobileMessageProbe(
+  platformUrl: string,
+  did: string,
+  nonce: string
+): SignedProbeRequest | null {
+  const secret = process.env.MOBILE_MESSAGE_WEBHOOK_SECRET?.trim()
+  if (!secret) return null
+
+  const body = JSON.stringify({
+    to: toMobileMessageNumber(did),
+    message: `${INBOUND_PROBE_MARKER} ${nonce}`,
+    sender: toMobileMessageNumber('+61400000009'),
+    received_at: new Date().toISOString().replace('T', ' ').slice(0, 19),
+    type: 'inbound',
+    original_message_id: '',
+    original_custom_ref: '',
+  })
+  const timestamp = String(Math.floor(Date.now() / 1000))
+  return {
+    url: `${platformUrl}/api/inbound-sms?provider=mm`,
+    headers: {
+      'Content-Type': 'application/json',
+      'x-mm-timestamp': timestamp,
+      'x-mm-signature': computeMobileMessageSignature(secret, timestamp, body),
+    },
+    body,
+  }
 }
 
 /**
@@ -140,7 +221,7 @@ async function alertOnTransition(
 
   const body = `Inbound SMS probe FAILED: ${failure}. Inbound leads are probably not being saved.`
   try {
-    const result = await sendEmployeeAlertToPhone(alertPhone, body, { body })
+    const result = await sendEmployeeAlertToPhone(alertPhone, body)
     return result.sent === true
   } catch (err) {
     console.error('[INBOUND_PROBE_ALERT_FAILED]', err)
@@ -161,38 +242,33 @@ export async function runInboundProbe(
   const echoTimeoutMs = options.echoTimeoutMs ?? ECHO_TIMEOUT_MS
   const echoPollMs = options.echoPollMs ?? ECHO_POLL_MS
 
-  const authToken = process.env.TWILIO_AUTH_TOKEN?.trim()
-  if (!authToken) return { ok: true, skipped: 'no_twilio_auth_token' }
-
-  // Note this must be the host Twilio itself dials: the signature is computed over the
-  // URL, and the handler reconstructs it from the Host header it receives. PLATFORM_URL is
-  // set in production, so getPlatformUrl() does not fall through to the per-deployment
-  // VERCEL_URL, which would sign a URL the alias never sees.
-  const platformUrl = getPlatformUrl()
-
-  const did = await resolveProbeDid(supabase)
-  if (!did) return { ok: true, skipped: 'no_mapped_did' }
-
-  const nonce = randomUUID()
-  const params: Record<string, string> = {
-    Body: `${INBOUND_PROBE_MARKER} ${nonce}`,
-    From: '+61400000009',
-    To: did,
+  const target = await resolveProbeTarget(supabase)
+  if (!target) {
+    if (!process.env.TWILIO_AUTH_TOKEN?.trim()) return { ok: true, skipped: 'no_twilio_auth_token' }
+    return { ok: true, skipped: 'no_mapped_did' }
   }
 
-  const webhookUrl = `${platformUrl.replace(/\/$/, '')}/api/inbound-sms`
-  const signature = computeTwilioSignature(webhookUrl, params, authToken)
+  const platformUrl = getPlatformUrl().replace(/\/$/, '')
+  const nonce = randomUUID()
+  const request =
+    target.provider === 'mobilemessage'
+      ? buildMobileMessageProbe(platformUrl, target.did, nonce)
+      : buildTwilioProbe(platformUrl, target.did, nonce)
+  if (!request) {
+    return {
+      ok: true,
+      skipped:
+        target.provider === 'mobilemessage' ? 'no_mobile_message_webhook_secret' : 'no_twilio_auth_token',
+    }
+  }
 
   const started = Date.now()
   let postStatus: number
   try {
-    const res = await fetch(webhookUrl, {
+    const res = await fetch(request.url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'x-twilio-signature': signature,
-      },
-      body: new URLSearchParams(params).toString(),
+      headers: request.headers,
+      body: request.body,
     })
     postStatus = res.status
     await res.text()

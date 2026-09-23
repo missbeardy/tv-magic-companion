@@ -168,12 +168,12 @@ export default function AssignLeadModal({ lead, onClose, onAssigned }: Props) {
         })
         const waData = await waRes.json().catch(() => ({}))
         if (!waRes.ok) {
-          console.error('Assignment WhatsApp failed:', waData)
+          console.error('Assignment SMS failed:', waData)
         } else if (!waData.sid) {
-          console.warn('Assignment WhatsApp 200 but no Twilio sid:', waData)
+          console.warn('Assignment SMS 200 but no provider message id:', waData)
         }
       } catch (smsErr) {
-        console.error('Tech assignment WhatsApp failed:', smsErr)
+        console.error('Tech assignment SMS failed:', smsErr)
       }
     })()
 

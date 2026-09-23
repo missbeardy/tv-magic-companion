@@ -23,3 +23,19 @@ export function missingServerEnv(): string[] {
 
   return missing
 }
+
+/**
+ * Mobile Message (T1.18). Not in REQUIRED_SERVER_ENV: every org defaults to
+ * `orgs.sms_provider = 'twilio'`, so these only become required once an org is switched.
+ * The send path skips and the `?provider=mm` webhook 503s when they are missing.
+ */
+export const MOBILE_MESSAGE_ENV = [
+  'MOBILE_MESSAGE_API_USERNAME',
+  'MOBILE_MESSAGE_API_PASSWORD',
+  'MOBILE_MESSAGE_WEBHOOK_SECRET',
+] as const
+
+/** Which Mobile Message env vars are unset. Empty = ready to switch an org over. */
+export function missingMobileMessageEnv(): string[] {
+  return MOBILE_MESSAGE_ENV.filter((key) => !process.env[key]?.trim())
+}

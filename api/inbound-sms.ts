@@ -16,7 +16,14 @@ import { checkRateLimit, rateLimitIdentifier } from './_lib/rateLimit.js'
 import { captureServerException } from './_lib/sentry.js'
 import { waitUntil } from '@vercel/functions'
 import { matchInboundProbe, recordInboundProbeEcho } from './_lib/inboundProbe.js'
-import { applyInboundSmsOptOut } from './_lib/smsOptOut.js'
+import { applyInboundSmsOptOut, recordSmsOptOut } from './_lib/smsOptOut.js'
+import {
+  claimMobileMessageInbound,
+  parseMobileMessageWebhook,
+  verifyMobileMessageSignature,
+  type MobileMessageInboundEvent,
+} from './_lib/mobileMessage.js'
+import { formatAuPhoneForSms } from './_lib/phone.js'
 import { threadInboundSms } from './_lib/threadInboundSms.js'
 import { missingServerEnv } from './_lib/env.js'
 import { maskPhone } from './_lib/redact.js'
@@ -61,19 +68,161 @@ function respondOk(res: VercelResponse): void {
   res.status(200).send('<Response></Response>')
 }
 
+function headerValue(req: VercelRequest, name: string): string | undefined {
+  const value = req.headers[name]
+  return Array.isArray(value) ? value[0] : value
+}
+
+/**
+ * Mobile Message webhooks (T1.18) — `?provider=mm`, on this existing hub because of the
+ * 12-function Vercel cap. Inbound and delivery-status webhooks both land here; status can
+ * be flagged with `&kind=status` but is also recognised from its payload.
+ *
+ * Unlike Twilio (which retry-storms on anything but 200), Mobile Message retries non-2xx
+ * with backoff for ~4h, so a rejected or unconfigured request returns a real error code:
+ * a genuine webhook sent while the secret was missing gets redelivered once it is set.
+ */
+async function handleMobileMessageWebhook(
+  req: VercelRequest,
+  res: VercelResponse,
+  supabase: SupabaseClient,
+  rawBytes: Buffer
+): Promise<VercelResponse | void> {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  const verdict = verifyMobileMessageSignature({
+    secret: process.env.MOBILE_MESSAGE_WEBHOOK_SECRET,
+    timestamp: headerValue(req, 'x-mm-timestamp'),
+    signature: headerValue(req, 'x-mm-signature'),
+    rawBody: rawBytes,
+  })
+  if (!verdict.ok) {
+    if (verdict.reason === 'missing_secret') {
+      console.error('Missing MOBILE_MESSAGE_WEBHOOK_SECRET — rejecting Mobile Message webhook')
+      captureServerException(new Error('inbound-sms: MOBILE_MESSAGE_WEBHOOK_SECRET not set'), {
+        provider: 'mobilemessage',
+      })
+      return res.status(503).json({ error: 'Webhook signing not configured' })
+    }
+    console.warn('Mobile Message webhook rejected:', verdict.reason)
+    return res
+      .status(verdict.reason === 'stale_timestamp' ? 400 : 401)
+      .json({ error: verdict.reason === 'stale_timestamp' ? 'Stale timestamp' : 'Invalid signature' })
+  }
+
+  const kindHint = typeof req.query.kind === 'string' ? req.query.kind : undefined
+  const event = parseMobileMessageWebhook(rawBytes.toString('utf8'), kindHint)
+
+  if (event.kind === 'invalid') {
+    // Signed by Mobile Message but not a shape we understand. A retry cannot fix that, so
+    // 200 it (no retry storm) and leave a trace.
+    console.warn('Mobile Message webhook ignored:', event.reason)
+    return res.status(200).json({ ok: true, ignored: event.reason })
+  }
+
+  if (event.kind === 'status') {
+    log.info('[MM_DELIVERY_STATUS]', {
+      messageId: event.messageId,
+      status: event.status,
+      to: maskPhone(event.to),
+      part: event.partNumber,
+      totalParts: event.totalParts,
+    })
+    return res.status(200).json({ ok: true })
+  }
+
+  // Mobile Message allows 5s before it counts the delivery failed and retries. Ack first,
+  // finish in waitUntil — same reasoning as the Twilio path below.
+  res.status(200).json({ ok: true })
+
+  if (event.kind === 'inbound') {
+    if (!event.message.trim()) return
+    const probe = matchInboundProbe(event.message)
+    if (probe) {
+      waitUntil(recordInboundProbeEcho(supabase, probe.nonce))
+      return
+    }
+  }
+
+  const pipeline = finishMobileMessageInbound(supabase, event)
+  if (req.headers['x-inbound-await'] === '1') {
+    await pipeline
+    return
+  }
+  waitUntil(pipeline)
+}
+
+/** Post-ack half of a Mobile Message inbound/unsubscribe webhook. */
+async function finishMobileMessageInbound(
+  supabase: SupabaseClient,
+  event: MobileMessageInboundEvent
+): Promise<void> {
+  try {
+    if (!(await claimMobileMessageInbound(supabase, event))) {
+      log.info('[MM_INBOUND_DUPLICATE]', { from: maskPhone(event.sender), receivedAt: event.receivedAt })
+      return
+    }
+
+    // Mobile Message sends numbers as 61…; the rest of the pipeline (lead phone, threading,
+    // opt-outs) stores and matches E.164 as Twilio delivers it.
+    const fromNumber = formatAuPhoneForSms(event.sender)
+    const toNumber = formatAuPhoneForSms(event.to)
+    const body: Record<string, string> = {
+      provider: 'mobilemessage',
+      type: event.kind,
+      to: toNumber,
+      from: fromNumber,
+      message: event.message,
+      received_at: event.receivedAt,
+      ...(event.originalMessageId ? { original_message_id: event.originalMessageId } : {}),
+    }
+
+    if (event.kind === 'unsubscribe') {
+      const { orgId } = await resolveOrgIdFromDid(supabase, toNumber)
+      if (!orgId) {
+        await captureUnroutedInbound(supabase, {
+          channel: 'sms',
+          identifier: toNumber,
+          reason: 'no_mapping',
+          payload: body,
+        })
+        return
+      }
+      await recordSmsOptOut({
+        supabase,
+        orgId,
+        fromNumber,
+        source: 'mobilemessage_unsubscribe',
+        note: 'Customer opted out (Mobile Message)',
+      })
+      return
+    }
+
+    await finishInboundSms({ supabase, body, smsText: event.message, fromNumber, toNumber })
+  } catch (err) {
+    console.error('Unhandled error (Mobile Message inbound):', err)
+    captureServerException(err, { route: '/api/inbound-sms', provider: 'mobilemessage' })
+  }
+}
+
 async function handler(req: VercelRequest, res: VercelResponse) {
   const action = typeof req.query.action === 'string' ? req.query.action : undefined
+  const isMobileMessage = req.query.provider === 'mm'
 
   // Body parser is disabled (see `config` above); read the raw stream once.
-  const rawBody = (await readRawBody(req)).toString('utf8')
+  const rawBytes = await readRawBody(req)
+  const rawBody = rawBytes.toString('utf8')
 
   const supabase = getSupabaseAdmin()
   if (!supabase) {
     captureServerException(new Error('inbound-sms: server not configured'), {
       missing: missingServerEnv().join(','),
-      action: action ?? 'sms',
+      action: action ?? (isMobileMessage ? 'mobilemessage' : 'sms'),
     })
-    if (action === 'meta-webhook') {
+    if (action === 'meta-webhook' || isMobileMessage) {
+      // Mobile Message retries non-2xx for ~4h, so a 503 here is recoverable.
       return res.status(503).json({ error: 'Server not configured' })
     }
     // Twilio needs a 200 + TwiML ack regardless of backend health, or it retry-storms.
@@ -83,6 +232,10 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   if (action === 'meta-webhook') {
     const { handleMetaWebhook } = await import('./_lib/metaWebhook.js')
     return handleMetaWebhook(req, res, supabase, rawBody)
+  }
+
+  if (isMobileMessage) {
+    return handleMobileMessageWebhook(req, res, supabase, rawBytes)
   }
 
   if (req.method !== 'POST') {

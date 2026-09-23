@@ -48,6 +48,46 @@ async function findLeadsByPhone(
 }
 
 /**
+ * Suppress a number for an org and note it on that number's leads. Shared by a Twilio STOP
+ * reply and a Mobile Message `type: "unsubscribe"` webhook, so both providers' opt-out lists
+ * land in the one table every send checks (`isPhoneOptedOut`).
+ */
+export async function recordSmsOptOut(input: {
+  supabase: SupabaseClient
+  orgId: string
+  fromNumber: string
+  source: string
+  note: string
+}): Promise<void> {
+  const phone = formatAuPhoneForSms(input.fromNumber)
+
+  await input.supabase.from('sms_opt_outs').upsert(
+    {
+      org_id: input.orgId,
+      phone,
+      source: input.source,
+      opted_out_at: new Date().toISOString(),
+    },
+    { onConflict: 'org_id,phone' }
+  )
+
+  const leadIds = await findLeadsByPhone(input.supabase, input.orgId, input.fromNumber)
+  if (leadIds.length > 0) {
+    await input.supabase.from('lead_events').insert(
+      leadIds.map((leadId) => ({
+        lead_id: leadId,
+        org_id: input.orgId,
+        event_type: 'sms_opt_out',
+        note: input.note,
+        payload: { from: input.fromNumber, phone, source: input.source },
+      }))
+    )
+  }
+
+  log.info('[SMS_OPT_OUT]', { orgId: input.orgId, phone: maskPhone(phone), source: input.source })
+}
+
+/**
  * Handle STOP / START / YES before inbound SMS creates a lead.
  * `yes` only opts back in when a suppression row already exists, so a customer
  * replying "yes" to an ack is not dropped as a START command.
@@ -64,30 +104,13 @@ export async function applyInboundSmsOptOut(input: {
   const phone = formatAuPhoneForSms(input.fromNumber)
 
   if (command === 'stop') {
-    await input.supabase.from('sms_opt_outs').upsert(
-      {
-        org_id: input.orgId,
-        phone,
-        source: 'inbound_sms',
-        opted_out_at: new Date().toISOString(),
-      },
-      { onConflict: 'org_id,phone' }
-    )
-
-    const leadIds = await findLeadsByPhone(input.supabase, input.orgId, input.fromNumber)
-    if (leadIds.length > 0) {
-      await input.supabase.from('lead_events').insert(
-        leadIds.map((leadId) => ({
-          lead_id: leadId,
-          org_id: input.orgId,
-          event_type: 'sms_opt_out',
-          note: 'Customer replied STOP',
-          payload: { from: input.fromNumber, phone },
-        }))
-      )
-    }
-
-    log.info('[SMS_OPT_OUT]', { orgId: input.orgId, phone: maskPhone(phone) })
+    await recordSmsOptOut({
+      supabase: input.supabase,
+      orgId: input.orgId,
+      fromNumber: input.fromNumber,
+      source: 'inbound_sms',
+      note: 'Customer replied STOP',
+    })
     return 'handled'
   }
 

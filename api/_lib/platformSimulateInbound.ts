@@ -5,6 +5,8 @@ import { authenticateRequest } from './auth.js'
 import { getPlatformUrl } from './platformUrl.js'
 import { getSupabaseAdmin } from './supabaseAdmin.js'
 import { computeTwilioSignature } from './twilioSignature.js'
+import { computeMobileMessageSignature, toMobileMessageNumber } from './mobileMessage.js'
+import { loadOrgSmsConfig, type SmsProvider } from './smsSend.js'
 import { buildCloudmailinPlusAddress } from '../../shared/inboundEmailRouting.js'
 import { invokeApiHandler } from './invokeApiHandler.js'
 
@@ -64,10 +66,10 @@ async function dispatchInboundHandler(
 
   if (pathname === '/api/inbound-sms') {
     const handler = (await import('../inbound-sms.js')).default
-    const body =
-      typeof init.body === 'string'
-        ? Object.fromEntries(new URLSearchParams(init.body))
-        : {}
+    // inbound-sms disables the body parser and reads the raw body (readRawBody falls back
+    // to req.body in-process), so hand it the exact bytes a provider would send: the
+    // Twilio form string it re-parses, or the Mobile Message JSON its HMAC covers.
+    const body = typeof init.body === 'string' ? init.body : ''
     return invokeApiHandler(handler, {
       method: 'POST',
       url: pathname,
@@ -137,6 +139,10 @@ function inboundEmailAuthHeaders(secret: string): Record<string, string> {
   }
 }
 
+/**
+ * The org's inbound DID. During the T1.18 changeover an org can have two mapped numbers
+ * (the old Twilio DID and the new Mobile Message one), so prefer the one it sends from.
+ */
 async function lookupOrgPhoneNumber(orgId: string): Promise<string | null> {
   const supabase = getSupabaseAdmin()
   if (!supabase) return null
@@ -144,8 +150,16 @@ async function lookupOrgPhoneNumber(orgId: string): Promise<string | null> {
     .from('org_phone_numbers')
     .select('phone_number')
     .eq('org_id', orgId)
-    .maybeSingle()
-  return data?.phone_number ?? null
+    .order('phone_number', { ascending: true })
+    .limit(10)
+  const numbers = (data ?? [])
+    .map((row) => (row.phone_number as string | null)?.trim())
+    .filter((n): n is string => Boolean(n))
+  if (numbers.length <= 1) return numbers[0] ?? null
+
+  const { from } = await loadOrgSmsConfig(supabase, orgId)
+  const sender = from?.replace(/\D/g, '')
+  return numbers.find((n) => n.replace(/\D/g, '') === sender) ?? numbers[0]
 }
 
 async function resolveMappedPhoneForOrg(orgId: string): Promise<string> {
@@ -221,7 +235,32 @@ async function postHandler(
   return { status: res.status, body, raw }
 }
 
-async function simulateSms(parentReq: VercelRequest, baseUrl: string, text: string, toNumber: string) {
+/**
+ * The SMS provider whose webhook the simulator should impersonate for this org. Unrouted
+ * tests (no org) stay on Twilio unless the Twilio token is missing and Mobile Message is set.
+ */
+async function resolveSimulatorSmsProvider(orgId: string | null): Promise<SmsProvider> {
+  if (orgId) {
+    const supabase = getSupabaseAdmin()
+    if (supabase) return (await loadOrgSmsConfig(supabase, orgId)).provider
+  }
+  if (!process.env.TWILIO_AUTH_TOKEN?.trim() && process.env.MOBILE_MESSAGE_WEBHOOK_SECRET?.trim()) {
+    return 'mobilemessage'
+  }
+  return 'twilio'
+}
+
+async function simulateSms(
+  parentReq: VercelRequest,
+  baseUrl: string,
+  text: string,
+  toNumber: string,
+  provider: SmsProvider = 'twilio'
+) {
+  if (provider === 'mobilemessage') {
+    return simulateMobileMessageSms(parentReq, baseUrl, text, toNumber)
+  }
+
   const authToken = process.env.TWILIO_AUTH_TOKEN
   if (!authToken) {
     throw new Error('TWILIO_AUTH_TOKEN is not configured on this deployment')
@@ -247,6 +286,41 @@ async function simulateSms(parentReq: VercelRequest, baseUrl: string, text: stri
       'x-inbound-await': '1',
     },
     body: formBody,
+  })
+}
+
+/** Signed Mobile Message inbound webhook (T1.18), exactly as Mobile Message would post it. */
+async function simulateMobileMessageSms(
+  parentReq: VercelRequest,
+  baseUrl: string,
+  text: string,
+  toNumber: string
+) {
+  const secret = process.env.MOBILE_MESSAGE_WEBHOOK_SECRET?.trim()
+  if (!secret) {
+    throw new Error('MOBILE_MESSAGE_WEBHOOK_SECRET is not configured on this deployment')
+  }
+
+  const rawBody = JSON.stringify({
+    to: toMobileMessageNumber(toNumber),
+    message: `${SIMULATED_PREFIX} ${text}`,
+    sender: toMobileMessageNumber(SIMULATED_FROM),
+    received_at: new Date().toISOString().replace('T', ' ').slice(0, 19),
+    type: 'inbound',
+    original_message_id: '',
+    original_custom_ref: '',
+  })
+  const timestamp = String(Math.floor(Date.now() / 1000))
+
+  return dispatchInboundHandler(parentReq, baseUrl, '/api/inbound-sms?provider=mm', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-mm-timestamp': timestamp,
+      'x-mm-signature': computeMobileMessageSignature(secret, timestamp, rawBody),
+      'x-inbound-await': '1',
+    },
+    body: rawBody,
   })
 }
 
@@ -502,7 +576,13 @@ export async function handlePlatformSimulateInbound(
     if (unrouted && channel === 'sms') {
       unroutedChannel = 'sms'
       unroutedIdentifier = UNROUTED_SIM_DID
-      handlerResult = await simulateSms(req, baseUrl, text.trim(), UNROUTED_SIM_DID)
+      handlerResult = await simulateSms(
+        req,
+        baseUrl,
+        text.trim(),
+        UNROUTED_SIM_DID,
+        await resolveSimulatorSmsProvider(null)
+      )
     } else if (unrouted && channel === 'email') {
       unroutedChannel = 'email'
       unroutedIdentifier = null
@@ -513,7 +593,13 @@ export async function handlePlatformSimulateInbound(
       handlerResult = await simulateVoicemail(req, baseUrl, text.trim(), UNROUTED_SIM_DID)
     } else if (channel === 'sms') {
       const toNumber = await resolveMappedPhoneForOrg(orgId)
-      handlerResult = await simulateSms(req, baseUrl, text.trim(), toNumber)
+      handlerResult = await simulateSms(
+        req,
+        baseUrl,
+        text.trim(),
+        toNumber,
+        await resolveSimulatorSmsProvider(orgId)
+      )
     } else if (channel === 'email') {
       const tag = (org?.inbound_email_tag as string | null)?.trim()
       if (!tag) {

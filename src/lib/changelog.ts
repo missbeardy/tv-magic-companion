@@ -61,11 +61,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'If one part of the app hits a problem, the rest keeps working instead of the whole app going down',
     'Fixed technicians\' location being polled three times over instead of once',
     'A few actions (removing a leave block, deleting a photo, changing your avatar, marking notifications read) now show an error instead of silently looking like they worked when they failed',
+    'Business texts can now be sent through Mobile Message, an Australian SMS provider, one franchise at a time. Nothing changes until your number is moved over, and your current number keeps receiving texts during the switch',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.200'
+export const APP_VERSION = '1.1.201'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

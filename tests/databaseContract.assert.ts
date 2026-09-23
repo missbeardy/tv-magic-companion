@@ -66,3 +66,10 @@ export type _pushDisabledInUpdate = Assert<Has<ProfileUpdate, 'push_disabled_at'
 // admin panel writes it, so a missing column here is a broken exclusion rather than a no-op.
 export type _departedInRow = Assert<Has<ProfileRow, 'departed_at'>>
 export type _departedInUpdate = Assert<Has<ProfileUpdate, 'departed_at'>>
+
+type OrgRow = Database['public']['Tables']['orgs']['Row']
+
+// v1.1.201 / migration 20260923090000 (T1.18). smsSend.ts reads the sender and provider
+// together; api/_lib/smsSend.ts falls back to Twilio if prod has not been migrated yet.
+export type _smsFromInRow = Assert<Has<OrgRow, 'sms_from_number'>>
+export type _smsProviderInRow = Assert<Has<OrgRow, 'sms_provider'>>

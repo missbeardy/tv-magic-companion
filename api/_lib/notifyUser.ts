@@ -1,6 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getPlatformUrl } from './platformUrl.js'
-import { buildEmployeeWhatsAppMessage } from './employeeWhatsAppTemplates.js'
 import { sendPushToUsers } from './pushTransport.js'
 
 export interface NotifyOrgUserInput {
@@ -29,7 +28,7 @@ export function resolveNotifyUrl(relativePath?: string): string {
 export interface NotifyOrgUserResult {
   ok: boolean
   error?: string
-  alert?: { sent: boolean; channel?: 'whatsapp' | 'sms'; sid?: string; skipped?: string; error?: string }
+  alert?: { sent: boolean; channel?: 'sms'; sid?: string; skipped?: string; error?: string }
 }
 
 async function insertInAppNotification(input: NotifyOrgUserInput): Promise<NotifyOrgUserResult | null> {
@@ -59,7 +58,7 @@ async function insertInAppNotification(input: NotifyOrgUserInput): Promise<Notif
  *
  * NOT reachable from any HTTP handler, and must stay that way — `notifyOrgUser` is the only
  * entry point for request-driven notifications precisely because it always checks membership.
- * In-app only: no push, SMS or WhatsApp.
+ * In-app only: no push or SMS.
  */
 export async function insertTrustedFollowUpReminder(
   input: Omit<NotifyOrgUserInput, 'type'>
@@ -71,7 +70,7 @@ export async function insertTrustedFollowUpReminder(
 
 /**
  * Trusted customer-reply insert from inbound SMS threading.
- * In-app bell + best-effort push. No employee SMS/WhatsApp.
+ * In-app bell + best-effort push. No employee SMS.
  * NOT reachable from any HTTP handler.
  */
 export async function insertTrustedCustomerReply(
@@ -96,7 +95,7 @@ export async function insertTrustedCustomerReply(
 }
 
 /**
- * In-app bell + best-effort OneSignal push + WhatsApp to profile phone (service role).
+ * In-app bell + best-effort push + SMS to profile phone (service role).
  *
  * Membership is validated first, for every `type`, with no branch above the check —
  * `type` reaches this function from request bodies (api/send-sms.ts handleNotify), so letting
@@ -137,16 +136,11 @@ export async function notifyOrgUser(input: NotifyOrgUserInput): Promise<NotifyOr
   }
 
   const smsBody = url ? `${title}\n\n${message}\n\n${resolvedUrl}` : `${title}\n\n${message}`
-  const whatsappMessage = buildEmployeeWhatsAppMessage(
-    type === 'contact_follow_up' ? 'contact_follow_up' : 'generic_notify',
-    smsBody,
-    { title, message, url: resolvedUrl }
-  )
   // Assignment alerts are sent via send-sms mode=tech_assignment.
   let alert: NotifyOrgUserResult['alert'] = { sent: false, skipped: `Skipped for ${type}` }
   if (type !== 'lead_assigned' && type !== 'contact_follow_up' && type !== 'customer_reply') {
     const { sendEmployeeAlertToPhone } = await import('./sendEmployeeAlert.js')
-    alert = await sendEmployeeAlertToPhone(target.phone, smsBody, whatsappMessage, orgId)
+    alert = await sendEmployeeAlertToPhone(target.phone, smsBody, orgId)
     if (!alert.sent) {
       console.error('Employee alert failed (non-fatal):', alert.error ?? alert.skipped)
     }

@@ -2,8 +2,8 @@
 
 | Field | Value |
 |-------|-------|
-| **Document version** | `1.9.0` |
-| **Last updated** | 06-08-2026 |
+| **Document version** | `1.10.0` |
+| **Last updated** | 23-09-2026 |
 | **Maintained by** | Update in the same PR as any pipeline behaviour change |
 
 > **Living document.** This file must stay in sync with production behaviour. See [Maintenance policy](#maintenance-policy) and [Version history](#version-history).
@@ -19,7 +19,7 @@ Consult this reference **before** merging any change that touches:
 - Lead status, assignment, timers, or contact-attempt rounds
 - Kanban columns, mobile tabs, or dashboard stats
 - Inbound lead creation (SMS, email, calls, voicemail, manual)
-- Pipeline notifications (in-app, push, WhatsApp, customer SMS)
+- Pipeline notifications (in-app, push, employee SMS, customer SMS)
 - Cron / background jobs affecting leads
 
 ### Change checklist (required)
@@ -122,7 +122,7 @@ flowchart TB
 |-------|----------|------------|--------------|
 | **1 Capture** | Sends enquiry | Lead appears in Unassigned (team) or Inbox (solo) | `inbound-*` → `processInboundLead` → `leads` insert |
 | **2 Extraction** | — | Structured fields populate on card; managers see extraction status + retry | Claude extraction via `extractLead.ts`; `extraction_status` on `leads` |
-| **3 Acknowledgment** | Receives ack / hookback SMS | Manager bell (+ WhatsApp if enabled) | `leadAckSms`, `missedCallHookbackSms`, `notifyManagersNewLead` |
+| **3 Acknowledgment** | Receives ack / hookback SMS | Manager bell + push + SMS (`manager_new_lead_alerts`) | `leadAckSms`, `missedCallHookbackSms`, `notifyManagersNewLead` |
 | **4 Quoting** | SMS link + e-sign / decline on `/quote/:token`; sees real GST component when org is GST-registered; sees itemised line items when the quote used the price list | Manager sends quote (SMS preferred), optionally via price-list quick-add chips; Book CTA after accept | `QuoteComposerModal` → `quotes` (`gst_amount` via `shared/gst.ts`, `line_items` via `price_list` feature); accept notifies managers with deep-link `/calendar?bookLead=<id>` |
 | **5 Booking** | Booking confirm SMS + email/.ics (if `booking_confirm` enabled); day-before reminder SMS ~24h before the appointment (if `booking_reminder_sms` enabled) | One-tap Book from accept notify or lead card → `EventModal` prefilled with quote amount + scope | `booking-confirm` action gated by `booking_confirm` feature switch (default ON); lead → `booked`; `runBookingReminderSweep` in the consolidated cron chain gated by `booking_reminder_sms` (default OFF), dedupes on `events.reminder_sent_at`, quiet-hours aware (`orgs.timezone`, 8am-8pm local) |
 | **6 Execution** | On-the-way SMS optional | Complete via `CompletionChecklist` only (no drag bypass) | Lead → `completed`; photos optional (offline queue supported) |
@@ -180,14 +180,14 @@ stateDiagram-v2
 |------|-----|---------------------|-------------------|--------------|
 | — | `unassigned` | Inbound webhook, manual add (team), manager unassign, **timer expiry** | Clears `assigned_to`, `timer_expires_at`, contact rounds | Manager alert on create; pool count increases |
 | — | `assigned` | Solo inbound, solo manual add | `assigned_to`, `timer_expires_at` (24h solo) | Solo owner owns lead immediately |
-| `unassigned` | `assigned` | `AssignLeadModal` | `assigned_to`, `assigned_at`, `timer_expires_at` (4h), resets contact fields | In-app notify + `tech_assignment` WhatsApp |
+| `unassigned` | `assigned` | `AssignLeadModal` | `assigned_to`, `assigned_at`, `timer_expires_at` (4h), resets contact fields | In-app notify + `tech_assignment` SMS |
 | `unassigned` | `contact_attempted` | Call, SMS, drag, status menu (pool pickup) | `assigned_to`=actor, round=0, **no timer** | `call_attempted` / `sms_attempted` event |
 | `assigned` | `contact_attempted` | Call, SMS, mark attempted, drag, menu | Clears `timer_expires_at`; sets round/timestamp | Stops assign timer — lead will not auto-expire while here |
 | `contact_attempted` | `assigned` | Drag, status menu | Status only (rounds **not** reset) | See regression example below |
 | `assigned` | `unassigned` | pg_cron `expire_overdue_leads` | Full pool reset | `expired` event (`actor_id` = previous assignee); lead re-enters pool for **all** employees |
 | `contact_attempted` | `lost` | 6th contact action; cron after 6h on 5th attempt | `lost_reason=unable_to_contact` | Confirm dialog (UI) or cron (server) |
 | any | `unassigned` | Manager unassign / drag to Unassigned | Clears assignee, timer, rounds | `unassigned` event |
-| any | `booked` | `EventModal` | Status `booked`; may set assignee | Calendar `events` row; booking WhatsApp |
+| any | `booked` | `EventModal` | Status `booked`; may set assignee | Calendar `events` row; booking SMS |
 | any | `completed` | `CompletionChecklist` only (drag/menu open checklist) | Status `completed` | Optional invoice + review modals |
 | `booked` | `booking_cancelled` | Cancel booking flow | Status change | `booking_cancelled` event |
 
@@ -288,7 +288,7 @@ flowchart TD
   Sixth{round >= 4 AND 6th action?}
   Lost[lost unable_to_contact]
   Cron6h{6h since last attempt?}
-  Remind[WhatsApp + in-app reminder]
+  Remind[in-app reminder]
   AutoLost[cron auto-lost]
 
   CA --> Contact --> Inc --> CA
@@ -345,7 +345,7 @@ Offline (PWA): call/SMS contact attempts and lead photos can enqueue to IndexedD
 ### Manager
 
 1. **Dashboard** (`ManagerDashboard`) — stats link to `/leads?status=unassigned|assigned|contact_attempted|completed`
-2. **Assign** — `AssignLeadModal`: proximity ranking, 4h timer, WhatsApp to tech
+2. **Assign** — `AssignLeadModal`: proximity ranking, 4h timer, SMS to tech
 3. **Monitor** — `TeamWorkloadPanel`, `/activity` live feed
 4. **Unassign** — `LeadDetailSheet` → back to pool (clears all assign/contact fields)
 
@@ -372,7 +372,7 @@ Offline (PWA): call/SMS contact attempts and lead photos can enqueue to IndexedD
 
 ```mermaid
 sequenceDiagram
-  participant Channel as Twilio / CloudMailin
+  participant Channel as Twilio / Mobile Message / CloudMailin
   participant API as inbound-* handler
   participant Pipe as processInboundLead
   participant DB as Supabase leads
@@ -389,7 +389,8 @@ sequenceDiagram
 
 | Endpoint | File | Creates lead |
 |----------|------|--------------|
-| `POST /api/inbound-sms` | `api/inbound-sms.ts` | Yes |
+| `POST /api/inbound-sms` | `api/inbound-sms.ts` (Twilio: form-encoded, `X-Twilio-Signature`) | Yes |
+| `POST /api/inbound-sms?provider=mm` | `api/inbound-sms.ts` (Mobile Message: JSON, `X-MM-Signature` + 5-min timestamp window, deduped on sender + to + `received_at` + body) | Yes; `type: "unsubscribe"` writes `sms_opt_outs` instead. `&kind=status` delivery receipts are verified and logged only |
 | `POST /api/inbound-email` | `api/inbound-email.ts` | Yes (email + CloudMailin voicemail) |
 | Manual / paste | `AddLeadModal`, `EmailParser` | Client insert |
 
@@ -421,16 +422,27 @@ sequenceDiagram
 
 ## Notification matrix
 
-| Event | In-app | Push | WhatsApp template | Customer SMS |
-|-------|--------|------|-------------------|--------------|
-| New unassigned lead | Managers (`new_lead`) | Yes (gated `manager_new_lead_alerts`) | `manager_alert` | `lead_ack_sms` |
+| Event | In-app | Push | Employee SMS template | Customer SMS |
+|-------|--------|------|-----------------------|--------------|
+| New unassigned lead | Managers (`new_lead`) | Yes (gated `manager_new_lead_alerts`) | `manager_alert` (same gate) | `lead_ack_sms` |
 | Lead assigned | Assignee (`lead_assigned`) | Yes | `tech_assignment` | — |
-| Contact follow-up 6h | Assignee (`contact_follow_up`) | — | `contact_follow_up` | — |
+| Contact follow-up 6h | Assignee (`contact_follow_up`) | — | — (in-app only) | — |
 | Booking scheduled | Assignee | Yes | `booking_scheduled` | Not automated |
-| Job completed/lost | Assignee | Yes | `generic_notify` | — |
+| Job completed/lost | Assignee | Yes | title + message (`notifyOrgUser`) | — |
 | Review request | — | — | — | `review_request` |
 
-Templates: `api/_lib/employeeWhatsAppTemplates.ts`. Employee alerts try WhatsApp first, SMS fallback (`sendEmployeeAlert.ts`).
+Employee alerts are SMS only (`sendEmployeeAlert.ts`). Employee WhatsApp was deleted in T1.18 (v1.1.201); it had been kill-switched off.
+
+### SMS provider (T1.18)
+
+Every customer and employee SMS goes through `sendOrgSms` in `api/_lib/smsSend.ts`, from the org's own `orgs.sms_from_number` via the org's `orgs.sms_provider`:
+
+| `sms_provider` | Send | Inbound webhook |
+|---|---|---|
+| `twilio` (default) | Twilio Messages API | `POST /api/inbound-sms` |
+| `mobilemessage` | `POST https://api.mobilemessage.com.au/v1/messages`, always `enable_unicode: true`, with an `Idempotency-Key`; per-message `error`/`blocked` = not sent | `POST /api/inbound-sms?provider=mm` |
+
+Both inbound paths can be live at once: routing is by the called number (`to`) through `org_phone_numbers`, so an org's old Twilio DID keeps creating leads while its new Mobile Message number does too. Opt-outs from either (a STOP reply, or a Mobile Message `unsubscribe` webhook) land in the one `sms_opt_outs` table that every send checks. Platform alerts (`sendPlatformSms`, `TWILIO_FROM_NUMBER`) stay on Twilio for now. The provider message id is stored in the existing `twilio_sid` payload fields, with `sms_provider` alongside it.
 
 ### Push transport (T1.12)
 
@@ -508,7 +520,7 @@ Logged to `lead_events` for audit and reporting (`api/_lib/leadEventTypes.ts`):
 - `api/inbound-sms.ts`, `inbound-email.ts` (email + CloudMailin voicemail)
 - `api/_lib/runContactFollowUpCron.ts` — 6h follow-up
 - `api/_lib/notifyManagersNewLead.ts`, `leadAckSms.ts`, `missedCallHookbackSms.ts`
-- `api/_lib/employeeWhatsAppTemplates.ts`
+- `api/_lib/smsSend.ts` (per-org provider dispatch), `mobileMessage.ts` (Mobile Message send + webhook signing/dedupe), `twilioSend.ts`
 - `api/send-sms.ts` — customer + employee messaging hub
 - `api/stripe.ts` — SaaS billing (checkout/portal/webhook) + Connect (connect-onboard/invoice-pay/connect-webhook), single Hobby-plan function
 - `api/_lib/invoiceStripe.ts` — pure payability/idempotency logic + Checkout Session builder for card payments
@@ -532,6 +544,7 @@ Logged to `lead_events` for audit and reporting (`api/_lib/leadEventTypes.ts`):
 
 | Version | Date | Summary |
 |---------|------|---------|
+| `1.10.0` | 23-09-2026 | T1.18 SMS provider move (v1.1.201): new per-org `orgs.sms_provider` (`twilio` default \| `mobilemessage`); all org SMS goes through `sendOrgSms` (`api/_lib/smsSend.ts`). New inbound path `POST /api/inbound-sms?provider=mm` (HMAC `X-MM-Signature` over the raw body, 5-min freshness window, ack-then-`waitUntil`, retry dedupe on sender + to + `received_at` + body, `unsubscribe` → `sms_opt_outs`, delivery-status webhooks verified and logged). Twilio inbound unchanged and still live for the old number. Employee WhatsApp deleted: employee alerts (manager new-lead, tech assignment, booking scheduled, generic notify) are SMS only; the matrix's "WhatsApp template" column is now "Employee SMS template", and the 6h follow-up reminder is correctly shown as in-app only. |
 | `1.8.0` | 20-07-2026 | Package 6 / T2.1 closed-loop: quote-accept manager notify deep-links to `/calendar?bookLead=` with EventModal prefilled (quote amount + scope); complete→invoice already auto-advances when `one_tap_invoice` is on; new `auto_review_on_paid` switch fires review SMS from `markInvoicePaid` (Stripe or manual) with `review_request_sent_at` dedupe. Stages 4–5–7–10 and customer map updated; hand-off diagram added. |
 | `1.7.0` | 16-07-2026 | Package 5: day-before booking reminder. New `runBookingReminderSweep` (`api/_lib/bookingReminder.ts`) joins the consolidated cron chain in `api/send-sms.ts`, sending a reminder SMS in a `[start+20h, start+28h]` window, deduped via new `events.reminder_sent_at`, gated by new `booking_reminder_sms` switch (basic tier, off by default), quiet-hours aware via new `orgs.timezone` (8am-8pm local). New `customer_booking_reminder` SMS template (editable in Platform Admin), new `booking_reminder_sent` lead event, new `cron_heartbeats` table surfaced in Platform Admin Workflow Runs. Also fixed the booking-confirm `.ics` invite's `ORGANIZER` field, previously hard-coded to `noreply@example.com`, to use the org's real support email. Corrected this doc's stale claim that no external cron scheduler exists — `.github/workflows/contact-follow-up-cron.yml` already triggers the chain every 15 minutes. |
 | `1.6.1` | 15-07-2026 | Fix: `invoice_card_payments` switch was UI-only — `handleConnectOnboard` and the public invoice-get endpoint (`action=invoice-public-get`) had no server-side gate, so a disabled org's public invoice page and Connect endpoint were still reachable directly. Both now check `isFeatureEnabledForOrg(...,'invoice_card_payments')` and return 403 when off, mirroring the existing `quote_esign` pattern on `handleQuotePublicGet`. |

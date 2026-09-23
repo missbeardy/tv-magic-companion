@@ -15,7 +15,7 @@ export default function PrivacyPolicyPage() {
       <main className="max-w-2xl mx-auto p-6 space-y-6">
         <div>
           <h1 className="font-display font-bold text-gray-900 text-2xl">Privacy Policy</h1>
-          <p className="text-sm text-gray-500 mt-1">Last updated: August 2026</p>
+          <p className="text-sm text-gray-500 mt-1">Last updated: September 2026</p>
           <p className="text-sm text-gray-500 mt-1">
             This policy covers the FieldBourne app. For our website, see{' '}
             <a
@@ -60,7 +60,8 @@ export default function PrivacyPolicyPage() {
           <ul className="list-disc pl-5 space-y-1">
             <li><strong>Supabase</strong> — database and file storage</li>
             <li><strong>Vercel</strong> — application hosting</li>
-            <li><strong>Twilio</strong> — SMS messaging</li>
+            <li><strong>Mobile Message</strong> — SMS messaging (Australian provider)</li>
+            <li><strong>Twilio</strong> — SMS messaging (being phased out in favour of Mobile Message)</li>
             <li><strong>Anthropic</strong> — AI-assisted extraction of lead details from enquiries</li>
             <li><strong>Stripe</strong> — subscription billing and invoice card payments</li>
             <li><strong>Resend</strong> — transactional email</li>

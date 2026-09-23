@@ -109,7 +109,7 @@ export async function requestAccountDeletion(
   if (alertPhone) {
     const smsBody = `Account deletion request from ${input.email.trim()}. Check account_deletion_requests.`
     try {
-      await sendEmployeeAlertToPhone(alertPhone, smsBody, { body: smsBody })
+      await sendEmployeeAlertToPhone(alertPhone, smsBody)
     } catch (err) {
       console.error('[DELETION_REQUEST_ALERT_FAILED]', err instanceof Error ? err.message : String(err))
     }

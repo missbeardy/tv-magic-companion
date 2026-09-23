@@ -4,7 +4,7 @@ import { formatAuPhoneForSms } from './phone.js'
 import type { LeadEventType } from './leadEventTypes.js'
 import { LEAD_ACK_CALLBACK_WINDOW } from '../../shared/leadAckCopy.js'
 import { isPhoneOptedOut } from './smsOptOut.js'
-import { sendTwilioSms } from './twilioSend.js'
+import { sendOrgSms } from './smsSend.js'
 
 export interface SendBrandedSmsOptions {
   orgId: string
@@ -25,7 +25,7 @@ export interface SendBrandedSmsResult {
   error?: string
 }
 
-/** Send a branded Twilio SMS for an org and optionally log a lead timeline event. */
+/** Send a branded SMS (org's provider) for an org and optionally log a lead timeline event. */
 export async function sendBrandedSms(
   options: SendBrandedSmsOptions
 ): Promise<SendBrandedSmsResult> {
@@ -71,7 +71,7 @@ export async function sendBrandedSms(
     options.fallbackMessage
   )
 
-  const sendResult = await sendTwilioSms({ orgId: options.orgId, to, body: message })
+  const sendResult = await sendOrgSms({ orgId: options.orgId, to, body: message })
   if (!sendResult.sent) return sendResult
 
   if (options.leadId && options.eventType) {
@@ -83,6 +83,7 @@ export async function sendBrandedSms(
       payload: {
         template: options.templateKey,
         twilio_sid: sendResult.sid ?? null,
+        sms_provider: sendResult.provider ?? null,
         ...options.eventPayload,
       },
     })
