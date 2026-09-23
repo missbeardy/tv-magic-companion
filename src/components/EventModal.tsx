@@ -16,7 +16,6 @@ import { logLeadEvent } from '../lib/leadEvents'
 import { trackViaRelay } from '../lib/analytics'
 import { captureClientException } from '../lib/sentry'
 import { sendNotification } from '../lib/notify'
-import { getPlatformUrl } from '../lib/env'
 import { getAuthHeaders } from '../lib/apiAuth'
 import { fetchWithTimeout } from '../lib/fetchWithTimeout'
 import { showToast } from '../lib/toast'
@@ -543,7 +542,7 @@ export default function EventModal({
     const dateTime = formatBookingDateTime(startISO, startTime)
     const managerName = profile?.full_name ?? 'Your manager'
     const message = `${managerName} scheduled "${title}" on your calendar — ${dateTime}`
-    const url = `${getPlatformUrl()}/calendar`
+    const url = '/calendar'
 
     for (const id of assigneeIds.filter((uid) => uid !== profile?.id)) {
       await sendNotification(id, 'New Booking Scheduled', message, url, 'calendar')

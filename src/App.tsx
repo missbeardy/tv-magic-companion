@@ -1,5 +1,5 @@
 // src/App.tsx
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
 import { AuthProvider } from './context/AuthContext'
 import { OrgProvider } from './context/OrgContext'
@@ -44,6 +44,12 @@ import OfflineBanner from './components/OfflineBanner'
 import ToastHost from './components/ToastHost'
 import { isPublicSitePath } from './lib/publicSite'
 import RouteBoundary from './components/RouteBoundary'
+
+// Live ad links point at bare /visualise with UTM/fbclid params — keep them on the redirect.
+function LegacyVisualiseRedirect() {
+  const { search, hash } = useLocation()
+  return <Navigate to={{ pathname: '/visualise/default', search, hash }} replace />
+}
 
 function Dashboard() {
   const { profile, loading } = useAuth()
@@ -117,7 +123,7 @@ function App() {
               <Route path="/invoice/:token" element={<RouteBoundary tag="invoice"><InvoiceStatusPage /></RouteBoundary>} />
               <Route path="/privacy" element={<RouteBoundary tag="privacy"><PrivacyPolicyPage /></RouteBoundary>} />
               <Route path="/terms" element={<RouteBoundary tag="terms"><TermsOfServicePage /></RouteBoundary>} />
-              <Route path="/visualise" element={<Navigate to="/visualise/default" replace />} />
+              <Route path="/visualise" element={<LegacyVisualiseRedirect />} />
               <Route path="/visualise/:orgSlug" element={<RouteBoundary tag="visualise"><VisualisePage /></RouteBoundary>} />
               <Route path="/delete-account" element={<RouteBoundary tag="delete-account"><DeleteAccountPage /></RouteBoundary>} />
               <Route path="/set-password" element={<RouteBoundary tag="set-password"><SetPasswordPage /></RouteBoundary>} />

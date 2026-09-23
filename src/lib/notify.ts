@@ -37,7 +37,8 @@ export async function sendNotification(
     const response = await fetchWithTimeout('/api/send-sms?action=notify', {
       method: 'POST',
       headers,
-      body: JSON.stringify({ userId, title, message, url, type }),
+      // The server rejects over-length title/message (AUD-17) — trim rather than lose the alert.
+      body: JSON.stringify({ userId, title: title.slice(0, 120), message: message.slice(0, 500), url, type }),
     });
 
     if (!response.ok) {
