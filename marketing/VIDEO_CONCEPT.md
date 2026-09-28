@@ -5,7 +5,7 @@
 | **Product / company** | FieldBourne (app) · Fieldbourne Digital (company) |
 | **Audience** | Aussie trade businesses, 2–5 people |
 | **Pains targeted** | Missed leads and callbacks · admin eating into nights and weekends |
-| **Placement** | Website hero + social ads (9:16 master, 29.5s, sound-off safe) |
+| **Placement** | Website hero + social ads (9:16 master, 35s, sound-off safe) |
 | **Built asset** | `marketing/video/fieldbourne-30s.mp4` (rendered from `fieldbourne-30s.html`) |
 | **Claims check** | Every on-screen beat maps to a shipped feature (see `docs/MARKETING.md` § Claims discipline) |
 
@@ -59,6 +59,8 @@ Open on a real 3-person crew at smoko on a rural job site.
 
 ## Script: Concept A (29.5s, 9:16)
 
+> **Final cut note:** with the real voiceover at natural speed, the finished ad runs **35s**. The timestamps below are the original 29.5s plan; `WARP` in the HTML holds the final timings.
+
 Tone: dry, warm, matter-of-fact Aussie (a mate who's been there, not a salesman). VO is optional because the captions tell the whole story.
 
 | Time | Visual / B-roll | Voiceover (pace/tone) | Sound design |
@@ -88,8 +90,8 @@ node marketing/video/render.cjs --stills 2.4,13.5  # PNG stills for review
 - **Watch live:** open `marketing/video/fieldbourne-30s.html` in a browser. It loops, and a click restarts it.
 - **Change copy, names or prices:** edit the HTML text. Scene timings live in `CAPS` and `renderPhone()`, and sound cues in `soundtrack.cjs`.
 - **Audio:** `mix.cjs` builds the soundtrack from two files.
-  - The voiceover is `audio/voiceover-blake.mp3` (ElevenLabs, "Blake"). It is cut into its 19 lines, sped up 7% with pitch kept, and each line is placed on its scene.
-  - The music is `audio/music-sunshine-stomp.mp3` (Suno, 125 bpm). Its drop lands at 0:05, right after "Missed.", and it ducks under the voice.
+  - The voiceover is `audio/voiceover-blake.mp3` (ElevenLabs, "Blake"). It is cut into its 19 lines at natural speed, and each line is placed on its scene.
+  - The music is `audio/music-sunshine-stomp.mp3` (Suno, 125 bpm). Its drop lands at 0:05.6, right after "Missed.", and it ducks under the voice.
   - The master is -14 LUFS.
   - To swap either file, keep the file name. If the new VO's pauses differ, update `LINES`.
 - **Visual timing:** `WARP` in the HTML maps video time to scene time, so scene changes land on downbeats. The phone pulses on each beat and there's a white flash on the drop.
