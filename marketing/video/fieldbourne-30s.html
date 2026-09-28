@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FieldBourne 30s Ad</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/*
+  FieldBourne — 29.5s animated explainer (9:16, 1080x1920).
+  Deterministic timeline: render(t) draws any frame, so render.mjs can capture it
+  frame-by-frame. Open in a browser to watch it loop (click to restart).
+*/
+:root {
+  --teal: #0D5C5B;
+  --teal-dark: #083F3E;
+  --teal-soft: #DCEBE8;
+  --sun: #F8B92B;
+  --sun-soft: #FDEBC0;
+  --cream: #F6F1E6;
+  --ink: #12302F;
+  --muted: #5E7472;
+  --red: #D6453D;
+  --green: #2E8B57;
+  --card: #FFFFFF;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: #0b1c1c; overflow: hidden; }
+body { display: grid; place-items: center; font-family: 'Lexend', system-ui, sans-serif; color: var(--ink); }
+
+#stage {
+  position: relative; width: 1080px; height: 1920px; overflow: hidden;
+  background: var(--cream); transform-origin: center center; flex: none;
+}
+.abs { position: absolute; }
+
+/* ── Background: sky, sun, hills ── */
+#sky { inset: 0; background: linear-gradient(180deg, #F6F1E6 0%, #F6F1E6 100%); }
+#dusk { inset: 0; background: linear-gradient(180deg, #F3D9A4 0%, #F4B96A 55%, #E58E53 100%); opacity: 0; }
+#bgsun { width: 360px; height: 360px; border-radius: 50%; background: var(--sun); left: 620px; top: 1300px; }
+#hills { left: 0; bottom: 0; width: 1080px; height: 520px; }
+
+/* ── Brand bug ── */
+#bug { top: 64px; left: 0; width: 100%; display: flex; justify-content: center; align-items: center; gap: 14px;
+  font-weight: 700; font-size: 34px; letter-spacing: -0.01em; }
+#bug svg { width: 58px; height: 40px; }
+.wm-field { color: var(--teal); } .wm-bourne { color: var(--sun); }
+
+/* ── Captions ── */
+.cap { top: 170px; left: 60px; width: 960px; text-align: center; opacity: 0; }
+.cap .l1 { font-size: 56px; font-weight: 600; color: var(--teal); line-height: 1.15; }
+.cap .l2 { font-size: 88px; font-weight: 800; color: var(--ink); line-height: 1.04; letter-spacing: -0.025em; margin-top: 14px; }
+.cap .l2.red { color: var(--red); font-size: 120px; }
+.mark { background: linear-gradient(transparent 58%, var(--sun) 58%, var(--sun) 92%, transparent 92%); padding: 0 6px; }
+.cap span { display: inline-block; }
+
+/* ── Phone ── */
+#phone { left: 210px; top: 590px; width: 660px; height: 1300px; border-radius: 88px; background: #0f1717;
+  box-shadow: 0 40px 80px rgba(8,63,62,.35), inset 0 0 0 3px #2a3a3a; }
+#screen { position: absolute; inset: 20px; border-radius: 70px; overflow: hidden; background: #fff; }
+#notch { left: 50%; top: 18px; width: 170px; height: 44px; margin-left: -85px; background: #0f1717; border-radius: 30px; z-index: 30; }
+.statusbar { position: absolute; top: 0; left: 0; right: 0; height: 80px; display: flex; justify-content: space-between;
+  align-items: center; padding: 10px 58px 0; font-size: 24px; font-weight: 600; z-index: 20; }
+.scene { position: absolute; inset: 0; opacity: 0; }
+
+/* app chrome */
+.appbar { position: absolute; top: 0; left: 0; right: 0; height: 190px; background: var(--teal); color: #fff;
+  padding: 96px 40px 0; display: flex; align-items: center; gap: 16px; font-weight: 700; font-size: 34px; }
+.appbar small { font-weight: 400; font-size: 24px; opacity: .8; display: block; }
+.body { position: absolute; top: 190px; left: 0; right: 0; bottom: 0; background: #F3F6F5; padding: 30px 30px; }
+
+/* S1 call */
+#s1 { background: radial-gradient(120% 80% at 50% 20%, #1d4d4c 0%, #0a2020 70%); color: #fff; }
+#s1 .who { position: absolute; top: 250px; width: 100%; text-align: center; }
+#s1 .avatar { width: 170px; height: 170px; border-radius: 50%; background: #3c6c6a; margin: 0 auto 34px; display: grid; place-items: center; font-size: 80px; font-weight: 700; }
+#s1 .num { font-size: 56px; font-weight: 600; letter-spacing: .01em; }
+#s1 .sub { font-size: 28px; opacity: .7; margin-top: 12px; }
+#s1 .state { font-size: 34px; margin-top: 40px; font-weight: 500; }
+#ring1, #ring2 { left: 50%; top: 335px; width: 170px; height: 170px; margin: -85px 0 0 -85px; border-radius: 50%; border: 4px solid rgba(248,185,43,.8); }
+#s1 .btns { position: absolute; bottom: 150px; width: 100%; display: flex; justify-content: space-around; padding: 0 60px; }
+#s1 .btn { width: 130px; height: 130px; border-radius: 50%; display: grid; place-items: center; }
+#s1 .btn svg { width: 60px; height: 60px; }
+#missedBadge { top: 760px; left: 50%; transform: translateX(-50%); background: var(--red); color: #fff; font-weight: 700;
+  font-size: 30px; padding: 16px 30px; border-radius: 999px; white-space: nowrap; opacity: 0; }
+
+/* S2 sms thread */
+#s2 { background: #fff; }
+#s2 .thead { position: absolute; top: 80px; left: 0; right: 0; padding: 16px 30px 22px; text-align: center; border-bottom: 2px solid #eef1f0; }
+#s2 .thead .av { width: 80px; height: 80px; border-radius: 50%; background: var(--teal-soft); color: var(--teal); margin: 0 auto 8px; display: grid; place-items: center; font-weight: 700; font-size: 34px; }
+#s2 .thead b { font-size: 28px; } #s2 .thead div.s { font-size: 22px; color: var(--muted); }
+.bubble { position: absolute; max-width: 440px; padding: 24px 28px; border-radius: 34px; font-size: 28px; line-height: 1.35; opacity: 0; }
+.bubble.out { right: 26px; background: var(--teal); color: #fff; border-bottom-right-radius: 10px; }
+.bubble.in { left: 26px; background: #ECEFEE; color: var(--ink); border-bottom-left-radius: 10px; }
+.tag { position: absolute; font-size: 22px; font-weight: 600; padding: 10px 20px; border-radius: 999px; opacity: 0; white-space: nowrap; }
+.tag.sun { background: var(--sun-soft); color: #7a5300; }
+.tag.teal { background: var(--teal-soft); color: var(--teal-dark); }
+#typing { left: 26px; top: 780px; background: #ECEFEE; border-radius: 34px; padding: 26px 30px; display: flex; gap: 10px; opacity: 0; }
+#typing i { width: 16px; height: 16px; border-radius: 50%; background: #93a3a1; display: block; }
+
+/* push banner */
+#push { left: 18px; right: 18px; top: 70px; background: rgba(255,255,255,.97); border-radius: 36px; padding: 24px 26px;
+  display: flex; gap: 20px; align-items: center; box-shadow: 0 16px 40px rgba(0,0,0,.25); z-index: 25; opacity: 0; }
+#push .ic { width: 76px; height: 76px; border-radius: 20px; background: var(--teal); display: grid; place-items: center; flex: none; }
+#push .ic svg { width: 54px; height: 38px; }
+#push b { font-size: 26px; display: block; } #push span { font-size: 25px; color: #334; }
+#push small { font-size: 20px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+
+/* cards */
+.card { background: #fff; border-radius: 32px; padding: 30px; box-shadow: 0 6px 20px rgba(8,63,62,.08); }
+.row { display: flex; justify-content: space-between; align-items: baseline; padding: 16px 0; border-bottom: 2px solid #f0f3f2; font-size: 27px; opacity: 0; }
+.row:last-child { border-bottom: 0; }
+.row .k { color: var(--muted); font-size: 23px; text-transform: uppercase; letter-spacing: .05em; }
+.row .v { font-weight: 600; text-align: right; }
+.pill { display: inline-block; font-size: 22px; font-weight: 700; padding: 8px 18px; border-radius: 999px; }
+.pill.urgent { background: var(--red); color: #fff; }
+.h2 { font-size: 38px; font-weight: 700; display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
+
+#timer { margin-top: 26px; display: flex; align-items: center; gap: 24px; background: var(--sun-soft); border-radius: 28px; padding: 22px 28px; opacity: 0; }
+#timer svg { width: 96px; height: 96px; flex: none; }
+#timer .lbl { font-size: 24px; color: #7a5300; font-weight: 600; }
+#timer .t { font-size: 50px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+/* S4 quote */
+.chips { display: flex; flex-wrap: wrap; gap: 14px; margin: 10px 0 26px; }
+.chip { font-size: 25px; font-weight: 600; padding: 18px 24px; border-radius: 999px; background: #fff; border: 3px solid #d7e2e0; color: var(--ink); }
+.chip.sel { background: var(--teal); border-color: var(--teal); color: #fff; }
+.sec { font-size: 22px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.bigbtn { margin-top: 26px; height: 104px; border-radius: 28px; background: var(--teal); color: #fff; font-size: 32px; font-weight: 700; display: grid; place-items: center; }
+#accepted { left: 30px; right: 30px; bottom: 40px; background: #fff; border-radius: 36px; padding: 34px; box-shadow: 0 -10px 40px rgba(8,63,62,.18); opacity: 0; display: flex; gap: 24px; align-items: center; }
+.check { width: 92px; height: 92px; border-radius: 50%; background: var(--green); display: grid; place-items: center; flex: none; }
+.check svg { width: 52px; height: 52px; }
+#accepted b { font-size: 34px; display: block; } #accepted span { font-size: 24px; color: var(--muted); }
+
+#finger { width: 110px; height: 110px; border-radius: 50%; background: rgba(248,185,43,.45); border: 5px solid rgba(248,185,43,.95); z-index: 40; opacity: 0; pointer-events: none; }
+
+/* S5 calendar */
+.cal { position: relative; height: 560px; background: #fff; border-radius: 32px; overflow: hidden; box-shadow: 0 6px 20px rgba(8,63,62,.08); }
+.slot { position: absolute; left: 0; right: 0; height: 112px; border-top: 2px solid #eef1f0; padding: 10px 22px; font-size: 22px; color: var(--muted); }
+#ev { left: 110px; right: 20px; top: 124px; height: 200px; border-radius: 22px; background: var(--teal); color: #fff; padding: 22px 26px; opacity: 0; border-left: 12px solid var(--sun); }
+#ev b { font-size: 30px; display: block; } #ev span { font-size: 24px; opacity: .9; }
+.done { display: flex; align-items: center; gap: 18px; font-size: 27px; font-weight: 600; margin-top: 22px; opacity: 0; background: #fff; border-radius: 26px; padding: 22px 24px; }
+.done .check { width: 58px; height: 58px; } .done .check svg { width: 32px; height: 32px; }
+
+/* S6 invoice */
+#inv .card { position: relative; }
+#inv .title { font-size: 40px; font-weight: 800; }
+#inv .meta { font-size: 22px; color: var(--muted); margin: 6px 0 16px; }
+#inv .row { opacity: 1; }
+#inv .tot { font-size: 36px; font-weight: 800; }
+#stamp { left: 50%; top: 560px; margin-left: -150px; width: 300px; text-align: center; border: 8px solid var(--green); color: var(--green); font-size: 76px; font-weight: 800; padding: 6px 26px; border-radius: 20px; letter-spacing: .08em; opacity: 0; background: rgba(255,255,255,.85); }
+#paybtn { background: var(--sun); color: var(--ink); }
+
+/* End card */
+#end { inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 470px; opacity: 0; }
+#endlogo { width: 520px; height: 300px; }
+#endword { font-size: 128px; font-weight: 800; letter-spacing: -0.03em; margin-top: 10px; }
+#endtag { font-size: 58px; font-weight: 700; text-align: center; line-height: 1.2; margin-top: 30px; color: var(--ink); }
+#endcta { margin-top: 70px; background: var(--teal); color: #fff; font-size: 44px; font-weight: 700; padding: 36px 64px; border-radius: 999px; box-shadow: 0 16px 40px rgba(8,63,62,.3); }
+#endsmall { margin-top: 40px; font-size: 30px; color: var(--teal-dark); font-weight: 500; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="sky" class="abs"></div>
+  <div id="dusk" class="abs"></div>
+  <div id="bgsun" class="abs"></div>
+  <svg id="hills" class="abs" viewBox="0 0 1080 520" preserveAspectRatio="none">
+    <path d="M0 260 C 260 150, 520 120, 760 210 C 900 262, 1000 250, 1080 230 L1080 520 L0 520 Z" fill="#7FA89F" opacity=".55"/>
+    <path d="M0 380 C 200 300, 420 250, 640 300 C 820 340, 960 330, 1080 300 L1080 520 L0 520 Z" fill="#0D5C5B"/>
+  </svg>
+
+  <div id="bug" class="abs">
+    <svg viewBox="0 0 58 40"><circle cx="30" cy="16" r="11" fill="#F8B92B"/><path d="M2 36 C 16 32, 24 18, 34 18 C 42 18, 48 26, 56 30 C 46 26, 38 28, 30 32 C 22 36, 10 37, 2 36Z" fill="#0D5C5B"/></svg>
+    <div><span class="wm-field">Field</span><span class="wm-bourne">Bourne</span></div>
+  </div>
+
+  <!-- Captions -->
+  <div class="cap abs" id="c1"><div class="l1"><span>On the tools.</span></div><div class="l2"><span>Phone rings.</span></div></div>
+  <div class="cap abs" id="c2"><div class="l2 red"><span>Missed.</span></div><div class="l1" style="margin-top:18px"><span>Next tradie gets the job.</span></div></div>
+  <div class="cap abs" id="c3"><div class="l1"><span>FieldBourne texts them back</span></div><div class="l2"><span class="mark">in seconds.</span></div></div>
+  <div class="cap abs" id="c4"><div class="l1"><span>No notes. No typing.</span></div><div class="l2"><span>The lead fills</span> <span class="mark">itself in.</span></div></div>
+  <div class="cap abs" id="c5"><div class="l1"><span>Price list, one tap.</span></div><div class="l2"><span>Quoted &amp;</span> <span class="mark">signed.</span></div></div>
+  <div class="cap abs" id="c6"><div class="l1"><span>Reminders sent for you.</span></div><div class="l2"><span class="mark">Booked.</span></div></div>
+  <div class="cap abs" id="c7"><div class="l1"><span>Invoiced &amp; paid on site.</span></div><div class="l2"><span>No admin at</span> <span class="mark">9pm.</span></div></div>
+
+  <!-- Phone -->
+  <div id="phone" class="abs">
+    <div id="notch" class="abs"></div>
+    <div id="screen">
+      <div class="statusbar" id="sb"><span>10:42</span><span>4G ▮▮▮</span></div>
+
+      <!-- S1: incoming / missed call -->
+      <div class="scene" id="s1">
+        <div id="ring1" class="abs"></div><div id="ring2" class="abs"></div>
+        <div class="who">
+          <div class="avatar">?</div>
+          <div class="num">0412 555 018</div>
+          <div class="sub">Mobile · Frankston</div>
+          <div class="state" id="callState">Incoming call…</div>
+        </div>
+        <div id="missedBadge" class="abs">3 missed calls today</div>
+        <div class="btns" id="callBtns">
+          <div class="btn" style="background:#D6453D"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.956.956 0 0 1 0-1.36C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.72c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 0 0-2.67-1.85.996.996 0 0 1-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg></div>
+          <div class="btn" style="background:#2E8B57"><svg viewBox="0 0 24 24" fill="#fff"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg></div>
+        </div>
+      </div>
+
+      <!-- S2: auto text-back thread -->
+      <div class="scene" id="s2">
+        <div class="thead"><div class="av">S</div><b>Sarah · 0412 555 018</b><div class="s">SMS</div></div>
+        <div class="bubble out" id="b1" style="top:330px">G'day! Sorry we missed your call, we're on a job. What do you need done? We'll ring you back within 30 min. – Dave's Plumbing</div>
+        <div class="tag sun" id="t1" style="right:26px; top:640px">⚡ Sent automatically · 8 sec</div>
+        <div id="typing" class="abs"><i></i><i></i><i></i></div>
+        <div class="bubble in" id="b2" style="top:720px">Burst pipe under the kitchen sink! 12 Smith St, Frankston. How soon can you come?</div>
+      </div>
+
+      <!-- S3: lead card -->
+      <div class="scene" id="s3">
+        <div class="appbar"><svg viewBox="0 0 58 40" width="58" height="40"><circle cx="30" cy="16" r="11" fill="#F8B92B"/><path d="M2 36 C 16 32, 24 18, 34 18 C 42 18, 48 26, 56 30 C 46 26, 38 28, 30 32 C 22 36, 10 37, 2 36Z" fill="#fff"/></svg><div>Leads<small>Inbox · 1 new</small></div></div>
+        <div class="body">
+          <div class="card">
+            <div class="h2">New lead <span class="pill urgent" id="urg" style="opacity:0">URGENT</span></div>
+            <div class="row" id="r1"><span class="k">Customer</span><span class="v">Sarah M.</span></div>
+            <div class="row" id="r2"><span class="k">Mobile</span><span class="v">0412 555 018</span></div>
+            <div class="row" id="r3"><span class="k">Address</span><span class="v">12 Smith St, Frankston</span></div>
+            <div class="row" id="r4"><span class="k">Job</span><span class="v">Burst pipe · kitchen</span></div>
+            <div class="row" id="r5"><span class="k">Source</span><span class="v">Missed call → SMS</span></div>
+          </div>
+          <div id="timer">
+            <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" fill="none" stroke="#f5d68c" stroke-width="10"/><circle id="tarc" cx="50" cy="50" r="42" fill="none" stroke="#D6453D" stroke-width="10" stroke-linecap="round" stroke-dasharray="264" stroke-dashoffset="0" transform="rotate(-90 50 50)"/></svg>
+            <div><div class="lbl">Call back within</div><div class="t" id="tval">30:00</div></div>
+          </div>
+        </div>
+        <div id="push" class="abs">
+          <div class="ic"><svg viewBox="0 0 58 40"><circle cx="30" cy="16" r="11" fill="#F8B92B"/><path d="M2 36 C 16 32, 24 18, 34 18 C 42 18, 48 26, 56 30 C 46 26, 38 28, 30 32 C 22 36, 10 37, 2 36Z" fill="#fff"/></svg></div>
+          <div><small>FieldBourne · now</small><b>New lead: burst pipe</b><span>Frankston · Sarah M.</span></div>
+        </div>
+      </div>
+
+      <!-- S4: quote -->
+      <div class="scene" id="s4">
+        <div class="appbar"><div>Quote<small>Sarah M. · Burst pipe</small></div></div>
+        <div class="body">
+          <div class="sec">Your price list</div>
+          <div class="chips">
+            <div class="chip" id="chip1">Emergency call-out · $220</div>
+            <div class="chip">Tap swap · $180</div>
+            <div class="chip">HWS check · $150</div>
+          </div>
+          <div class="card" id="qcard" style="opacity:0">
+            <div class="row" style="opacity:1"><span>Emergency call-out</span><span class="v">$220.00</span></div>
+            <div class="row" style="opacity:1"><span class="k">GST incl.</span><span class="v">$20.00</span></div>
+            <div class="row" style="opacity:1"><b>Total</b><b>$220.00</b></div>
+          </div>
+          <div class="bigbtn" id="sendbtn" style="opacity:0">Send quote by SMS</div>
+        </div>
+        <div id="accepted" class="abs">
+          <div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+          <div><b>Quote accepted</b><span>Signed by Sarah on her phone</span></div>
+        </div>
+      </div>
+
+      <!-- S5: booking -->
+      <div class="scene" id="s5">
+        <div class="appbar"><div>Calendar<small>Tomorrow</small></div></div>
+        <div class="body">
+          <div class="cal">
+            <div class="slot" style="top:0">7 am</div>
+            <div class="slot" style="top:112px">8 am</div>
+            <div class="slot" style="top:224px">9 am</div>
+            <div class="slot" style="top:336px">10 am</div>
+            <div class="slot" style="top:448px">11 am</div>
+            <div id="ev" class="abs"><b>Sarah M. · Burst pipe</b><span>8:00 am · 12 Smith St, Frankston</span></div>
+          </div>
+          <div class="done" id="d1"><div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>Confirmation SMS + calendar invite</div>
+          <div class="done" id="d2"><div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>Reminder the day before</div>
+        </div>
+      </div>
+
+      <!-- S6: invoice -->
+      <div class="scene" id="s6">
+        <div class="appbar"><div>Job complete<small>Sarah M. · 12 Smith St</small></div></div>
+        <div class="body" id="inv">
+          <div class="card">
+            <div class="title">Tax Invoice #1042</div>
+            <div class="meta">Dave's Plumbing · ABN 12 345 678 901</div>
+            <div class="row"><span>Emergency call-out</span><span class="v">$220.00</span></div>
+            <div class="row"><span class="k">GST incl.</span><span class="v">$20.00</span></div>
+            <div class="row"><b>Total</b><span class="tot">$220.00</span></div>
+          </div>
+          <div class="bigbtn" id="paybtn">Pay Now · card on the spot</div>
+          <div id="stamp" class="abs">PAID</div>
+        </div>
+      </div>
+
+      <div id="finger" class="abs"></div>
+    </div>
+  </div>
+
+  <!-- End card -->
+  <div id="end" class="abs">
+    <svg id="endlogo" viewBox="0 0 520 300">
+      <defs><clipPath id="above"><rect x="0" y="0" width="520" height="300"/></clipPath></defs>
+      <circle id="endsun" cx="270" cy="130" r="96" fill="#F8B92B"/>
+      <path id="endhill" d="M10 280 C 110 262, 190 200, 270 160 C 340 125, 400 150, 510 215 C 430 190, 370 200, 300 230 C 220 266, 120 282, 10 280Z" fill="#0D5C5B"/>
+    </svg>
+    <div id="endword"><span class="wm-field">Field</span><span class="wm-bourne">Bourne</span></div>
+    <div id="endtag">Never miss a lead.<br>Get your nights back.</div>
+    <div id="endcta">Book a free 15-min demo</div>
+    <div id="endsmall">by Fieldbourne Digital · built for Aussie tradies</div>
+  </div>
+</div>
+
+<script>
+const DURATION = 29.5;
+const $ = (id) => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const eOut = (x) => 1 - Math.pow(1 - x, 3);
+const eIn = (x) => x * x * x;
+const eBack = (x) => { const c1 = 1.9, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+const lerp = (a, b, x) => a + (b - a) * x;
+
+// Pop-in: fades + rises from `dy` with back-ease; returns [opacity, offset, scale]
+function popIn(t, at, dur = 0.45, dy = 40) {
+  const x = prog(t, at, at + dur);
+  return { o: eOut(x), y: (1 - eBack(x)) * dy, s: lerp(0.92, 1, eBack(x)) };
+}
+function show(el, o, y = 0, s = 1, extra = '') {
+  el.style.opacity = o;
+  el.style.transform = `translateY(${y}px) scale(${s}) ${extra}`;
+}
+
+// Kinetic captions: each span rises in, staggered; whole caption lifts out at the end.
+const CAPS = [
+  ['c1', 0.1, 1.75], ['c2', 1.75, 4.6], ['c3', 4.6, 9.4], ['c4', 9.4, 14.4],
+  ['c5', 14.4, 19.0], ['c6', 19.0, 23.0], ['c7', 23.0, 26.5],
+];
+const capSpans = Object.fromEntries(CAPS.map(([id]) => [id, [...$(id).querySelectorAll('span')]]));
+function renderCaptions(t) {
+  for (const [id, a, b] of CAPS) {
+    const el = $(id);
+    if (t < a - 0.01 || t > b + 0.01) { el.style.opacity = 0; continue; }
+    const out = eIn(prog(t, b - 0.28, b));
+    el.style.opacity = 1 - out;
+    el.style.transform = `translateY(${-60 * out}px)`;
+    el.style.filter = `blur(${out * 8}px)`;
+    capSpans[id].forEach((sp, i) => {
+      const st = a + (id === 'c1' ? i * 0.7 : id === 'c2' ? i * 0.85 : 0.08 + i * 0.22);
+      const x = prog(t, st, st + 0.42);
+      sp.style.opacity = eOut(x);
+      sp.style.transform = `translateY(${(1 - eBack(x)) * 70}px) scale(${lerp(0.85, 1, eBack(x))})`;
+    });
+  }
+  // "Missed." slams in with a shake
+  const slam = prog(t, 1.75, 1.95);
+  const red = $('c2').querySelector('.red span');
+  if (t >= 1.75 && t < 4.6) {
+    const shake = t < 2.3 ? Math.sin(t * 90) * 14 * (1 - prog(t, 1.95, 2.3)) : 0;
+    red.style.transform = `translateX(${shake}px) scale(${lerp(1.8, 1, eOut(slam))})`;
+    red.style.opacity = slam;
+  }
+}
+
+function sceneWin(t, a, b, fade = 0.25) {
+  return Math.min(prog(t, a, a + fade), 1 - prog(t, b - fade, b));
+}
+
+function renderPhone(t) {
+  // phone in / buzz / out
+  const phone = $('phone');
+  const enter = eOut(prog(t, 0, 0.5));
+  const leave = eIn(prog(t, 26.0, 26.6));
+  const buzz = (t > 0.15 && t < 1.7 && (t % 0.6) < 0.4) ? Math.sin(t * 140) * 7 : 0;
+  phone.style.transform = `translate(${buzz}px, ${(1 - enter) * 300 + leave * 900}px) rotate(${buzz * 0.25}deg)`;
+  phone.style.opacity = enter * (1 - leave);
+
+  // status bar colour
+  $('sb').style.color = (t < 4.6 || (t >= 9.4 && t < 26.6)) ? '#fff' : '#12302F';
+  $('sb').firstElementChild.textContent = t < 23 ? '10:42' : '4:58';
+
+  // S1: call
+  const s1 = sceneWin(t, -1, 4.75);
+  $('s1').style.opacity = s1;
+  const missed = t >= 1.75;
+  $('callState').textContent = missed ? 'Missed call' : 'Incoming call…';
+  $('callState').style.color = missed ? '#ff8a80' : '#fff';
+  $('callBtns').style.opacity = 1 - prog(t, 1.75, 2.0);
+  for (const [id, off] of [['ring1', 0], ['ring2', 0.5]]) {
+    const r = ((t + off) % 1.0);
+    $(id).style.opacity = missed ? 0 : (1 - r) * 0.9;
+    $(id).style.transform = `scale(${1 + r * 0.9})`;
+  }
+  const mb = popIn(t, 2.9, 0.4, 30);
+  $('missedBadge').style.opacity = mb.o;
+  $('missedBadge').style.transform = `translateX(-50%) translateY(${mb.y}px) scale(${mb.s})`;
+  $('missedBadge').textContent = t < 3.3 ? '1 missed call today' : t < 3.7 ? '2 missed calls today' : '3 missed calls today';
+
+  // S2: text-back thread
+  $('s2').style.opacity = sceneWin(t, 4.6, 9.55);
+  let p = popIn(t, 5.0); show($('b1'), p.o, p.y, p.s);
+  p = popIn(t, 5.7, 0.4, 20); show($('t1'), p.o, p.y, p.s);
+  const typing = t > 6.4 && t < 7.4;
+  $('typing').style.opacity = typing ? 1 : 0;
+  [...$('typing').children].forEach((d, i) => d.style.transform = `translateY(${Math.sin(t * 12 - i * 0.9) * 6}px)`);
+  p = popIn(t, 7.4); show($('b2'), p.o, p.y, p.s);
+
+  // S3: push + lead card
+  $('s3').style.opacity = sceneWin(t, 9.4, 14.55);
+  const pin = eBack(prog(t, 9.5, 9.95)), pout = eIn(prog(t, 11.3, 11.6));
+  $('push').style.opacity = prog(t, 9.5, 9.7) * (1 - pout);
+  $('push').style.transform = `translateY(${(1 - pin) * -200 - pout * 200}px)`;
+  ['r1', 'r2', 'r3', 'r4', 'r5'].forEach((id, i) => {
+    const q = prog(t, 10.2 + i * 0.35, 10.55 + i * 0.35);
+    $(id).style.opacity = eOut(q);
+    $(id).style.transform = `translateX(${(1 - eOut(q)) * 60}px)`;
+  });
+  p = popIn(t, 11.0, 0.4, 0); show($('urg'), p.o, 0, lerp(1.6, 1, eOut(prog(t, 11.0, 11.4))));
+  p = popIn(t, 12.1); show($('timer'), p.o, p.y, p.s);
+  const remain = Math.max(0, 1800 - Math.max(0, t - 12.1) * 1 - 8);
+  $('tval').textContent = `${String(Math.floor(remain / 60)).padStart(2, '0')}:${String(Math.floor(remain % 60)).padStart(2, '0')}`;
+  $('tarc').style.strokeDashoffset = 264 * (1 - remain / 1800);
+
+  // S4: quote
+  $('s4').style.opacity = sceneWin(t, 14.4, 19.15);
+  $('chip1').classList.toggle('sel', t >= 15.35);
+  p = popIn(t, 15.55); show($('qcard'), p.o, p.y, p.s);
+  p = popIn(t, 15.9, 0.35, 20); show($('sendbtn'), p.o, p.y, t >= 16.6 && t < 16.8 ? 0.96 : p.s);
+  $('sendbtn').textContent = t >= 16.75 ? 'Quote sent ✓' : 'Send quote by SMS';
+  const acc = eBack(prog(t, 17.4, 17.9));
+  $('accepted').style.opacity = prog(t, 17.4, 17.6);
+  $('accepted').style.transform = `translateY(${(1 - acc) * 260}px)`;
+
+  // S5: booking
+  $('s5').style.opacity = sceneWin(t, 19.0, 23.15);
+  const drop = eBack(prog(t, 19.5, 20.0));
+  $('ev').style.opacity = prog(t, 19.5, 19.65);
+  $('ev').style.transform = `translateY(${(1 - drop) * -140}px) scale(${lerp(1.1, 1, drop)})`;
+  p = popIn(t, 20.5); show($('d1'), p.o, p.y, p.s);
+  p = popIn(t, 21.2); show($('d2'), p.o, p.y, p.s);
+
+  // S6: invoice
+  $('s6').style.opacity = sceneWin(t, 23.0, 26.9);
+  $('paybtn').style.transform = `scale(${t >= 24.2 && t < 24.45 ? 0.95 : 1})`;
+  const paid = t >= 24.75;
+  $('paybtn').textContent = paid ? 'Paid · $220.00 ✓' : 'Pay Now · card on the spot';
+  $('paybtn').style.background = paid ? 'var(--green)' : '';
+  $('paybtn').style.color = paid ? '#fff' : '';
+  const st = prog(t, 24.75, 25.05);
+  $('stamp').style.opacity = st > 0 ? 1 : 0;
+  $('stamp').style.transform = `rotate(-12deg) scale(${lerp(2.4, 1, eOut(st))})`;
+
+  // finger taps: [x, y, arriveAt, tapAt, leaveAt] in screen coords
+  const taps = [[150, 300, 14.9, 15.3, 15.7], [310, 700, 16.1, 16.6, 17.0], [310, 760, 23.8, 24.25, 24.7]];
+  const f = $('finger'); f.style.opacity = 0;
+  for (const [x, y, a, tap, l] of taps) {
+    if (t < a || t > l) continue;
+    const o = Math.min(prog(t, a, a + 0.2), 1 - prog(t, l - 0.2, l));
+    const press = t > tap && t < tap + 0.2 ? 0.8 : 1;
+    f.style.opacity = o;
+    f.style.left = (x - 55) + 'px'; f.style.top = (y - 55 + (1 - eOut(prog(t, a, a + 0.3))) * 80) + 'px';
+    f.style.transform = `scale(${press})`;
+  }
+}
+
+function renderBackground(t) {
+  // Dusk grows through the invoice scene ("get your evenings back"), sun sinks behind the hill.
+  const dusk = eOut(prog(t, 22.8, 25.5)) * (1 - prog(t, 26.4, 27.0));
+  $('dusk').style.opacity = dusk;
+  const sunY = lerp(1300, 1520, eOut(prog(t, 22.8, 26.2))) - 0 * t;
+  $('bgsun').style.transform = `translateY(${sunY - 1300}px)`;
+  $('bgsun').style.opacity = 1 - prog(t, 26.2, 26.6);
+  $('bug').style.opacity = prog(t, 0, 0.4) * (1 - prog(t, 26.2, 26.6));
+}
+
+function renderEnd(t) {
+  const e = $('end');
+  e.style.opacity = prog(t, 26.6, 26.9);
+  // sun rises over the hill (logo's sunrise)
+  const rise = eOut(prog(t, 26.7, 27.7));
+  $('endsun').setAttribute('cy', lerp(260, 130, rise));
+  const word = popIn(t, 27.0, 0.5, 60); show($('endword'), word.o, word.y, word.s);
+  const tag = popIn(t, 27.45, 0.5, 50); show($('endtag'), tag.o, tag.y, tag.s);
+  const cta = popIn(t, 27.9, 0.5, 50);
+  const pulse = t > 28.5 ? 1 + Math.sin((t - 28.5) * 6) * 0.025 : 1;
+  show($('endcta'), cta.o, cta.y, cta.s * pulse);
+  const sm = popIn(t, 28.2, 0.4, 20); show($('endsmall'), sm.o, sm.y, 1);
+}
+
+function render(t) {
+  renderBackground(t);
+  renderCaptions(t);
+  renderPhone(t);
+  renderEnd(t);
+}
+window.seek = render;
+window.DURATION = DURATION;
+
+const capture = new URLSearchParams(location.search).has('capture');
+function fit() {
+  if (capture) return;
+  const s = Math.min(innerWidth / 1080, innerHeight / 1920);
+  Object.assign($('stage').style, { position: 'absolute', left: '50%', top: '50%',
+    transform: `translate(-50%, -50%) scale(${s})` });
+}
+addEventListener('resize', fit); fit();
+if (capture) {
+  document.body.style.display = 'block';
+  render(0);
+} else {
+  let start = performance.now();
+  addEventListener('click', () => { start = performance.now(); });
+  const loop = (now) => { render(((now - start) / 1000) % (DURATION + 1)); requestAnimationFrame(loop); };
+  requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>
