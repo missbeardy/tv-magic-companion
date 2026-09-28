@@ -1,4 +1,4 @@
-// Renders fieldbourne-30s.html to MP4 (1080x1920, 30fps) with a synthesised soundtrack.
+// Renders fieldbourne-30s.html to MP4 (1080x1920, 30fps) with voiceover + music (see mix.cjs).
 //
 //   npm i --no-save playwright-core ffmpeg-static     (or point NODE_PATH at them)
 //   node marketing/video/render.cjs                    -> marketing/video/fieldbourne-30s.mp4
@@ -10,7 +10,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const { chromium } = require('playwright-core');
 const ffmpeg = require('ffmpeg-static');
-const { buildSoundtrack } = require('./soundtrack.cjs');
+const { buildMix } = require('./mix.cjs');
 
 const FPS = 30;
 const dir = __dirname;
@@ -37,8 +37,8 @@ const out = path.join(dir, 'fieldbourne-30s.mp4');
     return;
   }
 
-  const wav = path.join(dir, 'soundtrack.tmp.wav');
-  fs.writeFileSync(wav, buildSoundtrack(duration));
+  const wav = path.join(dir, 'mix.tmp.wav');
+  buildMix(ffmpeg, duration, wav);
 
   const ff = spawn(ffmpeg, [
     '-y', '-f', 'image2pipe', '-framerate', String(FPS), '-c:v', 'png', '-i', '-',

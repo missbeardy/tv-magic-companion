@@ -300,6 +300,7 @@ body { display: grid; place-items: center; font-family: 'Lexend', system-ui, san
   </div>
 
   <!-- End card -->
+  <div id="flash" class="abs" style="inset:0; background:#fff; opacity:0; z-index:50; pointer-events:none"></div>
   <div id="end" class="abs">
     <svg id="endlogo" viewBox="0 0 520 300">
       <defs><clipPath id="above"><rect x="0" y="0" width="520" height="300"/></clipPath></defs>
@@ -489,11 +490,45 @@ function renderEnd(t) {
   const sm = popIn(t, 28.2, 0.4, 20); show($('endsmall'), sm.o, sm.y, 1);
 }
 
-function render(t) {
+function renderScenes(t) {
   renderBackground(t);
   renderCaptions(t);
   renderPhone(t);
   renderEnd(t);
+}
+
+// The scenes above are authored on their own clock. WARP maps video time -> scene time
+// so each beat lands on its voiceover line (audio/voiceover-blake.mp3, cut in mix.cjs)
+// and scene changes land on the music's downbeats. Pairs are [videoTime, sceneTime].
+const WARP = [
+  [0, 0], [1.15, 0.8], [2.3, 1.75],             // hook: "On the tools. Phone rings." / "Missed."
+  [5.0, 4.6], [5.4, 5.0], [7.6, 7.4],           // music drop -> text-back, customer reply
+  [8.83, 9.4], [10.7, 10.2], [12.3, 12.1],      // lead card, rows, callback timer
+  [14.1, 14.4], [14.9, 15.3], [16.6, 17.4],     // quote, chip tap, accepted
+  [17.45, 19.0], [17.65, 19.5], [19.5, 21.2],   // "Booked." drop, reminders
+  [20.32, 23.0], [21.8, 24.75],                 // invoice, PAID stamp
+  [24.16, 26.6], [24.4, 27.0], [25.25, 27.45], [26.0, 27.85], [27.4, 27.9], [29.5, 29.5], // end card
+];
+function warp(t) {
+  for (let i = 1; i < WARP.length; i++) {
+    const [v0, s0] = WARP[i - 1], [v1, s1] = WARP[i];
+    if (t <= v1) return s0 + (s1 - s0) * clamp((t - v0) / (v1 - v0));
+  }
+  return t;
+}
+
+// Music: downbeat of the drop at 5.0s, 125.3 bpm.
+const BEAT0 = 5.0, BEAT = 0.4789;
+function render(t) {
+  renderScenes(warp(t));
+  // punch on the drop + a subtle phone pulse on every beat until the end card
+  const flash = t >= BEAT0 ? Math.exp(-(t - BEAT0) * 9) : 0;
+  $('flash').style.opacity = 0.55 * flash;
+  if (t >= BEAT0 && t < 24.0) {
+    const since = (t - BEAT0) % BEAT, bar = Math.floor((t - BEAT0) / BEAT) % 4 === 0;
+    const pulse = 1 + (bar ? 0.022 : 0.01) * Math.exp(-since * 14);
+    $('phone').style.transform += ` scale(${pulse})`;
+  }
 }
 window.seek = render;
 window.DURATION = DURATION;

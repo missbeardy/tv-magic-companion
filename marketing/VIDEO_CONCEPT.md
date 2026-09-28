@@ -87,7 +87,13 @@ node marketing/video/render.cjs --stills 2.4,13.5  # PNG stills for review
 
 - **Watch live:** open `marketing/video/fieldbourne-30s.html` in a browser. It loops, and a click restarts it.
 - **Change copy, names or prices:** edit the HTML text. Scene timings live in `CAPS` and `renderPhone()`, and sound cues in `soundtrack.cjs`.
-- **Add VO:** replace or duck the synthesised soundtrack in any editor (CapCut or Premiere). The music bed starts at 0:04.6.
+- **Audio:** `mix.cjs` builds the soundtrack from two files.
+  - The voiceover is `audio/voiceover-blake.mp3` (ElevenLabs, "Blake"). It is cut into its 19 lines, sped up 7% with pitch kept, and each line is placed on its scene.
+  - The music is `audio/music-sunshine-stomp.mp3` (Suno, 125 bpm). Its drop lands at 0:05, right after "Missed.", and it ducks under the voice.
+  - The master is -14 LUFS.
+  - To swap either file, keep the file name. If the new VO's pauses differ, update `LINES`.
+- **Visual timing:** `WARP` in the HTML maps video time to scene time, so scene changes land on downbeats. The phone pulses on each beat and there's a white flash on the drop.
+- **Licensing:** the Suno track needs to have been made on a paid Suno plan, and the VO on a paid ElevenLabs plan, for use in ads.
 - **Before publishing:**
   - Swap in the real CTA URL.
   - Make sure the live app shell matches the ad's teal and sunrise (refinement 1).
