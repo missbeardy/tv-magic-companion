@@ -50,11 +50,12 @@ export const WEEKLY_CHANGELOG: WeeklyChangelog = {
     'Removed the 3D wall visualiser page. Old links to it now go to the TV Magic South Brisbane website',
     'Voicemail leads now pick the right service type from your own service list, the same way SMS and email leads already do',
     'Customer SMS replies are saved more reliably',
+    'Booked jobs now show their booking date on the leads board — tap it to open the booking. Jobs whose booking has passed turn orange and sort to the top, and the technician gets a daily reminder (managers get a daily summary) until each one is marked completed, lost or rescheduled',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.202'
+export const APP_VERSION = '1.1.203'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 

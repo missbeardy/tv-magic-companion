@@ -304,6 +304,43 @@ export default function Calendar() {
     }
   }, [searchParams, profile?.org_id, setSearchParams])
 
+  // T1.21: Booked lead cards deep-link here with ?event=<id> — jump to that day and open it.
+  useEffect(() => {
+    const eventId = searchParams.get('event')
+    if (!eventId || !profile?.org_id) return
+
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', eventId)
+        .eq('org_id', profile.org_id)
+        .maybeSingle()
+
+      if (cancelled) return
+      if (data) {
+        setCurrentDate(new Date(data.start_time))
+        setView('day')
+        setPrefillLead(null)
+        setSelectedEvent(data as Event)
+        setDefaultDate('')
+        setShowModal(true)
+      } else {
+        console.warn('event deep-link: event not found', eventId)
+      }
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete('event')
+        return next
+      }, { replace: true })
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [searchParams, profile?.org_id, setSearchParams])
+
   useEffect(() => {
     if (!profile?.id || showModal) return
     const draft = loadEventModalDraft(profile.id)

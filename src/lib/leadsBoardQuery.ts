@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '../types/database.types'
+import { latestBookingByLead, type BookingWindow, type LeadBooking } from '../../shared/bookingOverdue'
 
 export const LEADS_BOARD_LIMIT = 500
 export const CLOSED_BOARD_STATUSES = ['completed', 'lost', 'booking_cancelled'] as const
@@ -26,6 +27,28 @@ export function chunkIds(ids: string[], size = LEAD_ID_IN_CHUNK): string[][] {
   const chunks: string[][] = []
   for (let i = 0; i < ids.length; i += size) chunks.push(ids.slice(i, i + size))
   return chunks
+}
+
+/** Latest calendar booking per lead, so Booked cards can show the date and flag overdue jobs. */
+export async function fetchLeadBookings(
+  client: Pick<SupabaseClient<Database>, 'from'>,
+  orgId: string,
+  leadIds: string[]
+): Promise<Map<string, LeadBooking>> {
+  const rows: BookingWindow[] = []
+  for (const chunk of chunkIds(leadIds)) {
+    const { data, error } = await client
+      .from('events')
+      .select('id, lead_id, start_time, end_time')
+      .eq('org_id', orgId)
+      .in('lead_id', chunk)
+    if (error) {
+      console.warn('lead bookings query failed:', error.message)
+      continue
+    }
+    if (data) rows.push(...data)
+  }
+  return latestBookingByLead(rows)
 }
 
 export async function fetchLeadBoardBadges(

@@ -341,6 +341,7 @@ export async function processContactFollowUpRollovers<T extends ContactFollowUpL
 interface SortableLead extends ContactFollowUpLead {
   created_at?: string
   timer_expires_at?: string | null
+  booking_start_at?: string | null
 }
 
 export function sortLeadsForKanbanColumn<T extends SortableLead>(leads: T[], columnStatus: string): T[] {
@@ -361,6 +362,17 @@ export function sortLeadsForKanbanColumn<T extends SortableLead>(leads: T[], col
       const aTimer = a.timer_expires_at ? new Date(a.timer_expires_at).getTime() : Number.MAX_SAFE_INTEGER
       const bTimer = b.timer_expires_at ? new Date(b.timer_expires_at).getTime() : Number.MAX_SAFE_INTEGER
       if (aTimer !== bTimer) return aTimer - bTimer
+      return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
+    })
+  }
+
+  if (columnStatus === 'booked') {
+    // Earliest booking first, so past jobs nobody closed out surface at the top.
+    // Leads with no calendar booking sink to the bottom.
+    return [...leads].sort((a, b) => {
+      const aStart = a.booking_start_at ? new Date(a.booking_start_at).getTime() : Number.MAX_SAFE_INTEGER
+      const bStart = b.booking_start_at ? new Date(b.booking_start_at).getTime() : Number.MAX_SAFE_INTEGER
+      if (aStart !== bStart) return aStart - bStart
       return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
     })
   }

@@ -5,6 +5,7 @@ import { missingServerEnv } from './env.js'
 import { loadLocalEnvIfNeeded } from './loadLocalEnv.js'
 import { runContactFollowUpCron } from './runContactFollowUpCron.js'
 import { runBookingReminderSweep } from './bookingReminder.js'
+import { runBookingOverdueSweep } from './bookingOverdue.js'
 import { purgeOldWorkflowRuns } from './workflowRun.js'
 import { purgeOldNotifications } from './notificationRetention.js'
 import { purgeOldRateLimitHits } from './rateLimit.js'
@@ -103,7 +104,11 @@ export async function handleContactFollowUpCron(req: VercelRequest, res: VercelR
 export async function handleAutomationSweepsCron(req: VercelRequest, res: VercelResponse) {
   return withCronAuth(req, res, 'automation-sweeps', async (supabase) => {
     const bookingReminder = await runBookingReminderSweep(supabase)
-    const result = { bookingReminder }
+    // Isolated so a failure here can't drop the customer reminder result from the heartbeat.
+    const bookingOverdue = await runBookingOverdueSweep(supabase).catch((err) => ({
+      error: err instanceof Error ? err.message : String(err),
+    }))
+    const result = { bookingReminder, bookingOverdue }
     await upsertHeartbeat(supabase, CRON_KEYS.automationSweeps, result)
     return result
   })

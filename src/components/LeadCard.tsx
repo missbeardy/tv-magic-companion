@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ChevronUp } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import CountdownTimer from './CountdownTimer'
 import LeadStatusMenu from './LeadStatusMenu'
@@ -16,6 +17,7 @@ import { getAttemptPhaseLabel, LOST_REASON_UNABLE_TO_CONTACT } from '../lib/cont
 import { isManagerRole } from '../lib/roles'
 import type { LeadEventType } from '../lib/leadEventPayload'
 import { resolveLeadNextAction } from '../lib/leadNextAction'
+import { daysSinceBooking, formatBookingWhen, isBookingOverdue } from '../../shared/bookingOverdue'
 
 export interface KanbanLead {
   id: string
@@ -42,6 +44,9 @@ export interface KanbanLead {
   raw_sms?: string | null
   extraction_status?: string | null
   hidden_from_kanban_at?: string | null
+  booking_event_id?: string | null
+  booking_start_at?: string | null
+  booking_end_at?: string | null
   profiles: { full_name: string; avatar_url?: string | null } | null
 }
 
@@ -83,6 +88,8 @@ export default function LeadCard({
 }: LeadCardProps) {
   const isExpanded = expandedLead === lead.id
   const isBookingCancelled = lead.status === 'booking_cancelled'
+  const isOverdueBooking = isBookingOverdue(lead.status, lead.booking_end_at)
+  const overdueDays = isOverdueBooking && lead.booking_end_at ? daysSinceBooking(lead.booking_end_at) : 0
   const locality = formatLocalityLabelFromAddress(lead.address)
   const attemptPhaseLabel = getAttemptPhaseLabel(lead.contact_attempt_round)
   const isUnableToContact =
@@ -143,7 +150,11 @@ export default function LeadCard({
     <div
       id={`lead-card-${lead.id}`}
       className={`rounded-xl border shadow-sm overflow-hidden cursor-pointer md:cursor-default ${
-        isBookingCancelled ? 'bg-red-50 border-red-200' : 'bg-white border-gray-100'
+        isBookingCancelled
+          ? 'bg-red-50 border-red-200'
+          : isOverdueBooking
+          ? 'bg-orange-50 border-orange-300'
+          : 'bg-white border-gray-100'
       }`}
       onClick={() => {
         if (window.innerWidth < 768) {
@@ -197,6 +208,30 @@ export default function LeadCard({
           <span className="text-xs text-gray-500">{lead.service_type}</span>
           {locality && (
             <p className="text-xs text-gray-500 mt-0.5 truncate">📍 {locality}</p>
+          )}
+          {lead.status === 'booked' && (
+            lead.booking_start_at ? (
+              lead.booking_event_id ? (
+                <Link
+                  to={`/calendar?event=${lead.booking_event_id}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className={`block w-fit text-xs mt-0.5 underline underline-offset-2 hover:no-underline ${isOverdueBooking ? 'font-semibold text-orange-800' : 'text-indigo-700'}`}
+                >
+                  📅 {formatBookingWhen(lead.booking_start_at)}
+                </Link>
+              ) : (
+                <p className={`text-xs mt-0.5 ${isOverdueBooking ? 'font-semibold text-orange-800' : 'text-indigo-700'}`}>
+                  📅 {formatBookingWhen(lead.booking_start_at)}
+                </p>
+              )
+            ) : (
+              <p className="text-xs text-gray-400 mt-0.5">📅 No booking on the calendar</p>
+            )
+          )}
+          {isOverdueBooking && (
+            <p className="text-xs font-semibold text-orange-800 mt-1">
+              ⚠ Booking passed{overdueDays > 0 ? ` ${overdueDays}d ago` : ''}
+            </p>
           )}
         </div>
 

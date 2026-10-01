@@ -69,8 +69,10 @@ import { saveLeadsCache, loadLeadsCache } from '../lib/scheduleCache'
 import { useOrgLeadsRealtime } from '../hooks/useOrgLeadsRealtime'
 import { loadCompletionDraft, clearCompletionDraft } from '../lib/completionDraft'
 import { getAuthHeaders } from '../lib/apiAuth'
+import { isBookingOverdue } from '../../shared/bookingOverdue'
 import {
   fetchLeadBoardBadges,
+  fetchLeadBookings,
   LEADS_BOARD_LIMIT,
   leadsBoardOrFilter,
 } from '../lib/leadsBoardQuery'
@@ -109,6 +111,27 @@ function DraggableCard({ id, children }: { id: string; children: React.ReactNode
   )
 }
 
+function KanbanColumnHeader({ col, leads }: { col: KanbanColumnDef; leads: Lead[] }) {
+  const overdue = col.key === 'booked'
+    ? leads.filter((lead) => isBookingOverdue(lead.status, lead.booking_end_at)).length
+    : 0
+  return (
+    <div className="p-3 border-b border-gray-100 flex items-center justify-between gap-2">
+      <span className="font-semibold text-gray-700 text-sm">{col.label}</span>
+      <div className="flex items-center gap-1.5">
+        {overdue > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-700">
+            {overdue} overdue
+          </span>
+        )}
+        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${col.badge}`}>
+          {leads.length}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 // ── KanbanColumn — Mobile (no drag wrappers) ─────────────────────────────
 
 interface KanbanColumnProps {
@@ -130,12 +153,7 @@ interface KanbanColumnProps {
 function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onComplete, onRefresh, onLogEvent, onCall, hideAssignPool }: KanbanColumnProps) {
   return (
     <div className={`w-full bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200`}>
-      <div className="p-3 border-b border-gray-100 flex items-center justify-between">
-        <span className="font-semibold text-gray-700 text-sm">{col.label}</span>
-        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${col.badge}`}>
-          {leads.length}
-        </span>
-      </div>
+      <KanbanColumnHeader col={col} leads={leads} />
       <div className="p-2 space-y-2">
        {leads.length === 0 && (
           <div className="py-6 text-center">
@@ -171,12 +189,7 @@ function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand
   return (
     <DroppableColumn id={col.key}>
       <div className={`flex-shrink-0 w-72 bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200 h-full`}>
-        <div className="p-3 border-b border-gray-100 flex items-center justify-between">
-          <span className="font-semibold text-gray-700 text-sm">{col.label}</span>
-          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${col.badge}`}>
-            {leads.length}
-          </span>
-        </div>
+        <KanbanColumnHeader col={col} leads={leads} />
         <div className="p-2 space-y-2 max-h-[calc(100dvh-10rem)] overflow-y-auto overscroll-contain pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           {leads.length === 0 && (
             <div className="py-6 text-center">
@@ -296,15 +309,23 @@ export default function LeadsPage() {
       }
 
       const leadIds = baseLeads.map((lead) => lead.id)
-      const badges = await fetchLeadBoardBadges(supabase, profile.org_id, leadIds)
+      const bookedIds = baseLeads.filter((lead) => lead.status === 'booked').map((lead) => lead.id)
+      const [badges, bookingByLead] = await Promise.all([
+        fetchLeadBoardBadges(supabase, profile.org_id, leadIds),
+        fetchLeadBookings(supabase, profile.org_id, bookedIds),
+      ])
       const badgeByLead = new Map(
         badges.flatMap((row) => (row.lead_id ? [[row.lead_id, row] as const] : []))
       )
 
       const merged = baseLeads.map((lead) => {
         const badge = badgeByLead.get(lead.id)
+        const booking = bookingByLead.get(lead.id)
         return {
           ...lead,
+          booking_event_id: booking?.eventId ?? null,
+          booking_start_at: booking?.start ?? null,
+          booking_end_at: booking?.end ?? null,
           last_manual_sms_text: badge?.last_manual_sms_text ?? null,
           last_manual_sms_at: badge?.last_manual_sms_at ?? null,
         }

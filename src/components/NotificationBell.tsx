@@ -103,6 +103,7 @@ export default function NotificationBell() {
     timer_low: '⏰',
     lead_assigned: '✅',
     contact_follow_up: '📞',
+    calendar: '📅',
   }
 
   return (

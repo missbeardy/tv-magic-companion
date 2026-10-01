@@ -221,6 +221,13 @@
 - **Feature switch:** none new — the existing `inbound_calls` gates it server-side (owner decision 01-10-2026, consistent with `dd19`).
 - **Done when:** on `fbd`, a declined call with a 40s message produces a lead with playable audio, transcript and extracted fields within ~1 min plus an ack SMS; a hang-up during the greeting produces a "Missed call — no message" lead plus ack; a repeat call within 24h logs `missed_call_again` with no second SMS; a withheld caller creates a lead with no SMS; a forged webhook writes nothing; TV Magic's 3CX voicemails behave exactly as before.
 
+### [ ] T1.21 Overdue bookings: show the date, nudge the employee (added 01-10-2026, owner request)
+
+- **Why:** The Booked column banks up. A card doesn't show when the booking is, so nobody can tell a job that's next week from one that happened a fortnight ago and was never closed out (completed / lost / rescheduled).
+- **Spec:** The board fetches each lead's latest calendar booking (`events.start_time/end_time` by `lead_id`). Booked cards show the date; once the booking ended more than 2h ago the card turns red with "Booking passed — update status", the Booked column sorts overdue-first and its header shows an overdue count. The hourly `automation-sweeps` cron (`api/_lib/bookingOverdue.ts`) sends each assignee ONE in-app + push nudge per 20h covering all their overdue jobs (a single job is named and deep-linked; several say "N of your booked jobs have passed"), and each manager one daily digest, 8am–8pm org time. Dedupe reads the sweep's own `notifications` rows by title, so no migration. Per-person rather than per-job because prod had 148 overdue on day one (55 for one tech). Shared rules live in `shared/bookingOverdue.ts`. Notifications use the existing `calendar` type.
+- **Feature switch:** none (owner decision 01-10-2026) — internal staff nudge, not customer-facing.
+- **Done when:** a Booked lead whose event ended yesterday shows red on the board and sorts to the top; its assignee gets one bell + push nudge per day (one total, however many jobs they have overdue) until the status changes; each manager gets one digest per day while any are overdue; a booking in the future shows its date and triggers nothing.
+
 ---
 
 ## Tier 2 — Before marketing to strangers

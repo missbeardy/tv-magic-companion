@@ -95,6 +95,32 @@ export async function insertTrustedCustomerReply(
 }
 
 /**
+ * Trusted overdue-booking nudge / manager digest from the automation-sweeps cron (T1.21).
+ * Recipients are read straight from `leads` / `profiles` by the cron, never from a request.
+ * In-app bell + best-effort push. No employee SMS.
+ * NOT reachable from any HTTP handler.
+ */
+export async function insertTrustedBookingNudge(
+  input: Omit<NotifyOrgUserInput, 'type'>
+): Promise<NotifyOrgUserResult> {
+  const insertFailed = await insertInAppNotification({ ...input, type: 'calendar' })
+  if (insertFailed) return insertFailed
+
+  try {
+    await sendPushToUsers(input.supabase, input.orgId, [input.userId], {
+      title: input.title,
+      body: input.message,
+      url: resolveNotifyUrl(input.url),
+      ...(input.leadId ? { leadId: input.leadId } : {}),
+    })
+  } catch (err) {
+    console.error('Push failed (non-fatal):', err)
+  }
+
+  return { ok: true, alert: { sent: false, skipped: 'Skipped for booking nudge' } }
+}
+
+/**
  * In-app bell + best-effort push + SMS to profile phone (service role).
  *
  * Membership is validated first, for every `type`, with no branch above the check —
