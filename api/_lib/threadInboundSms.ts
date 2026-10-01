@@ -38,12 +38,6 @@ export async function threadInboundSms(
     console.error('sms_received event failed:', eventError.message)
   }
 
-  await input.supabase
-    .from('leads')
-    .update({ updated_at: new Date().toISOString() })
-    .eq('id', lead.id)
-    .eq('org_id', input.orgId)
-
   if (lead.assigned_to) {
     await insertTrustedCustomerReply({
       supabase: input.supabase,
