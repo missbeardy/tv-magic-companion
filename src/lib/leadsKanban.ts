@@ -7,22 +7,22 @@ export const BOOKING_CANCELLED_STATUS = 'booking_cancelled' as const
 const HIDEABLE_CLOSED_STATUSES = new Set(['lost', 'completed'])
 
 export const TEAM_KANBAN_COLUMNS = [
-  { key: 'unassigned', label: 'Unassigned', color: 'border-gray-300', badge: 'bg-gray-100 text-gray-600' },
-  { key: 'assigned', label: 'Assigned', color: 'border-violet-300', badge: 'bg-violet-100 text-violet-700' },
-  { key: 'contact_attempted', label: 'Contact Attempted', color: 'border-amber-300', badge: 'bg-amber-100 text-amber-700' },
-  { key: 'booked', label: 'Booked', color: 'border-indigo-300', badge: 'bg-indigo-100 text-indigo-700' },
-  { key: 'booking_cancelled', label: 'Booking Cancelled', color: 'border-red-400', badge: 'bg-red-100 text-red-700' },
-  { key: 'lost', label: 'Lost', color: 'border-red-300', badge: 'bg-red-100 text-red-600' },
-  { key: 'completed', label: 'Completed', color: 'border-purple-300', badge: 'bg-purple-100 text-purple-700' },
+  { key: 'unassigned', label: 'Unassigned', accent: 'bg-gray-300', badge: 'bg-gray-100 text-gray-600' },
+  { key: 'assigned', label: 'Assigned', accent: 'bg-violet-300', badge: 'bg-violet-100 text-violet-700' },
+  { key: 'contact_attempted', label: 'Contact Attempted', accent: 'bg-amber-300', badge: 'bg-amber-100 text-amber-700' },
+  { key: 'booked', label: 'Booked', accent: 'bg-indigo-300', badge: 'bg-indigo-100 text-indigo-700' },
+  { key: 'booking_cancelled', label: 'Booking Cancelled', accent: 'bg-red-400', badge: 'bg-red-100 text-red-700' },
+  { key: 'lost', label: 'Lost', accent: 'bg-red-300', badge: 'bg-red-100 text-red-600' },
+  { key: 'completed', label: 'Completed', accent: 'bg-purple-300', badge: 'bg-purple-100 text-purple-700' },
 ] as const
 
 export const SOLO_KANBAN_COLUMNS = [
-  { key: 'assigned', label: 'Inbox', color: 'border-violet-300', badge: 'bg-violet-100 text-violet-700' },
-  { key: 'contact_attempted', label: 'In progress', color: 'border-amber-300', badge: 'bg-amber-100 text-amber-700' },
-  { key: 'booked', label: 'Booked', color: 'border-indigo-300', badge: 'bg-indigo-100 text-indigo-700' },
-  { key: 'booking_cancelled', label: 'Cancelled', color: 'border-red-400', badge: 'bg-red-100 text-red-700' },
-  { key: 'lost', label: 'Lost', color: 'border-red-300', badge: 'bg-red-100 text-red-600' },
-  { key: 'completed', label: 'Done', color: 'border-purple-300', badge: 'bg-purple-100 text-purple-700' },
+  { key: 'assigned', label: 'Inbox', accent: 'bg-violet-300', badge: 'bg-violet-100 text-violet-700' },
+  { key: 'contact_attempted', label: 'In progress', accent: 'bg-amber-300', badge: 'bg-amber-100 text-amber-700' },
+  { key: 'booked', label: 'Booked', accent: 'bg-indigo-300', badge: 'bg-indigo-100 text-indigo-700' },
+  { key: 'booking_cancelled', label: 'Cancelled', accent: 'bg-red-400', badge: 'bg-red-100 text-red-700' },
+  { key: 'lost', label: 'Lost', accent: 'bg-red-300', badge: 'bg-red-100 text-red-600' },
+  { key: 'completed', label: 'Done', accent: 'bg-purple-300', badge: 'bg-purple-100 text-purple-700' },
 ] as const
 
 export type KanbanColumnDef =

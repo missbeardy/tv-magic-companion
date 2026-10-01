@@ -115,18 +115,23 @@ function KanbanColumnHeader({ col, leads }: { col: KanbanColumnDef; leads: Lead[
   const overdue = col.key === 'booked'
     ? leads.filter((lead) => isBookingOverdue(lead.status, lead.booking_end_at)).length
     : 0
+  // The colour bar is a flat strip clipped by the header's rounded corners, not a thick top
+  // border on the column: a border on a rounded box curls down at both ends.
   return (
-    <div className="p-3 border-b border-gray-100 flex items-center justify-between gap-2">
-      <span className="font-semibold text-gray-700 text-sm">{col.label}</span>
-      <div className="flex items-center gap-1.5">
-        {overdue > 0 && (
-          <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-700">
-            {overdue} overdue
+    <div className="rounded-t-[11px] overflow-hidden border-b border-gray-100">
+      <div className={`h-1 ${col.accent}`} aria-hidden />
+      <div className="p-3 flex items-center justify-between gap-2">
+        <span className="font-semibold text-gray-700 text-sm">{col.label}</span>
+        <div className="flex items-center gap-1.5">
+          {overdue > 0 && (
+            <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-700">
+              {overdue} overdue
+            </span>
+          )}
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${col.badge}`}>
+            {leads.length}
           </span>
-        )}
-        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${col.badge}`}>
-          {leads.length}
-        </span>
+        </div>
       </div>
     </div>
   )
@@ -152,7 +157,7 @@ interface KanbanColumnProps {
 
 function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onComplete, onRefresh, onLogEvent, onCall, hideAssignPool }: KanbanColumnProps) {
   return (
-    <div className={`w-full bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200`}>
+    <div className="w-full bg-white rounded-xl shadow-sm border border-gray-200">
       <KanbanColumnHeader col={col} leads={leads} />
       <div className="p-2 space-y-2">
        {leads.length === 0 && (
@@ -188,7 +193,7 @@ function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand,
 function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onComplete, onRefresh, onLogEvent, onCall, hideAssignPool }: KanbanColumnProps) {
   return (
     <DroppableColumn id={col.key}>
-      <div className={`flex-shrink-0 w-72 bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200 h-full`}>
+      <div className="flex-shrink-0 w-72 bg-white rounded-xl shadow-sm border border-gray-200 h-full">
         <KanbanColumnHeader col={col} leads={leads} />
         <div className="p-2 space-y-2 max-h-[calc(100dvh-10rem)] overflow-y-auto overscroll-contain pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           {leads.length === 0 && (
