@@ -43,30 +43,18 @@ export function formatChangelogDate(date: string): string {
  * after Monday, set `weekStarts` to that Monday (use getCurrentReleaseWeekId()).
  */
 export const WEEKLY_CHANGELOG: WeeklyChangelog = {
-  weekStarts: '21-09-2026', // Monday — update on first push after each Monday
-  title: 'SMS replies thread onto jobs, and tighter account security',
+  weekStarts: '28-09-2026', // Monday — update on first push after each Monday
+  title: 'A simpler app: unused features removed',
   items: [
-    'Tighter security: team members can only change the account settings their role allows',
-    'Cancelling a booking shared with other technicians now asks a manager instead of half-cancelling it',
-    'Technicians can send invoices from the job-complete checklist',
-    'Reply STOP to opt out now opts the number out instead of creating another lead',
-    'Offline call logs and pool pick-up no longer overwrite a lead that was booked or claimed on another phone',
-    'Customer SMS replies now land on the existing job instead of opening a new lead',
-    'In-app SMS send and receive from the lead sheet (Platform Admin can turn two-way SMS on)',
-    'Feature switches can now be set per franchisee, not only per brand',
-    'Lead extraction uses each org’s service types instead of a hardcoded TV list',
-    'Reports, quotes, and AI parsing are no longer locked behind subscription tier',
-    'The wall visualiser and quote page can now be branded per franchise (name, logo, colour)',
-    'Fixed the leads board sometimes starting a drag instead of scrolling on a phone',
-    'If one part of the app hits a problem, the rest keeps working instead of the whole app going down',
-    'Fixed technicians\' location being polled three times over instead of once',
-    'A few actions (removing a leave block, deleting a photo, changing your avatar, marking notifications read) now show an error instead of silently looking like they worked when they failed',
-    'Business texts can now be sent through Mobile Message, an Australian SMS provider, one franchise at a time. Nothing changes until your number is moved over, and your current number keeps receiving texts during the switch',
+    'Removed quoting, invoicing and online card payments, which weren\'t being used. They\'ll come back rebuilt around how you actually work',
+    'Removed the 3D wall visualiser page. Old links to it now go to the TV Magic South Brisbane website',
+    'Voicemail leads now pick the right service type from your own service list, the same way SMS and email leads already do',
+    'Customer SMS replies are saved more reliably',
   ],
 }
 
 /** App semver — keep in sync with package.json. */
-export const APP_VERSION = '1.1.201'
+export const APP_VERSION = '1.1.202'
 
 const STORAGE_KEY = 'companion-changelog-seen-week'
 
