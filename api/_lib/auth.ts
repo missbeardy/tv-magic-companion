@@ -17,14 +17,9 @@ export interface AuthContext {
     slug: string
     subscription_tier: SubscriptionTier
     support_phone: string | null
-    stripe_customer_id: string | null
     brand_id: string | null
     google_review_url?: string | null
     review_requests_enabled?: boolean
-    abn: string | null
-    gst_registered: boolean
-    stripe_connect_account_id: string | null
-    stripe_connect_status: string | null
     email_templates: Record<string, string>
   }
   brand: {
@@ -126,9 +121,8 @@ export async function authenticateRequestDetailed(
     .select(
       `role, org_id, full_name,
        orgs (
-         id, name, slug, subscription_tier, support_phone, stripe_customer_id, brand_id,
-         google_review_url, review_requests_enabled, abn, gst_registered,
-         stripe_connect_account_id, stripe_connect_status, email_templates,
+         id, name, slug, subscription_tier, support_phone, brand_id,
+         google_review_url, review_requests_enabled, email_templates,
          brands ( sms_templates, email_templates, primary_color )
        )`
     )
@@ -162,14 +156,9 @@ export async function authenticateRequestDetailed(
         slug: org.slug,
         subscription_tier: org.subscription_tier as SubscriptionTier,
         support_phone: org.support_phone,
-        stripe_customer_id: org.stripe_customer_id,
         brand_id: org.brand_id,
         google_review_url: (org.google_review_url as string | null) ?? null,
         review_requests_enabled: (org.review_requests_enabled as boolean | null) ?? undefined,
-        abn: (org.abn as string | null) ?? null,
-        gst_registered: (org.gst_registered as boolean | null) ?? true,
-        stripe_connect_account_id: (org.stripe_connect_account_id as string | null) ?? null,
-        stripe_connect_status: (org.stripe_connect_status as string | null) ?? null,
         email_templates: (org.email_templates as Record<string, string>) ?? {},
       },
       brand,

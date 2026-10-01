@@ -4,7 +4,7 @@ import type { VercelRequest } from '@vercel/node'
  * Read the raw request stream into a Buffer. Required when the route disables
  * Vercel's default body parser (`config.api.bodyParser = false`) so that
  * webhook HMAC signatures can be verified over the exact bytes the sender
- * signed. Used by the Stripe and Meta webhook paths.
+ * signed. Used by the Meta webhook path.
  *
  * In-process invokes (platform simulator / tests) have no stream — fall back to
  * `req.body` so HMAC still runs over the same JSON string Meta would send.

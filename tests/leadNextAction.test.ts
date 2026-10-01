@@ -6,7 +6,6 @@ describe('resolveLeadNextAction', () => {
     expect(
       resolveLeadNextAction({
         status: 'unassigned',
-        quoteEnabled: true,
         isManager: true,
         isEmployee: false,
       })?.kind
@@ -17,53 +16,39 @@ describe('resolveLeadNextAction', () => {
     expect(
       resolveLeadNextAction({
         status: 'unassigned',
-        quoteEnabled: false,
         isManager: false,
         isEmployee: true,
       })?.kind
     ).toBe('self_assign')
   })
 
-  it('returns quote for manager when no quote yet', () => {
+  it('returns nothing on unassigned when the assign pool is hidden', () => {
     expect(
       resolveLeadNextAction({
-        status: 'assigned',
-        quoteEnabled: true,
+        status: 'unassigned',
+        hideAssignPool: true,
         isManager: true,
         isEmployee: false,
-      })?.kind
-    ).toBe('quote')
+      })
+    ).toBeNull()
   })
 
-  it('returns call for employee when assigned', () => {
-    expect(
-      resolveLeadNextAction({
-        status: 'assigned',
-        quoteEnabled: true,
-        isManager: false,
-        isEmployee: true,
-      })?.kind
-    ).toBe('call')
-  })
-
-  it('returns book when quote accepted and not booked', () => {
-    expect(
-      resolveLeadNextAction({
-        status: 'contact_attempted',
-        latestQuoteStatus: 'accepted',
-        quoteEnabled: true,
-        isManager: true,
-        isEmployee: false,
-      })?.kind
-    ).toBe('book')
+  it('returns call for manager and employee when assigned', () => {
+    for (const isManager of [true, false]) {
+      expect(
+        resolveLeadNextAction({
+          status: 'assigned',
+          isManager,
+          isEmployee: !isManager,
+        })?.kind
+      ).toBe('call')
+    }
   })
 
   it('returns complete for booked', () => {
     expect(
       resolveLeadNextAction({
         status: 'booked',
-        latestQuoteStatus: 'accepted',
-        quoteEnabled: true,
         isManager: true,
         isEmployee: false,
       })?.kind
@@ -74,7 +59,6 @@ describe('resolveLeadNextAction', () => {
     expect(
       resolveLeadNextAction({
         status: 'completed',
-        quoteEnabled: true,
         isManager: true,
         isEmployee: false,
       })
@@ -82,7 +66,6 @@ describe('resolveLeadNextAction', () => {
     expect(
       resolveLeadNextAction({
         status: 'lost',
-        quoteEnabled: true,
         isManager: true,
         isEmployee: false,
       })

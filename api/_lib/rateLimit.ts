@@ -11,8 +11,7 @@ export interface RateLimitParams {
    * Deny the request instead of allowing it when the limiter itself can't be reached
    * (no Supabase client, or the RPC errors). Default false (fail open) is right for
    * most authenticated/internal endpoints — a DB blip shouldn't take down the app.
-   * Set true for public, unauthenticated, spend-triggering endpoints (campaign quote,
-   * public quote/invoice actions) where "the limiter is down" and "let anything
+   * Set true for public, unauthenticated, spend-triggering endpoints where "the limiter is down" and "let anything
    * through" is the worse failure mode.
    */
   failClosed?: boolean

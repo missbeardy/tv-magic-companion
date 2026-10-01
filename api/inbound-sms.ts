@@ -307,8 +307,6 @@ async function handler(req: VercelRequest, res: VercelResponse) {
  * and then silently dropped every lead for a day, because the handler's next line
  * after respondOk() was a Supabase round-trip that never resumed. The logs showed
  * `SMS from … to …` (synchronous, same tick) and nothing after it.
- *
- * Same pattern as deliverQuoteWithinBudget in _lib/quotes.ts.
  */
 async function finishInboundSms(input: {
   supabase: SupabaseClient

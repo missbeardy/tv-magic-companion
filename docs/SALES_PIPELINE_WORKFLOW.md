@@ -8,7 +8,7 @@
 
 > **Living document.** This file must stay in sync with production behaviour. See [Maintenance policy](#maintenance-policy) and [Version history](#version-history).
 
-**Related docs:** [SALES_PIPELINE_BACKLOG.md](../SALES_PIPELINE_BACKLOG.md) (automation backlog) · [PROGRESS.md](../PROGRESS.md) (implementation log)
+**Related docs:** [SALES_PIPELINE_BACKLOG.md](../SALES_PIPELINE_BACKLOG.md) (automation backlog) · [PROGRESS.md](archive/PROGRESS.md) (archived implementation log)
 
 ---
 

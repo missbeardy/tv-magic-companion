@@ -6,7 +6,10 @@ export const CLOSED_BOARD_STATUSES = ['completed', 'lost', 'booking_cancelled'] 
 export const CLOSED_LOOKBACK_DAYS = 30
 export const LEAD_ID_IN_CHUNK = 80
 
-export type LeadBoardBadgeRow = Database['public']['Views']['lead_board_badges']['Row']
+export type LeadBoardBadgeRow = Pick<
+  Database['public']['Views']['lead_board_badges']['Row'],
+  'org_id' | 'lead_id' | 'last_manual_sms_text' | 'last_manual_sms_at'
+>
 
 /**
  * Active leads plus closed jobs created in the last 30 days. Keyed on created_at, not
@@ -35,7 +38,7 @@ export async function fetchLeadBoardBadges(
     const { data, error } = await client
       .from('lead_board_badges')
       .select(
-        'org_id, lead_id, latest_quote_status, latest_quote_accepted_at, latest_quote_total_amount, latest_quote_scope, latest_invoice_status, latest_invoice_id, latest_invoice_number, last_manual_sms_text, last_manual_sms_at'
+        'org_id, lead_id, last_manual_sms_text, last_manual_sms_at'
       )
       .eq('org_id', orgId)
       .in('lead_id', chunk)

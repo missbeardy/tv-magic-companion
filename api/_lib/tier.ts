@@ -16,9 +16,3 @@ export function tierIncludes(userTier: SubscriptionTier, required: SubscriptionT
   return userIdx >= reqIdx
 }
 
-export function tierFromStripePriceId(priceId: string): SubscriptionTier | null {
-  if (priceId === process.env.STRIPE_PRICE_PRO) return 'pro'
-  if (priceId === process.env.STRIPE_PRICE_ENTERPRISE) return 'enterprise'
-  if (priceId === process.env.STRIPE_PRICE_BASIC) return 'basic'
-  return null
-}

@@ -17,12 +17,9 @@ function ChangelogGate({ children }: { children: React.ReactNode }) {
   const [entries, setEntries] = useState(getUnseenChangelogEntries())
 
   // Release notes are for our own users, and this layer wraps every route — including
-  // `/quote/:token`, `/invoice/:token` and `/visualise`, which customers open from a
-  // link. Those people were being shown a full-screen "What's New" about background
-  // job scheduling and the technician leaderboard, in front of the invoice they came
-  // to pay. A session is the boundary: a customer never has one. Public landings also
-  // skip it when a signed-in staff member has the PWA, so the campaign page does not
-  // look like FieldBourne. Also covers /login, /privacy and /terms.
+  // public pages customers can open from a link. A session is the boundary: a customer
+  // never has one. Public landings also skip it when a signed-in staff member has the
+  // PWA, so they do not look like FieldBourne. Also covers /login, /privacy and /terms.
   const signedIn = !authLoading && Boolean(user)
   const publicSite =
     typeof window !== 'undefined' && isPublicSitePath(window.location.pathname)

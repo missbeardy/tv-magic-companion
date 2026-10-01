@@ -253,7 +253,7 @@ export default function Calendar() {
     }
   }, [searchParams, profile?.role])
 
-  // Package 6 / T2.1: quote-accept notify deep-links here with ?bookLead=<id>
+  // ?bookLead=<id> opens the booking modal prefilled from that lead.
   useEffect(() => {
     const bookLeadId = searchParams.get('bookLead')
     if (!bookLeadId || !profile?.org_id) return
@@ -278,28 +278,15 @@ export default function Calendar() {
         return
       }
 
-      const { data: quote } = await supabase
-        .from('quotes')
-        .select('total_amount, scope, status')
-        .eq('lead_id', lead.id)
-        .eq('status', 'accepted')
-        .order('accepted_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      if (cancelled) return
-
-      const scope = typeof quote?.scope === 'string' ? quote.scope.trim() : ''
       setPrefillLead({
         id: lead.id,
         name: lead.name,
         phone: lead.phone ?? undefined,
         email: lead.email ?? undefined,
         address: lead.address ?? undefined,
-        details: scope || lead.details || undefined,
+        details: lead.details || undefined,
         service_type: lead.service_type,
         assigned_to: lead.assigned_to ?? undefined,
-        job_quote: quote?.total_amount ?? undefined,
       })
       setSelectedEvent(null)
       setDefaultDate('')

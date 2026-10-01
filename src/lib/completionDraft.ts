@@ -8,7 +8,7 @@ export const COMPLETION_FORM_ID = 'completion'
 
 export interface CompletionDraft {
   leadId: string
-  step: 'checklist' | 'invoice' | 'review'
+  step: 'checklist' | 'review'
   checked: boolean[]
   upsellDone: boolean
 }

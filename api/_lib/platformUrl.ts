@@ -1,4 +1,4 @@
-/** Server-side base URL for redirects, SMS links, Stripe return URLs. */
+/** Server-side base URL for redirects and SMS links. */
 export function getPlatformUrl(): string {
   const explicit = process.env.VITE_PLATFORM_URL ?? process.env.PLATFORM_URL
   if (explicit?.trim()) return explicit.replace(/\/$/, '')

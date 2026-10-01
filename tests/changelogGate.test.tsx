@@ -7,10 +7,9 @@ import { cleanup, render, screen } from '@testing-library/react'
 /**
  * The changelog overlay must never reach a signed-out visitor.
  *
- * PwaUpdateLayer wraps every route, including `/quote/:token` and `/invoice/:token` — links
- * the tradie's own customer opens from an SMS or email. Before v1.1.181 those people were
- * shown a full-screen "What's New" about background job scheduling and the per-technician
- * sales leaderboard, in front of the invoice they came to pay.
+ * PwaUpdateLayer wraps every route, including public pages a customer can open from a link.
+ * Before v1.1.181 those people were shown a full-screen "What's New" about background job
+ * scheduling and the per-technician sales leaderboard.
  *
  * A session is the boundary being asserted here: the customer never has one.
  */
@@ -58,7 +57,7 @@ function renderLayer() {
 
 describe('ChangelogGate — signed-out visitors', () => {
   it('does not show the changelog to a signed-out visitor', () => {
-    // A customer opening /invoice/:token from their SMS.
+    // A customer opening a public link (e.g. /privacy).
     mockUseAuth.mockReturnValue({ user: null, loading: false })
 
     renderLayer()
@@ -85,9 +84,9 @@ describe('ChangelogGate — signed-out visitors', () => {
     expect(screen.getByTestId('changelog')).toBeTruthy()
   })
 
-  it('does not show it on /visualise even when staff are signed in', () => {
+  it('does not show it on a public page even when staff are signed in', () => {
     mockUseAuth.mockReturnValue({ user: { id: 'u1' }, loading: false })
-    window.history.pushState({}, '', '/visualise')
+    window.history.pushState({}, '', '/privacy')
 
     renderLayer()
 

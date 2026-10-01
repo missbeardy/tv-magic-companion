@@ -301,7 +301,7 @@ export default function WorkflowRunsPanel() {
       <p className="text-xs text-gray-500 space-y-1">
         {[
           ['contact_follow_up', 'Contact follow-up'],
-          ['automation_sweeps', 'Invoice/quote/booking sweeps'],
+          ['automation_sweeps', 'Booking reminder sweep'],
           ['cron_maintenance', 'Cron maintenance'],
         ].map(([key, label]) => (
           <span key={key} className="block">
