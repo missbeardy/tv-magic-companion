@@ -22,12 +22,10 @@ import AssignLeadModal from '../components/AssignLeadModal'
 import EventModal from '../components/EventModal'
 import CompletionChecklist from '../components/CompletionChecklist'
 import ReviewRequestModal from '../components/ReviewRequestModal'
-import QuoteComposerModal from '../components/QuoteComposerModal'
 import { UserPlus, Inbox, Plus } from 'lucide-react'
 import AddLeadModal from '../components/AddLeadModal'
 import EmailParser from '../components/EmailParser'
 import { hasAddLeadDraft } from '../lib/addLeadDraft'
-import { hasQuoteDraft, loadQuoteDraft, quoteDraftToLead } from '../lib/quoteDraft'
 import { useRestoreLeadBookingDraft } from '../hooks/useRestoreLeadBookingDraft'
 import LeadCard, { type KanbanLead } from '../components/LeadCard'
 import LeadDetailSheet from '../components/LeadDetailSheet'
@@ -122,8 +120,6 @@ interface KanbanColumnProps {
   onOpenSheet: (lead: Lead) => void
   onAssign: (lead: Lead) => void
   onBook: (lead: Lead) => void
-  onCreateQuote: (lead: Lead) => void
-  quoteEnabled: boolean
   onComplete: (lead: Lead) => void
   onRefresh: () => void
   onLogEvent: (leadId: string, eventType: LeadEventType, note?: string, payload?: Record<string, unknown>) => Promise<void>
@@ -131,7 +127,7 @@ interface KanbanColumnProps {
   hideAssignPool?: boolean
 }
 
-function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onCreateQuote, quoteEnabled, onComplete, onRefresh, onLogEvent, onCall, hideAssignPool }: KanbanColumnProps) {
+function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onComplete, onRefresh, onLogEvent, onCall, hideAssignPool }: KanbanColumnProps) {
   return (
     <div className={`w-full bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200`}>
       <div className="p-3 border-b border-gray-100 flex items-center justify-between">
@@ -157,8 +153,6 @@ function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand,
             onOpenSheet={onOpenSheet}
             onAssign={onAssign}
             onBook={onBook}
-            onCreateQuote={onCreateQuote}
-            quoteEnabled={quoteEnabled}
             onComplete={onComplete}
             onRefresh={onRefresh}
             onLogEvent={onLogEvent}
@@ -173,7 +167,7 @@ function MobileKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand,
 
 // ── KanbanColumn — Desktop (drag wrappers active) ────────────────────────
 
-function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onCreateQuote, quoteEnabled, onComplete, onRefresh, onLogEvent, onCall, hideAssignPool }: KanbanColumnProps) {
+function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand, onOpenSheet, onAssign, onBook, onComplete, onRefresh, onLogEvent, onCall, hideAssignPool }: KanbanColumnProps) {
   return (
     <DroppableColumn id={col.key}>
       <div className={`flex-shrink-0 w-72 bg-white rounded-xl border-t-4 ${col.color} shadow-sm border border-gray-200 h-full`}>
@@ -201,8 +195,6 @@ function DesktopKanbanColumn({ col, leads, profile, expandedLead, onToggleExpand
                 onOpenSheet={onOpenSheet}
                 onAssign={onAssign}
                 onBook={onBook}
-                onCreateQuote={onCreateQuote}
-                quoteEnabled={quoteEnabled}
                 onComplete={onComplete}
                 onRefresh={onRefresh}
                 onLogEvent={onLogEvent}
@@ -247,10 +239,8 @@ export default function LeadsPage() {
   const [checklistLead, setChecklistLead] = useState<Lead | null>(null)
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
   const [reviewModalLead, setReviewModalLead] = useState<Lead | null>(null)
-  const [quoteLead, setQuoteLead] = useState<Lead | null>(null)
   const [reviewSending, setReviewSending] = useState(false)
   const [reviewError, setReviewError] = useState<string | null>(null)
-  const quoteFeatureEnabled = !featureSwitchesLoading && isFeatureEnabled('quote_esign')
   const reviewFeatureEnabled = !featureSwitchesLoading && isFeatureEnabled('review_requests')
   const onTheWayFeatureEnabled = !featureSwitchesLoading && isFeatureEnabled('customer_ontheway_sms')
   const twoWaySmsEnabled = !featureSwitchesLoading && isFeatureEnabled('two_way_sms')
@@ -315,13 +305,6 @@ export default function LeadsPage() {
         const badge = badgeByLead.get(lead.id)
         return {
           ...lead,
-          latest_quote_status: badge?.latest_quote_status ?? null,
-          latest_quote_accepted_at: badge?.latest_quote_accepted_at ?? null,
-          latest_quote_total_amount: badge?.latest_quote_total_amount ?? null,
-          latest_quote_scope: badge?.latest_quote_scope ?? null,
-          latest_invoice_status: badge?.latest_invoice_status ?? null,
-          latest_invoice_id: badge?.latest_invoice_id ?? null,
-          latest_invoice_number: badge?.latest_invoice_number ?? null,
           last_manual_sms_text: badge?.last_manual_sms_text ?? null,
           last_manual_sms_at: badge?.last_manual_sms_at ?? null,
         }
@@ -390,7 +373,7 @@ export default function LeadsPage() {
     const lead      = leads.find(l => l.id === leadId)
     if (!lead || lead.status === newStatus) return
 
-    // Completions must go through CompletionChecklist (invoice / review).
+    // Completions must go through CompletionChecklist (review request).
     if (newStatus === 'completed') {
       handleMarkComplete(lead)
       return
@@ -982,13 +965,6 @@ export default function LeadsPage() {
     if (hasAddLeadDraft(profile.id)) setShowAddLead(true)
   }, [profile?.id])
 
-  useEffect(() => {
-    if (!profile?.id || quoteLead || !quoteFeatureEnabled) return
-    const draft = loadQuoteDraft(profile.id)
-    if (!draft) return
-    setQuoteLead(quoteDraftToLead(draft) as Lead)
-  }, [profile?.id, quoteFeatureEnabled, quoteLead])
-
   // Resume an interrupted job-completion ceremony (T1.6): reopen the checklist
   // for the drafted lead once leads have loaded.
   useEffect(() => {
@@ -1097,8 +1073,6 @@ export default function LeadsPage() {
     onOpenSheet: openSheet,
     onAssign: setAssigningLead,
     onBook: setBookingLead,
-    onCreateQuote: quoteFeatureEnabled ? setQuoteLead : () => {},
-    quoteEnabled: quoteFeatureEnabled,
     onComplete: handleMarkComplete,
     onRefresh: fetchLeads,
     onLogEvent: logLeadEvent,
@@ -1135,13 +1109,6 @@ export default function LeadsPage() {
           onAssigned={fetchLeads}
         />
       )}
-      {quoteLead && quoteFeatureEnabled && (
-        <QuoteComposerModal
-          lead={quoteLead}
-          onClose={() => setQuoteLead(null)}
-          onSent={fetchLeads}
-        />
-      )}
       {bookingLead && (
         <EventModal
           employees={isManagerRole(profile?.role) ? orgEmployees : undefined}
@@ -1152,16 +1119,9 @@ export default function LeadsPage() {
             phone: bookingLead.phone,
             email: bookingLead.email,
             address: bookingLead.address,
-            details:
-              bookingLead.latest_quote_status === 'accepted' && bookingLead.latest_quote_scope?.trim()
-                ? bookingLead.latest_quote_scope.trim()
-                : bookingLead.details,
+            details: bookingLead.details,
             service_type: bookingLead.service_type,
             assigned_to: bookingLead.assigned_to ?? undefined,
-            job_quote:
-              bookingLead.latest_quote_status === 'accepted'
-                ? bookingLead.latest_quote_total_amount ?? undefined
-                : undefined,
           }}
           onClose={() => setBookingLead(null)}
           onSaved={fetchLeads}
@@ -1367,11 +1327,9 @@ export default function LeadsPage() {
             onSendManualSms={handleSendManualSms}
             onAssign={(lead) => { setAssigningLead(lead); closeSheet() }}
             onBook={(lead) => { setBookingLead(lead); closeSheet() }}
-            onQuote={(lead) => { setQuoteLead(lead); closeSheet() }}
             onUnassign={handleUnassign}
             onComplete={handleMarkComplete}
             onSharePhoto={handleSharePhoto}
-            quoteEnabled={quoteFeatureEnabled}
             smsEnabled={onTheWayFeatureEnabled}
             twoWaySmsEnabled={twoWaySmsEnabled}
             smsSending={smsSending}

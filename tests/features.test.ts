@@ -10,14 +10,14 @@ describe('canAccessFeatureSwitch', () => {
   it('is off by default for all switches', () => {
     const defaults = getDefaultFeatureSwitchState()
     expect(canAccessFeatureSwitch('smart_assign_badge', 'basic', defaults)).toBe(false)
-    expect(canAccessFeatureSwitch('quote_esign', 'pro', defaults)).toBe(false)
+    expect(canAccessFeatureSwitch('two_way_sms', 'pro', defaults)).toBe(false)
     expect(canAccessFeatureSwitch('review_requests', 'basic', defaults)).toBe(false)
   })
 
   it('turns on from the switch, not the subscription tier', () => {
-    const switches = { ...getDefaultFeatureSwitchState(), quote_esign: true }
-    expect(canAccessFeatureSwitch('quote_esign', 'pro', switches)).toBe(true)
-    expect(canAccessFeatureSwitch('quote_esign', 'basic', switches)).toBe(true)
+    const switches = { ...getDefaultFeatureSwitchState(), two_way_sms: true }
+    expect(canAccessFeatureSwitch('two_way_sms', 'pro', switches)).toBe(true)
+    expect(canAccessFeatureSwitch('two_way_sms', 'basic', switches)).toBe(true)
   })
 
   it('canUseFeature matches canAccessFeatureSwitch', () => {

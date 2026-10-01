@@ -1,6 +1,6 @@
 // api/send-sms.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { authenticateRequestDetailed, authErrorMessage, MANAGER_ROLES, type AuthContext } from './_lib/auth.js'
+import { authenticateRequestDetailed, authErrorMessage, type AuthContext } from './_lib/auth.js'
 import { getSupabaseAdmin } from './_lib/supabaseAdmin.js'
 import { buildSmsFromBrand } from './_lib/smsTemplates.js'
 import { getPlatformUrl } from './_lib/platformUrl.js'
@@ -12,21 +12,7 @@ import { captureServerException } from './_lib/sentry.js'
 import { track } from './_lib/analytics.js'
 import { checkRateLimit, rateLimitIdentifier } from './_lib/rateLimit.js'
 import { requestAccountDeletion } from './_lib/accountDeletion.js'
-import {
-  acceptQuoteByToken,
-  createQuote,
-  declineQuoteByToken,
-  getQuoteByToken,
-  getQuotePublicBrand,
-} from './_lib/quotes.js'
 import { sendBookingConfirmations } from './_lib/bookingConfirm.js'
-import {
-  createAndSendInvoice,
-  getInvoiceByToken,
-  invoicePdfPathBelongsToOrg,
-  markInvoicePaid,
-} from './_lib/invoices.js'
-import { canSendInvoice } from './_lib/invoiceAccess.js'
 import {
   handleAutomationSweepsCron,
   handleContactFollowUpCron,
@@ -218,22 +204,6 @@ async function handleNewLeadAlert(req: VercelRequest, res: VercelResponse, auth:
   }
 }
 
-/** Confirm a client-supplied lead id belongs to the caller's org before acting on it. */
-async function assertLeadInOrg(leadId: string, orgId: string): Promise<boolean> {
-  const supabase = getSupabaseAdmin()
-  if (!supabase) return false
-  const { data } = await supabase.from('leads').select('org_id').eq('id', leadId).maybeSingle()
-  return !!data && data.org_id === orgId
-}
-
-/** Confirm a client-supplied quote id belongs to the caller's org before acting on it. */
-async function assertQuoteInOrg(quoteId: string, orgId: string): Promise<boolean> {
-  const supabase = getSupabaseAdmin()
-  if (!supabase) return false
-  const { data } = await supabase.from('quotes').select('org_id').eq('id', quoteId).maybeSingle()
-  return !!data && data.org_id === orgId
-}
-
 export async function handleBookingConfirm(req: VercelRequest, res: VercelResponse, auth: AuthContext) {
   const { leadId, startTimeIso, endTimeIso, techName } = (req.body ?? {}) as {
     leadId?: string
@@ -298,343 +268,6 @@ export async function handleBookingConfirm(req: VercelRequest, res: VercelRespon
   }
 }
 
-async function handleQuoteCreate(req: VercelRequest, res: VercelResponse, auth: AuthContext) {
-  if (!(MANAGER_ROLES as readonly string[]).includes(auth.role)) {
-    return res.status(403).json({ error: 'Only managers can send quotes' })
-  }
-
-  const featureEnabled = await isFeatureEnabledForOrg(auth.orgId, 'quote_esign')
-  if (!featureEnabled) {
-    return res.status(403).json({ error: 'Quote acceptance is disabled for this franchise' })
-  }
-
-  const {
-    leadId,
-    customerName,
-    customerEmail,
-    customerPhone,
-    serviceType,
-    scope,
-    terms,
-    totalAmount,
-    lineItems,
-    expiryDays,
-  } = (req.body ?? {}) as {
-    leadId?: string
-    customerName?: string
-    customerEmail?: string
-    customerPhone?: string
-    serviceType?: string
-    scope?: string
-    terms?: string
-    totalAmount?: number
-    lineItems?: Array<{ label: string; amount: number }>
-    expiryDays?: number
-  }
-
-  if (!leadId || !customerName || !scope || typeof totalAmount !== 'number') {
-    return res.status(400).json({ error: 'Missing quote fields (leadId, customerName, scope, totalAmount)' })
-  }
-
-  if (!(await assertLeadInOrg(leadId, auth.orgId))) {
-    return res.status(403).json({ error: 'Lead is outside your organisation' })
-  }
-
-  try {
-    const quote = await createQuote({
-      orgId: auth.orgId,
-      createdBy: auth.userId,
-      leadId,
-      customerName,
-      customerEmail,
-      customerPhone,
-      serviceType,
-      scope,
-      terms,
-      totalAmount,
-      lineItems,
-      expiryDays,
-      orgName: auth.org.name,
-      emailTemplates: auth.org.email_templates ?? null,
-      brandEmailTemplates: auth.brand?.email_templates ?? null,
-      primaryColor: auth.brand?.primary_color,
-      gstRegistered: auth.org.gst_registered,
-    })
-    return res.status(200).json({ success: true, quote })
-  } catch (err) {
-    console.error('Quote create failed:', err)
-    captureServerException(err, { action: 'quote-create', orgId: auth.orgId, leadId })
-    return res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create quote' })
-  }
-}
-
-async function handleQuotePublicGet(req: VercelRequest, res: VercelResponse) {
-  const token = String(req.query.token ?? '').trim()
-  if (!token) {
-    return res.status(400).json({ error: 'Missing quote token' })
-  }
-
-  try {
-    const quote = await getQuoteByToken(token)
-    if (!quote) {
-      return res.status(404).json({ error: 'Quote not found' })
-    }
-
-    const featureEnabled = await isFeatureEnabledForOrg(quote.org_id, 'quote_esign')
-    if (!featureEnabled) {
-      return res.status(403).json({ error: 'Quote acceptance is not available right now' })
-    }
-
-    const isExpired = quote.token_expires_at && new Date(quote.token_expires_at).getTime() < Date.now()
-    const brand = await getQuotePublicBrand(quote.org_id)
-    return res.status(200).json({
-      quote: {
-        id: quote.id,
-        status: isExpired && quote.status === 'sent' ? 'expired' : quote.status,
-        customer_name: quote.customer_name,
-        customer_email: quote.customer_email,
-        customer_phone: quote.customer_phone,
-        service_type: quote.service_type,
-        scope: quote.scope,
-        terms: quote.terms,
-        total_amount: quote.total_amount,
-        gst_amount: quote.gst_amount,
-        line_items: quote.line_items,
-        currency: quote.currency,
-        token_expires_at: quote.token_expires_at,
-        accepted_at: quote.accepted_at,
-        sent_at: quote.sent_at,
-        org_name: brand.org_name,
-        primary_color: brand.primary_color,
-        logo_url: brand.logo_url,
-      },
-    })
-  } catch (err) {
-    console.error('Quote public get failed:', err)
-    return res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to load quote' })
-  }
-}
-
-async function handleQuotePublicDecline(req: VercelRequest, res: VercelResponse) {
-  const { token, reason } = (req.body ?? {}) as { token?: string; reason?: string }
-  if (!token?.trim()) {
-    return res.status(400).json({ error: 'Missing required field: token' })
-  }
-
-  try {
-    const quote = await getQuoteByToken(token.trim())
-    if (!quote) {
-      return res.status(404).json({ error: 'Quote not found' })
-    }
-
-    const featureEnabled = await isFeatureEnabledForOrg(quote.org_id, 'quote_esign')
-    if (!featureEnabled) {
-      return res.status(403).json({ error: 'Quote acceptance is not available right now' })
-    }
-
-    const result = await declineQuoteByToken({ token: token.trim(), reason })
-    if (result.status === 'not_found') return res.status(404).json({ error: 'Quote not found' })
-    if (result.status === 'expired') return res.status(410).json({ error: 'Quote has expired' })
-    if (result.status === 'invalid_status') {
-      return res.status(409).json({ error: 'Quote cannot be declined in its current status' })
-    }
-
-    return res.status(200).json({
-      success: true,
-      status: result.status,
-      quote: result.quote,
-    })
-  } catch (err) {
-    console.error('Quote public decline failed:', err)
-    return res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to decline quote' })
-  }
-}
-
-async function handleQuotePublicAccept(req: VercelRequest, res: VercelResponse) {
-  const { token, signerName, signerEmail, signatureText } = (req.body ?? {}) as {
-    token?: string
-    signerName?: string
-    signerEmail?: string
-    signatureText?: string
-  }
-
-  if (!token || !signerName || !signatureText) {
-    return res.status(400).json({ error: 'Missing required fields: token, signerName, signatureText' })
-  }
-
-  try {
-    const quote = await getQuoteByToken(token)
-    if (!quote) {
-      return res.status(404).json({ error: 'Quote not found' })
-    }
-
-    const featureEnabled = await isFeatureEnabledForOrg(quote.org_id, 'quote_esign')
-    if (!featureEnabled) {
-      return res.status(403).json({ error: 'Quote acceptance is not available right now' })
-    }
-
-    const forwardedFor = req.headers['x-forwarded-for']
-    const ipAddress = Array.isArray(forwardedFor)
-      ? forwardedFor[0]
-      : typeof forwardedFor === 'string'
-      ? forwardedFor.split(',')[0]?.trim()
-      : null
-    const userAgent = typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : null
-
-    const result = await acceptQuoteByToken({
-      token,
-      signerName,
-      signerEmail,
-      signatureText,
-      ipAddress,
-      userAgent,
-    })
-
-    if (result.status === 'not_found') return res.status(404).json({ error: 'Quote not found' })
-    if (result.status === 'expired') return res.status(410).json({ error: 'Quote has expired' })
-    if (result.status === 'invalid_status') return res.status(409).json({ error: 'Quote cannot be signed in its current status' })
-
-    return res.status(200).json({
-      success: true,
-      status: result.status,
-      quote: result.quote,
-    })
-  } catch (err) {
-    console.error('Quote public accept failed:', err)
-    captureServerException(err, { action: 'quote-public-accept' })
-    return res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to accept quote' })
-  }
-}
-
-async function loadOrgInvoiceSettings(orgId: string) {
-  const supabase = getSupabaseAdmin()
-  if (!supabase) return null
-  const { data, error } = await supabase
-    .from('orgs')
-    .select(
-      'email_templates, invoice_payment_instructions, invoice_pdf_template_path, primary_color, abn, gst_registered, stripe_connect_status'
-    )
-    .eq('id', orgId)
-    .maybeSingle()
-  if (error || !data) return null
-  return {
-    email_templates: (data.email_templates as Record<string, string>) ?? {},
-    invoice_payment_instructions: (data.invoice_payment_instructions as string) ?? null,
-    invoice_pdf_template_path: (data.invoice_pdf_template_path as string) ?? null,
-    primary_color: (data.primary_color as string) || '#004B93',
-    abn: (data.abn as string | null) ?? null,
-    gst_registered: (data.gst_registered as boolean | null) ?? true,
-    stripe_connect_status: (data.stripe_connect_status as string | null) ?? null,
-  }
-}
-
-export async function handleInvoiceSendEmail(req: VercelRequest, res: VercelResponse, auth: AuthContext) {
-  if (!canSendInvoice(auth.role)) {
-    return res.status(403).json({ error: 'Only team members can send invoices' })
-  }
-
-  const featureEnabled = await isFeatureEnabledForOrg(auth.orgId, 'one_tap_invoice')
-  if (!featureEnabled) {
-    return res.status(403).json({ error: 'Invoice email is disabled for this franchise' })
-  }
-
-  const {
-    leadId,
-    quoteId,
-    customerName,
-    customerEmail,
-    serviceType,
-    totalAmount,
-    lineItems,
-    pdfStoragePath,
-    senderName,
-  } = (req.body ?? {}) as {
-    leadId?: string
-    customerName?: string
-    customerEmail?: string
-    serviceType?: string
-    totalAmount?: number
-    quoteId?: string
-    lineItems?: Array<{ label: string; amount: number }>
-    pdfStoragePath?: string
-    senderName?: string
-  }
-
-  if (!leadId || !customerName || !customerEmail || typeof totalAmount !== 'number') {
-    return res.status(400).json({
-      error: 'Missing invoice fields (leadId, customerName, customerEmail, totalAmount)',
-    })
-  }
-
-  if (!(await assertLeadInOrg(leadId, auth.orgId))) {
-    return res.status(403).json({ error: 'Lead is outside your organisation' })
-  }
-  if (typeof pdfStoragePath === 'string' && pdfStoragePath.trim() && !invoicePdfPathBelongsToOrg(auth.orgId, pdfStoragePath)) {
-    return res.status(403).json({ error: 'Invalid attachment path' })
-  }
-  if (quoteId && !(await assertQuoteInOrg(quoteId, auth.orgId))) {
-    return res.status(403).json({ error: 'Quote is outside your organisation' })
-  }
-
-  const orgSettings = await loadOrgInvoiceSettings(auth.orgId)
-  if (!orgSettings) {
-    return res.status(500).json({ error: 'Could not load org invoice settings' })
-  }
-
-  const cardPaymentsEnabled = await isFeatureEnabledForOrg(auth.orgId, 'invoice_card_payments')
-  const showPayButton = cardPaymentsEnabled && orgSettings.stripe_connect_status === 'connected'
-
-  try {
-    const invoice = await createAndSendInvoice({
-      orgId: auth.orgId,
-      createdBy: auth.userId,
-      leadId,
-      quoteId,
-      customerName,
-      customerEmail,
-      serviceType,
-      totalAmount,
-      lineItems,
-      pdfStoragePath,
-      orgName: auth.org.name,
-      senderName,
-      emailTemplates: orgSettings.email_templates,
-      brandEmailTemplates: auth.brand?.email_templates ?? null,
-      paymentInstructions: orgSettings.invoice_payment_instructions,
-      orgPdfTemplatePath: orgSettings.invoice_pdf_template_path,
-      primaryColor: orgSettings.primary_color || auth.brand?.primary_color,
-      gstRegistered: orgSettings.gst_registered,
-      abn: orgSettings.abn,
-      showPayButton,
-    })
-    return res.status(200).json({ success: true, invoice })
-  } catch (err) {
-    console.error('Invoice send failed:', err)
-    captureServerException(err, { action: 'invoice-send', orgId: auth.orgId, leadId })
-    return res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to send invoice' })
-  }
-}
-
-async function handleInvoiceMarkPaid(req: VercelRequest, res: VercelResponse, auth: AuthContext) {
-  if (!(MANAGER_ROLES as readonly string[]).includes(auth.role)) {
-    return res.status(403).json({ error: 'Only managers can mark invoices paid' })
-  }
-
-  const { invoiceId } = (req.body ?? {}) as { invoiceId?: string }
-  if (!invoiceId) {
-    return res.status(400).json({ error: 'Missing invoiceId' })
-  }
-
-  try {
-    const invoice = await markInvoicePaid(invoiceId, auth.orgId)
-    return res.status(200).json({ success: true, invoice })
-  } catch (err) {
-    console.error('Invoice mark paid failed:', err)
-    captureServerException(err, { action: 'invoice-mark-paid', orgId: auth.orgId, invoiceId })
-    return res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to mark invoice paid' })
-  }
-}
-
 async function handleRequestAccountDeletion(req: VercelRequest, res: VercelResponse) {
   const { email, orgHint, note } = (req.body ?? {}) as { email?: string; orgHint?: string; note?: string }
   if (!email?.trim() || !email.includes('@')) {
@@ -655,61 +288,14 @@ async function handleRequestAccountDeletion(req: VercelRequest, res: VercelRespo
   return res.status(200).json({ success: true })
 }
 
-async function handleInvoicePublicGet(req: VercelRequest, res: VercelResponse) {
-  const token = String(req.query.token ?? '').trim()
-  if (!token) {
-    return res.status(400).json({ error: 'Missing invoice token' })
-  }
-
-  try {
-    const invoice = await getInvoiceByToken(token)
-    if (!invoice) {
-      return res.status(404).json({ error: 'Invoice not found' })
-    }
-
-    const cardPaymentsEnabled = await isFeatureEnabledForOrg(invoice.org_id, 'invoice_card_payments')
-    if (!cardPaymentsEnabled) {
-      return res.status(403).json({ error: 'Card payments on invoices is disabled for this franchise' })
-    }
-
-    const brand = await getQuotePublicBrand(invoice.org_id)
-
-    return res.status(200).json({
-      invoice: {
-        id: invoice.id,
-        invoice_number: invoice.invoice_number,
-        status: invoice.status,
-        total_amount: invoice.total_amount,
-        gst_amount: invoice.gst_amount,
-        line_items: invoice.line_items,
-        currency: invoice.currency,
-        customer_name: invoice.customer_name,
-        paid_at: invoice.paid_at,
-        token_expires_at: invoice.token_expires_at,
-        card_payments_enabled: cardPaymentsEnabled,
-        org_name: brand.org_name,
-        primary_color: brand.primary_color,
-        logo_url: brand.logo_url,
-      },
-    })
-  } catch (err) {
-    console.error('Invoice public get failed:', err)
-    return res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to load invoice' })
-  }
-}
-
 async function handler(req: VercelRequest, res: VercelResponse) {
   const action = String(req.query.action ?? '').trim()
 
   // Public, unauthenticated actions had NO rate limiting at all until dd4 (they're dispatched
-  // before the auth gate below) — the highest-risk group, since quote/invoice tokens and push
-  // endpoints are guessable-secret-protected rather than session-protected. IP-only: there's no
+  // before the auth gate below) — the highest-risk group, since push endpoints are
+  // guessable-secret-protected rather than session-protected. IP-only: there's no
   // authenticated identity yet at this point in the dispatch.
   const PUBLIC_RATE_LIMITED_ACTIONS = new Set([
-    'quote-public-get',
-    'quote-public-accept',
-    'quote-public-decline',
-    'invoice-public-get',
     'push-rotate',
     'request-account-deletion',
   ])
@@ -727,23 +313,6 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  // Public quote actions (no app session required)
-  if (action === 'quote-public-get') {
-    if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
-    return handleQuotePublicGet(req, res)
-  }
-  if (action === 'quote-public-accept') {
-    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
-    return handleQuotePublicAccept(req, res)
-  }
-  if (action === 'quote-public-decline') {
-    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
-    return handleQuotePublicDecline(req, res)
-  }
-  if (action === 'invoice-public-get') {
-    if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
-    return handleInvoicePublicGet(req, res)
-  }
   if (action === 'request-account-deletion') {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
     return handleRequestAccountDeletion(req, res)
@@ -804,17 +373,8 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   if (action === 'new-lead-alert') {
     return handleNewLeadAlert(req, res, auth)
   }
-  if (action === 'quote-create') {
-    return handleQuoteCreate(req, res, auth)
-  }
   if (action === 'booking-confirm') {
     return handleBookingConfirm(req, res, auth)
-  }
-  if (action === 'invoice-send-email') {
-    return handleInvoiceSendEmail(req, res, auth)
-  }
-  if (action === 'invoice-mark-paid') {
-    return handleInvoiceMarkPaid(req, res, auth)
   }
   if (action === 'sms-reply') {
     return handleSmsReply(req, res, auth)

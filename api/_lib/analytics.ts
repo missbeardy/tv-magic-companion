@@ -30,7 +30,7 @@ function getClient(): PostHog | null {
 
 /**
  * distinctId is the leadId for every lead-lifecycle event (see shared/analyticsEvents.ts
- * LEAD_LIFECYCLE_EVENTS) so the lead_captured -> invoice_paid funnel connects across every
+ * LEAD_LIFECYCLE_EVENTS) so the lead_captured -> job_completed funnel connects across every
  * event for the same lead, or the profile id for `login`. Never pass a customer
  * name/phone/email as distinctId.
  */

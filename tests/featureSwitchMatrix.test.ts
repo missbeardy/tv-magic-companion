@@ -8,12 +8,12 @@ import {
 describe('feature switch resolution matrix', () => {
   it('defaults OFF when no values exist', () => {
     expect(resolveFeatureSwitchValue('smart_assign_badge', {})).toBe(false)
-    expect(resolveFeatureSwitchValue('quote_esign', {})).toBe(false)
+    expect(resolveFeatureSwitchValue('two_way_sms', {})).toBe(false)
   })
 
   it('uses brand default when set', () => {
     expect(
-      resolveFeatureSwitchValue('quote_esign', {
+      resolveFeatureSwitchValue('two_way_sms', {
         catalogDefault: false,
         brandValue: true,
       })
@@ -22,7 +22,7 @@ describe('feature switch resolution matrix', () => {
 
   it('brand OFF wins over catalog ON', () => {
     expect(
-      resolveFeatureSwitchValue('quote_esign', {
+      resolveFeatureSwitchValue('two_way_sms', {
         catalogDefault: true,
         brandValue: false,
       })
@@ -31,9 +31,9 @@ describe('feature switch resolution matrix', () => {
 
   it('requires switch on; tier no longer blocks', () => {
     const on = getDefaultFeatureSwitchState()
-    on.quote_esign = true
-    expect(canAccessFeatureSwitch('quote_esign', 'pro', on)).toBe(true)
-    expect(canAccessFeatureSwitch('quote_esign', 'basic', on)).toBe(true)
+    on.two_way_sms = true
+    expect(canAccessFeatureSwitch('two_way_sms', 'pro', on)).toBe(true)
+    expect(canAccessFeatureSwitch('two_way_sms', 'basic', on)).toBe(true)
   })
 
   it('org override wins over brand', () => {

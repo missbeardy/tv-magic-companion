@@ -14,7 +14,6 @@ import LeadContactNote from './LeadContactNote'
 import { formatLocalityLabelFromAddress } from '../lib/extractSuburb'
 import { getAttemptPhaseLabel, LOST_REASON_UNABLE_TO_CONTACT } from '../lib/contactFollowUp'
 import { isManagerRole } from '../lib/roles'
-import { markInvoicePaid } from '../lib/invoices'
 import type { LeadEventType } from '../lib/leadEventPayload'
 import { resolveLeadNextAction } from '../lib/leadNextAction'
 
@@ -43,13 +42,6 @@ export interface KanbanLead {
   raw_sms?: string | null
   extraction_status?: string | null
   hidden_from_kanban_at?: string | null
-  latest_quote_status?: string | null
-  latest_quote_accepted_at?: string | null
-  latest_quote_total_amount?: number | null
-  latest_quote_scope?: string | null
-  latest_invoice_status?: string | null
-  latest_invoice_id?: string | null
-  latest_invoice_number?: string | null
   profiles: { full_name: string; avatar_url?: string | null } | null
 }
 
@@ -68,8 +60,6 @@ export interface LeadCardProps {
   onOpenSheet: (lead: KanbanLead) => void
   onAssign: (lead: KanbanLead) => void
   onBook: (lead: KanbanLead) => void
-  onCreateQuote: (lead: KanbanLead) => void
-  quoteEnabled: boolean
   onComplete: (lead: KanbanLead) => void
   onRefresh: () => void
   onLogEvent: (leadId: string, eventType: LeadEventType, note?: string, payload?: Record<string, unknown>) => Promise<void>
@@ -85,8 +75,6 @@ export default function LeadCard({
   onOpenSheet,
   onAssign,
   onBook,
-  onCreateQuote,
-  quoteEnabled,
   onComplete,
   onRefresh,
   onLogEvent,
@@ -95,19 +83,14 @@ export default function LeadCard({
 }: LeadCardProps) {
   const isExpanded = expandedLead === lead.id
   const isBookingCancelled = lead.status === 'booking_cancelled'
-  const isQuoteAccepted = lead.latest_quote_status === 'accepted'
-  const invoiceStatus = lead.latest_invoice_status
   const locality = formatLocalityLabelFromAddress(lead.address)
   const attemptPhaseLabel = getAttemptPhaseLabel(lead.contact_attempt_round)
   const isUnableToContact =
     lead.status === 'lost' && lead.lost_reason === LOST_REASON_UNABLE_TO_CONTACT
-  const [markingPaid, setMarkingPaid] = useState(false)
   const [events, setEvents] = useState<LeadEvent[]>([])
 
   const nextAction = resolveLeadNextAction({
     status: lead.status,
-    latestQuoteStatus: lead.latest_quote_status,
-    quoteEnabled,
     hideAssignPool,
     isManager: isManagerRole(profile?.role),
     isEmployee: profile?.role === 'employee',
@@ -123,12 +106,6 @@ export default function LeadCard({
         break
       case 'call':
         onCall(lead)
-        break
-      case 'quote':
-        onCreateQuote(lead)
-        break
-      case 'book':
-        onBook(lead)
         break
       case 'complete':
         onComplete(lead)
@@ -146,25 +123,6 @@ export default function LeadCard({
           },
         ]
       : []
-
-  async function handleMarkInvoicePaid() {
-    if (!lead.latest_invoice_id) return
-    setMarkingPaid(true)
-    try {
-      await markInvoicePaid(lead.latest_invoice_id)
-      await onLogEvent(
-        lead.id,
-        'invoice_paid_manual',
-        `Invoice ${lead.latest_invoice_number ?? ''} marked paid`.trim()
-      )
-      onRefresh()
-    } catch (err) {
-      console.error(err)
-      alert(err instanceof Error ? err.message : 'Failed to mark paid')
-    } finally {
-      setMarkingPaid(false)
-    }
-  }
 
   useEffect(() => {
     if (!isExpanded) return
@@ -185,11 +143,7 @@ export default function LeadCard({
     <div
       id={`lead-card-${lead.id}`}
       className={`rounded-xl border shadow-sm overflow-hidden cursor-pointer md:cursor-default ${
-        isBookingCancelled
-          ? 'bg-red-50 border-red-200'
-          : isQuoteAccepted
-          ? 'bg-emerald-50 border-emerald-200'
-          : 'bg-white border-gray-100'
+        isBookingCancelled ? 'bg-red-50 border-red-200' : 'bg-white border-gray-100'
       }`}
       onClick={() => {
         if (window.innerWidth < 768) {
@@ -198,7 +152,7 @@ export default function LeadCard({
       }}
     >
       <div className="p-3">
-        {(invoiceStatus === 'sent' || invoiceStatus === 'paid' || isUnableToContact || lead.last_manual_sms_at) && (
+        {(isUnableToContact || lead.last_manual_sms_at) && (
           <div className="flex flex-wrap gap-1 mb-2">
             {isUnableToContact && (
               <span className="text-[10px] font-medium uppercase tracking-wide text-red-700">
@@ -210,23 +164,13 @@ export default function LeadCard({
                 SMS sent
               </span>
             )}
-            {invoiceStatus === 'sent' && (
-              <span className="text-[10px] font-medium uppercase tracking-wide text-violet-700">
-                Invoice sent
-              </span>
-            )}
-            {invoiceStatus === 'paid' && (
-              <span className="text-[10px] font-medium uppercase tracking-wide text-green-700">
-                Invoice paid
-              </span>
-            )}
           </div>
         )}
 
         <div className="flex items-center gap-2">
           <p
             className={`flex-1 min-w-0 font-bold text-[15px] truncate ${
-              isBookingCancelled ? 'text-red-900' : isQuoteAccepted ? 'text-emerald-900' : 'text-gray-800'
+              isBookingCancelled ? 'text-red-900' : 'text-gray-800'
             }`}
           >
             {lead.name || 'Unknown'}
@@ -273,9 +217,6 @@ export default function LeadCard({
             }`}>
               {attemptPhaseLabel}
             </span>
-          )}
-          {!isBookingCancelled && isQuoteAccepted && (
-            <span className="text-xs text-emerald-700">Quote accepted</span>
           )}
         </div>
 
@@ -371,29 +312,10 @@ export default function LeadCard({
               >
                 📅 Book
               </button>
-              {isManagerRole(profile?.role) && quoteEnabled && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onCreateQuote(lead) }}
-                  className="text-xs bg-gray-900 text-white px-2 py-1 rounded-lg hover:bg-black transition"
-                >
-                  🧾 Quote
-                </button>
-              )}
             </div>
 
             {canAddLeadPhotos(lead.status) && (
               <LeadPhotos leadId={lead.id} canUpload={true} />
-            )}
-
-            {invoiceStatus === 'sent' && lead.latest_invoice_id && isManagerRole(profile?.role) && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); handleMarkInvoicePaid() }}
-                disabled={markingPaid}
-                className="mt-2 text-xs px-2 py-1 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
-              >
-                {markingPaid ? 'Saving…' : 'Mark invoice paid'}
-              </button>
             )}
 
             {events.length > 0 && (

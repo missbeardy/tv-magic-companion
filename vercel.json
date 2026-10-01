@@ -46,6 +46,18 @@
       ]
     }
   ],
+  "redirects": [
+    {
+      "source": "/visualise",
+      "destination": "https://www.tvmagic.com.au/south-brisbane-antenna-installation",
+      "permanent": false
+    },
+    {
+      "source": "/visualise/:path*",
+      "destination": "https://www.tvmagic.com.au/south-brisbane-antenna-installation",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/cron/contact-follow-up",
@@ -76,22 +88,6 @@
       "destination": "/api/send-sms?action=notify"
     },
     {
-      "source": "/api/stripe-checkout",
-      "destination": "/api/stripe?action=checkout"
-    },
-    {
-      "source": "/api/stripe-portal",
-      "destination": "/api/stripe?action=portal"
-    },
-    {
-      "source": "/api/stripe-webhook",
-      "destination": "/api/stripe?action=webhook"
-    },
-    {
-      "source": "/api/stripe-connect-webhook",
-      "destination": "/api/stripe?action=connect-webhook"
-    },
-    {
       "source": "/api/places-autocomplete",
       "destination": "/api/geocode?action=autocomplete"
     },
@@ -102,10 +98,6 @@
     {
       "source": "/api/inbound-facebook-lead",
       "destination": "/api/inbound-email?action=facebook-lead"
-    },
-    {
-      "source": "/api/campaign-quote",
-      "destination": "/api/inbound-email?action=campaign-quote"
     },
     {
       "source": "/api/cron/voicemail-poll",

@@ -6,7 +6,7 @@ import { useSyncExternalStore } from 'react'
  * board with 50 cards used to mean up to 50 independent 1s intervals each
  * triggering their own re-render. The interval is created lazily on the first
  * subscriber and torn down when the last one unmounts, so a page with no
- * timers (e.g. /visualise) runs none at all.
+ * timers runs none at all.
  */
 let now = Date.now()
 let intervalId: ReturnType<typeof setInterval> | null = null

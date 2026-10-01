@@ -467,7 +467,7 @@ export default function PlatformAdminPage() {
 
         <PlatformAdminSection id="brand-templates" title="Brand templates" icon={Palette}>
           <p className="text-xs text-gray-500">
-            Quote email, lead ack email, and SMS templates live on the brand and are used at runtime. Colors and
+            Lead ack email and SMS templates live on the brand and are used at runtime. Colors and
             upsells are copied to each franchisee on transfer.
           </p>
           {loading ? (
@@ -481,8 +481,6 @@ export default function PlatformAdminPage() {
                   brandName={b.name}
                   slug={b.slug}
                   vertical={b.vertical}
-                  primaryColor={b.primary_color}
-                  emailTemplates={b.email_templates}
                   smsTemplates={b.sms_templates}
                   onSaved={async (message) => {
                     setSuccess(message)
@@ -601,8 +599,8 @@ export default function PlatformAdminPage() {
                   className="mt-0.5"
                 />
                 <span>
-                  Apply <strong>solo tradie wedge preset</strong> to this brand (inbound, ack SMS, quotes,
-                  booking confirm/reminder, invoice, review, price list, import, tips). Recommended for new
+                  Apply <strong>solo tradie wedge preset</strong> to this brand (inbound, ack SMS,
+                  booking confirm/reminder, review, tips). Recommended for new
                   customers.
                 </span>
               </label>

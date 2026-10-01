@@ -3,12 +3,8 @@
 export const ANALYTICS_EVENTS = [
   'lead_captured',
   'ack_sent',
-  'quote_sent',
-  'quote_accepted',
   'booking_created',
   'job_completed',
-  'invoice_sent',
-  'invoice_paid',
   'review_sent',
   'offline_queue_flush_failed',
   'extraction_fallback_used',
@@ -25,12 +21,8 @@ export type AnalyticsEvent = (typeof ANALYTICS_EVENTS)[number]
 export interface AnalyticsEventProperties {
   lead_captured: { orgId: string; leadId: string; source: string }
   ack_sent: { orgId: string; leadId: string; channel: 'sms' | 'email' }
-  quote_sent: { orgId: string; leadId: string; quoteId: string; emailSent: boolean; smsSent: boolean }
-  quote_accepted: { orgId: string; leadId: string; quoteId: string }
   booking_created: { orgId: string; leadId: string; eventId: string }
   job_completed: { orgId: string; leadId: string; source: 'online' | 'offline_queue_sync' }
-  invoice_sent: { orgId: string; leadId: string; invoiceId: string }
-  invoice_paid: { orgId: string; leadId: string; invoiceId: string; paidVia: 'manual' | 'stripe' }
   review_sent: { orgId: string; leadId: string }
   offline_queue_flush_failed: { orgId: string; leadId: string; itemType: string }
   extraction_fallback_used: { orgId: string; leadId: string; channel: 'sms' | 'email' }
@@ -40,19 +32,15 @@ export interface AnalyticsEventProperties {
 /**
  * PostHog funnels group by distinct_id. Every lead-lifecycle event uses the leadId as
  * distinct_id (set server-side, since posthog-node takes it per-call) so the
- * lead_captured -> invoice_paid funnel connects across both client- and server-originated
+ * lead_captured -> job_completed funnel connects across both client- and server-originated
  * events for the same lead. `login` is the one user-lifecycle event and uses the profile id
  * instead (see src/lib/analytics.ts identifyStaff).
  */
 export const LEAD_LIFECYCLE_EVENTS = [
   'lead_captured',
   'ack_sent',
-  'quote_sent',
-  'quote_accepted',
   'booking_created',
   'job_completed',
-  'invoice_sent',
-  'invoice_paid',
   'review_sent',
   'offline_queue_flush_failed',
   'extraction_fallback_used',

@@ -1,39 +1,21 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { ChevronDown, ChevronRight, RotateCcw, Save } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import {
   EDITABLE_SMS_TEMPLATE_KEYS,
-  QUOTE_EMAIL_TEMPLATE_KEY_HTML,
-  QUOTE_EMAIL_TEMPLATE_KEY_SUBJECT,
   SMS_TEMPLATE_META,
-  buildQuoteEmailPreview,
   buildSmsTemplatePreview,
-  getDefaultEmailTemplates,
   getDefaultSmsTemplates,
   isSmsTemplatesCustom,
   resolveSmsTemplateDefault,
   type EditableSmsTemplateKey,
 } from '../lib/brandTemplates'
 
-const QUOTE_PLACEHOLDER_HINTS = [
-  '{{org.name}}',
-  '{{customerName}}',
-  '{{acceptanceUrl}}',
-  '{{totalAmount}}',
-  '{{serviceTypeLine}}',
-  '{{scopeHtml}}',
-  '{{termsBlock}}',
-  '{{senderBlock}}',
-  '{{primaryColor}}',
-]
-
 interface BrandTemplatesEditorProps {
   brandId: string
   brandName: string
   slug: string
   vertical: string
-  primaryColor: string
-  emailTemplates: Record<string, string>
   smsTemplates: Record<string, string>
   onSaved: (message: string) => void
   onError: (message: string) => void
@@ -54,59 +36,19 @@ export default function BrandTemplatesEditor({
   brandName,
   slug,
   vertical,
-  primaryColor,
-  emailTemplates,
   smsTemplates,
   onSaved,
   onError,
 }: BrandTemplatesEditorProps) {
-  const emailDefaults = getDefaultEmailTemplates()
   const [expanded, setExpanded] = useState(false)
-  const [subject, setSubject] = useState(
-    () => emailTemplates[QUOTE_EMAIL_TEMPLATE_KEY_SUBJECT] ?? emailDefaults[QUOTE_EMAIL_TEMPLATE_KEY_SUBJECT]
-  )
-  const [html, setHtml] = useState(
-    () => emailTemplates[QUOTE_EMAIL_TEMPLATE_KEY_HTML] ?? emailDefaults[QUOTE_EMAIL_TEMPLATE_KEY_HTML]
-  )
   const [smsDraft, setSmsDraft] = useState(() => initialSmsState(smsTemplates, brandName))
-  const [savingEmail, setSavingEmail] = useState(false)
   const [savingSms, setSavingSms] = useState(false)
-  const [showQuotePreview, setShowQuotePreview] = useState(false)
   const [previewSmsKey, setPreviewSmsKey] = useState<EditableSmsTemplateKey | null>(null)
 
-  const quotePreview = useMemo(
-    () => buildQuoteEmailPreview(subject, html, primaryColor),
-    [subject, html, primaryColor]
-  )
-
-
-  const isQuoteCustom =
-    subject !== emailDefaults[QUOTE_EMAIL_TEMPLATE_KEY_SUBJECT] ||
-    html !== emailDefaults[QUOTE_EMAIL_TEMPLATE_KEY_HTML]
-
-  const isSmsCustom = isSmsTemplatesCustom(
+  const isCustom = isSmsTemplatesCustom(
     Object.fromEntries(EDITABLE_SMS_TEMPLATE_KEYS.map((key) => [key, smsDraft[key]])),
     brandName
   )
-
-  const isCustom = isQuoteCustom || isSmsCustom
-
-  async function handleSaveEmail() {
-    if (!subject.trim() || !html.trim()) {
-      onError('All email template fields are required.')
-      return
-    }
-    setSavingEmail(true)
-    const merged = {
-      ...emailTemplates,
-      [QUOTE_EMAIL_TEMPLATE_KEY_SUBJECT]: subject.trim(),
-      [QUOTE_EMAIL_TEMPLATE_KEY_HTML]: html.trim(),
-    }
-    const { error } = await supabase.from('brands').update({ email_templates: merged }).eq('id', brandId)
-    setSavingEmail(false)
-    if (error) onError(error.message)
-    else onSaved(`Email templates saved for ${brandName}.`)
-  }
 
   async function handleSaveSms() {
     for (const key of EDITABLE_SMS_TEMPLATE_KEYS) {
@@ -126,11 +68,6 @@ export default function BrandTemplatesEditor({
     setSavingSms(false)
     if (error) onError(error.message)
     else onSaved(`SMS templates saved for ${brandName}.`)
-  }
-
-  function handleResetQuote() {
-    setSubject(emailDefaults[QUOTE_EMAIL_TEMPLATE_KEY_SUBJECT])
-    setHtml(emailDefaults[QUOTE_EMAIL_TEMPLATE_KEY_HTML])
   }
 
   function handleResetSms(key: EditableSmsTemplateKey) {
@@ -171,78 +108,8 @@ export default function BrandTemplatesEditor({
 
       {expanded && (
         <div className="mt-4 pl-6 space-y-8 border-l-2 border-gray-100">
-          {/* Quote email */}
-          <section className="space-y-4">
-            <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wide">Quote email</h4>
-            <p className="text-xs text-gray-500">
-              Sent when a manager creates a quote with a customer email.
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {QUOTE_PLACEHOLDER_HINTS.map((token) => (
-                <code key={token} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
-                  {token}
-                </code>
-              ))}
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Subject line</label>
-              <input
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">HTML body</label>
-              <textarea
-                value={html}
-                onChange={(e) => setHtml(e.target.value)}
-                rows={10}
-                spellCheck={false}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs font-mono leading-relaxed"
-              />
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowQuotePreview((v) => !v)}
-                className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50"
-              >
-                {showQuotePreview ? 'Hide preview' : 'Preview quote email'}
-              </button>
-              <button
-                type="button"
-                onClick={handleResetQuote}
-                className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 inline-flex items-center gap-1"
-              >
-                <RotateCcw size={12} /> Reset quote email
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveEmail}
-                disabled={savingEmail}
-                className="btn-primary text-xs px-3 py-1.5 rounded-lg font-semibold inline-flex items-center gap-1 disabled:opacity-50"
-              >
-                <Save size={12} /> {savingEmail ? 'Saving…' : 'Save email templates'}
-              </button>
-            </div>
-            {showQuotePreview && (
-              <div className="rounded-xl border border-gray-200 overflow-hidden bg-white">
-                <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 text-xs text-gray-600">
-                  <span className="font-semibold text-gray-700">Subject:</span> {quotePreview.subject}
-                </div>
-                <iframe
-                  title={`Quote email preview — ${brandName}`}
-                  srcDoc={quotePreview.html}
-                  sandbox=""
-                  className="w-full min-h-[240px] border-0 bg-white"
-                />
-              </div>
-            )}
-          </section>
-
           {/* SMS templates */}
-          <section className="space-y-4 border-t border-gray-100 pt-6">
+          <section className="space-y-4">
             <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wide">SMS templates</h4>
             <p className="text-xs text-gray-500">
               Per-brand customer and manager SMS copy. Use{' '}
