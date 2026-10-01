@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ExtractionStatus } from './extractLead.js'
 import { notifyManagersNewLead } from './notifyManagersNewLead.js'
-import { sendLeadAckSmsIfEnabled } from './leadAckSms.js'
+import { sendLeadAckSmsIfEnabled, type LeadAckSmsInput } from './leadAckSms.js'
 import {
   pickExtractedFields,
   updateLeadFromExtraction,
@@ -379,7 +379,7 @@ export async function processInboundLead(
             leadId,
             toPhone,
             customerName: followUp.resolveCustomerName(ctx),
-            source: followUp.source as 'sms' | 'email',
+            source: followUp.source as LeadAckSmsInput['source'],
           })
           await recorder.step('follow_up_sms', 'succeeded', {
             output: { type: followUp.type, channel: 'sms', sent },

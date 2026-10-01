@@ -7,6 +7,7 @@ import {
   processVoicemail,
   voicemailDedupKey,
   MAX_VOICEMAIL_BYTES,
+  NO_MESSAGE_DETAILS,
 } from '../api/_lib/processVoicemail'
 import {
   buildPcmWav,
@@ -28,6 +29,7 @@ vi.mock('../api/_lib/inboundLeadDedup.js', () => ({
 }))
 vi.mock('../api/_lib/extractLead.js', () => ({
   extractFromVoicemailTranscript: vi.fn(),
+  loadOrgExtractionContext: vi.fn(async () => ({ serviceTypes: [], aiContext: null })),
 }))
 vi.mock('../api/_lib/retryLeadExtraction.js', () => ({
   canEnrichLeadFromVoicemail: vi.fn(),
@@ -427,5 +429,157 @@ describe('processVoicemail', () => {
 
     expect(db.lead_voicemails).toHaveLength(0)
     expect(db.uploads).toHaveLength(0)
+  })
+
+  it('never texts back 3CX voicemail callers (owner decision 01-10-2026)', async () => {
+    const db = createDb()
+    await processVoicemail(voicemailInput(createSupabase(db), { source: 'imap_poll' }))
+    await processVoicemail(
+      voicemailInput(createSupabase(createDb()), { source: 'cloudmailin' })
+    )
+
+    for (const call of mockProcessInboundLead.mock.calls) {
+      expect(call[0].followUp).toBeUndefined()
+    }
+  })
+})
+
+describe('processVoicemail — forwarded calls (T1.20)', () => {
+  const callMetadata = {
+    phone: '0412 345 678',
+    calledNumber: '+61731234567',
+    receivedAt: '2026-10-01T01:02:03Z',
+    duration: '41',
+    extensionName: null,
+    fileRef: null,
+  }
+
+  function forwardedInput(
+    supabase: import('@supabase/supabase-js').SupabaseClient,
+    overrides: Partial<Parameters<typeof processVoicemail>[0]> = {}
+  ): Parameters<typeof processVoicemail>[0] {
+    return voicemailInput(supabase, {
+      source: 'call_forward',
+      bodyText: '',
+      subject: 'Voicemail',
+      messageId: null,
+      metadata: callMetadata,
+      dedupKey: 'crazytel:evt-1',
+      ...overrides,
+    })
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockFindRecentLead.mockResolvedValue(null)
+    mockExtract.mockResolvedValue({ fields: { name: 'Jane' }, status: 'succeeded' })
+    mockProcessInboundLead.mockResolvedValue({
+      leadId: 'lead-1',
+      savedLead: { id: 'lead-1', name: 'Jane' },
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ text: 'Need a TV mounted.' }) })
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('uses supplied metadata and dedup key instead of parsing a 3CX body', async () => {
+    const db = createDb()
+    const result = await processVoicemail(forwardedInput(createSupabase(db)))
+
+    expect(result).toMatchObject({ outcome: 'created', leadId: 'lead-1' })
+    expect(db.lead_voicemails[0]).toMatchObject({
+      rfc_message_id: 'crazytel:evt-1',
+      source: 'call_forward',
+      caller_phone: '+61412345678',
+      duration_text: '41',
+      transcription_status: 'succeeded',
+    })
+    expect(mockFindRecentLead).toHaveBeenCalledWith(expect.anything(), '+61412345678', ORG_ID)
+  })
+
+  it('texts the caller back, preferring their CLI', async () => {
+    await processVoicemail(forwardedInput(createSupabase(createDb())))
+
+    const followUp = mockProcessInboundLead.mock.calls[0][0].followUp
+    expect(followUp).toMatchObject({ type: 'ack', source: 'voicemail' })
+    const ctx = { leadId: 'lead-1', orgId: ORG_ID, extraction: null }
+    expect(followUp!.resolvePhone({ ...ctx, savedLead: { phone: '0499 999 999' } })).toBe(
+      '+61412345678'
+    )
+    expect(followUp!.resolveCustomerName({ ...ctx, savedLead: { name: 'Missed Call' } })).toBe(
+      'there'
+    )
+    expect(followUp!.resolveCustomerName({ ...ctx, savedLead: { name: 'Jane' } })).toBe('Jane')
+  })
+
+  it('a withheld caller only gets a text if they said a number in the message', async () => {
+    await processVoicemail(
+      forwardedInput(createSupabase(createDb()), {
+        metadata: { ...callMetadata, phone: 'Unknown' },
+      })
+    )
+
+    const followUp = mockProcessInboundLead.mock.calls[0][0].followUp!
+    const ctx = { leadId: 'lead-1', orgId: ORG_ID, extraction: null }
+    expect(followUp.resolvePhone({ ...ctx, savedLead: { phone: 'Unknown' } })).toBeNull()
+    expect(followUp.resolvePhone({ ...ctx, savedLead: { phone: '0499 999 999' } })).toBe(
+      '0499 999 999'
+    )
+    expect(mockFindRecentLead).not.toHaveBeenCalled()
+  })
+
+  it('a hang-up with no message is still a lead, with no Whisper call', async () => {
+    const db = createDb()
+    const result = await processVoicemail(
+      forwardedInput(createSupabase(db), { audio: null, noMessage: true })
+    )
+
+    expect(result).toMatchObject({ outcome: 'created', transcriptionFailed: false })
+    expect(fetch).not.toHaveBeenCalled()
+    expect(db.uploads).toHaveLength(0)
+    expect(db.lead_voicemails[0]).toMatchObject({
+      storage_path: null,
+      transcription_status: 'succeeded',
+    })
+
+    const input = mockProcessInboundLead.mock.calls[0][0]
+    const extraction = await input.extract!({ leadId: 'lead-1' } as never)
+    expect(extraction?.updateFields.details).toContain(NO_MESSAGE_DETAILS)
+    expect(extraction?.extractionStatus).toBe('succeeded')
+    expect(mockExtract).not.toHaveBeenCalled()
+  })
+
+  it('a provider retry of the same call creates nothing new', async () => {
+    const db = createDb()
+    const supabase = createSupabase(db)
+    await processVoicemail(forwardedInput(supabase))
+    const retry = await processVoicemail(forwardedInput(supabase))
+
+    expect(retry).toEqual({ outcome: 'already_processed', dedupKey: 'crazytel:evt-1' })
+    expect(mockProcessInboundLead).toHaveBeenCalledTimes(1)
+  })
+
+  it('a repeat missed call within 24h is logged on the existing lead, not texted again', async () => {
+    const db = createDb()
+    mockFindRecentLead.mockResolvedValue({
+      id: 'lead-existing',
+      name: 'Jane',
+      extraction_status: 'succeeded',
+    })
+    mockCanEnrich.mockReturnValue(false)
+
+    const result = await processVoicemail(
+      forwardedInput(createSupabase(db), { audio: null, noMessage: true })
+    )
+
+    expect(result).toEqual({ outcome: 'logged_to_existing', leadId: 'lead-existing' })
+    expect(mockProcessInboundLead).not.toHaveBeenCalled()
+    expect(db.lead_events[0]).toMatchObject({ event_type: 'missed_call_again' })
+    expect(String(db.lead_events[0].note)).toContain('no message')
   })
 })

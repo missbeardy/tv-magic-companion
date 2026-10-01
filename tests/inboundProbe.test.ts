@@ -32,11 +32,17 @@ function mockSupabase(options: { did?: string | null; echoNonce?: () => string |
     if (table === 'org_phone_numbers') {
       return {
         select: () => ({
-          order: () => ({
-            limit: () => ({
-              maybeSingle: async () => ({ data: did ? { phone_number: did } : null }),
-            }),
-          }),
+          // Voice answering lines (T1.20) must never become the SMS probe target.
+          eq: (column: string, value: string) => {
+            expect([column, value]).toEqual(['kind', 'sms'])
+            return {
+              order: () => ({
+                limit: () => ({
+                  maybeSingle: async () => ({ data: did ? { phone_number: did } : null }),
+                }),
+              }),
+            }
+          },
         }),
       }
     }
@@ -221,10 +227,12 @@ describe('runInboundProbe — Mobile Message path (T1.18)', () => {
       if (table === 'org_phone_numbers') {
         return {
           select: () => ({
-            order: () => ({
-              limit: () => ({
-                maybeSingle: async () => ({
-                  data: { phone_number: '+61400111222', org_id: 'org-fbd' },
+            eq: () => ({
+              order: () => ({
+                limit: () => ({
+                  maybeSingle: async () => ({
+                    data: { phone_number: '+61400111222', org_id: 'org-fbd' },
+                  }),
                 }),
               }),
             }),

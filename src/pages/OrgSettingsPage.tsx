@@ -6,6 +6,7 @@ import { buildBrandTransferPayload } from '../lib/brandTransfer';
 import NavBar from '../components/NavBar';
 import UpsellSettingsPanel from '../components/settings/UpsellSettingsPanel';
 import SettingsAccordion from '../components/settings/SettingsAccordion';
+import MissedCallCapturePanel from '../components/settings/MissedCallCapturePanel';
 
 export default function OrgSettingsPage() {
   const { brand, refreshOrg, isFeatureEnabled, featureSwitchesLoading } = useOrg();
@@ -353,6 +354,10 @@ export default function OrgSettingsPage() {
         </SettingsAccordion>
 
         {orgId && <UpsellSettingsPanel orgId={orgId} />}
+
+        {orgId && !featureSwitchesLoading && isFeatureEnabled('inbound_calls') && (
+          <MissedCallCapturePanel orgId={orgId} />
+        )}
 
         <button
           onClick={handleSave}
