@@ -56,6 +56,10 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const { handleCampaignQuote } = await import('./_lib/handleCampaignQuote.js')
     return handleCampaignQuote(req, res, supabase)
   }
+  if (action === 'game-lead') {
+    const { handleGameLead } = await import('./_lib/handleGameLead.js')
+    return handleGameLead(req, res, supabase)
+  }
   if (action === 'voicemail-poll') {
     // Lazily imported so the CloudMailin hot path never loads the IMAP client.
     const { handleVoicemailPoll } = await import('./_lib/handleVoicemailPoll.js')

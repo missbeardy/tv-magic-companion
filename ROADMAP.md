@@ -214,6 +214,13 @@
   - The synthetic inbound probe passes against the Mobile Message path.
   - No WhatsApp code or `TWILIO_WHATSAPP_*` reference remains.
 
+### [ ] T1.19 First Job game lead intake (added 28-09-2026, owner request — spec "TV Magic: First Job, Game Spec")
+
+- **Why:** A 2-minute shareable pixel-art game for TV Magic South Brisbane (Facebook, Messenger, website) that ends in a lead form with a 10% off code. Market contact, not platform scope.
+- **Spec:** The game is a **separate static project** (`../tv-magic-first-job`, vanilla TS + Canvas, own Vercel project) whose `/api/lead` function forwards server-to-server to a new `game-lead` action on the `inbound-email` hub (`/api/game-lead` rewrite; no new Vercel function). Shared-secret auth (`GAME_LEAD_SECRET`), per-player-IP rate limit, raw-first lead with `source: first-job-game`, phone dedup, early 200 once the row exists. Parser + job→service-type mapping in `shared/gameLead.ts`.
+- **Feature switch:** none (owner decision 28-09-2026). Unsetting `GAME_LEAD_SECRET` turns intake off.
+- **Done when:** a lead submitted from the deployed game appears in TV Magic's pipeline with `source: first-job-game`, its feedback answers and discount code in details; a retried submit does not create a second lead; a wrong secret is rejected.
+
 ---
 
 ## Tier 2 — Before marketing to strangers

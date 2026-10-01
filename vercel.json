@@ -108,6 +108,10 @@
       "destination": "/api/inbound-email?action=campaign-quote"
     },
     {
+      "source": "/api/game-lead",
+      "destination": "/api/inbound-email?action=game-lead"
+    },
+    {
       "source": "/api/cron/voicemail-poll",
       "destination": "/api/inbound-email?action=voicemail-poll"
     },
