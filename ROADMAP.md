@@ -214,6 +214,13 @@
   - The synthetic inbound probe passes against the Mobile Message path.
   - No WhatsApp code or `TWILIO_WHATSAPP_*` reference remains.
 
+### [ ] T1.20 Missed-call capture for any mobile — no 3CX, the tradie keeps their number (added 01-10-2026, owner request — plan `my-promotion-and-business-validated-planet`)
+
+- **Why:** Calls only become leads for businesses running 3CX (voicemail-to-email). A tradie with just a mobile has no way in, which is why the ad dropped "keep your number". The 3CX path also drops callers who hang up without a message, and voicemail leads get no text back (hookback deleted in `791c1be`).
+- **Spec:** The tradie dials three GSM conditional-divert codes once (`**61*<line>*11*20#` no answer, `**67*<line>#` busy/declined, `**62*<line>#` unreachable; `##002#` undoes). Unanswered calls go to a FieldBourne-owned answering line (one per org, mapped in `org_phone_numbers` with new `kind='voice'`) instead of MessageBank; AU diverts keep the caller's CLI. The provider's webhook lands on `inbound-sms?action=voice&provider=…` (hub, no new function) → provider adapter → provider-neutral `handleForwardedCall` (`api/_lib/forwardedCall.ts`) → `processVoicemail` with new `source: 'call_forward'`, explicit metadata/dedup key, and `noMessage` for hang-ups. Forwarded calls (only) get the `lead_ack_sms` text-back via `sendOrgSms` (Mobile Message). Franchise Settings shows the line, the codes and the last forwarded call. **Provider: test both** (owner 01-10-2026) — trial Crazytel (Australian; payload shape unpublished, so capture-first), fall back to Twilio Voice if Crazytel fails the go/no-go (caller CLI, called DID, downloadable audio, early-hang-up event, verifiable signature, <60s). Mobile Message is SMS-only and cannot take diverted calls.
+- **Feature switch:** none new — the existing `inbound_calls` gates it server-side (owner decision 01-10-2026, consistent with `dd19`).
+- **Done when:** on `fbd`, a declined call with a 40s message produces a lead with playable audio, transcript and extracted fields within ~1 min plus an ack SMS; a hang-up during the greeting produces a "Missed call — no message" lead plus ack; a repeat call within 24h logs `missed_call_again` with no second SMS; a withheld caller creates a lead with no SMS; a forged webhook writes nothing; TV Magic's 3CX voicemails behave exactly as before.
+
 ---
 
 ## Tier 2 — Before marketing to strangers

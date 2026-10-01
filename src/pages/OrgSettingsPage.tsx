@@ -9,6 +9,7 @@ import EmailTemplatesPanel from '../components/settings/EmailTemplatesPanel';
 import SettingsAccordion from '../components/settings/SettingsAccordion';
 import AccountingExportPanel from '../components/settings/AccountingExportPanel';
 import StripeConnectPanel from '../components/settings/StripeConnectPanel';
+import MissedCallCapturePanel from '../components/settings/MissedCallCapturePanel';
 import BillingPanel from '../components/BillingPanel';
 import { formatAbn, isValidAbnFormat } from '../../shared/gst';
 
@@ -407,6 +408,10 @@ export default function OrgSettingsPage() {
             logoUrl={imageUrl || org?.logo_url}
             showInvoiceExtras={!featureSwitchesLoading && isFeatureEnabled('one_tap_invoice')}
           />
+        )}
+
+        {orgId && !featureSwitchesLoading && isFeatureEnabled('inbound_calls') && (
+          <MissedCallCapturePanel orgId={orgId} />
         )}
 
         {orgId && !featureSwitchesLoading && isFeatureEnabled('accounting_export') && (

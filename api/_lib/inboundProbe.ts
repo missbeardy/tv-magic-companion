@@ -129,6 +129,8 @@ async function resolveProbeTarget(
     const { data } = await supabase
       .from('org_phone_numbers')
       .select('phone_number, org_id')
+      // Voice answering lines (T1.20) share this table but cannot receive SMS.
+      .eq('kind', 'sms')
       .order('phone_number', { ascending: true })
       .limit(1)
       .maybeSingle()
