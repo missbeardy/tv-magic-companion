@@ -10,7 +10,11 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { formatAuPhoneForSms } from './phone.js'
 import { findRecentLeadByPhone } from './inboundLeadDedup.js'
 import { processInboundLead } from './processInboundLead.js'
-import { extractFromVoicemailTranscript, type ExtractionStatus } from './extractLead.js'
+import {
+  extractFromVoicemailTranscript,
+  loadOrgExtractionContext,
+  type ExtractionStatus,
+} from './extractLead.js'
 import { insertRawFirstLead, type ExtractedLeadFields } from './rawFirstLead.js'
 import {
   canEnrichLeadFromVoicemail,
@@ -157,6 +161,9 @@ export async function transcribeAudio(buffer: Buffer, fileName: string): Promise
   return data.text || ''
 }
 
+export const NO_MESSAGE_DETAILS =
+  "Missed call — the caller didn't leave a message. Call them back."
+
 export interface VoicemailAudio {
   buffer: Buffer
   fileName: string
@@ -172,7 +179,19 @@ export interface VoicemailInput {
   /** RFC 5322 Message-ID; falls back to a synthetic key when absent. */
   messageId: string | null
   audio: VoicemailAudio | null
-  source: 'cloudmailin' | 'imap_poll'
+  source: 'cloudmailin' | 'imap_poll' | 'call_forward'
+  /**
+   * Call metadata supplied directly by a voice-provider webhook (T1.20). When set, the
+   * 3CX body parser is skipped — a forwarded call has no notification email to parse.
+   */
+  metadata?: VoicemailMetadata
+  /** Provider-stable dedup key (e.g. `twilio-call:<CallSid>`); overrides voicemailDedupKey. */
+  dedupKey?: string
+  /**
+   * The caller hung up without leaving a message. Still a lead — most callers never leave
+   * voicemail — but there is nothing to transcribe.
+   */
+  noMessage?: boolean
   /** Platform simulator hook — bypasses Whisper. */
   simulatedTranscript?: string
   /** Routing identifier recorded on the workflow run (plus-tag or DID). */
@@ -241,8 +260,10 @@ async function claimVoicemail(
 export async function processVoicemail(input: VoicemailInput): Promise<VoicemailResult> {
   const { supabase, orgId, bodyText, subject, from } = input
 
-  const metadata = extractVoicemailMetadata(subject, bodyText)
-  const dedupKey = voicemailDedupKey(input.messageId, metadata)
+  const metadata = input.metadata ?? extractVoicemailMetadata(subject, bodyText)
+  const dedupKey = input.dedupKey ?? voicemailDedupKey(input.messageId, metadata)
+  const noMessage = input.noMessage === true
+  const isCallForward = input.source === 'call_forward'
 
   const rawPhone = metadata.phone
   const normalizedPhone =
@@ -287,7 +308,9 @@ export async function processVoicemail(input: VoicemailInput): Promise<Voicemail
   let transcriptionFailed = false
   let transcript = ''
 
-  if (input.simulatedTranscript) {
+  if (noMessage) {
+    // Nothing was said, so nothing failed: skip Whisper and keep the "failed" badge off.
+  } else if (input.simulatedTranscript) {
     transcript = input.simulatedTranscript
   } else if (input.audio) {
     try {
@@ -341,7 +364,9 @@ export async function processVoicemail(input: VoicemailInput): Promise<Voicemail
         lead_id: existingLead.id,
         org_id: orgId,
         event_type: 'missed_call_again',
-        note: `Another voicemail from ${normalizedPhone}`,
+        note: noMessage
+          ? `Another missed call from ${normalizedPhone} (no message)`
+          : `Another voicemail from ${normalizedPhone}`,
         payload: { source: 'phone', transcription_failed: transcriptionFailed },
       })
       return { outcome: 'logged_to_existing', leadId: existingLead.id }
@@ -358,13 +383,19 @@ export async function processVoicemail(input: VoicemailInput): Promise<Voicemail
         phone: normalizedPhone || rawPhone,
         email: null,
         service_type: 'General Enquiry',
-        details: `Voicemail received — processing. ${callInfo}`,
+        details: noMessage
+          ? `${NO_MESSAGE_DETAILS} ${callInfo}`
+          : `Voicemail received — processing. ${callInfo}`,
         address: null,
         source: 'phone',
         raw_email: bodyText,
       }),
     createdEvent: {
-      note: 'Lead captured from inbound voicemail email (raw-first)',
+      note: isCallForward
+        ? noMessage
+          ? 'Lead captured from a forwarded missed call (no message)'
+          : 'Lead captured from a forwarded-call voicemail (raw-first)'
+        : 'Lead captured from inbound voicemail email (raw-first)',
       payload: { source: 'phone', voicemail_source: input.source },
     },
     extract: async () => {
@@ -372,12 +403,19 @@ export async function processVoicemail(input: VoicemailInput): Promise<Voicemail
       let extractionStatus: ExtractionStatus = 'failed'
 
       if (!transcriptionFailed && transcript.trim()) {
-        const runResult = await extractFromVoicemailTranscript(transcript, subject, from)
+        const runResult = await extractFromVoicemailTranscript(
+          transcript,
+          subject,
+          from,
+          await loadOrgExtractionContext(supabase, orgId)
+        )
         extracted = runResult.fields
         extractionStatus = runResult.status
       }
 
-      const fallbackDetails = transcriptionFailed
+      const fallbackDetails = noMessage
+        ? `${NO_MESSAGE_DETAILS} ${callInfo}`
+        : transcriptionFailed
         ? `Voicemail received — transcription failed, the recording is attached to this lead. ${callInfo}`
         : transcript.trim()
           ? `Voicemail transcript: ${transcript}\n\n${callInfo}`
@@ -396,7 +434,7 @@ export async function processVoicemail(input: VoicemailInput): Promise<Voicemail
           details,
           address: extracted.address,
         },
-        extractionStatus: transcriptionFailed ? 'failed' : extractionStatus,
+        extractionStatus: noMessage ? 'succeeded' : transcriptionFailed ? 'failed' : extractionStatus,
         afterUpdate: transcript
           ? async (leadId) => {
               await supabase.from('leads').update({ raw_email: transcript }).eq('id', leadId)
@@ -410,7 +448,23 @@ export async function processVoicemail(input: VoicemailInput): Promise<Voicemail
       service_type: savedLead?.service_type || 'General Enquiry',
       status: savedLead?.status || 'unassigned',
     }),
-    logLabel: 'voicemail email',
+    // Text-back only for forwarded calls (owner decision 01-10-2026): TV Magic's 3CX
+    // voicemails keep today's behaviour even though lead_ack_sms is on for that brand.
+    followUp: isCallForward
+      ? {
+          type: 'ack',
+          source: 'voicemail',
+          // The caller's CLI first; a withheld caller may still say a number in the message.
+          resolvePhone: ({ savedLead }) =>
+            normalizedPhone ||
+            (savedLead?.phone && savedLead.phone.replace(/\D/g, '').length >= 8 ? savedLead.phone : null),
+          resolveCustomerName: ({ savedLead }) => {
+            const name = savedLead?.name?.trim()
+            return name && name !== 'Missed Call' ? name : 'there'
+          },
+        }
+      : undefined,
+    logLabel: isCallForward ? 'forwarded call' : 'voicemail email',
     run: {
       workflowKey: 'inbound_lead',
       triggerChannel: 'voicemail',

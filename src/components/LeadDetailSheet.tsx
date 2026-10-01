@@ -40,11 +40,9 @@ interface Props {
   onSendManualSms: (lead: KanbanLead, text: string) => void
   onAssign: (lead: KanbanLead) => void
   onBook: (lead: KanbanLead) => void
-  onQuote: (lead: KanbanLead) => void
   onUnassign: (lead: KanbanLead) => void
   onComplete: (lead: KanbanLead) => void
   onSharePhoto: (lead: KanbanLead) => void
-  quoteEnabled: boolean
   smsEnabled: boolean
   twoWaySmsEnabled?: boolean
   smsSending?: boolean
@@ -88,11 +86,9 @@ export default function LeadDetailSheet({
   onSendManualSms,
   onAssign,
   onBook,
-  onQuote,
   onUnassign,
   onComplete,
   onSharePhoto,
-  quoteEnabled,
   smsEnabled,
   twoWaySmsEnabled = false,
   smsSending = false,
@@ -120,8 +116,6 @@ export default function LeadDetailSheet({
 
   const nextAction = resolveLeadNextAction({
     status: lead.status,
-    latestQuoteStatus: lead.latest_quote_status,
-    quoteEnabled,
     hideAssignPool,
     isManager: isManagerRole(profile?.role),
     isEmployee: profile?.role === 'employee',
@@ -136,12 +130,6 @@ export default function LeadDetailSheet({
         break
       case 'call':
         onCall(lead)
-        break
-      case 'quote':
-        onQuote(lead)
-        break
-      case 'book':
-        onBook(lead)
         break
       case 'complete':
         onComplete(lead)
@@ -347,13 +335,6 @@ export default function LeadDetailSheet({
                   icon={History}
                   label="Previous jobs"
                   onClick={() => setHistoryOpen(true)}
-                />
-              )}
-              {quoteEnabled && isManagerRole(profile?.role) && (
-                <ActionRow
-                  icon={FileText}
-                  label="Send quote + e-sign"
-                  onClick={() => onQuote(lead)}
                 />
               )}
               {smsEnabled && (

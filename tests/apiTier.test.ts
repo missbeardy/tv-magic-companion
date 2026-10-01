@@ -1,18 +1,5 @@
-import { describe, it, expect, afterEach } from 'vitest'
-import { tierFromStripePriceId } from '../api/_lib/tier'
+import { describe, it, expect } from 'vitest'
 import { buildBrandTransferPayload } from '../src/lib/brandTransfer'
-
-describe('api tier mapping', () => {
-  afterEach(() => {
-    delete process.env.STRIPE_PRICE_PRO
-  })
-
-  it('maps stripe price ids to tiers', () => {
-    process.env.STRIPE_PRICE_PRO = 'price_pro_test'
-    expect(tierFromStripePriceId('price_pro_test')).toBe('pro')
-    expect(tierFromStripePriceId('unknown')).toBeNull()
-  })
-})
 
 describe('brand transfer', () => {
   it('copies brand colors and upsells onto org payload', () => {

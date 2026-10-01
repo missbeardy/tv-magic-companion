@@ -35,7 +35,6 @@ describe('featureSwitchCatalog categories', () => {
       'inbound_calls',
       'inbound_messenger',
       'inbound_facebook_ads',
-      'campaign_quote',
       'customer_linking',
     ])
     expect(FEATURE_SWITCHES_BY_CATEGORY.customer_communication).toEqual([
@@ -45,7 +44,6 @@ describe('featureSwitchCatalog categories', () => {
       'booking_confirm',
       'booking_reminder_sms',
       'review_requests',
-      'auto_review_on_paid',
     ])
     expect(FEATURE_SWITCHES_BY_CATEGORY.team_operations).toEqual([
       'manager_new_lead_alerts',
@@ -59,11 +57,7 @@ describe('featureSwitchCatalog categories', () => {
       'weekly_leaderboard_nudge',
     ])
     expect(FEATURE_SWITCHES_BY_CATEGORY.sales_job_completion).toEqual([
-      'quote_esign',
       'completion_upsells',
-      'one_tap_invoice',
-      'invoice_card_payments',
-      'accounting_export',
     ])
   })
 })

@@ -9,7 +9,7 @@ export interface LeadAckSmsInput {
   leadId: string
   toPhone: string
   customerName?: string | null
-  source: 'sms' | 'email'
+  source: 'sms' | 'email' | 'voicemail'
 }
 
 /** Send instant lead acknowledgement SMS when the feature switch is on. */

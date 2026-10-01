@@ -25,9 +25,7 @@ export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   smart_assign_badge: false,
   inbound_auto_assign: false,
   assignment_exclusions: false,
-  quote_esign: false,
   review_requests: false,
-  auto_review_on_paid: false,
   customer_ontheway_sms: false,
   two_way_sms: false,
   booking_confirm: true,
@@ -38,13 +36,9 @@ export const FEATURE_SWITCH_DEFAULTS: Record<FeatureSwitchKey, boolean> = {
   inbound_calls: false,
   inbound_messenger: false,
   inbound_facebook_ads: false,
-  campaign_quote: false,
   native_web_push: false,
   lead_ack_sms: false,
   completion_upsells: false,
-  one_tap_invoice: false,
-  invoice_card_payments: false,
-  accounting_export: false,
   tech_location: false,
   customer_linking: false,
   customer_profiles: false,
@@ -69,18 +63,9 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
     description:
       'Skip technicians flagged as unable to do a job type when auto-assigning, and warn on manual assign',
   },
-  quote_esign: {
-    label: 'Quote Acceptance + E-Sign',
-    description: 'Send quotes and capture customer acceptance signatures',
-  },
   review_requests: {
     label: 'Google Review Request SMS',
     description: 'Post-job review link SMS to customers',
-  },
-  auto_review_on_paid: {
-    label: 'Auto Review Request on Paid',
-    description:
-      'When an invoice is marked paid (card or manual), automatically SMS the Google review link if review requests are enabled and one has not already been sent',
   },
   customer_ontheway_sms: {
     label: 'Customer On The Way SMS',
@@ -122,10 +107,6 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
     label: 'Facebook Lead Ads',
     description: 'Create leads from Facebook Lead Ads instant forms (via Make.com)',
   },
-  campaign_quote: {
-    label: 'Campaign Quote / Wall Visualiser',
-    description: 'Public /visualise/:orgSlug wall visualiser and quote form for this org',
-  },
   native_web_push: {
     label: 'Native Web Push',
     description: 'Deliver push notifications directly from the app via Web Push (VAPID) instead of relaying through OneSignal',
@@ -137,18 +118,6 @@ export const FEATURE_SWITCH_DEFINITIONS: Record<
   completion_upsells: {
     label: 'Completion Upsell Checklist',
     description: 'Upsell prompts in the job completion flow',
-  },
-  one_tap_invoice: {
-    label: 'One-Tap Invoice Email',
-    description: 'Send branded invoice emails at job completion with optional PDF attachment',
-  },
-  invoice_card_payments: {
-    label: 'Card / Pay Now on Invoice',
-    description: 'Adds a Pay Now button to invoice emails; customer pays by card via the org\'s connected Stripe account',
-  },
-  accounting_export: {
-    label: 'Accounting CSV Export',
-    description: 'Export invoices as a Xero-compatible sales invoice CSV (Tax Inclusive)',
   },
   tech_location: {
     label: 'Tech Location Tracking',

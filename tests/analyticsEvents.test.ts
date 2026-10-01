@@ -7,16 +7,12 @@ import {
 } from '../shared/analyticsEvents'
 
 describe('analyticsEvents', () => {
-  it('defines exactly the 12 named events from the dd1 spec', () => {
+  it('defines exactly the 8 named events (dd1 spec minus quote/invoice)', () => {
     expect(ANALYTICS_EVENTS).toEqual([
       'lead_captured',
       'ack_sent',
-      'quote_sent',
-      'quote_accepted',
       'booking_created',
       'job_completed',
-      'invoice_sent',
-      'invoice_paid',
       'review_sent',
       'offline_queue_flush_failed',
       'extraction_fallback_used',

@@ -62,6 +62,96 @@ const REQUIRED_WHEN_MOBILE_MESSAGE = {
     '/api/inbound-sms?provider=mm rejects every webhook (503), so no inbound SMS creates a lead',
 }
 
+const TYPES_FILE = 'src/types/database.types.ts'
+
+/**
+ * Dev-only schema that `database.types.ts` carries but prod deliberately lacks (AUD-28).
+ * Types are generated from dev, which drifted ahead of prod; none of these has a repo
+ * migration and, as of 28-09-2026, no code reads or writes them. Listed so the audit
+ * stays quiet about known drift while still failing on anything new. Referencing one of
+ * these from app code is a prod bug — see the v1.1.198 outage (`leads.updated_at`).
+ */
+const KNOWN_DEV_ONLY = new Set([
+  'leads.updated_at',
+  'events.updated_at',
+  'profiles.email',
+  'meta_messaging_sessions',
+])
+
+/**
+ * Table → columns from the `public` schema's Tables and Views `Row` blocks. The file also
+ * has a `graphql_public` schema first, so parsing is scoped to the `public: {` block.
+ */
+function typedPublicColumns() {
+  const src = readFileSync(TYPES_FILE, 'utf8').replace(/\r\n/g, '\n')
+  const start = src.indexOf('\n  public: {\n')
+  const end = src.indexOf('\n    Functions: {\n', start)
+  if (start < 0 || end < 0) throw new Error(`could not find the public schema in ${TYPES_FILE}`)
+
+  const tables = new Map()
+  let table = null
+  let inRow = false
+  for (const line of src.slice(start, end).split('\n')) {
+    const tableMatch = line.match(/^ {6}([a-z0-9_]+): \{$/)
+    if (tableMatch) {
+      table = tableMatch[1]
+      tables.set(table, new Set())
+      inRow = false
+      continue
+    }
+    if (line === '        Row: {') {
+      inRow = true
+      continue
+    }
+    if (inRow && line === '        }') {
+      inRow = false
+      continue
+    }
+    const colMatch = inRow && line.match(/^ {10}([a-z0-9_]+)\??: /)
+    if (colMatch && table) tables.get(table).add(colMatch[1])
+  }
+  return tables
+}
+
+async function auditSchemaDrift(token) {
+  const typed = typedPublicColumns()
+  const res = await fetch(`https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      query:
+        "select table_name, column_name from information_schema.columns where table_schema = 'public'",
+    }),
+  })
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText} reading information_schema`)
+
+  const prod = new Map()
+  for (const { table_name, column_name } of await res.json()) {
+    if (!prod.has(table_name)) prod.set(table_name, new Set())
+    prod.get(table_name).add(column_name)
+  }
+
+  let known = 0
+  for (const [table, columns] of typed) {
+    if (!prod.has(table)) {
+      if (KNOWN_DEV_ONLY.has(table)) known++
+      else fail('schema-drift', `table "${table}" is in ${TYPES_FILE} but not on prod`, null)
+      continue
+    }
+    const missing = [...columns].filter((c) => !prod.get(table).has(c))
+    for (const column of missing) {
+      if (KNOWN_DEV_ONLY.has(`${table}.${column}`)) known++
+      else
+        fail(
+          'schema-drift',
+          `${table}.${column} is in ${TYPES_FILE} but not on prod`,
+          'Typecheck passes against dev-generated types; any query using it fails in production.'
+        )
+    }
+  }
+  if (known) note('schema-drift', `${known} known dev-only item(s) ignored (KNOWN_DEV_ONLY)`)
+}
+
 /** Org slugs on Mobile Message, filled by auditSupabase; null when the query could not run. */
 let mobileMessageOrgs = null
 
@@ -238,6 +328,7 @@ async function main() {
   }
 
   await auditSupabase(supabaseToken)
+  await auditSchemaDrift(supabaseToken)
 
   const vercelToken = process.env.VERCEL_TOKEN
   if (vercelToken) {

@@ -221,7 +221,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       missing: missingServerEnv().join(','),
       action: action ?? (isMobileMessage ? 'mobilemessage' : 'sms'),
     })
-    if (action === 'meta-webhook' || isMobileMessage) {
+    if (action === 'meta-webhook' || action === 'voice' || isMobileMessage) {
       // Mobile Message retries non-2xx for ~4h, so a 503 here is recoverable.
       return res.status(503).json({ error: 'Server not configured' })
     }
@@ -232,6 +232,12 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   if (action === 'meta-webhook') {
     const { handleMetaWebhook } = await import('./_lib/metaWebhook.js')
     return handleMetaWebhook(req, res, supabase, rawBody)
+  }
+
+  // T1.20: forwarded missed calls from a voice provider (Crazytel / Twilio).
+  if (action === 'voice') {
+    const { handleVoiceWebhook } = await import('./_lib/voiceWebhook.js')
+    return handleVoiceWebhook(req, res, supabase, rawBody)
   }
 
   if (isMobileMessage) {
@@ -307,8 +313,6 @@ async function handler(req: VercelRequest, res: VercelResponse) {
  * and then silently dropped every lead for a day, because the handler's next line
  * after respondOk() was a Supabase round-trip that never resumed. The logs showed
  * `SMS from … to …` (synchronous, same tick) and nothing after it.
- *
- * Same pattern as deliverQuoteWithinBudget in _lib/quotes.ts.
  */
 async function finishInboundSms(input: {
   supabase: SupabaseClient

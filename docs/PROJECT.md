@@ -6,7 +6,7 @@
 | **Status** | MVP in production with one paying client (TV Magic South Brisbane); polish phase before marketing |
 | **Version** | v1.1.197 (16-09-2026) — org-scoped switches, client identity out of shared code; T1.10 deferred |
 | **Repo** | `tv-magic-companion` (rename pending — roadmap T2.3) |
-| **Related docs** | [ROADMAP.md](../ROADMAP.md) (governing) · [T1_TESTING.md](../T1_TESTING.md) · [MUST_HAVE_8_ROADMAP.md](MUST_HAVE_8_ROADMAP.md) · [SALES_PIPELINE_WORKFLOW.md](SALES_PIPELINE_WORKFLOW.md) · [SALES_PIPELINE_BACKLOG.md](../SALES_PIPELINE_BACKLOG.md) · [MARKETING.md](MARKETING.md) · [BUSINESS.md](BUSINESS.md) · [ONBOARDING_RUNBOOK.md](ONBOARDING_RUNBOOK.md) · Branding: owner's separate guide |
+| **Related docs** | [ROADMAP.md](../ROADMAP.md) (governing) · [T1_TESTING.md](archive/T1_TESTING.md) (archived) · [MUST_HAVE_8_ROADMAP.md](MUST_HAVE_8_ROADMAP.md) · [SALES_PIPELINE_WORKFLOW.md](SALES_PIPELINE_WORKFLOW.md) · [SALES_PIPELINE_BACKLOG.md](../SALES_PIPELINE_BACKLOG.md) · [MARKETING.md](MARKETING.md) · [BUSINESS.md](BUSINESS.md) · [ONBOARDING_RUNBOOK.md](ONBOARDING_RUNBOOK.md) · Branding: owner's separate guide |
 
 ## Stack
 

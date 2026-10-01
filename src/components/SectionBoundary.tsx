@@ -2,8 +2,8 @@ import * as Sentry from '@sentry/react'
 import type { ReactNode } from 'react'
 
 /**
- * Crash barrier for a section nested inside a route (Calendar, LeadDetailSheet,
- * the /visualise canvas) — catches errors before they bubble up to the route's
+ * Crash barrier for a section nested inside a route (Calendar, LeadDetailSheet)
+ * — catches errors before they bubble up to the route's
  * own RouteBoundary, so the rest of the page (including its NavBar) stays
  * usable when just this section fails.
  */
